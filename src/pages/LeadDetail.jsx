@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
+import { useUsers } from '../hooks/useUsers'
 
 const stageColours = {
   New: { bg: '#e6f0fb', color: '#1a5fa8' },
@@ -23,7 +24,6 @@ const STAGES = [
   'Appointment arranged', 'Pending', 'Won', 'Rejected', 'Lost',
   'Historical remedial', 'Contact failed', 'Appointment cancelled', 'Quoted',
 ]
-const SURVEYORS = ['Tom B', 'Dave K', 'Sarah W', 'John Smith']
 const CONTACT_TAGS = ['Homeowner', 'Landlord', 'Tenant', 'Builder', 'Architect', 'Developer', 'Agent', 'Other']
 const LEAD_TAGS = ['Awaiting deposit', 'Awaiting planning', 'Stained glass required', 'PSA', 'Pre Order', 'Second Survey Required']
 const LEAD_TAG_COLOURS = {
@@ -69,6 +69,7 @@ export default function LeadDetail() {
   const { id: leadId } = useParams()
   const navigate = useNavigate()
   const { user, signOut } = useAuth()
+  const { users } = useUsers()
   const [lead, setLead] = useState(null)
   const [contacts, setContacts] = useState([])
   const [loading, setLoading] = useState(true)
@@ -132,7 +133,7 @@ export default function LeadDetail() {
 
   async function updateLead(updates) {
     setSaving(true)
-    await supabase.from('leads').update(updates).eq('id', leadId)
+    await supabase.from('leads').update({ ...updates, last_updated_at: new Date().toISOString() }).eq('id', leadId)
     await fetchLead()
     setSaving(false)
   }
@@ -306,8 +307,8 @@ export default function LeadDetail() {
           <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>Window management</div>
         </div>
         <div style={{ padding: '14px 14px 4px', fontSize: 10, color: '#aaa', letterSpacing: '.07em', textTransform: 'uppercase' }}>Workflow</div>
-        {[['Lead capture', '/leads'], ['Quotes & orders', null], ['Production', null], ['Scheduling', '/calendar'], ['Invoicing', null]].map(([item, path]) => (
-          <div key={item} onClick={path ? () => navigate(path) : undefined} style={{ padding: '8px 11px', fontSize: 13, color: item === 'Lead capture' ? '#3d35a8' : path ? '#555' : '#aaa', fontWeight: item === 'Lead capture' ? 500 : 400, background: item === 'Lead capture' ? '#f0eefc' : 'transparent', borderRadius: 8, margin: '1px 7px', cursor: path ? 'pointer' : 'not-allowed', opacity: path ? 1 : 0.5 }}>
+        {[['Leads', '/leads'], ['Quotes & orders', null], ['Production', null], ['Scheduling', '/calendar'], ['Invoicing', null]].map(([item, path]) => (
+          <div key={item} onClick={path ? () => navigate(path) : undefined} style={{ padding: '8px 11px', fontSize: 13, color: item === 'Leads' ? '#3d35a8' : path ? '#555' : '#aaa', fontWeight: item === 'Leads' ? 500 : 400, background: item === 'Leads' ? '#f0eefc' : 'transparent', borderRadius: 8, margin: '1px 7px', cursor: path ? 'pointer' : 'not-allowed', opacity: path ? 1 : 0.5 }}>
             {item}
           </div>
         ))}
@@ -354,6 +355,44 @@ export default function LeadDetail() {
           {activeTab === 'general' && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, maxWidth: 900 }}>
 
+              {/* Contacts (read-only) */}
+              {contacts.length > 0 && (
+                <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, padding: '16px 18px', gridColumn: '1/-1' }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Contacts</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {contacts.map(lc => {
+                      const tagList = lc.contacts?.tags ? lc.contacts.tags.split(',').map(t => t.trim()).filter(Boolean) : []
+                      return (
+                        <div key={lc.id} style={{ border: `1px solid ${lc.is_main_contact ? '#b0a8f0' : '#e8e6e0'}`, borderRadius: 10, padding: '12px 14px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                            <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#e6f0fb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, color: '#1a5fa8', flexShrink: 0 }}>
+                              {(lc.contacts?.first_name?.[0] || '') + (lc.contacts?.last_name?.[0] || '')}
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: 600 }}>
+                                {[lc.contacts?.title, lc.contacts?.first_name, lc.contacts?.last_name].filter(Boolean).join(' ')}
+                              </div>
+                              {lc.is_main_contact && <span style={{ fontSize: 10, padding: '1px 7px', borderRadius: 999, background: '#f0eefc', color: '#3d35a8', fontWeight: 500 }}>Main contact</span>}
+                            </div>
+                          </div>
+                          <div style={{ fontSize: 12, color: '#555', display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: tagList.length ? 8 : 0 }}>
+                            {lc.contacts?.phone && <span>📞 {lc.contacts.phone}</span>}
+                            {lc.contacts?.email && <span>✉ {lc.contacts.email}</span>}
+                          </div>
+                          {tagList.length > 0 && (
+                            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                              {tagList.map(tag => (
+                                <span key={tag} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 999, background: '#f0eefc', color: '#3d35a8', fontWeight: 500 }}>{tag}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Status + Assigned to */}
               <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, padding: '16px 18px', gridColumn: '1/-1' }}>
                 <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Status</div>
@@ -370,7 +409,7 @@ export default function LeadDetail() {
                     style={{ fontSize: 13, padding: '6px 10px', border: '1px solid #d8d5cf', borderRadius: 8, outline: 'none', background: '#fff', cursor: 'pointer', minWidth: 160 }}
                   >
                     <option value="">— Unassigned —</option>
-                    {SURVEYORS.map(s => <option key={s}>{s}</option>)}
+                    {users.map(u => <option key={u.id} value={u.full_name}>{u.full_name}</option>)}
                   </select>
                 </div>
               </div>
@@ -453,44 +492,6 @@ export default function LeadDetail() {
                   />
                 </div>
               </div>
-
-              {/* Contacts (read-only) */}
-              {contacts.length > 0 && (
-                <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, padding: '16px 18px', gridColumn: '1/-1' }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Contacts</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {contacts.map(lc => {
-                      const tagList = lc.contacts?.tags ? lc.contacts.tags.split(',').map(t => t.trim()).filter(Boolean) : []
-                      return (
-                        <div key={lc.id} style={{ border: `1px solid ${lc.is_main_contact ? '#b0a8f0' : '#e8e6e0'}`, borderRadius: 10, padding: '12px 14px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-                            <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#e6f0fb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, color: '#1a5fa8', flexShrink: 0 }}>
-                              {(lc.contacts?.first_name?.[0] || '') + (lc.contacts?.last_name?.[0] || '')}
-                            </div>
-                            <div>
-                              <div style={{ fontSize: 13, fontWeight: 600 }}>
-                                {[lc.contacts?.title, lc.contacts?.first_name, lc.contacts?.last_name].filter(Boolean).join(' ')}
-                              </div>
-                              {lc.is_main_contact && <span style={{ fontSize: 10, padding: '1px 7px', borderRadius: 999, background: '#f0eefc', color: '#3d35a8', fontWeight: 500 }}>Main contact</span>}
-                            </div>
-                          </div>
-                          <div style={{ fontSize: 12, color: '#555', display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: tagList.length ? 8 : 0 }}>
-                            {lc.contacts?.phone && <span>📞 {lc.contacts.phone}</span>}
-                            {lc.contacts?.email && <span>✉ {lc.contacts.email}</span>}
-                          </div>
-                          {tagList.length > 0 && (
-                            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                              {tagList.map(tag => (
-                                <span key={tag} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 999, background: '#f0eefc', color: '#3d35a8', fontWeight: 500 }}>{tag}</span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
 
             </div>
           )}
@@ -735,7 +736,7 @@ export default function LeadDetail() {
                           <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Assigned to</label>
                           <select value={newTask.assigned_to} onChange={e => setNewTask(p => ({ ...p, assigned_to: e.target.value }))} style={{ ...iS, background: '#fff' }}>
                             <option value="">— Unassigned —</option>
-                            {SURVEYORS.map(s => <option key={s}>{s}</option>)}
+                            {users.map(u => <option key={u.id} value={u.full_name}>{u.full_name}</option>)}
                           </select>
                         </div>
                       </div>
@@ -863,7 +864,7 @@ export default function LeadDetail() {
                     <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Surveyor</label>
                     <select defaultValue={lead.surveyor || ''} onBlur={e => updateLead({ surveyor: e.target.value })} style={{ fontSize: 13, padding: '8px 11px', border: '1px solid #d8d5cf', borderRadius: 8, outline: 'none', background: '#fff' }}>
                       <option value="">Select surveyor</option>
-                      {SURVEYORS.map(s => <option key={s}>{s}</option>)}
+                      {users.map(u => <option key={u.id} value={u.full_name}>{u.full_name}</option>)}
                     </select>
                   </div>
                 </div>

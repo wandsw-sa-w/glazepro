@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
+import { useUsers } from '../hooks/useUsers'
 
 const STAGES = [
   'New', 'In contact with customer', 'Budget quote provided',
@@ -38,7 +39,16 @@ const PRIORITY_DOT = { High: '#e24b4a', Medium: '#ef9f27', Low: '#639922' }
 
 const WINDOW_TYPES = ['Sash windows', 'Casement windows', 'Timber doors', 'Fixed lights']
 const SECTORS = ['Residential', 'Commercial', 'Heritage', 'Landlord', 'Developer']
-const SURVEYORS = ['Tom B', 'Dave K', 'Sarah W', 'John Smith']
+const LEAD_TAGS = ['Awaiting deposit', 'Awaiting planning', 'Stained glass required', 'PSA', 'Pre Order', 'Second Survey Required']
+
+const SORT_OPTIONS = [
+  { label: 'Created date (newest first)', value: 'created_desc' },
+  { label: 'Created date (oldest first)', value: 'created_asc' },
+  { label: 'Last updated (newest first)', value: 'updated_desc' },
+  { label: 'Last updated (oldest first)', value: 'updated_asc' },
+]
+
+const DEFAULT_FILTERS = { status: '', tags: [], dateFrom: '', dateTo: '', sort: 'created_desc' }
 const TIME_SLOTS = [
   '08:00','08:30','09:00','09:30','10:00','10:30','11:00','11:30',
   '12:00','13:00','13:30','14:00','14:30','15:00','15:30','16:00',
@@ -174,6 +184,7 @@ const EMPTY_FORM = {
 export default function Leads() {
   const navigate = useNavigate()
   const { user, signOut } = useAuth()
+  const { users } = useUsers()
   const [leads, setLeads] = useState([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('board')
@@ -181,6 +192,8 @@ export default function Leads() {
   const [saving, setSaving] = useState(false)
   const [pcLoading, setPcLoading] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
+  const [filters, setFilters] = useState(DEFAULT_FILTERS)
+  const [showTagsDropdown, setShowTagsDropdown] = useState(false)
 
   const set = (key, val) => setForm(p => ({ ...p, [key]: val }))
 
@@ -291,6 +304,30 @@ export default function Leads() {
     return main?.contacts
   }
 
+  const filteredLeads = (() => {
+    let result = [...leads]
+    if (filters.status) result = result.filter(l => l.stage === filters.status)
+    if (filters.tags.length > 0) {
+      result = result.filter(l => {
+        const lt = l.lead_tags ? l.lead_tags.split(',').map(t => t.trim()).filter(Boolean) : []
+        return filters.tags.some(tag => lt.includes(tag))
+      })
+    }
+    if (filters.dateFrom) result = result.filter(l => l.created_at >= filters.dateFrom)
+    if (filters.dateTo)   result = result.filter(l => l.created_at <= filters.dateTo + 'T23:59:59')
+    switch (filters.sort) {
+      case 'created_asc':  result.sort((a, b) => a.created_at.localeCompare(b.created_at)); break
+      case 'created_desc': result.sort((a, b) => b.created_at.localeCompare(a.created_at)); break
+      case 'updated_desc': result.sort((a, b) => (b.last_updated_at || b.created_at).localeCompare(a.last_updated_at || a.created_at)); break
+      case 'updated_asc':  result.sort((a, b) => (a.last_updated_at || a.created_at).localeCompare(b.last_updated_at || b.created_at)); break
+      default: break
+    }
+    return result
+  })()
+
+  const setFilter = (key, val) => setFilters(p => ({ ...p, [key]: val }))
+  const activeFilterCount = (filters.status ? 1 : 0) + filters.tags.length + (filters.dateFrom || filters.dateTo ? 1 : 0) + (filters.sort !== 'created_desc' ? 1 : 0)
+
   return (
     <div style={{ display: 'flex', height: '100vh', fontFamily: 'inherit' }}>
 
@@ -303,8 +340,8 @@ export default function Leads() {
         <div style={{ padding: '14px 14px 4px', fontSize: 10, color: '#aaa', letterSpacing: '.07em', textTransform: 'uppercase' }}>
           Workflow
         </div>
-        {[['Lead capture', '/leads'], ['Quotes & orders', null], ['Production', null], ['Scheduling', '/calendar'], ['Invoicing', null]].map(([item, path]) => {
-          const active = item === 'Lead capture'
+        {[['Leads', '/leads'], ['Quotes & orders', null], ['Production', null], ['Scheduling', '/calendar'], ['Invoicing', null]].map(([item, path]) => {
+          const active = item === 'Leads'
           return (
             <div
               key={item}
@@ -340,7 +377,7 @@ export default function Leads() {
 
         {/* Header */}
         <div style={{ height: 52, background: '#fff', borderBottom: '1px solid #e8e6e0', display: 'flex', alignItems: 'center', padding: '0 20px', gap: 10, flexShrink: 0 }}>
-          <div style={{ fontSize: 15, fontWeight: 600, flex: 1 }}>Lead capture</div>
+          <div style={{ fontSize: 15, fontWeight: 600, flex: 1 }}>Leads</div>
           <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 999, fontWeight: 500, background: '#e6f0fb', color: '#1a5fa8' }}>
             {leads.filter(l => l.stage === 'New').length} new
           </span>
@@ -428,51 +465,155 @@ export default function Leads() {
             </div>
           ) : (
             /* List view */
-            <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, overflow: 'hidden' }}>
-              <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ background: '#faf9f7' }}>
-                    {['Lead no.', 'Contact', 'Property', 'Window types', 'Source', 'Priority', 'Status', ''].map(h => (
-                      <th key={h} style={{ textAlign: 'left', padding: '9px 12px', fontSize: 11, color: '#888', borderBottom: '1px solid #eeece8', fontWeight: 500 }}>
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {leads.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} style={{ padding: '40px 12px', textAlign: 'center', color: '#aaa' }}>
-                        No leads yet — add your first one
-                      </td>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+              {/* Filter toolbar */}
+              <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
+
+                {/* Status */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <label style={{ fontSize: 11, fontWeight: 500, color: '#888' }}>Status</label>
+                  <select
+                    value={filters.status}
+                    onChange={e => setFilter('status', e.target.value)}
+                    style={{ fontSize: 12, padding: '6px 10px', border: '1px solid #d8d5cf', borderRadius: 8, outline: 'none', background: '#fff', cursor: 'pointer', minWidth: 170 }}
+                  >
+                    <option value="">All statuses</option>
+                    {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+
+                {/* Tags multi-select */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, position: 'relative' }}>
+                  <label style={{ fontSize: 11, fontWeight: 500, color: '#888' }}>Tags</label>
+                  <button
+                    onClick={() => setShowTagsDropdown(v => !v)}
+                    onBlur={() => setTimeout(() => setShowTagsDropdown(false), 150)}
+                    style={{ fontSize: 12, padding: '6px 10px', border: '1px solid #d8d5cf', borderRadius: 8, outline: 'none', background: '#fff', cursor: 'pointer', minWidth: 160, textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}
+                  >
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {filters.tags.length === 0 ? 'All tags' : filters.tags.length === 1 ? filters.tags[0] : `${filters.tags.length} tags`}
+                    </span>
+                    <span style={{ flexShrink: 0, fontSize: 10 }}>▾</span>
+                  </button>
+                  {showTagsDropdown && (
+                    <div style={{ position: 'absolute', top: 'calc(100% + 3px)', left: 0, background: '#fff', border: '1px solid #e8e6e0', borderRadius: 10, zIndex: 50, minWidth: 220, boxShadow: '0 4px 16px rgba(0,0,0,.1)', padding: '6px 0' }}>
+                      {LEAD_TAGS.map(tag => {
+                        const checked = filters.tags.includes(tag)
+                        return (
+                          <label
+                            key={tag}
+                            onMouseDown={e => e.preventDefault()}
+                            onClick={() => setFilter('tags', checked ? filters.tags.filter(t => t !== tag) : [...filters.tags, tag])}
+                            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px', cursor: 'pointer', fontSize: 12 }}
+                          >
+                            <input type="checkbox" checked={checked} onChange={() => {}} style={{ accentColor: '#3d35a8', cursor: 'pointer' }} />
+                            {tag}
+                          </label>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Date range */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <label style={{ fontSize: 11, fontWeight: 500, color: '#888' }}>Created from</label>
+                  <input
+                    type="date"
+                    value={filters.dateFrom}
+                    onChange={e => setFilter('dateFrom', e.target.value)}
+                    style={{ fontSize: 12, padding: '6px 10px', border: '1px solid #d8d5cf', borderRadius: 8, outline: 'none', background: '#fff' }}
+                  />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <label style={{ fontSize: 11, fontWeight: 500, color: '#888' }}>To</label>
+                  <input
+                    type="date"
+                    value={filters.dateTo}
+                    onChange={e => setFilter('dateTo', e.target.value)}
+                    style={{ fontSize: 12, padding: '6px 10px', border: '1px solid #d8d5cf', borderRadius: 8, outline: 'none', background: '#fff' }}
+                  />
+                </div>
+
+                {/* Sort */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <label style={{ fontSize: 11, fontWeight: 500, color: '#888' }}>Sort</label>
+                  <select
+                    value={filters.sort}
+                    onChange={e => setFilter('sort', e.target.value)}
+                    style={{ fontSize: 12, padding: '6px 10px', border: '1px solid #d8d5cf', borderRadius: 8, outline: 'none', background: '#fff', cursor: 'pointer', minWidth: 220 }}
+                  >
+                    {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+
+                {/* Clear */}
+                {activeFilterCount > 0 && (
+                  <button
+                    onClick={() => setFilters(DEFAULT_FILTERS)}
+                    style={{ fontSize: 12, padding: '6px 13px', border: '1px solid #d8d5cf', borderRadius: 8, background: '#fff', cursor: 'pointer', fontWeight: 500, color: '#555', alignSelf: 'flex-end' }}
+                  >
+                    Clear filters
+                  </button>
+                )}
+
+                <div style={{ marginLeft: 'auto', alignSelf: 'flex-end', fontSize: 12, color: '#aaa', whiteSpace: 'nowrap' }}>
+                  {filteredLeads.length} lead{filteredLeads.length !== 1 ? 's' : ''}
+                </div>
+              </div>
+
+              {/* Table */}
+              <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, overflow: 'hidden' }}>
+                <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: '#faf9f7' }}>
+                      {['Lead no.', 'Contact', 'Property', 'Window types', 'Source', 'Priority', 'Status', 'Created', ''].map(h => (
+                        <th key={h} style={{ textAlign: 'left', padding: '9px 12px', fontSize: 11, color: '#888', borderBottom: '1px solid #eeece8', fontWeight: 500 }}>
+                          {h}
+                        </th>
+                      ))}
                     </tr>
-                  ) : leads.map(lead => {
-                    const contact = getMainContact(lead)
-                    return (
-                    <tr key={lead.id} onClick={() => navigate(`/leads/${lead.id}`)} style={{ cursor: 'pointer' }}>
-                      <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0', fontWeight: 600, color: '#3d35a8' }}>{lead.lead_number}</td>
-                      <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0', fontWeight: 500 }}>
-                        {contact ? [contact.title, contact.first_name, contact.last_name].filter(Boolean).join(' ') : '—'}
-                      </td>
-                      <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0', color: '#555' }}>
-                        {[lead.property_road, lead.property_town].filter(Boolean).join(', ') || '—'}
-                      </td>
-                      <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0', color: '#555' }}>{lead.window_types || '—'}</td>
-                      <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0' }}><Pill text={lead.source} map={SOURCE_COLOURS} /></td>
-                      <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0', color: PRIORITY_DOT[lead.priority], fontWeight: 500 }}>{lead.priority}</td>
-                      <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0' }}><Pill text={lead.stage} map={STAGE_COLOURS} /></td>
-                      <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0' }}>
-                        <button
-                          onClick={e => { e.stopPropagation(); navigate(`/leads/${lead.id}`) }}
-                          style={{ fontSize: 11, padding: '4px 10px', border: '1px solid #d8d5cf', borderRadius: 6, background: '#fff', cursor: 'pointer' }}
-                        >
-                          Open
-                        </button>
-                      </td>
-                    </tr>
-                  )})}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {filteredLeads.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} style={{ padding: '40px 12px', textAlign: 'center', color: '#aaa' }}>
+                          {leads.length === 0 ? 'No leads yet — add your first one' : 'No leads match the current filters'}
+                        </td>
+                      </tr>
+                    ) : filteredLeads.map(lead => {
+                      const contact = getMainContact(lead)
+                      return (
+                        <tr key={lead.id} onClick={() => navigate(`/leads/${lead.id}`)} style={{ cursor: 'pointer' }}>
+                          <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0', fontWeight: 600, color: '#3d35a8' }}>{lead.lead_number}</td>
+                          <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0', fontWeight: 500 }}>
+                            {contact ? [contact.title, contact.first_name, contact.last_name].filter(Boolean).join(' ') : '—'}
+                          </td>
+                          <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0', color: '#555' }}>
+                            {[lead.property_road, lead.property_town].filter(Boolean).join(', ') || '—'}
+                          </td>
+                          <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0', color: '#555' }}>{lead.window_types || '—'}</td>
+                          <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0' }}><Pill text={lead.source} map={SOURCE_COLOURS} /></td>
+                          <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0', color: PRIORITY_DOT[lead.priority], fontWeight: 500 }}>{lead.priority}</td>
+                          <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0' }}><Pill text={lead.stage} map={STAGE_COLOURS} /></td>
+                          <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0', color: '#888', whiteSpace: 'nowrap' }}>
+                            {new Date(lead.created_at).toLocaleDateString('en-GB')}
+                          </td>
+                          <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0' }}>
+                            <button
+                              onClick={e => { e.stopPropagation(); navigate(`/leads/${lead.id}`) }}
+                              style={{ fontSize: 11, padding: '4px 10px', border: '1px solid #d8d5cf', borderRadius: 6, background: '#fff', cursor: 'pointer' }}
+                            >
+                              Open
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>
@@ -622,7 +763,7 @@ export default function Leads() {
                   <Field label="Assigned to">
                     <select value={form.assigned_to} onChange={e => set('assigned_to', e.target.value)} style={{ ...iStyle, background: '#fff' }}>
                       <option value="">— Select —</option>
-                      {SURVEYORS.map(s => <option key={s}>{s}</option>)}
+                      {users.map(u => <option key={u.id} value={u.full_name}>{u.full_name}</option>)}
                     </select>
                   </Field>
                   <Field label="Notes" span>
@@ -653,7 +794,7 @@ export default function Leads() {
                   <Field label="Surveyor">
                     <select value={form.surveyor} onChange={e => set('surveyor', e.target.value)} style={{ ...iStyle, background: '#fff' }}>
                       <option value="">Select surveyor</option>
-                      {SURVEYORS.map(s => <option key={s}>{s}</option>)}
+                      {users.map(u => <option key={u.id} value={u.full_name}>{u.full_name}</option>)}
                     </select>
                   </Field>
                 </div>

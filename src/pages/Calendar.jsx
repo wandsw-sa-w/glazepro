@@ -2,10 +2,10 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
+import { useUsers } from '../hooks/useUsers'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const STAFF = ['Tom B', 'Dave K', 'Sarah W', 'John Smith']
 const APPT_TYPES = ['Survey', 'Installation', 'Snagging', 'Other']
 const TYPE_COLOUR = {
   Survey:       { bg: '#e6f0fb', color: '#1a5fa8', border: '#b0cff0' },
@@ -26,7 +26,7 @@ const TOTAL_H = SLOTS.length * SLOT_H
 
 const EMPTY_FORM = {
   title: '', type: 'Survey', date: '', start_time: '',
-  end_time: '', assigned_to: STAFF[0], lead_id: null, notes: '', allday: false,
+  end_time: '', assigned_to: '', lead_id: null, notes: '', allday: false,
 }
 
 const DURATIONS = [
@@ -86,11 +86,12 @@ function addMinutes(timeStr, mins) {
 export default function Calendar() {
   const navigate = useNavigate()
   const { user, signOut } = useAuth()
+  const { users } = useUsers()
   const filterRef = useRef(null)
 
   const [weekOffset, setWeekOffset] = useState(0)
   const [appointments, setAppointments] = useState([])
-  const [filterStaff, setFilterStaff] = useState([...STAFF])
+  const [filterStaff, setFilterStaff] = useState(null) // null = all staff shown
   const [showFilter, setShowFilter] = useState(false)
   const [modal, setModal] = useState(null)   // { mode: 'new'|'detail'|'edit', appt? }
   const [form, setForm] = useState(EMPTY_FORM)
@@ -209,7 +210,7 @@ export default function Calendar() {
     setForm({
       title: appt.title || '', type: appt.type || 'Survey',
       date: appt.date || '', start_time: appt.start_time || '',
-      end_time: appt.end_time || '', assigned_to: appt.assigned_to || STAFF[0],
+      end_time: appt.end_time || '', assigned_to: appt.assigned_to || '',
       lead_id: appt.lead_id || null, notes: appt.notes || '',
       allday: appt.allday || false,
     })
@@ -277,7 +278,7 @@ export default function Calendar() {
         </div>
         <div style={{ padding: '14px 14px 4px', fontSize: 10, color: '#aaa', letterSpacing: '.07em', textTransform: 'uppercase' }}>Workflow</div>
         {[
-          ['Lead capture', '/leads'],
+          ['Leads', '/leads'],
           ['Quotes & orders', null],
           ['Production', null],
           ['Scheduling', '/calendar'],
@@ -341,22 +342,30 @@ export default function Calendar() {
               onClick={() => setShowFilter(v => !v)}
               style={{ fontSize: 12, padding: '6px 11px', border: '1px solid #d8d5cf', borderRadius: 8, background: '#fff', cursor: 'pointer', fontWeight: 500, whiteSpace: 'nowrap' }}
             >
-              {filterStaff.length === STAFF.length ? 'All staff' : `${filterStaff.length} staff`} ▾
+              {filterStaff === null ? 'All staff' : `${filterStaff.length} staff`} ▾
             </button>
             {showFilter && (
               <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 4px)', background: '#fff', border: '1px solid #e8e6e0', borderRadius: 10, padding: '6px 0', zIndex: 50, minWidth: 160, boxShadow: '0 4px 16px rgba(0,0,0,.1)' }}>
-                {STAFF.map(s => (
-                  <label key={s} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px', cursor: 'pointer', fontSize: 13 }}>
+                {users.map(u => (
+                  <label key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px', cursor: 'pointer', fontSize: 13 }}>
                     <input
                       type="checkbox"
-                      checked={filterStaff.includes(s)}
-                      onChange={() => setFilterStaff(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s])}
+                      checked={filterStaff === null || filterStaff.includes(u.full_name)}
+                      onChange={() => {
+                        if (filterStaff === null) {
+                          setFilterStaff(users.map(x => x.full_name).filter(n => n !== u.full_name))
+                        } else {
+                          setFilterStaff(prev =>
+                            prev.includes(u.full_name) ? prev.filter(n => n !== u.full_name) : [...prev, u.full_name]
+                          )
+                        }
+                      }}
                     />
-                    {s}
+                    {u.full_name}
                   </label>
                 ))}
                 <div style={{ borderTop: '1px solid #f0eeea', marginTop: 4, padding: '6px 14px', display: 'flex', gap: 10 }}>
-                  <button onClick={() => setFilterStaff([...STAFF])} style={{ fontSize: 11, color: '#3d35a8', cursor: 'pointer', border: 'none', background: 'none', padding: 0, fontWeight: 500 }}>All</button>
+                  <button onClick={() => setFilterStaff(null)} style={{ fontSize: 11, color: '#3d35a8', cursor: 'pointer', border: 'none', background: 'none', padding: 0, fontWeight: 500 }}>All</button>
                   <button onClick={() => setFilterStaff([])} style={{ fontSize: 11, color: '#888', cursor: 'pointer', border: 'none', background: 'none', padding: 0 }}>None</button>
                 </div>
               </div>
@@ -378,7 +387,7 @@ export default function Calendar() {
                 const weekDates = [0,1,2,3,4,5,6].map(di => formatDate(addDays(weekMon, di)))
                 const visibleAppts = appointments.filter(a =>
                   weekDates.includes(a.date) &&
-                  (filterStaff.length === 0 || filterStaff.includes(a.assigned_to))
+                  (!filterStaff || filterStaff.includes(a.assigned_to))
                 )
                 const alldayApptsByDay = weekDates.map(d => visibleAppts.filter(a => a.allday && a.date === d))
 
@@ -695,7 +704,8 @@ export default function Calendar() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Assigned to</label>
                     <select value={form.assigned_to} onChange={e => setForm(p => ({ ...p, assigned_to: e.target.value }))} style={{ ...iStyle, background: '#fff' }}>
-                      {STAFF.map(s => <option key={s}>{s}</option>)}
+                      <option value="">— Unassigned —</option>
+                      {users.map(u => <option key={u.id} value={u.full_name}>{u.full_name}</option>)}
                     </select>
                   </div>
 
