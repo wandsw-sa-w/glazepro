@@ -232,7 +232,7 @@ export default function LeadDetail() {
 
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 2, padding: '0 20px', background: '#fff', borderBottom: '1px solid #e8e6e0', flexShrink: 0 }}>
-          {[['general', 'General'], ['contacts', 'Contacts'], ['correspondence', 'Correspondence'], ['survey', 'Survey'], ['uploads', 'Uploads'], ['tracking', 'Tracking']].map(([id, label]) => (
+          {[['general', 'General'], ['contacts', 'Contacts'], ['correspondence', 'Correspondence'], ['survey', 'Survey'], ['uploads', 'Uploads'], ['location', 'Location'], ['tracking', 'Tracking']].map(([id, label]) => (
             <div key={id} onClick={() => setActiveTab(id)} style={{ padding: '12px 16px', fontSize: 13, color: activeTab === id ? '#3d35a8' : '#888', cursor: 'pointer', borderBottom: activeTab === id ? '2px solid #3d35a8' : '2px solid transparent', fontWeight: 500 }}>{label}</div>
           ))}
         </div>
@@ -726,6 +726,56 @@ export default function LeadDetail() {
               </div>
             </div>
           )}
+
+          {/* LOCATION TAB */}
+          {activeTab === 'location' && (() => {
+            const fullAddress = [lead.property_road, lead.property_town, lead.property_postcode].filter(Boolean).join(', ')
+            const apiKey = import.meta.env.VITE_GOOGLE_MAPS_KEY
+            const mapSrc = `https://www.google.com/maps/embed/v1/place?key=${apiKey}&q=${encodeURIComponent(fullAddress)}`
+            const svSrc = `https://www.google.com/maps/embed/v1/streetview?key=${apiKey}&location=${encodeURIComponent(fullAddress)}&heading=210&pitch=10&fov=90`
+            return (
+              <div style={{ maxWidth: 1100 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Location</div>
+                {fullAddress ? (
+                  <>
+                    <div style={{ fontSize: 13, color: '#555', marginBottom: 16 }}>{fullAddress}</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                      <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, overflow: 'hidden' }}>
+                        <div style={{ padding: '12px 14px', borderBottom: '1px solid #e8e6e0', fontSize: 12, fontWeight: 600, color: '#555' }}>Map</div>
+                        <iframe
+                          title="map"
+                          src={mapSrc}
+                          width="100%"
+                          height="400"
+                          style={{ display: 'block', border: 'none' }}
+                          allowFullScreen
+                          loading="lazy"
+                          referrerPolicy="no-referrer-when-downgrade"
+                        />
+                      </div>
+                      <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, overflow: 'hidden' }}>
+                        <div style={{ padding: '12px 14px', borderBottom: '1px solid #e8e6e0', fontSize: 12, fontWeight: 600, color: '#555' }}>Street View</div>
+                        <iframe
+                          title="streetview"
+                          src={svSrc}
+                          width="100%"
+                          height="400"
+                          style={{ display: 'block', border: 'none' }}
+                          allowFullScreen
+                          loading="lazy"
+                          referrerPolicy="no-referrer-when-downgrade"
+                        />
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ marginTop: 16, padding: '40px 24px', background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, textAlign: 'center', color: '#aaa', fontSize: 13 }}>
+                    No address has been added yet. Add a property road, town or postcode on the General tab.
+                  </div>
+                )}
+              </div>
+            )
+          })()}
 
           {/* TRACKING TAB */}
           {activeTab === 'tracking' && (
