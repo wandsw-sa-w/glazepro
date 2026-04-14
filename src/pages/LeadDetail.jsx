@@ -69,6 +69,17 @@ function Toggle({ value, onChange, label }) {
   )
 }
 
+function stripQuoted(body) {
+  if (!body) return body
+  // Strip everything from our reply separator onwards
+  const sepIdx = body.indexOf('\n\n---\n')
+  if (sepIdx !== -1) return body.slice(0, sepIdx).trim()
+  // Also strip "On [date], From:" / "On [date], To:" style headers
+  const onMatch = body.search(/\nOn [\d\w].*?(From:|To:)/s)
+  if (onMatch !== -1) return body.slice(0, onMatch).trim()
+  return body.trim()
+}
+
 function highlight(text, term) {
   if (!term || !text) return text
   const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -434,7 +445,8 @@ export default function LeadDetail() {
     const EDGE_URL = 'https://ubmxstufxyeimaywcevk.supabase.co/functions/v1/send-email'
     try {
       const signature = await resolveEmailSignature()
-      const bodyWithSig = r.body + (signature ? '\n\n--\n' + signature : '')
+      const cleanBody = stripQuoted(r.body)
+      const bodyWithSig = cleanBody + (signature ? '\n\n--\n' + signature : '')
 
       const requestBody = { to: r.to, subject: r.subject, body: bodyWithSig, from_mailbox: user.email }
       const res = await fetch(EDGE_URL, {
@@ -539,11 +551,9 @@ export default function LeadDetail() {
             {badge > 0 && <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 999, background: '#fceaea', color: '#8b2020', fontWeight: 600, flexShrink: 0 }}>{badge}</span>}
           </div>
         ))}
-        {currentUser?.role === 'Admin' && (
-          <div onClick={() => navigate('/settings')} style={{ margin: '4px 7px 2px', padding: '8px 11px', fontSize: 13, borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8, color: '#555', cursor: 'pointer' }}>
-            <span>⚙</span><span>Settings</span>
-          </div>
-        )}
+        <div onClick={() => navigate('/settings')} style={{ margin: '4px 7px 2px', padding: '8px 11px', fontSize: 13, borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8, color: '#555', cursor: 'pointer' }}>
+          <span>⚙</span><span>Settings</span>
+        </div>
         <div style={{ marginTop: 'auto', padding: 13, borderTop: '1px solid #e8e6e0' }}>
           <div style={{ fontSize: 11, color: '#555', fontWeight: 500, marginBottom: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {user?.email}
