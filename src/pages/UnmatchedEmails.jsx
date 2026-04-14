@@ -40,11 +40,12 @@ export default function UnmatchedEmails() {
 
   async function fetchEmails() {
     setLoading(true)
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('unmatched_emails')
       .select('*')
-      .neq('assigned', true)
+      .or('assigned.eq.false,assigned.is.null')
       .order('received_at', { ascending: false })
+    console.log('[UnmatchedEmails] data:', data, 'error:', error)
     setEmails(data || [])
     setLoading(false)
   }
