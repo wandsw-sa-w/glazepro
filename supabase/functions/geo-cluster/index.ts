@@ -27,10 +27,12 @@ async function getDriveTime(origin: string, destination: string): Promise<number
 }
 
 const TIME_SLOTS = [
-  "07:30","08:00","08:30","09:00","09:30","10:00","10:30","11:00",
-  "11:30","12:00","12:30","13:00","13:30","14:00","14:30","15:00",
-  "15:30","16:00","16:30","17:00","17:30"
+  "08:00","08:30","09:00","09:30","10:00","10:30","11:00","11:30",
+  "12:00","12:30","13:00","13:30","14:00","14:30","15:00","15:30",
+  "16:00","16:30"
 ]
+const MORNING_SLOTS   = TIME_SLOTS.filter(s => s <= "12:00")
+const AFTERNOON_SLOTS = TIME_SLOTS.filter(s => s >= "12:30")
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -75,9 +77,25 @@ serve(async (req) => {
     // Get surveyors with home postcodes
     const { data: surveyors } = await supabase
       .from("users")
-      .select("full_name, home_postcode")
-      .eq("active", true)
+      .select("id, full_name, home_postcode")
+      .eq("is_surveyor", true)
       .not("home_postcode", "is", null)
+
+    // Fetch availability rules for all surveyors
+    const surveyorIds = (surveyors || []).map(s => s.id)
+    const { data: availabilityRules } = surveyorIds.length > 0
+      ? await supabase
+          .from("surveyor_availability")
+          .select("user_id, day_of_week, availability")
+          .in("user_id", surveyorIds)
+      : { data: [] }
+
+    // Build lookup: availMap[user_id][day_of_week] = 'full'|'morning'|'afternoon'|'unavailable'
+    const availMap: Record<string, Record<number, string>> = {}
+    for (const rule of availabilityRules || []) {
+      if (!availMap[rule.user_id]) availMap[rule.user_id] = {}
+      availMap[rule.user_id][rule.day_of_week] = rule.availability
+    }
 
     // Group appointments by surveyor+date
     const aptsByKey: Record<string, any[]> = {}
@@ -105,11 +123,24 @@ serve(async (req) => {
     // For days without appointments, just list slots without drive time
     for (const surveyor of surveyors || []) {
       for (const date of dates) {
+        // Check availability rule for this surveyor on this day of week (1=Mon … 7=Sun)
+        const jsDay = new Date(date + "T12:00:00Z").getUTCDay() // 0=Sun … 6=Sat
+        const dayOfWeek = jsDay === 0 ? 7 : jsDay
+        const rule = availMap[surveyor.id]?.[dayOfWeek] ?? "full"
+
+        if (rule === "unavailable") continue
+
+        const daySlots = rule === "morning"
+          ? MORNING_SLOTS
+          : rule === "afternoon"
+            ? AFTERNOON_SLOTS
+            : TIME_SLOTS
+
         const key = `${surveyor.full_name}_${date}`
         const dayApts = (aptsByKey[key] || []).sort((a, b) => a.start_time.localeCompare(b.start_time))
         const takenSlots = new Set(dayApts.map(a => a.start_time))
 
-        const availableSlots = TIME_SLOTS.filter(s => !takenSlots.has(s))
+        const availableSlots = daySlots.filter(s => !takenSlots.has(s))
 
         if (dayApts.length > 0) {
           // This day has appointments — calculate drive times for nearby slots only

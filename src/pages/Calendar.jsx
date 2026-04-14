@@ -18,12 +18,12 @@ const TYPE_COLOUR = {
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const SLOT_H = 28 // px per 30-min slot
 
-// 07:30 → 17:30 in 30-min steps = 21 slots
+// 08:00 → 17:30 in 30-min steps = 20 slots
 const SLOTS = []
-for (let min = 7 * 60 + 30; min <= 17 * 60 + 30; min += 30) {
+for (let min = 8 * 60; min <= 17 * 60 + 30; min += 30) {
   SLOTS.push(`${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`)
 }
-const START_MIN = 7 * 60 + 30
+const START_MIN = 8 * 60
 const TOTAL_H = SLOTS.length * SLOT_H
 
 const EMPTY_FORM = {
