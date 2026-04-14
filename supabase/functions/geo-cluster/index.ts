@@ -42,7 +42,7 @@ function isSlotAvailable(slot: string, appointments: any[]): boolean {
   for (const apt of appointments) {
     const startMins = timeToMinutes(apt.start_time)
     const endMins = apt.end_time ? timeToMinutes(apt.end_time) : startMins + 60
-    if (slotMins >= startMins && slotMins < endMins) return false
+    if (slotMins >= startMins && slotMins <= endMins) return false
   }
   return true
 }
