@@ -49,13 +49,19 @@ export default function Settings() {
   async function saveSignature() {
     setSaving(true)
     setSaved(false)
-    await supabase.from('settings').upsert(
-      { key: 'email_signature', value: signature, updated_at: new Date().toISOString(), updated_by: user?.email || '' },
-      { onConflict: 'key' }
-    )
+    const { error } = await supabase.from('settings').upsert({
+      key: 'email_signature',
+      value: signature,
+      updated_at: new Date().toISOString(),
+      updated_by: user.email,
+    })
     setSaving(false)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2500)
+    if (error) {
+      console.log('Error saving signature:', error)
+    } else {
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2500)
+    }
   }
 
   return (
