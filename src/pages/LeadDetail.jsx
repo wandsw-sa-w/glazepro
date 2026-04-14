@@ -213,8 +213,8 @@ export default function LeadDetail() {
           <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>Window management</div>
         </div>
         <div style={{ padding: '14px 14px 4px', fontSize: 10, color: '#aaa', letterSpacing: '.07em', textTransform: 'uppercase' }}>Workflow</div>
-        {['Lead capture', 'Quotes & orders', 'Production', 'Scheduling', 'Invoicing'].map(item => (
-          <div key={item} onClick={item === 'Lead capture' ? () => navigate('/leads') : undefined} style={{ padding: '8px 11px', fontSize: 13, color: item === 'Lead capture' ? '#3d35a8' : '#aaa', fontWeight: item === 'Lead capture' ? 500 : 400, background: item === 'Lead capture' ? '#f0eefc' : 'transparent', borderRadius: 8, margin: '1px 7px', cursor: item === 'Lead capture' ? 'pointer' : 'not-allowed', opacity: item === 'Lead capture' ? 1 : 0.5 }}>
+        {[['Lead capture', '/leads'], ['Quotes & orders', null], ['Production', null], ['Scheduling', '/calendar'], ['Invoicing', null]].map(([item, path]) => (
+          <div key={item} onClick={path ? () => navigate(path) : undefined} style={{ padding: '8px 11px', fontSize: 13, color: item === 'Lead capture' ? '#3d35a8' : path ? '#555' : '#aaa', fontWeight: item === 'Lead capture' ? 500 : 400, background: item === 'Lead capture' ? '#f0eefc' : 'transparent', borderRadius: 8, margin: '1px 7px', cursor: path ? 'pointer' : 'not-allowed', opacity: path ? 1 : 0.5 }}>
             {item}
           </div>
         ))}

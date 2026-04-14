@@ -303,18 +303,19 @@ export default function Leads() {
         <div style={{ padding: '14px 14px 4px', fontSize: 10, color: '#aaa', letterSpacing: '.07em', textTransform: 'uppercase' }}>
           Workflow
         </div>
-        {['Lead capture', 'Quotes & orders', 'Production', 'Scheduling', 'Invoicing'].map(item => {
+        {[['Lead capture', '/leads'], ['Quotes & orders', null], ['Production', null], ['Scheduling', '/calendar'], ['Invoicing', null]].map(([item, path]) => {
           const active = item === 'Lead capture'
           return (
             <div
               key={item}
+              onClick={path ? () => navigate(path) : undefined}
               style={{
                 padding: '8px 11px', fontSize: 13, borderRadius: 8, margin: '1px 7px',
-                color: active ? '#3d35a8' : '#aaa',
+                color: active ? '#3d35a8' : path ? '#555' : '#aaa',
                 fontWeight: active ? 500 : 400,
                 background: active ? '#f0eefc' : 'transparent',
-                cursor: active ? 'pointer' : 'not-allowed',
-                opacity: active ? 1 : 0.5,
+                cursor: path ? 'pointer' : 'not-allowed',
+                opacity: path ? 1 : 0.5,
               }}
             >
               {item}

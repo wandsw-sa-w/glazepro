@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import Leads from './pages/Leads'
 import LeadDetail from './pages/LeadDetail'
+import Calendar from './pages/Calendar'
 import Login from './pages/Login'
 import './App.css'
 
@@ -18,6 +19,7 @@ function AppRoutes() {
       <Route path="/" element={<Navigate to="/leads" replace />} />
       <Route path="/leads" element={<Leads />} />
       <Route path="/leads/:id" element={<LeadDetail />} />
+      <Route path="/calendar" element={<Calendar />} />
     </Routes>
   )
 }
