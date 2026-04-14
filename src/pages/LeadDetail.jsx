@@ -71,8 +71,26 @@ export default function LeadDetail() {
   const [uploadFile, setUploadFile] = useState(null)
   const [uploadNotes, setUploadNotes] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [coords, setCoords] = useState(null)
+  const [geoLoading, setGeoLoading] = useState(false)
 
   useEffect(() => { fetchLead(); fetchUploads() }, [leadId])
+
+  useEffect(() => {
+    if (activeTab !== 'location' || !lead) return
+    const fullAddress = [lead.property_road, lead.property_town, lead.property_postcode].filter(Boolean).join(', ')
+    if (!fullAddress) return
+    setCoords(null)
+    setGeoLoading(true)
+    fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(fullAddress)}&key=${import.meta.env.VITE_GOOGLE_MAPS_KEY}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.results?.[0]?.geometry?.location) {
+          setCoords(data.results[0].geometry.location)
+        }
+      })
+      .finally(() => setGeoLoading(false))
+  }, [activeTab, lead])
 
   async function fetchLead() {
     setLoading(true)
@@ -731,12 +749,24 @@ export default function LeadDetail() {
           {activeTab === 'location' && (() => {
             const fullAddress = [lead.property_road, lead.property_town, lead.property_postcode].filter(Boolean).join(', ')
             const apiKey = import.meta.env.VITE_GOOGLE_MAPS_KEY
-            const mapSrc = `https://www.google.com/maps/embed/v1/place?key=${apiKey}&q=${encodeURIComponent(fullAddress)}`
-            const svSrc = `https://www.google.com/maps/embed/v1/streetview?key=${apiKey}&location=${encodeURIComponent(fullAddress)}&heading=210&pitch=10&fov=90`
+            const mapSrc = coords ? `https://www.google.com/maps/embed/v1/place?key=${apiKey}&q=${coords.lat},${coords.lng}` : null
+            const svSrc = coords ? `https://www.google.com/maps/embed/v1/streetview?key=${apiKey}&location=${coords.lat},${coords.lng}&heading=210&pitch=10&fov=90` : null
             return (
               <div style={{ maxWidth: 1100 }}>
                 <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Location</div>
-                {fullAddress ? (
+                {!fullAddress ? (
+                  <div style={{ marginTop: 16, padding: '40px 24px', background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, textAlign: 'center', color: '#aaa', fontSize: 13 }}>
+                    No address has been added yet. Add a property road, town or postcode on the General tab.
+                  </div>
+                ) : geoLoading ? (
+                  <div style={{ marginTop: 16, padding: '40px 24px', background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, textAlign: 'center', color: '#aaa', fontSize: 13 }}>
+                    Looking up location…
+                  </div>
+                ) : !coords ? (
+                  <div style={{ marginTop: 16, padding: '40px 24px', background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, textAlign: 'center', color: '#aaa', fontSize: 13 }}>
+                    Could not find coordinates for this address. Check the postcode or road name on the General tab.
+                  </div>
+                ) : (
                   <>
                     <div style={{ fontSize: 13, color: '#555', marginBottom: 16 }}>{fullAddress}</div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
@@ -768,10 +798,6 @@ export default function LeadDetail() {
                       </div>
                     </div>
                   </>
-                ) : (
-                  <div style={{ marginTop: 16, padding: '40px 24px', background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, textAlign: 'center', color: '#aaa', fontSize: 13 }}>
-                    No address has been added yet. Add a property road, town or postcode on the General tab.
-                  </div>
                 )}
               </div>
             )
