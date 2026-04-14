@@ -55,7 +55,7 @@ export default function Leads() {
   const [postcodeLoading, setPostcodeLoading] = useState(false)
 
   const emptyForm = {
-    property_address: '', property_postcode: '', property_town: '', property_road: '',
+    property_address: '', property_postcode: '', property_town: '', property_road: '', property_address_2: '',
     contact_address: '', same_address: true,
     listed_building: false, conservation_area: false,
     window_types: [], estimated_units: '',
@@ -88,11 +88,15 @@ export default function Leads() {
       const data = await res.json()
       if (data.status === 200) {
         setForm(p => ({
-          ...p,
-          property_road: data.result.thoroughfare || data.result.dependent_thoroughfare || '',
-          property_town: data.result.post_town || data.result.admin_district || '',
-          property_address: `${data.result.thoroughfare || ''}, ${data.result.post_town || ''}, ${data.result.postcode}`.trim()
-        }))
+  ...p,
+  property_road: data.result.thoroughfare || data.result.dependent_thoroughfare || data.result.admin_ward || '',
+  property_town: data.result.post_town || data.result.admin_district || '',
+  property_address: [
+    data.result.thoroughfare || data.result.dependent_thoroughfare || '',
+    data.result.post_town || data.result.admin_district || '',
+    data.result.postcode
+  ].filter(Boolean).join(', ')
+}))
       } else {
         alert('Postcode not found — please check and try again')
       }
@@ -118,7 +122,7 @@ export default function Leads() {
           lead_number: leadNumber,
           property_address: form.property_address,
           property_postcode: form.property_postcode,
-          property_road: form.property_road,
+          property_address_2: form.property_address_2,,
           property_town: form.property_town,
           contact_address: form.same_address ? form.property_address : form.contact_address,
           same_address: form.same_address,
@@ -381,7 +385,7 @@ export default function Leads() {
                   </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-                  {[['Road / street', 'property_road', 'e.g. Elm Road'], ['Town / city', 'property_town', 'e.g. London']].map(([label, key, ph]) => (
+                  {[['Road / street', 'property_road', 'e.g. 14 Elm Road'], ['Address line 2', 'property_address_2', 'e.g. Flat 3, Building name'], ['Town / city', 'property_town', 'e.g. London'], ['Postcode', 'property_postcode', 'e.g. SW1A 1AA']].map(([label, key, ph]) => ( => (
                     <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                       <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>{label}</label>
                       <input value={form[key]} onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))} placeholder={ph} style={{ fontSize: 13, padding: '8px 11px', border: '1px solid #d8d5cf', borderRadius: 8, outline: 'none' }} />
