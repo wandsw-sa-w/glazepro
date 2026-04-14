@@ -1501,6 +1501,35 @@ export default function LeadDetail() {
                       {TIME_SLOTS.map(t => <option key={t}>{t}</option>)}
                     </select>
                   </div>
+                  {lead.survey_date && lead.survey_time && lead.surveyor && (
+  <div style={{ marginTop: 16 }}>
+    <button
+      onClick={async () => {
+        await supabase.from('leads').update({
+          survey_date: lead.survey_date,
+          survey_time: lead.survey_time,
+          surveyor: lead.surveyor,
+          status: 'Appointment arranged'
+        }).eq('id', leadId)
+        await supabase.from('appointments').insert([{
+          lead_id: leadId,
+          type: 'Survey',
+          date: lead.survey_date,
+          start_time: lead.survey_time,
+          assigned_to: lead.surveyor,
+          status: 'Confirmed',
+          title: lead.lead_number,
+          created_at: new Date().toISOString()
+        }])
+        await fetchLead()
+        alert('Survey booked successfully!')
+      }}
+      style={{ fontSize: 13, padding: '10px 20px', border: 'none', borderRadius: 8, background: '#3d35a8', color: '#fff', cursor: 'pointer', fontWeight: 500 }}
+    >
+      Confirm survey booking
+    </button>
+  </div>
+)}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                     <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Surveyor</label>
                     <select value={surveyorVal} onChange={e => setSurveyorVal(e.target.value)} onBlur={e => updateLead({ surveyor: e.target.value })} style={{ fontSize: 13, padding: '8px 11px', border: '1px solid #d8d5cf', borderRadius: 8, outline: 'none', background: '#fff' }}>
