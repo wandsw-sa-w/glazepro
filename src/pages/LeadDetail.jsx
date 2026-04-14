@@ -281,39 +281,45 @@ export default function LeadDetail() {
     setSendingEmail(true)
     setSendResult(null)
 
-    let sendOk = false
     try {
+      const EDGE_URL = 'https://ubmxstufxyeimaywcevk.supabase.co/functions/v1/send-email'
+
       const { data: { session } } = await supabase.auth.getSession()
       const token = session?.access_token
-      const res = await fetch('https://ubmxstufxyeimaywcevk.supabase.co/functions/v1/send-email', {
+
+      const requestBody = {
+        to: emailForm.to,
+        ...(emailForm.cc ? { cc: emailForm.cc } : {}),
+        subject: emailForm.subject,
+        body: emailForm.body,
+        from_mailbox: user?.email,
+      }
+
+      console.log('[sendEmail] URL:', EDGE_URL)
+      console.log('[sendEmail] Token (first 20 chars):', token ? token.slice(0, 20) + '…' : 'null')
+      console.log('[sendEmail] Request body:', requestBody)
+
+      const res = await fetch(EDGE_URL, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          to: emailForm.to,
-          ...(emailForm.cc ? { cc: emailForm.cc } : {}),
-          subject: emailForm.subject,
-          body: emailForm.body,
-          from_mailbox: user?.email,
-        }),
+        body: JSON.stringify(requestBody),
       })
+
+      const responseText = await res.text()
+      console.log('[sendEmail] Response status:', res.status, res.statusText)
+      console.log('[sendEmail] Response body:', responseText)
+
       if (!res.ok) {
         let msg = `HTTP ${res.status}`
-        try { const j = await res.json(); msg = j.error || j.message || msg } catch (_) {}
+        try { const j = JSON.parse(responseText); msg = j.error || j.message || msg } catch (_) {}
         setSendResult({ error: `Failed to send: ${msg}` })
         setSendingEmail(false)
         return
       }
-      sendOk = true
-    } catch (err) {
-      setSendResult({ error: err.message || 'Network error' })
-      setSendingEmail(false)
-      return
-    }
 
-    if (sendOk) {
       const notesBody = [
         `To: ${emailForm.to}`,
         emailForm.cc ? `CC: ${emailForm.cc}` : null,
@@ -337,6 +343,10 @@ export default function LeadDetail() {
         setEmailForm({ to: '', cc: '', subject: '', body: '' })
         setSendResult(null)
       }, 1800)
+    } catch (err) {
+      console.error('[sendEmail] Caught error:', err)
+      setSendResult({ error: err.message || 'Network error' })
+      setSendingEmail(false)
     }
   }
 
