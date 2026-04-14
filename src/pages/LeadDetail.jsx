@@ -35,6 +35,19 @@ const LEAD_TAG_COLOURS = {
   'Second Survey Required': { bg: '#f5f0e8', color: '#7a4a08' },
 }
 const TIME_SLOTS = ['08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00']
+const NOTE_TYPES = ['Internal note', 'Phone out', 'Phone in', 'In person']
+const NOTE_TYPE_COLOURS = {
+  'Internal note': { bg: '#f5f4f0', color: '#666' },
+  'Phone out':     { bg: '#e6f0fb', color: '#1a5fa8' },
+  'Phone in':      { bg: '#e1f5ee', color: '#0a5a3c' },
+  'In person':     { bg: '#eeedfe', color: '#4a3ab0' },
+}
+const APPT_TYPE_COLOURS = {
+  Survey:       { bg: '#e6f0fb', color: '#1a5fa8' },
+  Installation: { bg: '#e1f5ee', color: '#0a5a3c' },
+  Snagging:     { bg: '#faeeda', color: '#7a4a08' },
+  Other:        { bg: '#eeedfe', color: '#4a3ab0' },
+}
 
 function Pill({ text, colourMap }) {
   const c = colourMap?.[text] || { bg: '#f5f4f0', color: '#666' }
@@ -65,17 +78,26 @@ export default function LeadDetail() {
   const [newContact, setNewContact] = useState({ title: '', first_name: '', last_name: '', phone: '', email: '', notes: '', tags: [] })
   const [editingContactId, setEditingContactId] = useState(null)
   const [editDraft, setEditDraft] = useState(null)
-  const [noteText, setNoteText] = useState('')
-  const [notes, setNotes] = useState([])
   const [uploads, setUploads] = useState([])
-  const [uploadFile, setUploadFile] = useState(null)
-  const [uploadNotes, setUploadNotes] = useState('')
+  const [uploadFileList, setUploadFileList] = useState([])
   const [uploading, setUploading] = useState(false)
+  const [leadNotes, setLeadNotes] = useState([])
+  const [noteForm, setNoteForm] = useState({ subject: '', type: 'Internal note', notes: '', file: null })
+  const [savingNote, setSavingNote] = useState(false)
+  const [tasks, setTasks] = useState([])
+  const [newTask, setNewTask] = useState({ subject: '', due_date: '', assigned_to: '', notes: '' })
+  const [savingTask, setSavingTask] = useState(false)
+  const [leadAppointments, setLeadAppointments] = useState([])
   const [coords, setCoords] = useState(null)
   const [geoLoading, setGeoLoading] = useState(false)
   const [enquiryNotes, setEnquiryNotes] = useState('')
 
   useEffect(() => { fetchLead(); fetchUploads() }, [leadId])
+
+  useEffect(() => {
+    if (activeTab === 'tracking') fetchLeadAppointments()
+    if (activeTab === 'correspondence') { fetchTasks(); fetchLeadNotes() }
+  }, [activeTab, leadId])
 
   useEffect(() => {
     if (activeTab !== 'location' || !lead) return
@@ -132,29 +154,105 @@ export default function LeadDetail() {
   }
 
   async function handleUpload() {
-    if (!uploadFile) return
+    if (!uploadFileList.length) return
     setUploading(true)
-    const ext = uploadFile.name.split('.').pop()
-    const filePath = `${leadId}/${Date.now()}.${ext}`
-    const { error: storageError } = await supabase.storage
-      .from('lead-files')
-      .upload(filePath, uploadFile)
-    if (storageError) {
-      alert('Upload failed: ' + storageError.message)
-      setUploading(false)
-      return
+    for (const item of uploadFileList) {
+      const ext = item.file.name.split('.').pop()
+      const filePath = `${leadId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+      const { error } = await supabase.storage.from('lead-files').upload(filePath, item.file)
+      if (error) { console.error('Upload failed:', error.message); continue }
+      await supabase.from('lead_uploads').insert([{
+        lead_id: leadId,
+        filename: item.file.name,
+        file_path: filePath,
+        notes: item.notes,
+        created_at: new Date().toISOString(),
+      }])
     }
-    await supabase.from('lead_uploads').insert([{
+    await fetchUploads()
+    setUploadFileList([])
+    setUploading(false)
+  }
+
+  async function fetchLeadAppointments() {
+    const { data } = await supabase
+      .from('appointments')
+      .select('*')
+      .eq('lead_id', leadId)
+      .order('date', { ascending: false })
+    setLeadAppointments(data || [])
+  }
+
+  async function fetchTasks() {
+    const { data } = await supabase
+      .from('lead_tasks')
+      .select('*')
+      .eq('lead_id', leadId)
+      .order('due_date', { ascending: true })
+    setTasks(data || [])
+  }
+
+  async function saveTask() {
+    if (!newTask.subject.trim()) return
+    setSavingTask(true)
+    await supabase.from('lead_tasks').insert([{
       lead_id: leadId,
-      filename: uploadFile.name,
-      file_path: filePath,
-      notes: uploadNotes,
+      subject: newTask.subject,
+      due_date: newTask.due_date || null,
+      assigned_to: newTask.assigned_to,
+      notes: newTask.notes,
+      completed: false,
       created_at: new Date().toISOString(),
     }])
-    await fetchUploads()
-    setUploadFile(null)
-    setUploadNotes('')
-    setUploading(false)
+    await fetchTasks()
+    setNewTask({ subject: '', due_date: '', assigned_to: '', notes: '' })
+    setSavingTask(false)
+  }
+
+  async function toggleTaskComplete(task) {
+    await supabase.from('lead_tasks').update({ completed: !task.completed }).eq('id', task.id)
+    setTasks(prev => prev.map(t => t.id === task.id ? { ...t, completed: !t.completed } : t))
+  }
+
+  async function deleteTask(id) {
+    await supabase.from('lead_tasks').delete().eq('id', id)
+    setTasks(prev => prev.filter(t => t.id !== id))
+  }
+
+  async function fetchLeadNotes() {
+    const { data } = await supabase
+      .from('lead_notes')
+      .select('*')
+      .eq('lead_id', leadId)
+      .order('created_at', { ascending: false })
+    setLeadNotes(data || [])
+  }
+
+  async function saveLeadNote() {
+    if (!noteForm.subject.trim() && !noteForm.notes.trim()) return
+    setSavingNote(true)
+    let filePath = null
+    let filename = null
+    if (noteForm.file) {
+      const ext = noteForm.file.name.split('.').pop()
+      filePath = `${leadId}/notes/${Date.now()}.${ext}`
+      filename = noteForm.file.name
+      const { error } = await supabase.storage.from('lead-files').upload(filePath, noteForm.file)
+      if (error) { alert('File upload failed: ' + error.message); setSavingNote(false); return }
+    }
+    await supabase.from('lead_notes').insert([{
+      lead_id: leadId,
+      subject: noteForm.subject,
+      type: noteForm.type,
+      notes: noteForm.notes,
+      file_path: filePath,
+      filename,
+      author: user?.email || 'Unknown',
+      created_at: new Date().toISOString(),
+    }])
+    await fetchLeadNotes()
+    setNoteForm({ subject: '', type: 'Internal note', notes: '', file: null })
+    setSavingNote(false)
   }
 
   async function addContact() {
@@ -190,13 +288,6 @@ export default function LeadDetail() {
   async function removeContact(leadContactId) {
     await supabase.from('lead_contacts').delete().eq('id', leadContactId)
     await fetchLead()
-  }
-
-  async function addNote() {
-    if (!noteText.trim()) return
-    const note = { text: noteText, author: 'Nathan Smith', created_at: new Date().toISOString(), type: 'note' }
-    setNotes(prev => [note, ...prev])
-    setNoteText('')
   }
 
   if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#aaa' }}>Loading...</div>
@@ -620,26 +711,133 @@ export default function LeadDetail() {
 
           {/* CORRESPONDENCE TAB */}
           {activeTab === 'correspondence' && (
-            <div style={{ maxWidth: 700 }}>
-              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 16 }}>Correspondence &amp; file notes</div>
+            <div style={{ maxWidth: 760 }}>
+
+              {/* ── TASKS ── */}
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Tasks</div>
+
+              {/* New task form */}
               <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, padding: '14px 16px', marginBottom: 16 }}>
-                <textarea value={noteText} onChange={e => setNoteText(e.target.value)} placeholder="Log a file note — phone call, site visit, conversation..." rows={3} style={{ width: '100%', fontSize: 13, padding: '8px 11px', border: '1px solid #d8d5cf', borderRadius: 8, outline: 'none', resize: 'none', fontFamily: 'inherit', marginBottom: 10 }} />
-                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                  <button style={{ fontSize: 12, padding: '7px 14px', border: '1px solid #d8d5cf', borderRadius: 8, background: '#fff', cursor: 'pointer' }}>Send email</button>
-                  <button onClick={addNote} style={{ fontSize: 12, padding: '7px 14px', border: 'none', borderRadius: 8, background: '#3d35a8', color: '#fff', cursor: 'pointer', fontWeight: 500 }}>Log note</button>
-                </div>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {notes.map((note, i) => (
-                  <div key={i} style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 10, padding: '12px 14px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                      <span style={{ fontSize: 12, fontWeight: 500 }}>{note.author}</span>
-                      <span style={{ fontSize: 11, color: '#aaa' }}>{new Date(note.created_at).toLocaleString('en-GB')}</span>
+                {(() => {
+                  const iS = { fontSize: 13, padding: '7px 10px', border: '1px solid #d8d5cf', borderRadius: 8, outline: 'none', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' }
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px 160px', gap: 10 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Subject</label>
+                          <input value={newTask.subject} onChange={e => setNewTask(p => ({ ...p, subject: e.target.value }))} placeholder="Task subject…" style={iS} />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Due date</label>
+                          <input type="date" value={newTask.due_date} onChange={e => setNewTask(p => ({ ...p, due_date: e.target.value }))} style={iS} />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Assigned to</label>
+                          <select value={newTask.assigned_to} onChange={e => setNewTask(p => ({ ...p, assigned_to: e.target.value }))} style={{ ...iS, background: '#fff' }}>
+                            <option value="">— Unassigned —</option>
+                            {SURVEYORS.map(s => <option key={s}>{s}</option>)}
+                          </select>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Notes</label>
+                        <textarea value={newTask.notes} onChange={e => setNewTask(p => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Optional task notes…" style={{ ...iS, resize: 'none' }} />
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                        <button onClick={saveTask} disabled={savingTask || !newTask.subject.trim()} style={{ fontSize: 12, padding: '7px 16px', border: 'none', borderRadius: 8, background: savingTask || !newTask.subject.trim() ? '#9993d4' : '#3d35a8', color: '#fff', cursor: savingTask || !newTask.subject.trim() ? 'default' : 'pointer', fontWeight: 500 }}>
+                          {savingTask ? 'Saving…' : 'Add task'}
+                        </button>
+                      </div>
                     </div>
-                    <div style={{ fontSize: 13, color: '#555', lineHeight: 1.6 }}>{note.text}</div>
-                  </div>
-                ))}
-                {notes.length === 0 && <div style={{ color: '#aaa', fontSize: 13, textAlign: 'center', padding: 40 }}>No correspondence yet</div>}
+                  )
+                })()}
+              </div>
+
+              {/* Task list */}
+              {tasks.length === 0 ? (
+                <div style={{ color: '#aaa', fontSize: 13, textAlign: 'center', padding: '24px', background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, marginBottom: 28 }}>No tasks yet</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 28 }}>
+                  {tasks.map(task => (
+                    <div key={task.id} style={{ background: '#fff', border: `1px solid ${task.completed ? '#e8e6e0' : '#e8e6e0'}`, borderRadius: 10, padding: '12px 14px', opacity: task.completed ? 0.6 : 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                        <input type="checkbox" checked={!!task.completed} onChange={() => toggleTaskComplete(task)} style={{ marginTop: 2, width: 15, height: 15, cursor: 'pointer', accentColor: '#3d35a8', flexShrink: 0 }} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, textDecoration: task.completed ? 'line-through' : 'none', color: task.completed ? '#aaa' : '#222' }}>{task.subject}</div>
+                          <div style={{ display: 'flex', gap: 14, fontSize: 11, color: '#888', marginTop: 3, flexWrap: 'wrap' }}>
+                            {task.due_date && <span>Due {new Date(task.due_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>}
+                            {task.assigned_to && <span>→ {task.assigned_to}</span>}
+                          </div>
+                          {task.notes && <div style={{ fontSize: 12, color: '#666', marginTop: 6, lineHeight: 1.5 }}>{task.notes}</div>}
+                        </div>
+                        <button onClick={() => deleteTask(task.id)} style={{ fontSize: 11, padding: '3px 9px', border: '1px solid #e8d0d0', borderRadius: 6, background: '#fff', cursor: 'pointer', color: '#8b2020', flexShrink: 0 }}>Delete</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* ── FILE NOTES ── */}
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>File notes</div>
+
+              {/* New note form */}
+              <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, padding: '14px 16px', marginBottom: 16 }}>
+                {(() => {
+                  const iS = { fontSize: 13, padding: '7px 10px', border: '1px solid #d8d5cf', borderRadius: 8, outline: 'none', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' }
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 180px', gap: 10 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Subject</label>
+                          <input value={noteForm.subject} onChange={e => setNoteForm(p => ({ ...p, subject: e.target.value }))} placeholder="Note subject…" style={iS} />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Type</label>
+                          <select value={noteForm.type} onChange={e => setNoteForm(p => ({ ...p, type: e.target.value }))} style={{ ...iS, background: '#fff' }}>
+                            {NOTE_TYPES.map(t => <option key={t}>{t}</option>)}
+                          </select>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Notes</label>
+                        <textarea value={noteForm.notes} onChange={e => setNoteForm(p => ({ ...p, notes: e.target.value }))} rows={3} placeholder="Log a file note — phone call, site visit, conversation…" style={{ ...iS, resize: 'none' }} />
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
+                          <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Attach file <span style={{ color: '#aaa', fontWeight: 400 }}>(optional)</span></label>
+                          <input type="file" onChange={e => setNoteForm(p => ({ ...p, file: e.target.files[0] || null }))} style={{ fontSize: 12 }} />
+                        </div>
+                        <button onClick={saveLeadNote} disabled={savingNote || (!noteForm.subject.trim() && !noteForm.notes.trim())} style={{ fontSize: 12, padding: '7px 16px', border: 'none', borderRadius: 8, background: savingNote || (!noteForm.subject.trim() && !noteForm.notes.trim()) ? '#9993d4' : '#3d35a8', color: '#fff', cursor: 'pointer', fontWeight: 500, flexShrink: 0, alignSelf: 'flex-end' }}>
+                          {savingNote ? 'Saving…' : 'Log note'}
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })()}
+              </div>
+
+              {/* Note list */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {leadNotes.map(note => {
+                  const c = NOTE_TYPE_COLOURS[note.type] || NOTE_TYPE_COLOURS['Internal note']
+                  const fileUrl = note.file_path ? supabase.storage.from('lead-files').getPublicUrl(note.file_path).data.publicUrl : null
+                  return (
+                    <div key={note.id} style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 10, padding: '12px 14px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 11, padding: '2px 9px', borderRadius: 999, fontWeight: 500, background: c.bg, color: c.color }}>{note.type}</span>
+                        {note.subject && <span style={{ fontSize: 13, fontWeight: 600 }}>{note.subject}</span>}
+                        <span style={{ marginLeft: 'auto', fontSize: 11, color: '#aaa' }}>{note.author} · {new Date(note.created_at).toLocaleString('en-GB')}</span>
+                      </div>
+                      {note.notes && <div style={{ fontSize: 13, color: '#555', lineHeight: 1.6, marginBottom: fileUrl ? 8 : 0 }}>{note.notes}</div>}
+                      {fileUrl && (
+                        <a href={fileUrl} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#3d35a8', textDecoration: 'none', fontWeight: 500 }}>
+                          📎 {note.filename} ↗
+                        </a>
+                      )}
+                    </div>
+                  )
+                })}
+                {leadNotes.length === 0 && <div style={{ color: '#aaa', fontSize: 13, textAlign: 'center', padding: 40 }}>No file notes yet</div>}
               </div>
             </div>
           )}
@@ -688,31 +886,41 @@ export default function LeadDetail() {
 
               {/* Upload form */}
               <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, padding: '16px 18px', marginBottom: 20 }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                    <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>File</label>
+                    <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Files</label>
                     <input
                       type="file"
-                      onChange={e => setUploadFile(e.target.files[0] || null)}
+                      multiple
+                      onChange={e => setUploadFileList(Array.from(e.target.files).map(f => ({ file: f, notes: '' })))}
                       style={{ fontSize: 13 }}
                     />
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                    <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Notes</label>
-                    <input
-                      value={uploadNotes}
-                      onChange={e => setUploadNotes(e.target.value)}
-                      placeholder="Optional notes about this file..."
-                      style={{ fontSize: 13, padding: '8px 11px', border: '1px solid #d8d5cf', borderRadius: 8, outline: 'none' }}
-                    />
-                  </div>
+
+                  {/* Per-file notes */}
+                  {uploadFileList.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {uploadFileList.map((item, idx) => (
+                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: '#faf9f7', borderRadius: 8, border: '1px solid #e8e6e0' }}>
+                          <div style={{ fontSize: 12, fontWeight: 500, minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.file.name}</div>
+                          <input
+                            value={item.notes}
+                            onChange={e => setUploadFileList(prev => prev.map((x, i) => i === idx ? { ...x, notes: e.target.value } : x))}
+                            placeholder="Notes (optional)"
+                            style={{ fontSize: 12, padding: '5px 9px', border: '1px solid #d8d5cf', borderRadius: 7, outline: 'none', width: 220, flexShrink: 0 }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   <div>
                     <button
                       onClick={handleUpload}
-                      disabled={!uploadFile || uploading}
-                      style={{ fontSize: 12, padding: '7px 16px', border: 'none', borderRadius: 8, background: !uploadFile || uploading ? '#9993d4' : '#3d35a8', color: '#fff', cursor: !uploadFile || uploading ? 'default' : 'pointer', fontWeight: 500 }}
+                      disabled={!uploadFileList.length || uploading}
+                      style={{ fontSize: 12, padding: '7px 16px', border: 'none', borderRadius: 8, background: !uploadFileList.length || uploading ? '#9993d4' : '#3d35a8', color: '#fff', cursor: !uploadFileList.length || uploading ? 'default' : 'pointer', fontWeight: 500 }}
                     >
-                      {uploading ? 'Uploading…' : 'Upload'}
+                      {uploading ? 'Uploading…' : `Upload${uploadFileList.length > 1 ? ` ${uploadFileList.length} files` : ''}`}
                     </button>
                   </div>
                 </div>
@@ -730,32 +938,15 @@ export default function LeadDetail() {
                     <div key={upload.id} style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, padding: '14px 16px' }}>
                       <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
                         {isImage && (
-                          <img
-                            src={publicUrl}
-                            alt={upload.filename}
-                            style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8, flexShrink: 0, border: '1px solid #e8e6e0' }}
-                          />
+                          <img src={publicUrl} alt={upload.filename} style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8, flexShrink: 0, border: '1px solid #e8e6e0' }} />
                         )}
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
-                            <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {upload.filename}
-                            </div>
-                            <a
-                              href={publicUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              style={{ fontSize: 11, padding: '3px 10px', border: '1px solid #d8d5cf', borderRadius: 6, color: '#555', textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0 }}
-                            >
-                              View ↗
-                            </a>
+                            <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{upload.filename}</div>
+                            <a href={publicUrl} target="_blank" rel="noreferrer" style={{ fontSize: 11, padding: '3px 10px', border: '1px solid #d8d5cf', borderRadius: 6, color: '#555', textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0 }}>View ↗</a>
                           </div>
-                          {upload.notes && (
-                            <div style={{ fontSize: 12, color: '#666', marginBottom: 4, lineHeight: 1.4 }}>{upload.notes}</div>
-                          )}
-                          <div style={{ fontSize: 11, color: '#aaa' }}>
-                            {new Date(upload.created_at).toLocaleString('en-GB')}
-                          </div>
+                          {upload.notes && <div style={{ fontSize: 12, color: '#666', marginBottom: 4, lineHeight: 1.4 }}>{upload.notes}</div>}
+                          <div style={{ fontSize: 11, color: '#aaa' }}>{new Date(upload.created_at).toLocaleString('en-GB')}</div>
                         </div>
                       </div>
                     </div>
@@ -829,24 +1020,44 @@ export default function LeadDetail() {
 
           {/* TRACKING TAB */}
           {activeTab === 'tracking' && (
-            <div style={{ maxWidth: 600 }}>
-              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 16 }}>Activity timeline</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                {[
-                  { text: `Lead created as ${lead.stage}`, time: lead.created_at, author: lead.assigned_to || 'System' },
-                ].map((item, i) => (
-                  <div key={i} style={{ display: 'flex', gap: 14, paddingBottom: 20, position: 'relative' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                      <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#3d35a8', flexShrink: 0, marginTop: 3 }} />
-                      <div style={{ width: 2, flex: 1, background: '#e8e6e0', marginTop: 4 }} />
-                    </div>
-                    <div style={{ flex: 1, paddingBottom: 4 }}>
-                      <div style={{ fontSize: 13, fontWeight: 500 }}>{item.text}</div>
-                      <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>{new Date(item.time).toLocaleString('en-GB')} · {item.author}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+            <div style={{ maxWidth: 700 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 16 }}>Appointments</div>
+
+              {leadAppointments.length === 0 ? (
+                <div style={{ color: '#aaa', fontSize: 13, textAlign: 'center', padding: '40px 24px', background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12 }}>
+                  No appointments linked to this lead yet
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                  {leadAppointments.map((appt, i) => {
+                    const c = APPT_TYPE_COLOURS[appt.type] || APPT_TYPE_COLOURS.Other
+                    const isLast = i === leadAppointments.length - 1
+                    return (
+                      <div key={appt.id} style={{ display: 'flex', gap: 14, paddingBottom: isLast ? 0 : 20 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+                          <div style={{ width: 10, height: 10, borderRadius: '50%', background: c.color, marginTop: 4 }} />
+                          {!isLast && <div style={{ width: 2, flex: 1, background: '#e8e6e0', marginTop: 4 }} />}
+                        </div>
+                        <div style={{ flex: 1, background: '#fff', border: '1px solid #e8e6e0', borderRadius: 10, padding: '12px 14px', marginBottom: isLast ? 0 : 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: 11, padding: '2px 9px', borderRadius: 999, fontWeight: 500, background: c.bg, color: c.color }}>{appt.type}</span>
+                            {appt.allday && <span style={{ fontSize: 11, padding: '2px 9px', borderRadius: 999, background: '#f5f4f0', color: '#666', fontWeight: 500 }}>All day</span>}
+                          </div>
+                          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>{appt.title}</div>
+                          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12, color: '#555' }}>
+                            {appt.date && <span>📅 {new Date(appt.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}</span>}
+                            {!appt.allday && appt.start_time && <span>🕐 {appt.start_time}{appt.end_time ? ` – ${appt.end_time}` : ''}</span>}
+                            {appt.assigned_to && <span>👤 {appt.assigned_to}</span>}
+                          </div>
+                          <div style={{ fontSize: 11, color: '#aaa', marginTop: 6 }}>
+                            Created {new Date(appt.created_at).toLocaleString('en-GB')}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )}
 
