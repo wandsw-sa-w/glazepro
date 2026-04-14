@@ -37,6 +37,8 @@ export default function LeadDetail({ leadId, onBack }) {
   const [saving, setSaving] = useState(false)
   const [showAddContact, setShowAddContact] = useState(false)
   const [newContact, setNewContact] = useState({ title: '', first_name: '', last_name: '', phone: '', email: '', notes: '', tags: [] })
+  const [editingContactId, setEditingContactId] = useState(null)
+  const [editDraft, setEditDraft] = useState(null)
   const [noteText, setNoteText] = useState('')
   const [notes, setNotes] = useState([])
 
@@ -77,6 +79,14 @@ export default function LeadDetail({ leadId, onBack }) {
       setShowAddContact(false)
       setNewContact({ title: '', first_name: '', last_name: '', phone: '', email: '', notes: '', tags: [] })
     }
+  }
+
+  async function updateContact(contactId) {
+    const { tags, ...rest } = editDraft
+    await supabase.from('contacts').update({ ...rest, tags: tags.join(', ') }).eq('id', contactId)
+    await fetchLead()
+    setEditingContactId(null)
+    setEditDraft(null)
   }
 
   async function setMainContact(leadContactId) {
@@ -217,12 +227,17 @@ export default function LeadDetail({ leadId, onBack }) {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {contacts.map(lc => {
+                  const isEditing = editingContactId === lc.id
                   const tagList = lc.contacts?.tags ? lc.contacts.tags.split(',').map(t => t.trim()).filter(Boolean) : []
+                  const iStyle = { fontSize: 13, padding: '8px 11px', border: '1px solid #d8d5cf', borderRadius: 8, outline: 'none', width: '100%', boxSizing: 'border-box' }
+
                   return (
                     <div key={lc.id} style={{ background: '#fff', border: `1px solid ${lc.is_main_contact ? '#b0a8f0' : '#e8e6e0'}`, borderRadius: 12, padding: '14px 16px' }}>
+
+                      {/* Card header — always visible */}
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#e6f0fb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, color: '#1a5fa8' }}>
+                          <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#e6f0fb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, color: '#1a5fa8', flexShrink: 0 }}>
                             {(lc.contacts?.first_name?.[0] || '') + (lc.contacts?.last_name?.[0] || '')}
                           </div>
                           <div>
@@ -231,26 +246,121 @@ export default function LeadDetail({ leadId, onBack }) {
                           </div>
                         </div>
                         <div style={{ display: 'flex', gap: 6 }}>
-                          {!lc.is_main_contact && <button onClick={() => setMainContact(lc.id)} style={{ fontSize: 11, padding: '4px 10px', border: '1px solid #d8d5cf', borderRadius: 6, background: '#fff', cursor: 'pointer' }}>Set as main</button>}
-                          <button onClick={() => removeContact(lc.id)} style={{ fontSize: 11, padding: '4px 10px', border: '1px solid #e8d0d0', borderRadius: 6, background: '#fff', cursor: 'pointer', color: '#8b2020' }}>Remove</button>
+                          {!isEditing && (
+                            <>
+                              <button
+                                onClick={() => {
+                                  setEditingContactId(lc.id)
+                                  setEditDraft({
+                                    title: lc.contacts?.title || '',
+                                    first_name: lc.contacts?.first_name || '',
+                                    last_name: lc.contacts?.last_name || '',
+                                    phone: lc.contacts?.phone || '',
+                                    email: lc.contacts?.email || '',
+                                    notes: lc.contacts?.notes || '',
+                                    tags: tagList,
+                                  })
+                                }}
+                                style={{ fontSize: 11, padding: '4px 10px', border: '1px solid #d8d5cf', borderRadius: 6, background: '#fff', cursor: 'pointer' }}
+                              >Edit</button>
+                              {!lc.is_main_contact && <button onClick={() => setMainContact(lc.id)} style={{ fontSize: 11, padding: '4px 10px', border: '1px solid #d8d5cf', borderRadius: 6, background: '#fff', cursor: 'pointer' }}>Set as main</button>}
+                              <button onClick={() => removeContact(lc.id)} style={{ fontSize: 11, padding: '4px 10px', border: '1px solid #e8d0d0', borderRadius: 6, background: '#fff', cursor: 'pointer', color: '#8b2020' }}>Remove</button>
+                            </>
+                          )}
                         </div>
                       </div>
-                      <div style={{ display: 'flex', gap: 16, fontSize: 12, color: '#555', flexWrap: 'wrap', marginBottom: tagList.length || lc.contacts?.notes ? 8 : 0 }}>
-                        {lc.contacts?.phone && <span>📞 {lc.contacts.phone}</span>}
-                        {lc.contacts?.email && <span>✉ {lc.contacts.email}</span>}
-                      </div>
-                      {tagList.length > 0 && (
-                        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: lc.contacts?.notes ? 8 : 0 }}>
-                          {tagList.map(tag => (
-                            <span key={tag} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 999, background: '#f0eefc', color: '#3d35a8', fontWeight: 500 }}>{tag}</span>
-                          ))}
+
+                      {/* View mode */}
+                      {!isEditing && (
+                        <>
+                          <div style={{ display: 'flex', gap: 16, fontSize: 12, color: '#555', flexWrap: 'wrap', marginBottom: tagList.length || lc.contacts?.notes ? 8 : 0 }}>
+                            {lc.contacts?.phone && <span>📞 {lc.contacts.phone}</span>}
+                            {lc.contacts?.email && <span>✉ {lc.contacts.email}</span>}
+                          </div>
+                          {tagList.length > 0 && (
+                            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: lc.contacts?.notes ? 8 : 0 }}>
+                              {tagList.map(tag => (
+                                <span key={tag} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 999, background: '#f0eefc', color: '#3d35a8', fontWeight: 500 }}>{tag}</span>
+                              ))}
+                            </div>
+                          )}
+                          {lc.contacts?.notes && (
+                            <div style={{ fontSize: 12, color: '#666', lineHeight: 1.5, padding: '8px 10px', background: '#faf9f7', borderRadius: 7 }}>
+                              {lc.contacts.notes}
+                            </div>
+                          )}
+                        </>
+                      )}
+
+                      {/* Edit mode */}
+                      {isEditing && editDraft && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr 1fr', gap: 10 }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                              <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Title</label>
+                              <select value={editDraft.title} onChange={e => setEditDraft(p => ({ ...p, title: e.target.value }))} style={{ ...iStyle }}>
+                                <option value="">—</option>
+                                {['Mr', 'Mrs', 'Ms', 'Miss', 'Dr', 'Prof'].map(t => <option key={t}>{t}</option>)}
+                              </select>
+                            </div>
+                            {[['First name', 'first_name'], ['Last name', 'last_name']].map(([label, key]) => (
+                              <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                                <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>{label}</label>
+                                <input value={editDraft[key]} onChange={e => setEditDraft(p => ({ ...p, [key]: e.target.value }))} style={iStyle} />
+                              </div>
+                            ))}
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                            {[['Phone', 'phone'], ['Email', 'email']].map(([label, key]) => (
+                              <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                                <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>{label}</label>
+                                <input value={editDraft[key]} onChange={e => setEditDraft(p => ({ ...p, [key]: e.target.value }))} style={iStyle} />
+                              </div>
+                            ))}
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                            <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Tags</label>
+                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                              {CONTACT_TAGS.map(tag => {
+                                const active = editDraft.tags.includes(tag)
+                                return (
+                                  <div
+                                    key={tag}
+                                    onClick={() => setEditDraft(p => ({
+                                      ...p,
+                                      tags: active ? p.tags.filter(t => t !== tag) : [...p.tags, tag],
+                                    }))}
+                                    style={{ fontSize: 12, padding: '5px 12px', borderRadius: 8, cursor: 'pointer', fontWeight: 500, border: `1px solid ${active ? '#b0a8f0' : '#d8d5cf'}`, background: active ? '#f0eefc' : '#fff', color: active ? '#3d35a8' : '#555' }}
+                                  >
+                                    {tag}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                            <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Notes</label>
+                            <textarea
+                              value={editDraft.notes}
+                              onChange={e => setEditDraft(p => ({ ...p, notes: e.target.value }))}
+                              rows={3}
+                              placeholder="Any notes about this contact..."
+                              style={{ fontSize: 13, padding: '8px 11px', border: '1px solid #d8d5cf', borderRadius: 8, outline: 'none', resize: 'none', fontFamily: 'inherit' }}
+                            />
+                          </div>
+                          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                            <button
+                              onClick={() => { setEditingContactId(null); setEditDraft(null) }}
+                              style={{ fontSize: 12, padding: '7px 14px', border: '1px solid #d8d5cf', borderRadius: 8, background: '#fff', cursor: 'pointer' }}
+                            >Cancel</button>
+                            <button
+                              onClick={() => updateContact(lc.contact_id)}
+                              style={{ fontSize: 12, padding: '7px 14px', border: 'none', borderRadius: 8, background: '#3d35a8', color: '#fff', cursor: 'pointer', fontWeight: 500 }}
+                            >Save</button>
+                          </div>
                         </div>
                       )}
-                      {lc.contacts?.notes && (
-                        <div style={{ fontSize: 12, color: '#666', lineHeight: 1.5, padding: '8px 10px', background: '#faf9f7', borderRadius: 7 }}>
-                          {lc.contacts.notes}
-                        </div>
-                      )}
+
                     </div>
                   )
                 })}
