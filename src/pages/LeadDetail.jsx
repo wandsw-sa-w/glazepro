@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 
 const stageColours = {
@@ -29,7 +30,9 @@ function Toggle({ value, onChange, label }) {
   )
 }
 
-export default function LeadDetail({ leadId, onBack }) {
+export default function LeadDetail() {
+  const { id: leadId } = useParams()
+  const navigate = useNavigate()
   const [lead, setLead] = useState(null)
   const [contacts, setContacts] = useState([])
   const [loading, setLoading] = useState(true)
@@ -124,7 +127,7 @@ export default function LeadDetail({ leadId, onBack }) {
         </div>
         <div style={{ padding: '14px 14px 4px', fontSize: 10, color: '#aaa', letterSpacing: '.07em', textTransform: 'uppercase' }}>Workflow</div>
         {['Lead capture', 'Quotes & orders', 'Production', 'Scheduling', 'Invoicing'].map(item => (
-          <div key={item} onClick={item === 'Lead capture' ? onBack : undefined} style={{ padding: '8px 11px', fontSize: 13, color: item === 'Lead capture' ? '#3d35a8' : '#aaa', fontWeight: item === 'Lead capture' ? 500 : 400, background: item === 'Lead capture' ? '#f0eefc' : 'transparent', borderRadius: 8, margin: '1px 7px', cursor: item === 'Lead capture' ? 'pointer' : 'not-allowed', opacity: item === 'Lead capture' ? 1 : 0.5 }}>
+          <div key={item} onClick={item === 'Lead capture' ? () => navigate('/leads') : undefined} style={{ padding: '8px 11px', fontSize: 13, color: item === 'Lead capture' ? '#3d35a8' : '#aaa', fontWeight: item === 'Lead capture' ? 500 : 400, background: item === 'Lead capture' ? '#f0eefc' : 'transparent', borderRadius: 8, margin: '1px 7px', cursor: item === 'Lead capture' ? 'pointer' : 'not-allowed', opacity: item === 'Lead capture' ? 1 : 0.5 }}>
             {item}
           </div>
         ))}
@@ -142,7 +145,7 @@ export default function LeadDetail({ leadId, onBack }) {
 
         {/* Topbar */}
         <div style={{ height: 52, background: '#fff', borderBottom: '1px solid #e8e6e0', display: 'flex', alignItems: 'center', padding: '0 20px', gap: 12, flexShrink: 0 }}>
-          <button onClick={onBack} style={{ fontSize: 12, padding: '6px 12px', border: '1px solid #d8d5cf', borderRadius: 8, background: '#fff', cursor: 'pointer', fontWeight: 500 }}>← Back</button>
+          <button onClick={() => navigate('/leads')} style={{ fontSize: 12, padding: '6px 12px', border: '1px solid #d8d5cf', borderRadius: 8, background: '#fff', cursor: 'pointer', fontWeight: 500 }}>← Back</button>
           <div style={{ fontSize: 15, fontWeight: 600 }}>{lead.lead_number}</div>
           {mainContact && <div style={{ fontSize: 13, color: '#555' }}>{mainContact.first_name} {mainContact.last_name}</div>}
           <Pill text={lead.stage} colourMap={stageColours} />

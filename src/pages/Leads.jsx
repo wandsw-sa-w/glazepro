@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
-import LeadDetail from './LeadDetail'
 
 const STAGES = ['New', 'Contacted', 'Survey booked', 'Quoted']
 
@@ -156,6 +156,7 @@ const EMPTY_FORM = {
 }
 
 export default function Leads() {
+  const navigate = useNavigate()
   const [leads, setLeads] = useState([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('board')
@@ -163,7 +164,6 @@ export default function Leads() {
   const [saving, setSaving] = useState(false)
   const [pcLoading, setPcLoading] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
-  const [selectedId, setSelectedId] = useState(null)
 
   const set = (key, val) => setForm(p => ({ ...p, [key]: val }))
 
@@ -274,15 +274,6 @@ export default function Leads() {
     return main?.contacts
   }
 
-  if (selectedId) {
-    return (
-      <LeadDetail
-        leadId={selectedId}
-        onBack={() => { setSelectedId(null); fetchLeads() }}
-      />
-    )
-  }
-
   return (
     <div style={{ display: 'flex', height: '100vh', fontFamily: 'inherit' }}>
 
@@ -385,7 +376,7 @@ export default function Leads() {
                       return (
                         <div
                           key={lead.id}
-                          onClick={() => setSelectedId(lead.id)}
+                          onClick={() => navigate(`/leads/${lead.id}`)}
                           style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 10, padding: '12px 13px', marginBottom: 8, cursor: 'pointer' }}
                         >
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
@@ -438,7 +429,7 @@ export default function Leads() {
                   ) : leads.map(lead => {
                     const contact = getMainContact(lead)
                     return (
-                    <tr key={lead.id} onClick={() => setSelectedId(lead.id)} style={{ cursor: 'pointer' }}>
+                    <tr key={lead.id} onClick={() => navigate(`/leads/${lead.id}`)} style={{ cursor: 'pointer' }}>
                       <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0', fontWeight: 600, color: '#3d35a8' }}>{lead.lead_number}</td>
                       <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0', fontWeight: 500 }}>
                         {contact ? [contact.title, contact.first_name, contact.last_name].filter(Boolean).join(' ') : '—'}
@@ -452,7 +443,7 @@ export default function Leads() {
                       <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0' }}><Pill text={lead.stage} map={STAGE_COLOURS} /></td>
                       <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0' }}>
                         <button
-                          onClick={e => { e.stopPropagation(); setSelectedId(lead.id) }}
+                          onClick={e => { e.stopPropagation(); navigate(`/leads/${lead.id}`) }}
                           style={{ fontSize: 11, padding: '4px 10px', border: '1px solid #d8d5cf', borderRadius: 6, background: '#fff', cursor: 'pointer' }}
                         >
                           Open
