@@ -3,20 +3,35 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 
-const STAGES = ['New', 'Contacted', 'Survey booked', 'Quoted']
+const STAGES = [
+  'New', 'In contact with customer', 'Budget quote provided',
+  'Appointment arranged', 'Pending', 'Won', 'Rejected', 'Lost',
+  'Historical remedial', 'Contact failed', 'Appointment cancelled', 'Quoted',
+]
 
 const STAGE_COLOURS = {
   New: { bg: '#e6f0fb', color: '#1a5fa8' },
-  Contacted: { bg: '#faeeda', color: '#7a4a08' },
-  'Survey booked': { bg: '#e1f5ee', color: '#0a5a3c' },
+  'In contact with customer': { bg: '#faeeda', color: '#7a4a08' },
+  'Budget quote provided': { bg: '#eeedfe', color: '#4a3ab0' },
+  'Appointment arranged': { bg: '#e1f5ee', color: '#0a5a3c' },
+  Pending: { bg: '#f5f4f0', color: '#666' },
+  Won: { bg: '#d4edda', color: '#155724' },
+  Rejected: { bg: '#fceaea', color: '#8b2020' },
+  Lost: { bg: '#fceaea', color: '#8b2020' },
+  'Historical remedial': { bg: '#f5f0e8', color: '#7a4a08' },
+  'Contact failed': { bg: '#fceaea', color: '#8b2020' },
+  'Appointment cancelled': { bg: '#fceaea', color: '#8b2020' },
   Quoted: { bg: '#eeedfe', color: '#4a3ab0' },
 }
 
 const SOURCE_COLOURS = {
-  Phone: { bg: '#eaf3de', color: '#2e6010' },
-  Website: { bg: '#e6f0fb', color: '#1a5fa8' },
-  Email: { bg: '#faeeda', color: '#7a4a08' },
-  Referral: { bg: '#eeedfe', color: '#4a3ab0' },
+  'Online presence': { bg: '#e6f0fb', color: '#1a5fa8' },
+  'Recommendation': { bg: '#eaf3de', color: '#2e6010' },
+  'Repeat customer': { bg: '#eeedfe', color: '#4a3ab0' },
+  'FRS presence': { bg: '#faeeda', color: '#7a4a08' },
+  'SRS presence': { bg: '#e1f5ee', color: '#0a5a3c' },
+  'Physical presence': { bg: '#f5f0e8', color: '#7a4a08' },
+  'Historical remedial': { bg: '#f5f4f0', color: '#666' },
 }
 
 const PRIORITY_DOT = { High: '#e24b4a', Medium: '#ef9f27', Low: '#639922' }
@@ -152,7 +167,7 @@ const EMPTY_FORM = {
   property_town: '', property_address: '', contact_address: '',
   same_address: true, listed_building: false, conservation_area: false,
   window_types: [], estimated_units: '', sector: '', description: '',
-  source: 'Phone', priority: 'Medium', assigned_to: '', notes: '', stage: 'New',
+  source: 'Online presence', priority: 'Medium', assigned_to: '', notes: '', stage: 'New',
   survey_date: '', survey_time: '', surveyor: '',
 }
 
@@ -361,11 +376,11 @@ export default function Leads() {
           {loading ? (
             <div style={{ textAlign: 'center', color: '#aaa', marginTop: 60 }}>Loading leads…</div>
           ) : tab === 'board' ? (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 12, alignItems: 'start' }}>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'start', overflowX: 'auto', paddingBottom: 8 }}>
               {STAGES.map(stage => {
                 const stageLeads = leads.filter(l => l.stage === stage)
                 return (
-                  <div key={stage} style={{ background: '#faf9f7', borderRadius: 12, padding: 12 }}>
+                  <div key={stage} style={{ background: '#faf9f7', borderRadius: 12, padding: 12, minWidth: 220, flex: '0 0 220px' }}>
                     <div style={{ fontSize: 12, fontWeight: 600, color: '#555', marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       {stage}
                       <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 999, fontWeight: 500, ...STAGE_COLOURS[stage] }}>
@@ -416,7 +431,7 @@ export default function Leads() {
               <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ background: '#faf9f7' }}>
-                    {['Lead no.', 'Contact', 'Property', 'Window types', 'Source', 'Priority', 'Stage', ''].map(h => (
+                    {['Lead no.', 'Contact', 'Property', 'Window types', 'Source', 'Priority', 'Status', ''].map(h => (
                       <th key={h} style={{ textAlign: 'left', padding: '9px 12px', fontSize: 11, color: '#888', borderBottom: '1px solid #eeece8', fontWeight: 500 }}>
                         {h}
                       </th>
@@ -598,7 +613,7 @@ export default function Leads() {
                 <SectionHead>Lead details</SectionHead>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <Field label="Source">
-                    <SegmentPicker options={['Phone', 'Website', 'Email', 'Referral']} value={form.source} onChange={v => set('source', v)} />
+                    <SegmentPicker options={['Online presence', 'Recommendation', 'Repeat customer', 'FRS presence', 'SRS presence', 'Physical presence', 'Historical remedial']} value={form.source} onChange={v => set('source', v)} />
                   </Field>
                   <Field label="Priority">
                     <SegmentPicker options={['High', 'Medium', 'Low']} value={form.priority} onChange={v => set('priority', v)} />

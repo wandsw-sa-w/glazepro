@@ -5,12 +5,24 @@ import { useAuth } from '../context/AuthContext'
 
 const stageColours = {
   New: { bg: '#e6f0fb', color: '#1a5fa8' },
-  Contacted: { bg: '#faeeda', color: '#7a4a08' },
-  'Survey booked': { bg: '#e1f5ee', color: '#0a5a3c' },
+  'In contact with customer': { bg: '#faeeda', color: '#7a4a08' },
+  'Budget quote provided': { bg: '#eeedfe', color: '#4a3ab0' },
+  'Appointment arranged': { bg: '#e1f5ee', color: '#0a5a3c' },
+  Pending: { bg: '#f5f4f0', color: '#666' },
+  Won: { bg: '#d4edda', color: '#155724' },
+  Rejected: { bg: '#fceaea', color: '#8b2020' },
+  Lost: { bg: '#fceaea', color: '#8b2020' },
+  'Historical remedial': { bg: '#f5f0e8', color: '#7a4a08' },
+  'Contact failed': { bg: '#fceaea', color: '#8b2020' },
+  'Appointment cancelled': { bg: '#fceaea', color: '#8b2020' },
   Quoted: { bg: '#eeedfe', color: '#4a3ab0' },
 }
 
-const STAGES = ['New', 'Contacted', 'Survey booked', 'Quoted']
+const STAGES = [
+  'New', 'In contact with customer', 'Budget quote provided',
+  'Appointment arranged', 'Pending', 'Won', 'Rejected', 'Lost',
+  'Historical remedial', 'Contact failed', 'Appointment cancelled', 'Quoted',
+]
 const SURVEYORS = ['Tom B', 'Dave K', 'Sarah W', 'John Smith']
 const CONTACT_TAGS = ['Homeowner', 'Landlord', 'Tenant', 'Builder', 'Architect', 'Developer', 'Agent', 'Other']
 const TIME_SLOTS = ['08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00']
@@ -214,15 +226,53 @@ export default function LeadDetail() {
                 )}
               </div>
 
-              {/* Stage */}
+              {/* Status */}
               <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, padding: '16px 18px', gridColumn: '1/-1' }}>
-                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Stage</div>
-                <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Status</div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   {STAGES.map(stage => (
-                    <div key={stage} onClick={() => updateLead({ stage })} style={{ fontSize: 13, padding: '8px 18px', border: `2px solid ${lead.stage === stage ? '#3d35a8' : '#e8e6e0'}`, borderRadius: 8, background: lead.stage === stage ? '#f0eefc' : '#fff', color: lead.stage === stage ? '#3d35a8' : '#555', cursor: 'pointer', fontWeight: lead.stage === stage ? 600 : 400 }}>{stage}</div>
+                    <div key={stage} onClick={() => updateLead({ stage })} style={{ fontSize: 12, padding: '7px 14px', border: `2px solid ${lead.stage === stage ? '#3d35a8' : '#e8e6e0'}`, borderRadius: 8, background: lead.stage === stage ? '#f0eefc' : '#fff', color: lead.stage === stage ? '#3d35a8' : '#555', cursor: 'pointer', fontWeight: lead.stage === stage ? 600 : 400 }}>{stage}</div>
                   ))}
                 </div>
               </div>
+
+              {/* Contacts (read-only) */}
+              {contacts.length > 0 && (
+                <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, padding: '16px 18px', gridColumn: '1/-1' }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Contacts</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {contacts.map(lc => {
+                      const tagList = lc.contacts?.tags ? lc.contacts.tags.split(',').map(t => t.trim()).filter(Boolean) : []
+                      return (
+                        <div key={lc.id} style={{ border: `1px solid ${lc.is_main_contact ? '#b0a8f0' : '#e8e6e0'}`, borderRadius: 10, padding: '12px 14px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                            <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#e6f0fb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, color: '#1a5fa8', flexShrink: 0 }}>
+                              {(lc.contacts?.first_name?.[0] || '') + (lc.contacts?.last_name?.[0] || '')}
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: 600 }}>
+                                {[lc.contacts?.title, lc.contacts?.first_name, lc.contacts?.last_name].filter(Boolean).join(' ')}
+                              </div>
+                              {lc.is_main_contact && <span style={{ fontSize: 10, padding: '1px 7px', borderRadius: 999, background: '#f0eefc', color: '#3d35a8', fontWeight: 500 }}>Main contact</span>}
+                            </div>
+                          </div>
+                          <div style={{ fontSize: 12, color: '#555', display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: tagList.length ? 8 : 0 }}>
+                            {lc.contacts?.phone && <span>📞 {lc.contacts.phone}</span>}
+                            {lc.contacts?.email && <span>✉ {lc.contacts.email}</span>}
+                          </div>
+                          {tagList.length > 0 && (
+                            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                              {tagList.map(tag => (
+                                <span key={tag} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 999, background: '#f0eefc', color: '#3d35a8', fontWeight: 500 }}>{tag}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
 
             </div>
           )}
