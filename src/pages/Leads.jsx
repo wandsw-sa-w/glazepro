@@ -215,7 +215,7 @@ export default function Leads() {
     }
     setSaving(true)
     try {
-      const leadNumber = 'L' + Date.now().toString().slice(-6)
+      const leadNumber = form.lead_number || ('L' + Date.now().toString().slice(-6))
       const { data: leadRows, error: le } = await supabase.from('leads').insert([{
         lead_number: leadNumber,
         property_address: form.property_address,
@@ -233,7 +233,7 @@ export default function Leads() {
         sector: form.sector,
         source: form.source,
         priority: form.priority,
-        stage: form.stage,
+        stage: form.stage || 'New',
         assigned_to: form.assigned_to,
         notes: form.notes,
         survey_date: form.survey_date || null,
