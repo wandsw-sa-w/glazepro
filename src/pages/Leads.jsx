@@ -173,13 +173,10 @@ export default function Leads() {
     setLoading(true)
     const { data, error } = await supabase
       .from('leads')
-      .select('*, lead_contacts(contact_id, is_main_contact, contacts(title, first_name, last_name, phone, email))')
+      .select('*')
       .order('created_at', { ascending: false })
-    if (error) {
-      console.error('fetchLeads error:', error)
-    } else {
-      setLeads(data ?? [])
-    }
+    if (error) console.log('fetchLeads error:', error)
+    if (!error) setLeads(data || [])
     setLoading(false)
   }
 
@@ -271,10 +268,8 @@ export default function Leads() {
     setSaving(false)
   }
 
-  function getMain(lead) {
-    if (!lead.lead_contacts?.length) return null
-    const mc = lead.lead_contacts.find(lc => lc.is_main_contact) ?? lead.lead_contacts[0]
-    return mc?.contacts ?? null
+  function getMain() {
+    return null
   }
 
   if (selectedId) {
@@ -383,55 +378,29 @@ export default function Leads() {
                     {stageLeads.length === 0 && (
                       <div style={{ fontSize: 12, color: '#ccc', textAlign: 'center', padding: '20px 0' }}>No leads</div>
                     )}
-                    {stageLeads.map(lead => {
-                      const contact = getMain(lead)
-                      return (
-                        <div
-                          key={lead.id}
-                          onClick={() => setSelectedId(lead.id)}
-                          style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 10, padding: '12px 13px', marginBottom: 8, cursor: 'pointer' }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                            <div style={{ width: 8, height: 8, borderRadius: '50%', background: PRIORITY_DOT[lead.priority] ?? '#ccc', flexShrink: 0 }} />
-                            <div style={{ fontSize: 12, fontWeight: 600, color: '#3d35a8' }}>{lead.lead_number}</div>
-                          </div>
-                          {contact && (
-                            <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 2 }}>
-                              {[contact.title, contact.first_name, contact.last_name].filter(Boolean).join(' ')}
-                            </div>
-                          )}
-                          <div style={{ fontSize: 11, color: '#888', marginBottom: 8, lineHeight: 1.5 }}>
-                            {lead.property_road && <div>{lead.property_road}</div>}
-                            {lead.property_town && <div>{lead.property_town}</div>}
-                            {lead.window_types && <div style={{ marginTop: 2 }}>{lead.window_types}</div>}
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 4 }}>
-                            <Pill text={lead.source} map={SOURCE_COLOURS} />
-                            <span style={{ fontSize: 11, color: '#aaa' }}>
-                              {new Date(lead.created_at).toLocaleDateString('en-GB')}
-                            </span>
-                          </div>
-                          {lead.listed_building && (
-                            <div style={{ marginTop: 6, fontSize: 10, padding: '2px 7px', borderRadius: 999, background: '#faeeda', color: '#7a4a08', display: 'inline-block', fontWeight: 500 }}>
-                              Listed building
-                            </div>
-                          )}
-                          {lead.conservation_area && (
-                            <div style={{ marginTop: 4, fontSize: 10, padding: '2px 7px', borderRadius: 999, background: '#fceaea', color: '#8b2020', display: 'inline-block', fontWeight: 500 }}>
-                              Conservation area
-                            </div>
-                          )}
-                          {lead.assigned_to && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#888', marginTop: 7 }}>
-                              <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#e6f0fb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 600, color: '#1a5fa8' }}>
-                                {lead.assigned_to.slice(0, 2).toUpperCase()}
-                              </div>
-                              {lead.assigned_to}
-                            </div>
-                          )}
+                    {stageLeads.map(lead => (
+                      <div
+                        key={lead.id}
+                        onClick={() => setSelectedId(lead.id)}
+                        style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 10, padding: '12px 13px', marginBottom: 8, cursor: 'pointer' }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                          <div style={{ width: 8, height: 8, borderRadius: '50%', background: PRIORITY_DOT[lead.priority] ?? '#ccc', flexShrink: 0 }} />
+                          <div style={{ fontSize: 12, fontWeight: 600, color: '#3d35a8' }}>{lead.lead_number}</div>
                         </div>
-                      )
-                    })}
+                        <div style={{ fontSize: 11, color: '#888', marginBottom: 8, lineHeight: 1.5 }}>
+                          {lead.property_road && <div>{lead.property_road}</div>}
+                          {lead.property_town && <div>{lead.property_town}</div>}
+                          {lead.window_types && <div style={{ marginTop: 2 }}>{lead.window_types}</div>}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 4 }}>
+                          <Pill text={lead.source} map={SOURCE_COLOURS} />
+                          <span style={{ fontSize: 11, color: '#aaa' }}>
+                            {new Date(lead.created_at).toLocaleDateString('en-GB')}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )
               })}
@@ -442,7 +411,7 @@ export default function Leads() {
               <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ background: '#faf9f7' }}>
-                    {['Lead no.', 'Contact', 'Property', 'Window types', 'Source', 'Priority', 'Surveyor', 'Stage', ''].map(h => (
+                    {['Lead no.', 'Property', 'Window types', 'Source', 'Priority', 'Stage', ''].map(h => (
                       <th key={h} style={{ textAlign: 'left', padding: '9px 12px', fontSize: 11, color: '#888', borderBottom: '1px solid #eeece8', fontWeight: 500 }}>
                         {h}
                       </th>
@@ -452,37 +421,30 @@ export default function Leads() {
                 <tbody>
                   {leads.length === 0 ? (
                     <tr>
-                      <td colSpan={9} style={{ padding: '40px 12px', textAlign: 'center', color: '#aaa' }}>
+                      <td colSpan={7} style={{ padding: '40px 12px', textAlign: 'center', color: '#aaa' }}>
                         No leads yet — add your first one
                       </td>
                     </tr>
-                  ) : leads.map(lead => {
-                    const contact = getMain(lead)
-                    return (
-                      <tr key={lead.id} onClick={() => setSelectedId(lead.id)} style={{ cursor: 'pointer' }}>
-                        <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0', fontWeight: 600, color: '#3d35a8' }}>{lead.lead_number}</td>
-                        <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0', fontWeight: 500 }}>
-                          {contact ? `${contact.first_name} ${contact.last_name}` : '—'}
-                        </td>
-                        <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0', color: '#555' }}>
-                          {[lead.property_road, lead.property_town].filter(Boolean).join(', ') || '—'}
-                        </td>
-                        <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0', color: '#555' }}>{lead.window_types || '—'}</td>
-                        <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0' }}><Pill text={lead.source} map={SOURCE_COLOURS} /></td>
-                        <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0', color: PRIORITY_DOT[lead.priority], fontWeight: 500 }}>{lead.priority}</td>
-                        <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0', color: '#888' }}>{lead.surveyor || '—'}</td>
-                        <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0' }}><Pill text={lead.stage} map={STAGE_COLOURS} /></td>
-                        <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0' }}>
-                          <button
-                            onClick={e => { e.stopPropagation(); setSelectedId(lead.id) }}
-                            style={{ fontSize: 11, padding: '4px 10px', border: '1px solid #d8d5cf', borderRadius: 6, background: '#fff', cursor: 'pointer' }}
-                          >
-                            Open
-                          </button>
-                        </td>
-                      </tr>
-                    )
-                  })}
+                  ) : leads.map(lead => (
+                    <tr key={lead.id} onClick={() => setSelectedId(lead.id)} style={{ cursor: 'pointer' }}>
+                      <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0', fontWeight: 600, color: '#3d35a8' }}>{lead.lead_number}</td>
+                      <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0', color: '#555' }}>
+                        {[lead.property_road, lead.property_town].filter(Boolean).join(', ') || '—'}
+                      </td>
+                      <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0', color: '#555' }}>{lead.window_types || '—'}</td>
+                      <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0' }}><Pill text={lead.source} map={SOURCE_COLOURS} /></td>
+                      <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0', color: PRIORITY_DOT[lead.priority], fontWeight: 500 }}>{lead.priority}</td>
+                      <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0' }}><Pill text={lead.stage} map={STAGE_COLOURS} /></td>
+                      <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0' }}>
+                        <button
+                          onClick={e => { e.stopPropagation(); setSelectedId(lead.id) }}
+                          style={{ fontSize: 11, padding: '4px 10px', border: '1px solid #d8d5cf', borderRadius: 6, background: '#fff', cursor: 'pointer' }}
+                        >
+                          Open
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
