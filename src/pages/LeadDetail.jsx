@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
@@ -131,6 +131,7 @@ export default function LeadDetail() {
   const [geoClusterLoading, setGeoClusterLoading] = useState(false)
   const [geoClusterSlots, setGeoClusterSlots] = useState(null)
   const [geoClusterError, setGeoClusterError] = useState(null)
+  const confirmButtonRef = useRef(null)
   const [surveyDate, setSurveyDate] = useState('')
   const [surveyTime, setSurveyTime] = useState('')
   const [surveyorVal, setSurveyorVal] = useState('')
@@ -234,6 +235,7 @@ export default function LeadDetail() {
     setSurveyDate(slot.date || '')
     setSurveyTime(slot.time || '')
     setSurveyorVal(slot.surveyor || slot.surveyor_name || '')
+    confirmButtonRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
 
   async function confirmSurveyBooking() {
@@ -1515,7 +1517,7 @@ export default function LeadDetail() {
                     surveyTime !== (lead.survey_time || '') ||
                     surveyorVal !== (lead.surveyor || '')
                   return surveyDate && surveyTime && surveyorVal && surveyChanged && !surveyBookedMsg && (
-                    <div style={{ padding: '14px 16px', background: '#f0eefc', border: '1px solid #c0b8f0', borderRadius: 8, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 14 }}>
+                    <div ref={confirmButtonRef} style={{ padding: '14px 16px', background: '#f0eefc', border: '1px solid #c0b8f0', borderRadius: 8, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 14 }}>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 13, fontWeight: 600, color: '#3d35a8', marginBottom: 2 }}>Ready to confirm</div>
                         <div style={{ fontSize: 12, color: '#555' }}>
