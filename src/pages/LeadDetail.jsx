@@ -203,10 +203,13 @@ export default function LeadDetail() {
         }),
       })
       const data = await res.json()
+      console.log('geo-cluster response:', data, 'recommendations:', data.recommendations?.length, 'all_slots:', data.all_slots?.length)
       if (!res.ok) {
         setGeoClusterError(data.error || data.message || `Error ${res.status}`)
       } else {
-        setGeoClusterSlots(Array.isArray(data) ? data : (data.slots || []))
+        const recommendations = data.recommendations || []
+        const all_slots = data.all_slots || data.slots || (Array.isArray(data) ? data : [])
+        setGeoClusterSlots({ recommendations, all_slots })
       }
     } catch (err) {
       setGeoClusterError(err.message || 'Network error')
@@ -1369,8 +1372,8 @@ export default function LeadDetail() {
                 )}
 
                 {geoClusterSlots !== null && !geoClusterLoading && (() => {
-                  const recommended = geoClusterSlots.filter(s => (s.drive_time_minutes ?? s.drive_time_mins ?? s.drive_time ?? Infinity) <= 30)
-                  const others      = geoClusterSlots.filter(s => (s.drive_time_minutes ?? s.drive_time_mins ?? s.drive_time ?? Infinity) >  30)
+                  const recommended = geoClusterSlots.recommendations || []
+                  const others      = geoClusterSlots.all_slots || []
                   return (
                     <div style={{ marginTop: 16 }}>
                       {/* Recommended */}
