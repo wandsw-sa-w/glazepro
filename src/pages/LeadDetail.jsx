@@ -285,25 +285,25 @@ export default function LeadDetail() {
       const EDGE_URL = 'https://ubmxstufxyeimaywcevk.supabase.co/functions/v1/send-email'
 
       const { data: { session } } = await supabase.auth.getSession()
-      const token = session?.access_token
 
       const requestBody = {
         to: emailForm.to,
         ...(emailForm.cc ? { cc: emailForm.cc } : {}),
         subject: emailForm.subject,
         body: emailForm.body,
-        from_mailbox: user?.email,
+        from_mailbox: session.user.email,
       }
 
       console.log('[sendEmail] URL:', EDGE_URL)
-      console.log('[sendEmail] Token (first 20 chars):', token ? token.slice(0, 20) + '…' : 'null')
+      console.log('[sendEmail] Token (first 20 chars):', session.access_token ? session.access_token.slice(0, 20) + '…' : 'null')
       console.log('[sendEmail] Request body:', requestBody)
 
       const res = await fetch(EDGE_URL, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
+          'apikey': 'sb_publishable_YbIHzqpnFXin94E1bpVUug_c_B-UvTw',
         },
         body: JSON.stringify(requestBody),
       })
