@@ -1509,7 +1509,7 @@ export default function LeadDetail() {
           survey_date: lead.survey_date,
           survey_time: lead.survey_time,
           surveyor: lead.surveyor,
-          status: 'Appointment arranged'
+          stage: 'Appointment arranged'
         }).eq('id', leadId)
         await supabase.from('appointments').insert([{
           lead_id: leadId,
