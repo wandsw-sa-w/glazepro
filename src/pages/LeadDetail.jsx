@@ -128,6 +128,12 @@ export default function LeadDetail() {
   const [coords, setCoords] = useState(null)
   const [geoLoading, setGeoLoading] = useState(false)
   const [enquiryNotes, setEnquiryNotes] = useState('')
+  const [geoClusterLoading, setGeoClusterLoading] = useState(false)
+  const [geoClusterSlots, setGeoClusterSlots] = useState(null)
+  const [geoClusterError, setGeoClusterError] = useState(null)
+  // slotKey forces re-mount of survey inputs with pre-filled defaults when a slot is clicked
+  const [slotKey, setSlotKey] = useState(0)
+  const [slotDefault, setSlotDefault] = useState({ date: '', time: '', surveyor: '' })
 
   useEffect(() => { fetchLead(); fetchUploads() }, [leadId])
 
@@ -172,6 +178,50 @@ export default function LeadDetail() {
     await supabase.from('leads').update({ ...updates, last_updated_at: new Date().toISOString() }).eq('id', leadId)
     await fetchLead()
     setSaving(false)
+  }
+
+  async function findGeoSlots() {
+    setGeoClusterLoading(true)
+    setGeoClusterSlots(null)
+    setGeoClusterError(null)
+    const today = new Date()
+    const sixWeeks = new Date()
+    sixWeeks.setDate(today.getDate() + 42)
+    try {
+      const res = await fetch('https://ubmxstufxyeimaywcevk.supabase.co/functions/v1/geo-cluster', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer sb_publishable_YbIHzqpnFXin94E1bpVUug_c_B-UvTw',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          property_postcode: lead.property_postcode,
+          property_road: lead.property_road,
+          property_town: lead.property_town,
+          date_range_start: today.toISOString().slice(0, 10),
+          date_range_end: sixWeeks.toISOString().slice(0, 10),
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setGeoClusterError(data.error || data.message || `Error ${res.status}`)
+      } else {
+        setGeoClusterSlots(Array.isArray(data) ? data : (data.slots || []))
+      }
+    } catch (err) {
+      setGeoClusterError(err.message || 'Network error')
+    } finally {
+      setGeoClusterLoading(false)
+    }
+  }
+
+  function applySlot(slot) {
+    setSlotDefault({
+      date: slot.date || '',
+      time: slot.time || '',
+      surveyor: slot.surveyor || slot.surveyor_name || '',
+    })
+    setSlotKey(k => k + 1)
   }
 
   async function toggleLeadTag(tag) {
@@ -1297,22 +1347,107 @@ export default function LeadDetail() {
           {activeTab === 'survey' && (
             <div style={{ maxWidth: 600 }}>
               <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 16 }}>Survey details</div>
+
+              {/* ── Geo-clustering ──────────────────────────────────────── */}
+              <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, padding: '16px 18px', marginBottom: 16 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Find a nearby slot</div>
+                <div style={{ fontSize: 12, color: '#888', marginBottom: 12 }}>
+                  Search for available survey slots near this property to minimise travel time.
+                </div>
+                <button
+                  onClick={findGeoSlots}
+                  disabled={geoClusterLoading || !lead.property_postcode}
+                  style={{ fontSize: 13, padding: '8px 18px', border: 'none', borderRadius: 8, background: geoClusterLoading || !lead.property_postcode ? '#9993d4' : '#3d35a8', color: '#fff', cursor: geoClusterLoading || !lead.property_postcode ? 'default' : 'pointer', fontWeight: 500 }}
+                >
+                  {geoClusterLoading ? 'Searching for nearby appointments…' : 'Find recommended slots'}
+                </button>
+
+                {geoClusterError && (
+                  <div style={{ marginTop: 12, padding: '10px 14px', background: '#fceaea', borderRadius: 8, fontSize: 13, color: '#8b2020' }}>
+                    {geoClusterError}
+                  </div>
+                )}
+
+                {geoClusterSlots !== null && !geoClusterLoading && (() => {
+                  const recommended = geoClusterSlots.filter(s => (s.drive_time_minutes ?? s.drive_time_mins ?? s.drive_time ?? Infinity) <= 30)
+                  const others      = geoClusterSlots.filter(s => (s.drive_time_minutes ?? s.drive_time_mins ?? s.drive_time ?? Infinity) >  30)
+                  return (
+                    <div style={{ marginTop: 16 }}>
+                      {/* Recommended */}
+                      <div style={{ fontSize: 10, color: '#aaa', letterSpacing: '.07em', textTransform: 'uppercase', marginBottom: 8 }}>Recommended slots — drive time 30 mins or under</div>
+                      {recommended.length === 0 ? (
+                        <div style={{ padding: '12px 14px', background: '#faf9f7', borderRadius: 8, fontSize: 13, color: '#888', marginBottom: 16 }}>
+                          No nearby appointments found in the next 6 weeks — all available slots shown below
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+                          {recommended.map((slot, i) => {
+                            const driveTime = slot.drive_time_minutes ?? slot.drive_time_mins ?? slot.drive_time
+                            const surveyor  = slot.surveyor || slot.surveyor_name || '—'
+                            const origin    = slot.origin_address || slot.from_address || slot.from_postcode || ''
+                            return (
+                              <div
+                                key={i}
+                                onClick={() => applySlot(slot)}
+                                style={{ padding: '12px 14px', background: '#e1f5ee', border: '1px solid #b2dece', borderRadius: 8, cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 3 }}
+                              >
+                                <div style={{ fontSize: 11, fontWeight: 600, color: '#0a5a3c', textTransform: 'uppercase', letterSpacing: '.04em' }}>Recommended — nearby appointment</div>
+                                <div style={{ fontSize: 13, color: '#0a3a2a', fontWeight: 500 }}>
+                                  {surveyor} · {slot.date ? new Date(slot.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) : '—'} at {slot.time || '—'}
+                                  {driveTime != null && <span style={{ fontWeight: 400, color: '#2a7a5c' }}> · {driveTime} min drive</span>}
+                                </div>
+                                {origin && <div style={{ fontSize: 11, color: '#2a7a5c' }}>From: {origin}</div>}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+
+                      {/* All other slots */}
+                      {others.length > 0 && (
+                        <>
+                          <div style={{ fontSize: 10, color: '#aaa', letterSpacing: '.07em', textTransform: 'uppercase', marginBottom: 8 }}>All other slots</div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {others.map((slot, i) => {
+                              const driveTime = slot.drive_time_minutes ?? slot.drive_time_mins ?? slot.drive_time
+                              const surveyor  = slot.surveyor || slot.surveyor_name || '—'
+                              return (
+                                <div
+                                  key={i}
+                                  onClick={() => applySlot(slot)}
+                                  style={{ padding: '10px 12px', background: '#faf9f7', border: '1px solid #e8e6e0', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, fontSize: 13, color: '#444' }}
+                                >
+                                  <span style={{ fontWeight: 500 }}>{surveyor}</span>
+                                  <span>{slot.date ? new Date(slot.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) : '—'} at {slot.time || '—'}</span>
+                                  {driveTime != null && <span style={{ color: '#888', fontSize: 12, marginLeft: 'auto' }}>{driveTime} min drive</span>}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )
+                })()}
+              </div>
+
+              {/* ── Booking fields ──────────────────────────────────────── */}
               <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, padding: '16px 18px' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                     <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Date</label>
-                    <input type="date" defaultValue={lead.survey_date || ''} onBlur={e => updateLead({ survey_date: e.target.value })} style={{ fontSize: 13, padding: '8px 11px', border: '1px solid #d8d5cf', borderRadius: 8, outline: 'none' }} />
+                    <input key={`survey-date-${slotKey}`} type="date" defaultValue={slotKey > 0 ? slotDefault.date : (lead.survey_date || '')} onBlur={e => updateLead({ survey_date: e.target.value })} style={{ fontSize: 13, padding: '8px 11px', border: '1px solid #d8d5cf', borderRadius: 8, outline: 'none' }} />
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                     <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Time</label>
-                    <select defaultValue={lead.survey_time || ''} onBlur={e => updateLead({ survey_time: e.target.value })} style={{ fontSize: 13, padding: '8px 11px', border: '1px solid #d8d5cf', borderRadius: 8, outline: 'none', background: '#fff' }}>
+                    <select key={`survey-time-${slotKey}`} defaultValue={slotKey > 0 ? slotDefault.time : (lead.survey_time || '')} onBlur={e => updateLead({ survey_time: e.target.value })} style={{ fontSize: 13, padding: '8px 11px', border: '1px solid #d8d5cf', borderRadius: 8, outline: 'none', background: '#fff' }}>
                       <option value="">Select time</option>
                       {TIME_SLOTS.map(t => <option key={t}>{t}</option>)}
                     </select>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                     <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Surveyor</label>
-                    <select defaultValue={lead.surveyor || ''} onBlur={e => updateLead({ surveyor: e.target.value })} style={{ fontSize: 13, padding: '8px 11px', border: '1px solid #d8d5cf', borderRadius: 8, outline: 'none', background: '#fff' }}>
+                    <select key={`survey-surveyor-${slotKey}`} defaultValue={slotKey > 0 ? slotDefault.surveyor : (lead.surveyor || '')} onBlur={e => updateLead({ surveyor: e.target.value })} style={{ fontSize: 13, padding: '8px 11px', border: '1px solid #d8d5cf', borderRadius: 8, outline: 'none', background: '#fff' }}>
                       <option value="">Select surveyor</option>
                       {users.map(u => <option key={u.id} value={u.full_name}>{u.full_name}</option>)}
                     </select>
