@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { useUsers } from '../hooks/useUsers'
+import { useUnmatchedCount } from '../hooks/useUnmatchedCount'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -87,6 +88,7 @@ export default function Calendar() {
   const navigate = useNavigate()
   const { user, signOut } = useAuth()
   const { users } = useUsers()
+  const unmatchedCount = useUnmatchedCount()
   const filterRef = useRef(null)
 
   const [weekOffset, setWeekOffset] = useState(0)
@@ -278,12 +280,14 @@ export default function Calendar() {
         </div>
         <div style={{ padding: '14px 14px 4px', fontSize: 10, color: '#aaa', letterSpacing: '.07em', textTransform: 'uppercase' }}>Workflow</div>
         {[
-          ['Leads', '/leads'],
-          ['Quotes & orders', null],
-          ['Production', null],
-          ['Scheduling', '/calendar'],
-          ['Invoicing', null],
-        ].map(([item, path]) => {
+          ['Leads',             '/leads',              null],
+          ['Quotes & orders',   null,                  null],
+          ['Production',        null,                  null],
+          ['Scheduling',        '/calendar',           null],
+          ['Invoicing',         null,                  null],
+          ['Tasks',             '/tasks',              null],
+          ['Unmatched emails',  '/unmatched-emails',   unmatchedCount || null],
+        ].map(([item, path, badge]) => {
           const active = item === 'Scheduling'
           return (
             <div
@@ -291,6 +295,7 @@ export default function Calendar() {
               onClick={path ? () => navigate(path) : undefined}
               style={{
                 padding: '8px 11px', fontSize: 13, borderRadius: 8, margin: '1px 7px',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 color: active ? '#3d35a8' : path ? '#555' : '#aaa',
                 fontWeight: active ? 500 : 400,
                 background: active ? '#f0eefc' : 'transparent',
@@ -298,7 +303,8 @@ export default function Calendar() {
                 opacity: path ? 1 : 0.5,
               }}
             >
-              {item}
+              <span>{item}</span>
+              {badge > 0 && <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 999, background: '#fceaea', color: '#8b2020', fontWeight: 600, flexShrink: 0 }}>{badge}</span>}
             </div>
           )
         })}

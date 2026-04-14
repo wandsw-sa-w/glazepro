@@ -3,6 +3,8 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 import Leads from './pages/Leads'
 import LeadDetail from './pages/LeadDetail'
 import Calendar from './pages/Calendar'
+import Tasks from './pages/Tasks'
+import UnmatchedEmails from './pages/UnmatchedEmails'
 import Login from './pages/Login'
 import './App.css'
 
@@ -20,6 +22,8 @@ function AppRoutes() {
       <Route path="/leads" element={<Leads />} />
       <Route path="/leads/:id" element={<LeadDetail />} />
       <Route path="/calendar" element={<Calendar />} />
+      <Route path="/tasks" element={<Tasks />} />
+      <Route path="/unmatched-emails" element={<UnmatchedEmails />} />
     </Routes>
   )
 }

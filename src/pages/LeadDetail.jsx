@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { useUsers } from '../hooks/useUsers'
+import { useUnmatchedCount } from '../hooks/useUnmatchedCount'
 
 const stageColours = {
   New: { bg: '#e6f0fb', color: '#1a5fa8' },
@@ -41,6 +42,7 @@ const NOTE_TYPE_COLOURS = {
   'Phone out':     { bg: '#e6f0fb', color: '#1a5fa8' },
   'Phone in':      { bg: '#e1f5ee', color: '#0a5a3c' },
   'In person':     { bg: '#eeedfe', color: '#4a3ab0' },
+  'Email out':     { bg: '#fff0e8', color: '#a04010' },
 }
 const APPT_TYPE_COLOURS = {
   Survey:       { bg: '#e6f0fb', color: '#1a5fa8' },
@@ -70,6 +72,7 @@ export default function LeadDetail() {
   const navigate = useNavigate()
   const { user, signOut } = useAuth()
   const { users } = useUsers()
+  const unmatchedCount = useUnmatchedCount()
   const [lead, setLead] = useState(null)
   const [contacts, setContacts] = useState([])
   const [loading, setLoading] = useState(true)
@@ -85,6 +88,9 @@ export default function LeadDetail() {
   const [leadNotes, setLeadNotes] = useState([])
   const [noteForm, setNoteForm] = useState({ subject: '', type: 'Internal note', notes: '', file: null })
   const [savingNote, setSavingNote] = useState(false)
+  const [showCompose, setShowCompose] = useState(false)
+  const [emailForm, setEmailForm] = useState({ to: '', cc: '', subject: '', body: '' })
+  const [sendingEmail, setSendingEmail] = useState(false)
   const [tasks, setTasks] = useState([])
   const [newTask, setNewTask] = useState({ subject: '', due_date: '', assigned_to: '', notes: '' })
   const [savingTask, setSavingTask] = useState(false)
@@ -256,6 +262,56 @@ export default function LeadDetail() {
     setSavingNote(false)
   }
 
+  function openCompose() {
+    const mainLc = contacts.find(lc => lc.is_main_contact) || contacts[0]
+    const mc = mainLc?.contacts
+    setEmailForm({
+      to: mc?.email || '',
+      cc: '',
+      subject: lead?.lead_number ? `Re: ${lead.lead_number}` : '',
+      body: '',
+    })
+    setShowCompose(true)
+  }
+
+  async function sendEmail() {
+    if (!emailForm.to.trim()) return
+    setSendingEmail(true)
+    const { error } = await supabase.functions.invoke('send-email', {
+      body: {
+        to: emailForm.to,
+        cc: emailForm.cc || undefined,
+        subject: emailForm.subject,
+        body: emailForm.body,
+        lead_id: leadId,
+      },
+    })
+    if (error) {
+      alert('Failed to send email: ' + error.message)
+      setSendingEmail(false)
+      return
+    }
+    const notesBody = [
+      `To: ${emailForm.to}`,
+      emailForm.cc ? `CC: ${emailForm.cc}` : null,
+      '',
+      emailForm.body,
+    ].filter(l => l !== null).join('\n')
+
+    await supabase.from('lead_notes').insert([{
+      lead_id: leadId,
+      subject: emailForm.subject,
+      type: 'Email out',
+      notes: notesBody,
+      author: user?.email || 'Unknown',
+      created_at: new Date().toISOString(),
+    }])
+    await fetchLeadNotes()
+    setShowCompose(false)
+    setEmailForm({ to: '', cc: '', subject: '', body: '' })
+    setSendingEmail(false)
+  }
+
   async function addContact() {
     if (!newContact.first_name && !newContact.last_name) return
     const { tags, ...rest } = newContact
@@ -307,9 +363,18 @@ export default function LeadDetail() {
           <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>Window management</div>
         </div>
         <div style={{ padding: '14px 14px 4px', fontSize: 10, color: '#aaa', letterSpacing: '.07em', textTransform: 'uppercase' }}>Workflow</div>
-        {[['Leads', '/leads'], ['Quotes & orders', null], ['Production', null], ['Scheduling', '/calendar'], ['Invoicing', null]].map(([item, path]) => (
-          <div key={item} onClick={path ? () => navigate(path) : undefined} style={{ padding: '8px 11px', fontSize: 13, color: item === 'Leads' ? '#3d35a8' : path ? '#555' : '#aaa', fontWeight: item === 'Leads' ? 500 : 400, background: item === 'Leads' ? '#f0eefc' : 'transparent', borderRadius: 8, margin: '1px 7px', cursor: path ? 'pointer' : 'not-allowed', opacity: path ? 1 : 0.5 }}>
-            {item}
+        {[
+          ['Leads',             '/leads',              null],
+          ['Quotes & orders',   null,                  null],
+          ['Production',        null,                  null],
+          ['Scheduling',        '/calendar',           null],
+          ['Invoicing',         null,                  null],
+          ['Tasks',             '/tasks',              null],
+          ['Unmatched emails',  '/unmatched-emails',   unmatchedCount || null],
+        ].map(([item, path, badge]) => (
+          <div key={item} onClick={path ? () => navigate(path) : undefined} style={{ padding: '8px 11px', fontSize: 13, color: item === 'Leads' ? '#3d35a8' : path ? '#555' : '#aaa', fontWeight: item === 'Leads' ? 500 : 400, background: item === 'Leads' ? '#f0eefc' : 'transparent', borderRadius: 8, margin: '1px 7px', cursor: path ? 'pointer' : 'not-allowed', opacity: path ? 1 : 0.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span>{item}</span>
+            {badge > 0 && <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 999, background: '#fceaea', color: '#8b2020', fontWeight: 600, flexShrink: 0 }}>{badge}</span>}
           </div>
         ))}
         <div style={{ marginTop: 'auto', padding: 13, borderTop: '1px solid #e8e6e0' }}>
@@ -808,14 +873,62 @@ export default function LeadDetail() {
                           <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Attach file <span style={{ color: '#aaa', fontWeight: 400 }}>(optional)</span></label>
                           <input type="file" onChange={e => setNoteForm(p => ({ ...p, file: e.target.files[0] || null }))} style={{ fontSize: 12 }} />
                         </div>
-                        <button onClick={saveLeadNote} disabled={savingNote || (!noteForm.subject.trim() && !noteForm.notes.trim())} style={{ fontSize: 12, padding: '7px 16px', border: 'none', borderRadius: 8, background: savingNote || (!noteForm.subject.trim() && !noteForm.notes.trim()) ? '#9993d4' : '#3d35a8', color: '#fff', cursor: 'pointer', fontWeight: 500, flexShrink: 0, alignSelf: 'flex-end' }}>
-                          {savingNote ? 'Saving…' : 'Log note'}
-                        </button>
+                        <div style={{ display: 'flex', gap: 8, alignSelf: 'flex-end', flexShrink: 0 }}>
+                          <button onClick={openCompose} style={{ fontSize: 12, padding: '7px 14px', border: '1px solid #d8a060', borderRadius: 8, background: '#fff8f0', color: '#a04010', cursor: 'pointer', fontWeight: 500 }}>
+                            ✉ Send email
+                          </button>
+                          <button onClick={saveLeadNote} disabled={savingNote || (!noteForm.subject.trim() && !noteForm.notes.trim())} style={{ fontSize: 12, padding: '7px 16px', border: 'none', borderRadius: 8, background: savingNote || (!noteForm.subject.trim() && !noteForm.notes.trim()) ? '#9993d4' : '#3d35a8', color: '#fff', cursor: 'pointer', fontWeight: 500 }}>
+                            {savingNote ? 'Saving…' : 'Log note'}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   )
                 })()}
               </div>
+
+              {/* Email compose panel */}
+              {showCompose && (() => {
+                const iS = { fontSize: 13, padding: '7px 10px', border: '1px solid #d8d5cf', borderRadius: 8, outline: 'none', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' }
+                return (
+                  <div style={{ background: '#fffcf8', border: '1px solid #d8a060', borderRadius: 12, padding: '14px 16px', marginBottom: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#a04010' }}>✉ New email</div>
+                      <button onClick={() => setShowCompose(false)} style={{ fontSize: 18, color: '#aaa', cursor: 'pointer', border: 'none', background: 'none', lineHeight: 1, padding: 0 }}>×</button>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>To</label>
+                          <input value={emailForm.to} onChange={e => setEmailForm(p => ({ ...p, to: e.target.value }))} placeholder="recipient@example.com" style={iS} />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>CC <span style={{ color: '#aaa', fontWeight: 400 }}>(optional)</span></label>
+                          <input value={emailForm.cc} onChange={e => setEmailForm(p => ({ ...p, cc: e.target.value }))} placeholder="cc@example.com" style={iS} />
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Subject</label>
+                        <input value={emailForm.subject} onChange={e => setEmailForm(p => ({ ...p, subject: e.target.value }))} placeholder="Subject…" style={iS} />
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Body</label>
+                        <textarea value={emailForm.body} onChange={e => setEmailForm(p => ({ ...p, body: e.target.value }))} rows={6} placeholder="Write your email here…" style={{ ...iS, resize: 'vertical' }} />
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                        <button onClick={() => setShowCompose(false)} style={{ fontSize: 12, padding: '7px 14px', border: '1px solid #d8d5cf', borderRadius: 8, background: '#fff', cursor: 'pointer' }}>Cancel</button>
+                        <button
+                          onClick={sendEmail}
+                          disabled={sendingEmail || !emailForm.to.trim()}
+                          style={{ fontSize: 12, padding: '7px 16px', border: 'none', borderRadius: 8, background: sendingEmail || !emailForm.to.trim() ? '#c8905a' : '#a04010', color: '#fff', cursor: sendingEmail || !emailForm.to.trim() ? 'default' : 'pointer', fontWeight: 500 }}
+                        >
+                          {sendingEmail ? 'Sending…' : 'Send email'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })()}
 
               {/* Note list */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
