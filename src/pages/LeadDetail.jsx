@@ -283,11 +283,13 @@ export default function LeadDetail() {
 
     let sendOk = false
     try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
       const res = await fetch('https://ubmxstufxyeimaywcevk.supabase.co/functions/v1/send-email', {
         method: 'POST',
         headers: {
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer sb_publishable_YbIHzqpnFXin94E1bpVUug_c_B-UvTw',
         },
         body: JSON.stringify({
           to: emailForm.to,

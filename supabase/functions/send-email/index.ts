@@ -4,6 +4,12 @@ const AZURE_TENANT_ID = Deno.env.get("AZURE_TENANT_ID")
 const AZURE_CLIENT_ID = Deno.env.get("AZURE_CLIENT_ID")
 const AZURE_CLIENT_SECRET = Deno.env.get("AZURE_CLIENT_SECRET")
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+}
+
 async function getAccessToken() {
   const res = await fetch(`https://login.microsoftonline.com/${AZURE_TENANT_ID}/oauth2/v2.0/token`, {
     method: "POST",
@@ -20,6 +26,10 @@ async function getAccessToken() {
 }
 
 serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders })
+  }
+
   try {
     const { to, cc, subject, body, from_mailbox } = await req.json()
 
@@ -54,12 +64,12 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({ success: true }),
-      { headers: { "Content-Type": "application/json" } }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     )
   } catch (err) {
     return new Response(
       JSON.stringify({ error: err.message }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     )
   }
 })
