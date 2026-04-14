@@ -123,9 +123,8 @@ serve(async (req) => {
     // For days without appointments, just list slots without drive time
     for (const surveyor of surveyors || []) {
       for (const date of dates) {
-        // Check availability rule for this surveyor on this day of week (1=Mon … 7=Sun)
-        const jsDay = new Date(date + "T12:00:00Z").getUTCDay() // 0=Sun … 6=Sat
-        const dayOfWeek = jsDay === 0 ? 7 : jsDay
+        // Check availability rule for this surveyor on this day of week (0=Sun, 1=Mon … 6=Sat)
+        const dayOfWeek = new Date(date + "T12:00:00Z").getUTCDay()
         const rule = availMap[surveyor.id]?.[dayOfWeek] ?? "full"
 
         if (rule === "unavailable") continue

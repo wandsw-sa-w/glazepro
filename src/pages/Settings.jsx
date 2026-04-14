@@ -76,7 +76,7 @@ export default function Settings() {
       // Build draft with all 7 days defaulting to 'full', then overlay saved rules
       const draft = {}
       for (const s of surveyorData) {
-        draft[s.id] = { 1: 'full', 2: 'full', 3: 'full', 4: 'full', 5: 'full', 6: 'full', 7: 'full' }
+        draft[s.id] = { 1: 'full', 2: 'full', 3: 'full', 4: 'full', 5: 'full', 6: 'full', 0: 'full' }
       }
       for (const rule of rules || []) {
         if (draft[rule.user_id]) draft[rule.user_id][rule.day_of_week] = rule.availability
@@ -94,6 +94,7 @@ export default function Settings() {
       day_of_week: parseInt(day),
       availability,
     }))
+    console.log('Upserting surveyor_availability rows:', rows)
     const { error } = await supabase
       .from('surveyor_availability')
       .upsert(rows, { onConflict: 'user_id,day_of_week' })
@@ -285,7 +286,7 @@ export default function Settings() {
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 10, marginBottom: 14 }}>
                           {[
                             [1, 'Mon'], [2, 'Tue'], [3, 'Wed'], [4, 'Thu'],
-                            [5, 'Fri'], [6, 'Sat'], [7, 'Sun'],
+                            [5, 'Fri'], [6, 'Sat'], [0, 'Sun'],
                           ].map(([day, label]) => (
                             <div key={day} style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                               <label style={{ fontSize: 11, fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '.04em' }}>{label}</label>
