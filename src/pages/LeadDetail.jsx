@@ -10,6 +10,7 @@ const stageColours = {
 
 const STAGES = ['New', 'Contacted', 'Survey booked', 'Quoted']
 const SURVEYORS = ['Tom B', 'Dave K', 'Sarah W', 'John Smith']
+const CONTACT_TAGS = ['Homeowner', 'Landlord', 'Tenant', 'Builder', 'Architect', 'Developer', 'Agent', 'Other']
 const TIME_SLOTS = ['08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00']
 
 function Pill({ text, colourMap }) {
@@ -35,7 +36,7 @@ export default function LeadDetail({ leadId, onBack }) {
   const [activeTab, setActiveTab] = useState('general')
   const [saving, setSaving] = useState(false)
   const [showAddContact, setShowAddContact] = useState(false)
-  const [newContact, setNewContact] = useState({ title: '', first_name: '', last_name: '', phone: '', email: '' })
+  const [newContact, setNewContact] = useState({ title: '', first_name: '', last_name: '', phone: '', email: '', notes: '', tags: [] })
   const [noteText, setNoteText] = useState('')
   const [notes, setNotes] = useState([])
 
@@ -64,12 +65,17 @@ export default function LeadDetail({ leadId, onBack }) {
 
   async function addContact() {
     if (!newContact.first_name && !newContact.last_name) return
-    const { data: contactData } = await supabase.from('contacts').insert([{ ...newContact, created_at: new Date().toISOString() }]).select()
+    const { tags, ...rest } = newContact
+    const { data: contactData } = await supabase.from('contacts').insert([{
+      ...rest,
+      tags: tags.join(', '),
+      created_at: new Date().toISOString(),
+    }]).select()
     if (contactData) {
       await supabase.from('lead_contacts').insert([{ lead_id: leadId, contact_id: contactData[0].id, is_main_contact: false, created_at: new Date().toISOString() }])
       await fetchLead()
       setShowAddContact(false)
-      setNewContact({ title: '', first_name: '', last_name: '', phone: '', email: '' })
+      setNewContact({ title: '', first_name: '', last_name: '', phone: '', email: '', notes: '', tags: [] })
     }
   }
 
@@ -210,29 +216,44 @@ export default function LeadDetail({ leadId, onBack }) {
                 <button onClick={() => setShowAddContact(true)} style={{ fontSize: 12, padding: '7px 14px', border: 'none', borderRadius: 8, background: '#3d35a8', color: '#fff', cursor: 'pointer', fontWeight: 500 }}>+ Add contact</button>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {contacts.map(lc => (
-                  <div key={lc.id} style={{ background: '#fff', border: `1px solid ${lc.is_main_contact ? '#b0a8f0' : '#e8e6e0'}`, borderRadius: 12, padding: '14px 16px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#e6f0fb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, color: '#1a5fa8' }}>
-                          {(lc.contacts?.first_name?.[0] || '') + (lc.contacts?.last_name?.[0] || '')}
+                {contacts.map(lc => {
+                  const tagList = lc.contacts?.tags ? lc.contacts.tags.split(',').map(t => t.trim()).filter(Boolean) : []
+                  return (
+                    <div key={lc.id} style={{ background: '#fff', border: `1px solid ${lc.is_main_contact ? '#b0a8f0' : '#e8e6e0'}`, borderRadius: 12, padding: '14px 16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#e6f0fb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, color: '#1a5fa8' }}>
+                            {(lc.contacts?.first_name?.[0] || '') + (lc.contacts?.last_name?.[0] || '')}
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 600 }}>{lc.contacts?.title} {lc.contacts?.first_name} {lc.contacts?.last_name}</div>
+                            {lc.is_main_contact && <span style={{ fontSize: 10, padding: '1px 7px', borderRadius: 999, background: '#f0eefc', color: '#3d35a8', fontWeight: 500 }}>Main contact</span>}
+                          </div>
                         </div>
-                        <div>
-                          <div style={{ fontSize: 13, fontWeight: 600 }}>{lc.contacts?.title} {lc.contacts?.first_name} {lc.contacts?.last_name}</div>
-                          {lc.is_main_contact && <span style={{ fontSize: 10, padding: '1px 7px', borderRadius: 999, background: '#f0eefc', color: '#3d35a8', fontWeight: 500 }}>Main contact</span>}
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          {!lc.is_main_contact && <button onClick={() => setMainContact(lc.id)} style={{ fontSize: 11, padding: '4px 10px', border: '1px solid #d8d5cf', borderRadius: 6, background: '#fff', cursor: 'pointer' }}>Set as main</button>}
+                          <button onClick={() => removeContact(lc.id)} style={{ fontSize: 11, padding: '4px 10px', border: '1px solid #e8d0d0', borderRadius: 6, background: '#fff', cursor: 'pointer', color: '#8b2020' }}>Remove</button>
                         </div>
                       </div>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        {!lc.is_main_contact && <button onClick={() => setMainContact(lc.id)} style={{ fontSize: 11, padding: '4px 10px', border: '1px solid #d8d5cf', borderRadius: 6, background: '#fff', cursor: 'pointer' }}>Set as main</button>}
-                        <button onClick={() => removeContact(lc.id)} style={{ fontSize: 11, padding: '4px 10px', border: '1px solid #e8d0d0', borderRadius: 6, background: '#fff', cursor: 'pointer', color: '#8b2020' }}>Remove</button>
+                      <div style={{ display: 'flex', gap: 16, fontSize: 12, color: '#555', flexWrap: 'wrap', marginBottom: tagList.length || lc.contacts?.notes ? 8 : 0 }}>
+                        {lc.contacts?.phone && <span>📞 {lc.contacts.phone}</span>}
+                        {lc.contacts?.email && <span>✉ {lc.contacts.email}</span>}
                       </div>
+                      {tagList.length > 0 && (
+                        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: lc.contacts?.notes ? 8 : 0 }}>
+                          {tagList.map(tag => (
+                            <span key={tag} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 999, background: '#f0eefc', color: '#3d35a8', fontWeight: 500 }}>{tag}</span>
+                          ))}
+                        </div>
+                      )}
+                      {lc.contacts?.notes && (
+                        <div style={{ fontSize: 12, color: '#666', lineHeight: 1.5, padding: '8px 10px', background: '#faf9f7', borderRadius: 7 }}>
+                          {lc.contacts.notes}
+                        </div>
+                      )}
                     </div>
-                    <div style={{ display: 'flex', gap: 16, fontSize: 12, color: '#555', flexWrap: 'wrap' }}>
-                      {lc.contacts?.phone && <span>📞 {lc.contacts.phone}</span>}
-                      {lc.contacts?.email && <span>✉ {lc.contacts.email}</span>}
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
                 {contacts.length === 0 && <div style={{ color: '#aaa', fontSize: 13, textAlign: 'center', padding: 40 }}>No contacts linked yet</div>}
               </div>
 
@@ -261,6 +282,36 @@ export default function LeadDetail({ leadId, onBack }) {
                         <input value={newContact[key]} onChange={e => setNewContact(p => ({ ...p, [key]: e.target.value }))} style={{ fontSize: 13, padding: '8px 11px', border: '1px solid #d8d5cf', borderRadius: 8, outline: 'none' }} />
                       </div>
                     ))}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 12 }}>
+                    <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Tags</label>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {CONTACT_TAGS.map(tag => {
+                        const active = newContact.tags.includes(tag)
+                        return (
+                          <div
+                            key={tag}
+                            onClick={() => setNewContact(p => ({
+                              ...p,
+                              tags: active ? p.tags.filter(t => t !== tag) : [...p.tags, tag],
+                            }))}
+                            style={{ fontSize: 12, padding: '5px 12px', borderRadius: 8, cursor: 'pointer', fontWeight: 500, border: `1px solid ${active ? '#b0a8f0' : '#d8d5cf'}`, background: active ? '#f0eefc' : '#fff', color: active ? '#3d35a8' : '#555' }}
+                          >
+                            {tag}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 12 }}>
+                    <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Notes</label>
+                    <textarea
+                      value={newContact.notes}
+                      onChange={e => setNewContact(p => ({ ...p, notes: e.target.value }))}
+                      rows={3}
+                      placeholder="Any notes about this contact..."
+                      style={{ fontSize: 13, padding: '8px 11px', border: '1px solid #d8d5cf', borderRadius: 8, outline: 'none', resize: 'none', fontFamily: 'inherit' }}
+                    />
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button onClick={() => setShowAddContact(false)} style={{ fontSize: 12, padding: '7px 14px', border: '1px solid #d8d5cf', borderRadius: 8, background: '#fff', cursor: 'pointer' }}>Cancel</button>
