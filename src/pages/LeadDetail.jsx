@@ -25,6 +25,15 @@ const STAGES = [
 ]
 const SURVEYORS = ['Tom B', 'Dave K', 'Sarah W', 'John Smith']
 const CONTACT_TAGS = ['Homeowner', 'Landlord', 'Tenant', 'Builder', 'Architect', 'Developer', 'Agent', 'Other']
+const LEAD_TAGS = ['Awaiting deposit', 'Awaiting planning', 'Stained glass required', 'PSA', 'Pre Order', 'Second Survey Required']
+const LEAD_TAG_COLOURS = {
+  'Awaiting deposit': { bg: '#faeeda', color: '#7a4a08' },
+  'Awaiting planning': { bg: '#e6f0fb', color: '#1a5fa8' },
+  'Stained glass required': { bg: '#eeedfe', color: '#4a3ab0' },
+  'PSA': { bg: '#fceaea', color: '#8b2020' },
+  'Pre Order': { bg: '#e1f5ee', color: '#0a5a3c' },
+  'Second Survey Required': { bg: '#f5f0e8', color: '#7a4a08' },
+}
 const TIME_SLOTS = ['08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00']
 
 function Pill({ text, colourMap }) {
@@ -58,8 +67,12 @@ export default function LeadDetail() {
   const [editDraft, setEditDraft] = useState(null)
   const [noteText, setNoteText] = useState('')
   const [notes, setNotes] = useState([])
+  const [uploads, setUploads] = useState([])
+  const [uploadFile, setUploadFile] = useState(null)
+  const [uploadNotes, setUploadNotes] = useState('')
+  const [uploading, setUploading] = useState(false)
 
-  useEffect(() => { fetchLead() }, [leadId])
+  useEffect(() => { fetchLead(); fetchUploads() }, [leadId])
 
   async function fetchLead() {
     setLoading(true)
@@ -80,6 +93,48 @@ export default function LeadDetail() {
     await supabase.from('leads').update(updates).eq('id', leadId)
     await fetchLead()
     setSaving(false)
+  }
+
+  async function toggleLeadTag(tag) {
+    const current = lead.lead_tags ? lead.lead_tags.split(',').map(t => t.trim()).filter(Boolean) : []
+    const next = current.includes(tag) ? current.filter(t => t !== tag) : [...current, tag]
+    await supabase.from('leads').update({ lead_tags: next.join(', ') }).eq('id', leadId)
+    setLead(p => ({ ...p, lead_tags: next.join(', ') }))
+  }
+
+  async function fetchUploads() {
+    const { data } = await supabase
+      .from('lead_uploads')
+      .select('*')
+      .eq('lead_id', leadId)
+      .order('created_at', { ascending: false })
+    setUploads(data || [])
+  }
+
+  async function handleUpload() {
+    if (!uploadFile) return
+    setUploading(true)
+    const ext = uploadFile.name.split('.').pop()
+    const filePath = `${leadId}/${Date.now()}.${ext}`
+    const { error: storageError } = await supabase.storage
+      .from('lead-files')
+      .upload(filePath, uploadFile)
+    if (storageError) {
+      alert('Upload failed: ' + storageError.message)
+      setUploading(false)
+      return
+    }
+    await supabase.from('lead_uploads').insert([{
+      lead_id: leadId,
+      filename: uploadFile.name,
+      file_path: filePath,
+      notes: uploadNotes,
+      created_at: new Date().toISOString(),
+    }])
+    await fetchUploads()
+    setUploadFile(null)
+    setUploadNotes('')
+    setUploading(false)
   }
 
   async function addContact() {
@@ -177,7 +232,7 @@ export default function LeadDetail() {
 
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 2, padding: '0 20px', background: '#fff', borderBottom: '1px solid #e8e6e0', flexShrink: 0 }}>
-          {[['general', 'General'], ['contacts', 'Contacts'], ['correspondence', 'Correspondence'], ['survey', 'Survey'], ['tracking', 'Tracking']].map(([id, label]) => (
+          {[['general', 'General'], ['contacts', 'Contacts'], ['correspondence', 'Correspondence'], ['survey', 'Survey'], ['uploads', 'Uploads'], ['tracking', 'Tracking']].map(([id, label]) => (
             <div key={id} onClick={() => setActiveTab(id)} style={{ padding: '12px 16px', fontSize: 13, color: activeTab === id ? '#3d35a8' : '#888', cursor: 'pointer', borderBottom: activeTab === id ? '2px solid #3d35a8' : '2px solid transparent', fontWeight: 500 }}>{label}</div>
           ))}
         </div>
@@ -187,6 +242,40 @@ export default function LeadDetail() {
           {/* GENERAL TAB */}
           {activeTab === 'general' && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, maxWidth: 900 }}>
+
+              {/* Lead Tags */}
+              <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, padding: '16px 18px', gridColumn: '1/-1' }}>
+                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Tags</div>
+                {(() => {
+                  const activeTags = lead.lead_tags ? lead.lead_tags.split(',').map(t => t.trim()).filter(Boolean) : []
+                  return (
+                    <>
+                      {activeTags.length > 0 && (
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+                          {activeTags.map(tag => {
+                            const c = LEAD_TAG_COLOURS[tag] || { bg: '#f0eefc', color: '#3d35a8' }
+                            return <span key={tag} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 999, fontWeight: 500, background: c.bg, color: c.color }}>{tag}</span>
+                          })}
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {LEAD_TAGS.map(tag => {
+                          const active = activeTags.includes(tag)
+                          return (
+                            <div
+                              key={tag}
+                              onClick={() => toggleLeadTag(tag)}
+                              style={{ fontSize: 12, padding: '5px 13px', borderRadius: 8, cursor: 'pointer', fontWeight: 500, border: `1px solid ${active ? '#b0a8f0' : '#d8d5cf'}`, background: active ? '#f0eefc' : '#fff', color: active ? '#3d35a8' : '#555' }}
+                            >
+                              {tag}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </>
+                  )
+                })()}
+              </div>
 
               {/* Property */}
               <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, padding: '16px 18px' }}>
@@ -550,6 +639,90 @@ export default function LeadDetail() {
                 {!lead.survey_date && (
                   <div style={{ padding: '12px 14px', background: '#faf9f7', borderRadius: 8, fontSize: 13, color: '#aaa' }}>No survey booked yet</div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* UPLOADS TAB */}
+          {activeTab === 'uploads' && (
+            <div style={{ maxWidth: 700 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 16 }}>Uploads</div>
+
+              {/* Upload form */}
+              <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, padding: '16px 18px', marginBottom: 20 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                    <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>File</label>
+                    <input
+                      type="file"
+                      onChange={e => setUploadFile(e.target.files[0] || null)}
+                      style={{ fontSize: 13 }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                    <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Notes</label>
+                    <input
+                      value={uploadNotes}
+                      onChange={e => setUploadNotes(e.target.value)}
+                      placeholder="Optional notes about this file..."
+                      style={{ fontSize: 13, padding: '8px 11px', border: '1px solid #d8d5cf', borderRadius: 8, outline: 'none' }}
+                    />
+                  </div>
+                  <div>
+                    <button
+                      onClick={handleUpload}
+                      disabled={!uploadFile || uploading}
+                      style={{ fontSize: 12, padding: '7px 16px', border: 'none', borderRadius: 8, background: !uploadFile || uploading ? '#9993d4' : '#3d35a8', color: '#fff', cursor: !uploadFile || uploading ? 'default' : 'pointer', fontWeight: 500 }}
+                    >
+                      {uploading ? 'Uploading…' : 'Upload'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Upload list */}
+              {uploads.length === 0 && (
+                <div style={{ color: '#aaa', fontSize: 13, textAlign: 'center', padding: 40 }}>No uploads yet</div>
+              )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {uploads.map(upload => {
+                  const isImage = /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(upload.filename)
+                  const { data: { publicUrl } } = supabase.storage.from('lead-files').getPublicUrl(upload.file_path)
+                  return (
+                    <div key={upload.id} style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, padding: '14px 16px' }}>
+                      <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                        {isImage && (
+                          <img
+                            src={publicUrl}
+                            alt={upload.filename}
+                            style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8, flexShrink: 0, border: '1px solid #e8e6e0' }}
+                          />
+                        )}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {upload.filename}
+                            </div>
+                            <a
+                              href={publicUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={{ fontSize: 11, padding: '3px 10px', border: '1px solid #d8d5cf', borderRadius: 6, color: '#555', textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0 }}
+                            >
+                              View ↗
+                            </a>
+                          </div>
+                          {upload.notes && (
+                            <div style={{ fontSize: 12, color: '#666', marginBottom: 4, lineHeight: 1.4 }}>{upload.notes}</div>
+                          )}
+                          <div style={{ fontSize: 11, color: '#aaa' }}>
+                            {new Date(upload.created_at).toLocaleString('en-GB')}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )}
