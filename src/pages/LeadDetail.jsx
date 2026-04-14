@@ -191,8 +191,8 @@ export default function LeadDetail() {
       const res = await fetch('https://ubmxstufxyeimaywcevk.supabase.co/functions/v1/geo-cluster', {
         method: 'POST',
         headers: {
-          'Authorization': 'Bearer sb_publishable_YbIHzqpnFXin94E1bpVUug_c_B-UvTw',
-          'Content-Type': 'application/json',
+          'Authorization': `Bearer sb_publishable_YbIHzqpnFXin94E1bpVUug_c_B-UvTw`,
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           property_postcode: lead.property_postcode,

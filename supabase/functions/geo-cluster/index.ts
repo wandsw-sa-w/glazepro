@@ -12,15 +12,25 @@ const corsHeaders = {
 }
 
 async function getDriveTime(origin: string, destination: string): Promise<number | null> {
-  const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${encodeURIComponent(origin)}&destinations=${encodeURIComponent(destination)}&mode=driving&key=${GOOGLE_MAPS_KEY}`
-  const res = await fetch(url)
-  const data = await res.json()
-  const element = data.rows?.[0]?.elements?.[0]
-  if (element?.status === "OK") {
-    return Math.round(element.duration.value / 60)
+  try {
+    const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${encodeURIComponent(origin)}&destinations=${encodeURIComponent(destination)}&mode=driving&key=${GOOGLE_MAPS_KEY}`
+    const res = await fetch(url)
+    const data = await res.json()
+    const element = data.rows?.[0]?.elements?.[0]
+    if (element?.status === "OK") {
+      return Math.round(element.duration.value / 60)
+    }
+    return null
+  } catch {
+    return null
   }
-  return null
 }
+
+const TIME_SLOTS = [
+  "07:30","08:00","08:30","09:00","09:30","10:00","10:30","11:00",
+  "11:30","12:00","12:30","13:00","13:30","14:00","14:30","15:00",
+  "15:30","16:00","16:30","17:00","17:30"
+]
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -29,7 +39,6 @@ serve(async (req) => {
 
   try {
     const { property_postcode, property_road, property_town, date_range_start, date_range_end } = await req.json()
-
     const newPropertyAddress = [property_road, property_town, property_postcode].filter(Boolean).join(", ")
 
     if (!newPropertyAddress) {
@@ -41,114 +50,156 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_KEY!)
 
-    // Get all survey appointments in the date range
-    const { data: appointments, error } = await supabase
+    // Get all survey appointments in range
+    const { data: appointments } = await supabase
       .from("appointments")
-      .select("*, leads(property_road, property_town, property_postcode)")
-      .eq("type", "Survey")
+      .select("id, assigned_to, date, start_time, end_time, lead_id")
       .gte("date", date_range_start)
       .lte("date", date_range_end)
       .order("date", { ascending: true })
       .order("start_time", { ascending: true })
 
-    if (error) throw error
-
-    // Get all surveyors with their home postcodes
-    const { data: surveyors } = await supabase
-      .from("users")
-      .select("full_name, email, home_postcode")
-      .eq("active", true)
-
-    // Group appointments by surveyor and date
-    const appointmentsByKey: Record<string, any[]> = {}
-    for (const apt of appointments || []) {
-      const key = `${apt.assigned_to}_${apt.date}`
-      if (!appointmentsByKey[key]) appointmentsByKey[key] = []
-      appointmentsByKey[key].push(apt)
-    }
-
-    // For each surveyor, find available slots and calculate drive times
-    const recommendations: any[] = []
-    const allSlots: any[] = []
-
-    const timeSlots = []
-    for (let h = 7; h <= 17; h++) {
-      for (let m = 0; m < 60; m += 30) {
-        if (h === 7 && m < 30) continue
-        if (h === 17 && m > 30) continue
-        timeSlots.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`)
+    // Get lead addresses for appointments
+    const leadIds = [...new Set((appointments || []).map(a => a.lead_id).filter(Boolean))]
+    let leadAddresses: Record<number, string> = {}
+    if (leadIds.length > 0) {
+      const { data: leads } = await supabase
+        .from("leads")
+        .select("id, property_road, property_town, property_postcode")
+        .in("id", leadIds)
+      for (const lead of leads || []) {
+        leadAddresses[lead.id] = [lead.property_road, lead.property_town, lead.property_postcode].filter(Boolean).join(", ")
       }
     }
 
-    // Generate dates in range
+    // Get surveyors with home postcodes
+    const { data: surveyors } = await supabase
+      .from("users")
+      .select("full_name, home_postcode")
+      .eq("active", true)
+      .not("home_postcode", "is", null)
+
+    // Group appointments by surveyor+date
+    const aptsByKey: Record<string, any[]> = {}
+    for (const apt of appointments || []) {
+      const key = `${apt.assigned_to}_${apt.date}`
+      if (!aptsByKey[key]) aptsByKey[key] = []
+      aptsByKey[key].push(apt)
+    }
+
+    // Generate dates
     const dates: string[] = []
     const start = new Date(date_range_start)
     const end = new Date(date_range_end)
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-      dates.push(d.toISOString().split("T")[0])
+      const day = d.getDay()
+      if (day !== 0) { // exclude Sundays
+        dates.push(d.toISOString().split("T")[0])
+      }
     }
 
+    const recommendations: any[] = []
+    const allSlots: any[] = []
+
+    // Only calculate drive times for days that already have appointments
+    // For days without appointments, just list slots without drive time
     for (const surveyor of surveyors || []) {
       for (const date of dates) {
         const key = `${surveyor.full_name}_${date}`
-        const dayAppointments = appointmentsByKey[key] || []
+        const dayApts = (aptsByKey[key] || []).sort((a, b) => a.start_time.localeCompare(b.start_time))
+        const takenSlots = new Set(dayApts.map(a => a.start_time))
 
-        // Sort by time
-        dayAppointments.sort((a, b) => a.start_time.localeCompare(b.start_time))
+        const availableSlots = TIME_SLOTS.filter(s => !takenSlots.has(s))
 
-        // Find the appointment just before each available slot
-        for (const slot of timeSlots) {
-          // Check if slot is already taken
-          const slotTaken = dayAppointments.some(apt => apt.start_time === slot)
-          if (slotTaken) continue
+        if (dayApts.length > 0) {
+          // This day has appointments — calculate drive times for nearby slots only
+          // Find the last appointment of the day
+          const lastApt = dayApts[dayApts.length - 1]
+          const lastAptAddress = lastApt.lead_id ? leadAddresses[lastApt.lead_id] : null
+          const originAddress = lastAptAddress || surveyor.home_postcode
 
-          // Find previous appointment
-          const prevApt = dayAppointments
-            .filter(apt => apt.start_time < slot)
-            .pop()
+          // Only calculate for slots after the last appointment
+          const slotsAfterLast = availableSlots.filter(s => s > lastApt.end_time || s > lastApt.start_time)
 
-          let originAddress: string
-          if (prevApt && prevApt.leads) {
-            const l = prevApt.leads
-            originAddress = [l.property_road, l.property_town, l.property_postcode].filter(Boolean).join(", ")
-          } else {
-            originAddress = surveyor.home_postcode || ""
+          for (const slot of slotsAfterLast.slice(0, 5)) {
+            const driveMinutes = await getDriveTime(originAddress, newPropertyAddress)
+            const slotData = {
+              surveyor: surveyor.full_name,
+              date,
+              time: slot,
+              drive_minutes: driveMinutes,
+              origin_address: originAddress,
+              is_recommended: driveMinutes !== null && driveMinutes <= 30,
+            }
+            if (driveMinutes !== null && driveMinutes <= 30) {
+              recommendations.push(slotData)
+            } else {
+              allSlots.push({ ...slotData, drive_minutes: driveMinutes })
+            }
           }
 
-          if (!originAddress) continue
-
-          const driveMinutes = await getDriveTime(originAddress, newPropertyAddress)
-
-          const slotData = {
-            surveyor: surveyor.full_name,
-            date,
-            time: slot,
-            drive_minutes: driveMinutes,
-            origin_address: originAddress,
-            is_recommended: driveMinutes !== null && driveMinutes <= 30,
+          // Add remaining slots without drive time calculation
+          const remainingSlots = availableSlots.filter(s => !slotsAfterLast.slice(0, 5).includes(s))
+          for (const slot of remainingSlots) {
+            allSlots.push({
+              surveyor: surveyor.full_name,
+              date,
+              time: slot,
+              drive_minutes: null,
+              origin_address: null,
+              is_recommended: false,
+            })
           }
-
-          if (driveMinutes !== null && driveMinutes <= 30) {
-            recommendations.push(slotData)
-          } else {
-            allSlots.push(slotData)
+        } else {
+          // No appointments this day — list all slots from home
+          // Only calculate drive time from home for first 3 slots to save API calls
+          for (let i = 0; i < availableSlots.length; i++) {
+            const slot = availableSlots[i]
+            if (i < 3) {
+              const driveMinutes = await getDriveTime(surveyor.home_postcode, newPropertyAddress)
+              const slotData = {
+                surveyor: surveyor.full_name,
+                date,
+                time: slot,
+                drive_minutes: driveMinutes,
+                origin_address: surveyor.home_postcode,
+                is_recommended: driveMinutes !== null && driveMinutes <= 30,
+              }
+              if (driveMinutes !== null && driveMinutes <= 30) {
+                recommendations.push(slotData)
+              } else {
+                allSlots.push(slotData)
+              }
+            } else {
+              allSlots.push({
+                surveyor: surveyor.full_name,
+                date,
+                time: slot,
+                drive_minutes: null,
+                origin_address: surveyor.home_postcode,
+                is_recommended: false,
+              })
+            }
           }
         }
       }
     }
 
-    // Sort recommendations by drive time
     recommendations.sort((a, b) => a.drive_minutes - b.drive_minutes)
 
     return new Response(
-      JSON.stringify({ recommendations, all_slots: allSlots.slice(0, 50) }),
+      JSON.stringify({
+        recommendations,
+        all_slots: allSlots.slice(0, 100),
+        new_property: newPropertyAddress
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     )
   } catch (err) {
     console.log("Error:", err.message)
     return new Response(
       JSON.stringify({ error: err.message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 500, headers: { "Content-Type": "application/json" } }
     )
   }
 })
