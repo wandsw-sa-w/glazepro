@@ -40,10 +40,13 @@ export default function UnmatchedEmails() {
 
   async function fetchEmails() {
     setLoading(true)
+    const { data: { session } } = await supabase.auth.getSession()
+    const userEmail = session?.user?.email
     const { data, error } = await supabase
       .from('unmatched_emails')
       .select('*')
       .or('assigned.eq.false,assigned.is.null')
+      .eq('mailbox', userEmail)
       .order('received_at', { ascending: false })
     console.log('[UnmatchedEmails] data:', data, 'error:', error)
     setEmails(data || [])

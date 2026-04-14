@@ -93,6 +93,8 @@ export default function LeadDetail() {
   const [emailForm, setEmailForm] = useState({ to: '', cc: '', subject: '', body: '' })
   const [sendingEmail, setSendingEmail] = useState(false)
   const [sendResult, setSendResult] = useState(null) // { ok: true } | { error: '...' } | null
+  // Per-note inline reply state: { [noteId]: { open, to, subject, body, sending, result } }
+  const [replyState, setReplyState] = useState({})
   const [tasks, setTasks] = useState([])
   const [newTask, setNewTask] = useState({ subject: '', due_date: '', assigned_to: '', notes: '' })
   const [savingTask, setSavingTask] = useState(false)
@@ -343,6 +345,84 @@ export default function LeadDetail() {
       console.error('[sendEmail] Caught error:', err)
       setSendResult({ error: err.message || 'Network error' })
       setSendingEmail(false)
+    }
+  }
+
+  // ── Reply helpers ────────────────────────────────────────────────────────────
+
+  function getReply(id) {
+    return replyState[id] || { open: false, to: '', subject: '', body: '', sending: false, result: null }
+  }
+
+  function setReply(id, patch) {
+    setReplyState(prev => ({
+      ...prev,
+      [id]: { ...(prev[id] || { open: false, to: '', subject: '', body: '', sending: false, result: null }), ...patch },
+    }))
+  }
+
+  function openReply(note, emailBody, isOut, toAddr) {
+    // Determine reply-to address
+    let replyTo = ''
+    if (!isOut) {
+      // Email in: author may be "Name email@example.com" — extract the email address
+      const match = note.author?.match(/[\w.+\-]+@[\w.\-]+\.[a-zA-Z]{2,}/)
+      replyTo = match ? match[0] : (note.author || '')
+    } else {
+      replyTo = toAddr
+    }
+
+    const replySubject = note.subject?.startsWith('Re:') ? note.subject : `Re: ${note.subject || ''}`
+
+    // Strip HTML tags for the quoted block
+    const plainQuote = /<[a-z][\s\S]*>/i.test(emailBody)
+      ? emailBody.replace(/<[^>]+>/g, '').replace(/[ \t]+/g, ' ').trim()
+      : emailBody
+
+    const dateLine = new Date(note.created_at).toLocaleString('en-GB')
+    const fromLine = isOut ? `To: ${toAddr}` : `From: ${note.author}`
+    const quoted = `\n\n---\nOn ${dateLine}, ${fromLine}:\n${plainQuote}`
+
+    setReply(note.id, { open: true, to: replyTo, subject: replySubject, body: quoted, sending: false, result: null })
+  }
+
+  async function sendReply(noteId) {
+    const r = getReply(noteId)
+    if (!r.to.trim()) return
+    setReply(noteId, { sending: true, result: null })
+
+    const EDGE_URL = 'https://ubmxstufxyeimaywcevk.supabase.co/functions/v1/send-email'
+    try {
+      const requestBody = { to: r.to, subject: r.subject, body: r.body, from_mailbox: user.email }
+      const res = await fetch(EDGE_URL, {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer sb_publishable_YbIHzqpnFXin94E1bpVUug_c_B-UvTw',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      })
+      const responseText = await res.text()
+      if (!res.ok) {
+        let msg = `HTTP ${res.status}`
+        try { const j = JSON.parse(responseText); msg = j.error || j.message || msg } catch (_) {}
+        setReply(noteId, { sending: false, result: { error: `Failed to send: ${msg}` } })
+        return
+      }
+      const notesBody = [`To: ${r.to}`, '', r.body].join('\n')
+      await supabase.from('lead_notes').insert([{
+        lead_id: leadId,
+        subject: r.subject,
+        type: 'Email out',
+        notes: notesBody,
+        author: user?.email || 'Unknown',
+        created_at: new Date().toISOString(),
+      }])
+      await fetchLeadNotes()
+      setReply(noteId, { sending: false, result: { ok: true } })
+      setTimeout(() => setReplyState(prev => { const next = { ...prev }; delete next[noteId]; return next }), 1800)
+    } catch (err) {
+      setReply(noteId, { sending: false, result: { error: err.message || 'Network error' } })
     }
   }
 
@@ -991,6 +1071,14 @@ export default function LeadDetail() {
                       }
                       emailBody = lines.slice(bodyStart).join('\n').trim()
                     }
+                    // Strip <head>...</head>, <style>...</style> and <meta ...> tags before rendering
+                    const sanitisedHtml = emailBody
+                      .replace(/<head[\s\S]*?<\/head>/gi, '')
+                      .replace(/<style[\s\S]*?<\/style>/gi, '')
+                      .replace(/<meta[^>]*>/gi, '')
+                    const isHtml = /<[a-z][\s\S]*>/i.test(sanitisedHtml)
+                    const r = getReply(note.id)
+                    const iS = { fontSize: 13, padding: '7px 10px', border: '1px solid #d8d5cf', borderRadius: 8, outline: 'none', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' }
                     return (
                       <div key={note.id} style={{ background: '#fffcf8', border: '1px solid #e8c898', borderRadius: 10, overflow: 'hidden' }}>
                         {/* Email header bar */}
@@ -1013,19 +1101,70 @@ export default function LeadDetail() {
                           <span style={{ marginLeft: 'auto', fontSize: 11, color: '#aaa', flexShrink: 0 }}>
                             {new Date(note.created_at).toLocaleString('en-GB')}
                           </span>
+                          <button
+                            onClick={() => r.open ? setReply(note.id, { open: false }) : openReply(note, emailBody, isOut, toAddr)}
+                            style={{ fontSize: 11, padding: '3px 10px', border: '1px solid #d8a060', borderRadius: 6, background: r.open ? '#fceaea' : '#fff', color: r.open ? '#8b2020' : '#a04010', cursor: 'pointer', flexShrink: 0 }}
+                          >
+                            {r.open ? 'Cancel' : '↩ Reply'}
+                          </button>
                         </div>
+
                         {/* Subject + body */}
                         <div style={{ padding: '12px 14px' }}>
                           {note.subject && (
                             <div style={{ fontSize: 13, fontWeight: 700, color: '#222', marginBottom: emailBody ? 8 : 0 }}>{note.subject}</div>
                           )}
                           {emailBody && (
-                            <div style={{ fontSize: 13, color: '#555', lineHeight: 1.65, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{emailBody}</div>
+                            <div
+                              style={{ fontSize: 13, color: '#555', lineHeight: 1.65, maxHeight: 300, overflowY: 'auto', wordBreak: 'break-word', ...(!isHtml && { whiteSpace: 'pre-wrap' }) }}
+                              {...(isHtml ? { dangerouslySetInnerHTML: { __html: sanitisedHtml } } : { children: emailBody })}
+                            />
                           )}
                           {!isOut && !emailBody && note.notes && (
-                            <div style={{ fontSize: 13, color: '#555', lineHeight: 1.65, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{note.notes}</div>
+                            <div style={{ fontSize: 13, color: '#555', lineHeight: 1.65, maxHeight: 300, overflowY: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{note.notes}</div>
                           )}
                         </div>
+
+                        {/* Inline reply compose */}
+                        {r.open && (
+                          <div style={{ borderTop: '1px solid #e8c898', background: '#fff', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: '#a04010' }}>↩ Reply</div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>To</label>
+                                <input value={r.to} onChange={e => setReply(note.id, { to: e.target.value })} style={iS} />
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Subject</label>
+                                <input value={r.subject} onChange={e => setReply(note.id, { subject: e.target.value })} style={iS} />
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                              <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Body</label>
+                              <textarea
+                                value={r.body}
+                                onChange={e => setReply(note.id, { body: e.target.value })}
+                                rows={8}
+                                style={{ ...iS, resize: 'vertical' }}
+                              />
+                            </div>
+                            {r.result && (
+                              <div style={{ fontSize: 12, padding: '8px 12px', borderRadius: 8, background: r.result.ok ? '#e1f5ee' : '#fceaea', color: r.result.ok ? '#0a5a3c' : '#8b2020', fontWeight: 500 }}>
+                                {r.result.ok ? '✓ Reply sent' : `✕ ${r.result.error}`}
+                              </div>
+                            )}
+                            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                              <button onClick={() => setReply(note.id, { open: false })} style={{ fontSize: 12, padding: '7px 14px', border: '1px solid #d8d5cf', borderRadius: 8, background: '#fff', cursor: 'pointer' }}>Cancel</button>
+                              <button
+                                onClick={() => sendReply(note.id)}
+                                disabled={r.sending || !r.to.trim() || r.result?.ok}
+                                style={{ fontSize: 12, padding: '7px 16px', border: 'none', borderRadius: 8, background: r.sending || !r.to.trim() || r.result?.ok ? '#c8905a' : '#a04010', color: '#fff', cursor: r.sending || !r.to.trim() || r.result?.ok ? 'default' : 'pointer', fontWeight: 500 }}
+                              >
+                                {r.sending ? 'Sending…' : 'Send reply'}
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )
                   }

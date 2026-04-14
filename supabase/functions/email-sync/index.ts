@@ -19,15 +19,18 @@ async function getAccessToken() {
     }),
   })
   const data = await res.json()
+  console.log("Token response status:", res.status)
+  if (!data.access_token) throw new Error(`Token error: ${JSON.stringify(data)}`)
   return data.access_token
 }
 
 async function getEmails(token: string, mailbox: string) {
   const res = await fetch(
-    `https://graph.microsoft.com/v1.0/users/${mailbox}/messages?$filter=isRead eq false&$top=50&$orderby=receivedDateTime desc`,
+    `https://graph.microsoft.com/v1.0/users/${mailbox}/messages?$top=50&$orderby=receivedDateTime desc`,
     { headers: { Authorization: `Bearer ${token}` } }
   )
   const data = await res.json()
+  console.log(`Got ${data.value?.length || 0} emails for ${mailbox}`)
   return data.value || []
 }
 
@@ -43,7 +46,7 @@ async function markAsRead(token: string, mailbox: string, messageId: string) {
 }
 
 function extractLeadNumber(subject: string): string | null {
-  const match = subject?.match(/L\d{6}/i)
+  const match = subject?.match(/L\d+/i)
   return match ? match[0].toUpperCase() : null
 }
 
@@ -53,13 +56,13 @@ serve(async () => {
   try {
     const token = await getAccessToken()
 
-    // Get all active users with their email addresses
     const { data: users } = await supabase
       .from("users")
       .select("email, full_name")
       .eq("active", true)
 
     const mailboxes = users?.map((u: any) => u.email) || []
+    console.log("Monitoring mailboxes:", mailboxes)
 
     let imported = 0
     let unmatched = 0
@@ -70,26 +73,34 @@ serve(async () => {
       for (const email of emails) {
         const leadNumber = extractLeadNumber(email.subject)
 
-        // Check if already imported
-        const { data: existing } = await supabase
+        // Check if already imported in lead_notes
+        const { data: existingNote } = await supabase
           .from("lead_notes")
           .select("id")
           .eq("microsoft_message_id", email.id)
-          .single()
+          .maybeSingle()
 
-        if (existing) continue
+        // Check if already in unmatched
+        const { data: existingUnmatched } = await supabase
+          .from("unmatched_emails")
+          .select("id")
+          .eq("microsoft_message_id", email.id)
+          .maybeSingle()
+
+        if (existingNote || existingUnmatched) {
+          console.log("Already imported, skipping:", email.subject)
+          continue
+        }
 
         if (leadNumber) {
-          // Find the lead
           const { data: lead } = await supabase
             .from("leads")
             .select("id")
             .eq("lead_number", leadNumber)
-            .single()
+            .maybeSingle()
 
           if (lead) {
-            // Import to lead correspondence
-            await supabase.from("lead_notes").insert({
+            const { error: insertError } = await supabase.from("lead_notes").insert({
               lead_id: lead.id,
               subject: email.subject,
               type: "Email in",
@@ -99,10 +110,15 @@ serve(async () => {
               mailbox,
               created_at: email.receivedDateTime,
             })
-            await markAsRead(token, mailbox, email.id)
-            imported++
+            if (insertError) {
+              console.log("lead_notes insert error:", JSON.stringify(insertError))
+            } else {
+              console.log("Imported to lead:", leadNumber, lead.id)
+              await markAsRead(token, mailbox, email.id)
+              imported++
+            }
           } else {
-            // Lead number found but lead doesn't exist
+            console.log("Lead number found but no matching lead:", leadNumber)
             await supabase.from("unmatched_emails").insert({
               subject: email.subject,
               from_address: email.from?.emailAddress?.address,
@@ -116,7 +132,6 @@ serve(async () => {
             unmatched++
           }
         } else {
-          // No lead number — add to unmatched
           await supabase.from("unmatched_emails").insert({
             subject: email.subject,
             from_address: email.from?.emailAddress?.address,
@@ -137,6 +152,7 @@ serve(async () => {
       { headers: { "Content-Type": "application/json" } }
     )
   } catch (err) {
+    console.log("Error:", err.message)
     return new Response(
       JSON.stringify({ error: err.message }),
       { status: 500, headers: { "Content-Type": "application/json" } }
