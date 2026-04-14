@@ -173,7 +173,7 @@ export default function Leads() {
     setLoading(true)
     const { data, error } = await supabase
       .from('leads')
-      .select('*')
+      .select('*, lead_contacts(id, is_main_contact, contact_id, contacts(title, first_name, last_name, phone, email))')
       .order('created_at', { ascending: false })
     if (error) console.log('fetchLeads error:', error)
     if (!error) setLeads(data || [])
@@ -268,8 +268,10 @@ export default function Leads() {
     setSaving(false)
   }
 
-  function getMain() {
-    return null
+  function getMainContact(lead) {
+    if (!lead.lead_contacts?.length) return null
+    const main = lead.lead_contacts.find(lc => lc.is_main_contact) || lead.lead_contacts[0]
+    return main?.contacts
   }
 
   if (selectedId) {
@@ -378,29 +380,37 @@ export default function Leads() {
                     {stageLeads.length === 0 && (
                       <div style={{ fontSize: 12, color: '#ccc', textAlign: 'center', padding: '20px 0' }}>No leads</div>
                     )}
-                    {stageLeads.map(lead => (
-                      <div
-                        key={lead.id}
-                        onClick={() => setSelectedId(lead.id)}
-                        style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 10, padding: '12px 13px', marginBottom: 8, cursor: 'pointer' }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                          <div style={{ width: 8, height: 8, borderRadius: '50%', background: PRIORITY_DOT[lead.priority] ?? '#ccc', flexShrink: 0 }} />
-                          <div style={{ fontSize: 12, fontWeight: 600, color: '#3d35a8' }}>{lead.lead_number}</div>
+                    {stageLeads.map(lead => {
+                      const contact = getMainContact(lead)
+                      return (
+                        <div
+                          key={lead.id}
+                          onClick={() => setSelectedId(lead.id)}
+                          style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 10, padding: '12px 13px', marginBottom: 8, cursor: 'pointer' }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                            <div style={{ width: 8, height: 8, borderRadius: '50%', background: PRIORITY_DOT[lead.priority] ?? '#ccc', flexShrink: 0 }} />
+                            <div style={{ fontSize: 12, fontWeight: 600, color: '#3d35a8' }}>{lead.lead_number}</div>
+                          </div>
+                          {contact && (
+                            <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 2 }}>
+                              {[contact.title, contact.first_name, contact.last_name].filter(Boolean).join(' ')}
+                            </div>
+                          )}
+                          <div style={{ fontSize: 11, color: '#888', marginBottom: 8, lineHeight: 1.5 }}>
+                            {lead.property_road && <div>{lead.property_road}</div>}
+                            {lead.property_town && <div>{lead.property_town}</div>}
+                            {lead.window_types && <div style={{ marginTop: 2 }}>{lead.window_types}</div>}
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 4 }}>
+                            <Pill text={lead.source} map={SOURCE_COLOURS} />
+                            <span style={{ fontSize: 11, color: '#aaa' }}>
+                              {new Date(lead.created_at).toLocaleDateString('en-GB')}
+                            </span>
+                          </div>
                         </div>
-                        <div style={{ fontSize: 11, color: '#888', marginBottom: 8, lineHeight: 1.5 }}>
-                          {lead.property_road && <div>{lead.property_road}</div>}
-                          {lead.property_town && <div>{lead.property_town}</div>}
-                          {lead.window_types && <div style={{ marginTop: 2 }}>{lead.window_types}</div>}
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 4 }}>
-                          <Pill text={lead.source} map={SOURCE_COLOURS} />
-                          <span style={{ fontSize: 11, color: '#aaa' }}>
-                            {new Date(lead.created_at).toLocaleDateString('en-GB')}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 )
               })}
@@ -411,7 +421,7 @@ export default function Leads() {
               <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ background: '#faf9f7' }}>
-                    {['Lead no.', 'Property', 'Window types', 'Source', 'Priority', 'Stage', ''].map(h => (
+                    {['Lead no.', 'Contact', 'Property', 'Window types', 'Source', 'Priority', 'Stage', ''].map(h => (
                       <th key={h} style={{ textAlign: 'left', padding: '9px 12px', fontSize: 11, color: '#888', borderBottom: '1px solid #eeece8', fontWeight: 500 }}>
                         {h}
                       </th>
@@ -421,13 +431,18 @@ export default function Leads() {
                 <tbody>
                   {leads.length === 0 ? (
                     <tr>
-                      <td colSpan={7} style={{ padding: '40px 12px', textAlign: 'center', color: '#aaa' }}>
+                      <td colSpan={8} style={{ padding: '40px 12px', textAlign: 'center', color: '#aaa' }}>
                         No leads yet — add your first one
                       </td>
                     </tr>
-                  ) : leads.map(lead => (
+                  ) : leads.map(lead => {
+                    const contact = getMainContact(lead)
+                    return (
                     <tr key={lead.id} onClick={() => setSelectedId(lead.id)} style={{ cursor: 'pointer' }}>
                       <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0', fontWeight: 600, color: '#3d35a8' }}>{lead.lead_number}</td>
+                      <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0', fontWeight: 500 }}>
+                        {contact ? [contact.title, contact.first_name, contact.last_name].filter(Boolean).join(' ') : '—'}
+                      </td>
                       <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0', color: '#555' }}>
                         {[lead.property_road, lead.property_town].filter(Boolean).join(', ') || '—'}
                       </td>
@@ -444,7 +459,7 @@ export default function Leads() {
                         </button>
                       </td>
                     </tr>
-                  ))}
+                  )}))}
                 </tbody>
               </table>
             </div>
