@@ -254,6 +254,16 @@ export default function LeadDetail() {
     }).eq('id', leadId)
     if (leadError) console.log('Error updating lead:', leadError)
 
+      const { error: leadError } = await supabase.from('leads').update({
+  survey_date: surveyDate,
+  survey_time: surveyTime,
+  surveyor: surveyorVal,
+  stage: 'Appointment arranged',
+  last_updated_at: new Date().toISOString(),
+}).eq('id', leadId)
+console.log('Lead update error:', leadError)
+console.log('Lead update attempted for id:', leadId)
+
     // 2. Create the appointment record
     const { error: aptError } = await supabase.from('appointments').insert({
       type: 'Survey',
