@@ -409,18 +409,23 @@ export default function LeadDetail() {
         setReply(noteId, { sending: false, result: { error: `Failed to send: ${msg}` } })
         return
       }
-      const notesBody = [`To: ${r.to}`, '', r.body].join('\n')
+
+      // 1. Insert sent email into lead_notes
       await supabase.from('lead_notes').insert([{
         lead_id: leadId,
         subject: r.subject,
         type: 'Email out',
-        notes: notesBody,
+        notes: `To: ${r.to}\n\n${r.body}`,
         author: user?.email || 'Unknown',
         created_at: new Date().toISOString(),
       }])
+
+      // 2. Refresh the correspondence thread
       await fetchLeadNotes()
+
+      // 3. Show success briefly then close the compose area
       setReply(noteId, { sending: false, result: { ok: true } })
-      setTimeout(() => setReplyState(prev => { const next = { ...prev }; delete next[noteId]; return next }), 1800)
+      setTimeout(() => setReply(noteId, { open: false, result: null }), 1800)
     } catch (err) {
       setReply(noteId, { sending: false, result: { error: err.message || 'Network error' } })
     }
