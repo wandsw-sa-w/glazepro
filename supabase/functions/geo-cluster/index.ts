@@ -11,11 +11,6 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 }
 
-function slotToMins(slot: string): number {
-  const [h, m] = slot.split(":").map(Number)
-  return h * 60 + m
-}
-
 async function getDriveTime(origin: string, destination: string): Promise<number | null> {
   try {
     const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${encodeURIComponent(origin)}&destinations=${encodeURIComponent(destination)}&mode=driving&key=${GOOGLE_MAPS_KEY}`
@@ -36,8 +31,31 @@ const TIME_SLOTS = [
   "12:00","12:30","13:00","13:30","14:00","14:30","15:00","15:30",
   "16:00","16:30"
 ]
-const MORNING_SLOTS   = TIME_SLOTS.filter(s => s <= "12:00")
-const AFTERNOON_SLOTS = TIME_SLOTS.filter(s => s >= "12:30")
+
+function timeToMinutes(time: string): number {
+  const [h, m] = time.split(":").map(Number)
+  return h * 60 + m
+}
+
+function isSlotAvailable(slot: string, appointments: any[]): boolean {
+  const slotMins = timeToMinutes(slot)
+  for (const apt of appointments) {
+    const startMins = timeToMinutes(apt.start_time)
+    const endMins = apt.end_time ? timeToMinutes(apt.end_time) : startMins + 60
+    if (slotMins >= startMins && slotMins < endMins) return false
+  }
+  return true
+}
+
+function getFirstSlotAfterAppointments(appointments: any[]): string | null {
+  if (!appointments.length) return null
+  const lastEnd = appointments
+    .map(a => a.end_time || a.start_time)
+    .sort()
+    .pop()
+  const lastEndMins = timeToMinutes(lastEnd)
+  return TIME_SLOTS.find(s => timeToMinutes(s) >= lastEndMins) || null
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -57,7 +75,6 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_KEY!)
 
-    // Get all survey appointments in range
     const { data: appointments } = await supabase
       .from("appointments")
       .select("id, assigned_to, date, start_time, end_time, lead_id")
@@ -66,8 +83,7 @@ serve(async (req) => {
       .order("date", { ascending: true })
       .order("start_time", { ascending: true })
 
-    // Get lead addresses for appointments
-    const leadIds = [...new Set((appointments || []).map(a => a.lead_id).filter(Boolean))]
+    const leadIds = [...new Set((appointments || []).map((a: any) => a.lead_id).filter(Boolean))]
     let leadAddresses: Record<number, string> = {}
     if (leadIds.length > 0) {
       const { data: leads } = await supabase
@@ -79,30 +95,17 @@ serve(async (req) => {
       }
     }
 
-    // Get surveyors with home postcodes
     const { data: surveyors } = await supabase
       .from("users")
       .select("id, full_name, home_postcode")
+      .eq("active", true)
       .eq("is_surveyor", true)
       .not("home_postcode", "is", null)
 
-    // Fetch availability rules for all surveyors
-    const surveyorIds = (surveyors || []).map(s => s.id)
-    const { data: availabilityRules } = surveyorIds.length > 0
-      ? await supabase
-          .from("surveyor_availability")
-          .select("user_id, day_of_week, availability")
-          .in("user_id", surveyorIds)
-      : { data: [] }
+    const { data: availabilityRules } = await supabase
+      .from("surveyor_availability")
+      .select("user_id, day_of_week, availability")
 
-    // Build lookup: availMap[user_id][day_of_week] = 'full'|'morning'|'afternoon'|'unavailable'
-    const availMap: Record<string, Record<number, string>> = {}
-    for (const rule of availabilityRules || []) {
-      if (!availMap[rule.user_id]) availMap[rule.user_id] = {}
-      availMap[rule.user_id][rule.day_of_week] = rule.availability
-    }
-
-    // Group appointments by surveyor+date
     const aptsByKey: Record<string, any[]> = {}
     for (const apt of appointments || []) {
       const key = `${apt.assigned_to}_${apt.date}`
@@ -110,71 +113,63 @@ serve(async (req) => {
       aptsByKey[key].push(apt)
     }
 
-    // Generate dates
     const dates: string[] = []
     const start = new Date(date_range_start)
     const end = new Date(date_range_end)
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-      const day = d.getDay()
-      if (day !== 0) { // exclude Sundays
-        dates.push(d.toISOString().split("T")[0])
-      }
+      dates.push(d.toISOString().split("T")[0])
     }
+
+    const now = new Date()
+    const todayStr = now.toISOString().split("T")[0]
+    const currentMinutes = now.getHours() * 60 + now.getMinutes() + 30
 
     const recommendations: any[] = []
     const allSlots: any[] = []
 
-    // Cutoff for today: only offer slots >= now + 30 minutes (UTC)
-    const nowUtc = new Date()
-    const todayStr = nowUtc.toISOString().split("T")[0]
-    const cutoffMins = nowUtc.getUTCHours() * 60 + nowUtc.getUTCMinutes() + 30
-
     for (const surveyor of surveyors || []) {
       for (const date of dates) {
-        // Check availability rule for this surveyor on this day of week (0=Sun, 1=Mon … 6=Sat)
-        const dayOfWeek = new Date(date + "T12:00:00Z").getUTCDay()
-        const rule = availMap[surveyor.id]?.[dayOfWeek] ?? "full"
+        const dateObj = new Date(date)
+        const dayOfWeek = dateObj.getDay()
 
-        if (rule === "unavailable") continue
+        const rule = (availabilityRules || []).find(
+          (r: any) => r.user_id === surveyor.id && r.day_of_week === dayOfWeek
+        )
+        const availability = rule?.availability || "full"
 
-        let daySlots = rule === "morning"
-          ? MORNING_SLOTS
-          : rule === "afternoon"
-            ? AFTERNOON_SLOTS
-            : TIME_SLOTS
+        if (availability === "unavailable") continue
 
-        // Fix 1: filter out past slots when the date is today
+        let allowedSlots = TIME_SLOTS
+        if (availability === "morning") {
+          allowedSlots = TIME_SLOTS.filter(s => timeToMinutes(s) <= timeToMinutes("12:00"))
+        } else if (availability === "afternoon") {
+          allowedSlots = TIME_SLOTS.filter(s => timeToMinutes(s) >= timeToMinutes("12:30"))
+        }
+
         if (date === todayStr) {
-          daySlots = daySlots.filter(s => slotToMins(s) >= cutoffMins)
-          if (daySlots.length === 0) continue
+          allowedSlots = allowedSlots.filter(s => timeToMinutes(s) >= currentMinutes)
         }
 
         const key = `${surveyor.full_name}_${date}`
-        const dayApts = (aptsByKey[key] || []).sort((a, b) => a.start_time.localeCompare(b.start_time))
+        const dayApts = (aptsByKey[key] || []).sort((a: any, b: any) => a.start_time.localeCompare(b.start_time))
 
-        // Fix 2: exclude every slot that falls within any existing appointment window [start_time, end_time]
-        const takenSlots = new Set<string>()
-        for (const apt of dayApts) {
-          for (const slot of daySlots) {
-            if (slot >= apt.start_time && slot <= apt.end_time) {
-              takenSlots.add(slot)
-            }
-          }
+        const availableSlots = allowedSlots.filter(s => isSlotAvailable(s, dayApts))
+
+        if (availableSlots.length === 0) continue
+
+        const firstSlotAfter = getFirstSlotAfterAppointments(dayApts)
+
+        const lastApt = dayApts[dayApts.length - 1]
+        let originAddress = surveyor.home_postcode
+        if (lastApt?.lead_id && leadAddresses[lastApt.lead_id]) {
+          originAddress = leadAddresses[lastApt.lead_id]
         }
 
-        const availableSlots = daySlots.filter(s => !takenSlots.has(s))
+        for (let i = 0; i < availableSlots.length; i++) {
+          const slot = availableSlots[i]
+          const isAfterLastApt = !firstSlotAfter || timeToMinutes(slot) >= timeToMinutes(firstSlotAfter)
 
-        if (dayApts.length > 0) {
-          // This day has appointments — calculate drive times for nearby slots only
-          // Find the last appointment of the day
-          const lastApt = dayApts[dayApts.length - 1]
-          const lastAptAddress = lastApt.lead_id ? leadAddresses[lastApt.lead_id] : null
-          const originAddress = lastAptAddress || surveyor.home_postcode
-
-          // Only slots that start strictly after the last appointment ends
-          const slotsAfterLast = availableSlots.filter(s => s > lastApt.end_time)
-
-          for (const slot of slotsAfterLast.slice(0, 5)) {
+          if (dayApts.length > 0 && isAfterLastApt && i < 4) {
             const driveMinutes = await getDriveTime(originAddress, newPropertyAddress)
             const slotData = {
               surveyor: surveyor.full_name,
@@ -187,58 +182,38 @@ serve(async (req) => {
             if (driveMinutes !== null && driveMinutes <= 30) {
               recommendations.push(slotData)
             } else {
-              allSlots.push({ ...slotData, drive_minutes: driveMinutes })
+              allSlots.push(slotData)
             }
-          }
-
-          // Add remaining slots without drive time calculation
-          const remainingSlots = availableSlots.filter(s => !slotsAfterLast.slice(0, 5).includes(s))
-          for (const slot of remainingSlots) {
+          } else if (dayApts.length === 0 && i < 2) {
+            const driveMinutes = await getDriveTime(surveyor.home_postcode, newPropertyAddress)
+            const slotData = {
+              surveyor: surveyor.full_name,
+              date,
+              time: slot,
+              drive_minutes: driveMinutes,
+              origin_address: surveyor.home_postcode,
+              is_recommended: driveMinutes !== null && driveMinutes <= 30,
+            }
+            if (driveMinutes !== null && driveMinutes <= 30) {
+              recommendations.push(slotData)
+            } else {
+              allSlots.push(slotData)
+            }
+          } else {
             allSlots.push({
               surveyor: surveyor.full_name,
               date,
               time: slot,
               drive_minutes: null,
-              origin_address: null,
+              origin_address: originAddress,
               is_recommended: false,
             })
-          }
-        } else {
-          // No appointments this day — list all slots from home
-          // Only calculate drive time from home for first 3 slots to save API calls
-          for (let i = 0; i < availableSlots.length; i++) {
-            const slot = availableSlots[i]
-            if (i < 3) {
-              const driveMinutes = await getDriveTime(surveyor.home_postcode, newPropertyAddress)
-              const slotData = {
-                surveyor: surveyor.full_name,
-                date,
-                time: slot,
-                drive_minutes: driveMinutes,
-                origin_address: surveyor.home_postcode,
-                is_recommended: driveMinutes !== null && driveMinutes <= 30,
-              }
-              if (driveMinutes !== null && driveMinutes <= 30) {
-                recommendations.push(slotData)
-              } else {
-                allSlots.push(slotData)
-              }
-            } else {
-              allSlots.push({
-                surveyor: surveyor.full_name,
-                date,
-                time: slot,
-                drive_minutes: null,
-                origin_address: surveyor.home_postcode,
-                is_recommended: false,
-              })
-            }
           }
         }
       }
     }
 
-    recommendations.sort((a, b) => a.drive_minutes - b.drive_minutes)
+    recommendations.sort((a: any, b: any) => a.drive_minutes - b.drive_minutes)
 
     return new Response(
       JSON.stringify({
@@ -248,7 +223,7 @@ serve(async (req) => {
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     )
-  } catch (err) {
+  } catch (err: any) {
     console.log("Error:", err.message)
     return new Response(
       JSON.stringify({ error: err.message }),
