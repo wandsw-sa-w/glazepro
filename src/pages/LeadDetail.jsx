@@ -249,7 +249,7 @@ export default function LeadDetail() {
       survey_date: surveyDate,
       survey_time: surveyTime,
       surveyor: surveyorVal,
-      status: 'Appointment arranged',
+      stage: 'Appointment arranged',
       last_updated_at: new Date().toISOString(),
     }).eq('id', leadId)
     if (leadError) console.log('Error updating lead:', leadError)
