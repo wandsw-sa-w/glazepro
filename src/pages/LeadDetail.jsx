@@ -4,6 +4,7 @@ import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { useUsers } from '../hooks/useUsers'
 import { useUnmatchedCount } from '../hooks/useUnmatchedCount'
+import { useCurrentUser } from '../hooks/useCurrentUser'
 
 const stageColours = {
   New: { bg: '#e6f0fb', color: '#1a5fa8' },
@@ -68,12 +69,25 @@ function Toggle({ value, onChange, label }) {
   )
 }
 
+function highlight(text, term) {
+  if (!term || !text) return text
+  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const parts = text.split(new RegExp(`(${escaped})`, 'gi'))
+  if (parts.length === 1) return text
+  return parts.map((part, i) =>
+    new RegExp(`^${escaped}$`, 'i').test(part)
+      ? <mark key={i} style={{ background: '#fff176', color: 'inherit', padding: 0, borderRadius: 2 }}>{part}</mark>
+      : part
+  )
+}
+
 export default function LeadDetail() {
   const { id: leadId } = useParams()
   const navigate = useNavigate()
   const { user, signOut } = useAuth()
   const { users } = useUsers()
   const unmatchedCount = useUnmatchedCount()
+  const currentUser = useCurrentUser()
   const [lead, setLead] = useState(null)
   const [contacts, setContacts] = useState([])
   const [loading, setLoading] = useState(true)
@@ -95,6 +109,7 @@ export default function LeadDetail() {
   const [sendResult, setSendResult] = useState(null) // { ok: true } | { error: '...' } | null
   // Per-note inline reply state: { [noteId]: { open, to, subject, body, sending, result } }
   const [replyState, setReplyState] = useState({})
+  const [noteSearch, setNoteSearch] = useState('')
   const [tasks, setTasks] = useState([])
   const [newTask, setNewTask] = useState({ subject: '', due_date: '', assigned_to: '', notes: '' })
   const [savingTask, setSavingTask] = useState(false)
@@ -278,6 +293,28 @@ export default function LeadDetail() {
     setShowCompose(true)
   }
 
+  async function resolveEmailSignature() {
+    const { data: settingRow } = await supabase
+      .from('settings')
+      .select('value')
+      .eq('key', 'email_signature')
+      .maybeSingle()
+    if (!settingRow?.value) return ''
+
+    const { data: profile } = await supabase
+      .from('users')
+      .select('full_name, role, email, phone')
+      .eq('email', user?.email)
+      .maybeSingle()
+
+    return settingRow.value
+      .replace(/\[username\]/gi, profile?.full_name || user?.email || '')
+      .replace(/\[role\]/gi,     profile?.role || '')
+      .replace(/\[email\]/gi,    profile?.email || user?.email || '')
+      .replace(/\[company\]/gi,  'Wandsworth Sash Windows')
+      .replace(/\[phone\]/gi,    profile?.phone || '')
+  }
+
   async function sendEmail() {
     if (!emailForm.to.trim()) return
     setSendingEmail(true)
@@ -286,11 +323,14 @@ export default function LeadDetail() {
     try {
       const EDGE_URL = 'https://ubmxstufxyeimaywcevk.supabase.co/functions/v1/send-email'
 
+      const signature = await resolveEmailSignature()
+      const bodyWithSig = emailForm.body + (signature ? '\n\n--\n' + signature : '')
+
       const requestBody = {
         to: emailForm.to,
         ...(emailForm.cc ? { cc: emailForm.cc } : {}),
         subject: emailForm.subject,
-        body: emailForm.body,
+        body: bodyWithSig,
         from_mailbox: user.email,
       }
 
@@ -322,7 +362,7 @@ export default function LeadDetail() {
         `To: ${emailForm.to}`,
         emailForm.cc ? `CC: ${emailForm.cc}` : null,
         '',
-        emailForm.body,
+        bodyWithSig,
       ].filter(l => l !== null).join('\n')
 
       await supabase.from('lead_notes').insert([{
@@ -393,7 +433,10 @@ export default function LeadDetail() {
 
     const EDGE_URL = 'https://ubmxstufxyeimaywcevk.supabase.co/functions/v1/send-email'
     try {
-      const requestBody = { to: r.to, subject: r.subject, body: r.body, from_mailbox: user.email }
+      const signature = await resolveEmailSignature()
+      const bodyWithSig = r.body + (signature ? '\n\n--\n' + signature : '')
+
+      const requestBody = { to: r.to, subject: r.subject, body: bodyWithSig, from_mailbox: user.email }
       const res = await fetch(EDGE_URL, {
         method: 'POST',
         headers: {
@@ -415,7 +458,7 @@ export default function LeadDetail() {
         lead_id: leadId,
         subject: r.subject,
         type: 'Email out',
-        notes: `To: ${r.to}\n\n${r.body}`,
+        notes: `To: ${r.to}\n\n${bodyWithSig}`,
         author: user?.email || 'Unknown',
         created_at: new Date().toISOString(),
       }])
@@ -496,6 +539,11 @@ export default function LeadDetail() {
             {badge > 0 && <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 999, background: '#fceaea', color: '#8b2020', fontWeight: 600, flexShrink: 0 }}>{badge}</span>}
           </div>
         ))}
+        {currentUser?.role === 'Admin' && (
+          <div onClick={() => navigate('/settings')} style={{ margin: '4px 7px 2px', padding: '8px 11px', fontSize: 13, borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8, color: '#555', cursor: 'pointer' }}>
+            <span>⚙</span><span>Settings</span>
+          </div>
+        )}
         <div style={{ marginTop: 'auto', padding: 13, borderTop: '1px solid #e8e6e0' }}>
           <div style={{ fontSize: 11, color: '#555', fontWeight: 500, marginBottom: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {user?.email}
@@ -1054,81 +1102,114 @@ export default function LeadDetail() {
                 )
               })()}
 
-              {/* Note list */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {leadNotes.map(note => {
-                  const isEmailNote = note.type === 'Email out' || note.type === 'Email in'
-                  const c = NOTE_TYPE_COLOURS[note.type] || NOTE_TYPE_COLOURS['Internal note']
-                  const fileUrl = note.file_path ? supabase.storage.from('lead-files').getPublicUrl(note.file_path).data.publicUrl : null
+              {/* Search bar */}
+              {(() => {
+                const sq = noteSearch.trim().toLowerCase()
+                const filteredNotes = sq
+                  ? leadNotes.filter(n =>
+                      (n.subject || '').toLowerCase().includes(sq) ||
+                      (n.notes || '').toLowerCase().includes(sq) ||
+                      (n.author || '').toLowerCase().includes(sq)
+                    )
+                  : leadNotes
+                const hl = text => highlight(text, noteSearch.trim())
 
-                  if (isEmailNote) {
-                    const isOut = note.type === 'Email out'
-                    // Parse To:/CC: header lines out of the notes body (Email out format)
-                    let toAddr = '', ccAddr = '', emailBody = note.notes || ''
-                    if (isOut && note.notes) {
-                      const lines = note.notes.split('\n')
-                      let bodyStart = 0
-                      for (let i = 0; i < lines.length; i++) {
-                        if (lines[i].startsWith('To: ')) { toAddr = lines[i].slice(4); bodyStart = i + 1 }
-                        else if (lines[i].startsWith('CC: ')) { ccAddr = lines[i].slice(4); bodyStart = i + 1 }
-                        else if (lines[i] === '' && i > 0) { bodyStart = i + 1; break }
-                        else if (i > 1) break
-                      }
-                      emailBody = lines.slice(bodyStart).join('\n').trim()
-                    }
-                    // Strip <head>...</head>, <style>...</style> and <meta ...> tags before rendering
-                    const sanitisedHtml = emailBody
-                      .replace(/<head[\s\S]*?<\/head>/gi, '')
-                      .replace(/<style[\s\S]*?<\/style>/gi, '')
-                      .replace(/<meta[^>]*>/gi, '')
-                    const isHtml = /<[a-z][\s\S]*>/i.test(sanitisedHtml)
-                    const r = getReply(note.id)
-                    const iS = { fontSize: 13, padding: '7px 10px', border: '1px solid #d8d5cf', borderRadius: 8, outline: 'none', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' }
-                    return (
-                      <div key={note.id} style={{ background: '#fffcf8', border: '1px solid #e8c898', borderRadius: 10, overflow: 'hidden' }}>
-                        {/* Email header bar */}
-                        <div style={{ background: '#fff8f0', borderBottom: '1px solid #e8c898', padding: '9px 14px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: 14, flexShrink: 0 }}>✉</span>
-                          <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 999, fontWeight: 500, background: isOut ? '#fff0e8' : '#e1f5ee', color: isOut ? '#a04010' : '#0a5a3c', flexShrink: 0 }}>
-                            {isOut ? 'Email out' : 'Email in'}
-                          </span>
-                          {isOut && toAddr && (
-                            <span style={{ fontSize: 12, color: '#888' }}>
-                              To: <span style={{ color: '#555', fontWeight: 500 }}>{toAddr}</span>
-                              {ccAddr && <span> · CC: <span style={{ color: '#555', fontWeight: 500 }}>{ccAddr}</span></span>}
-                            </span>
-                          )}
-                          {!isOut && note.author && (
-                            <span style={{ fontSize: 12, color: '#888' }}>
-                              From: <span style={{ color: '#555', fontWeight: 500 }}>{note.author}</span>
-                            </span>
-                          )}
-                          <span style={{ marginLeft: 'auto', fontSize: 11, color: '#aaa', flexShrink: 0 }}>
-                            {new Date(note.created_at).toLocaleString('en-GB')}
-                          </span>
-                          <button
-                            onClick={() => r.open ? setReply(note.id, { open: false }) : openReply(note, emailBody, isOut, toAddr)}
-                            style={{ fontSize: 11, padding: '3px 10px', border: '1px solid #d8a060', borderRadius: 6, background: r.open ? '#fceaea' : '#fff', color: r.open ? '#8b2020' : '#a04010', cursor: 'pointer', flexShrink: 0 }}
-                          >
-                            {r.open ? 'Cancel' : '↩ Reply'}
-                          </button>
+                return (
+                  <>
+                    <div style={{ marginBottom: 14 }}>
+                      <div style={{ position: 'relative' }}>
+                        <span style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: '#aaa', pointerEvents: 'none' }}>🔍</span>
+                        <input
+                          value={noteSearch}
+                          onChange={e => setNoteSearch(e.target.value)}
+                          placeholder="Search notes…"
+                          style={{ fontSize: 13, padding: '8px 32px 8px 32px', border: '1px solid #d8d5cf', borderRadius: 8, outline: 'none', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit' }}
+                        />
+                        {noteSearch && (
+                          <button onClick={() => setNoteSearch('')} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 17, color: '#aaa', background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 1 }}>×</button>
+                        )}
+                      </div>
+                      {noteSearch.trim() && (
+                        <div style={{ fontSize: 12, color: '#888', marginTop: 6 }}>
+                          {filteredNotes.length === 0
+                            ? `No results for "${noteSearch.trim()}"`
+                            : `${filteredNotes.length} result${filteredNotes.length === 1 ? '' : 's'} for "${noteSearch.trim()}"`}
                         </div>
+                      )}
+                    </div>
 
-                        {/* Subject + body */}
-                        <div style={{ padding: '12px 14px' }}>
-                          {note.subject && (
-                            <div style={{ fontSize: 13, fontWeight: 700, color: '#222', marginBottom: emailBody ? 8 : 0 }}>{note.subject}</div>
-                          )}
-                          {emailBody && (
-                            <div
-                              style={{ fontSize: 13, color: '#555', lineHeight: 1.65, maxHeight: 300, overflowY: 'auto', wordBreak: 'break-word', ...(!isHtml && { whiteSpace: 'pre-wrap' }) }}
-                              {...(isHtml ? { dangerouslySetInnerHTML: { __html: sanitisedHtml } } : { children: emailBody })}
-                            />
-                          )}
-                          {!isOut && !emailBody && note.notes && (
-                            <div style={{ fontSize: 13, color: '#555', lineHeight: 1.65, maxHeight: 300, overflowY: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{note.notes}</div>
-                          )}
-                        </div>
+                    {/* Note list */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {filteredNotes.map(note => {
+                        const isEmailNote = note.type === 'Email out' || note.type === 'Email in'
+                        const c = NOTE_TYPE_COLOURS[note.type] || NOTE_TYPE_COLOURS['Internal note']
+                        const fileUrl = note.file_path ? supabase.storage.from('lead-files').getPublicUrl(note.file_path).data.publicUrl : null
+
+                        if (isEmailNote) {
+                          const isOut = note.type === 'Email out'
+                          let toAddr = '', ccAddr = '', emailBody = note.notes || ''
+                          if (isOut && note.notes) {
+                            const lines = note.notes.split('\n')
+                            let bodyStart = 0
+                            for (let i = 0; i < lines.length; i++) {
+                              if (lines[i].startsWith('To: ')) { toAddr = lines[i].slice(4); bodyStart = i + 1 }
+                              else if (lines[i].startsWith('CC: ')) { ccAddr = lines[i].slice(4); bodyStart = i + 1 }
+                              else if (lines[i] === '' && i > 0) { bodyStart = i + 1; break }
+                              else if (i > 1) break
+                            }
+                            emailBody = lines.slice(bodyStart).join('\n').trim()
+                          }
+                          const sanitisedHtml = emailBody
+                            .replace(/<head[\s\S]*?<\/head>/gi, '')
+                            .replace(/<style[\s\S]*?<\/style>/gi, '')
+                            .replace(/<meta[^>]*>/gi, '')
+                          const isHtml = /<[a-z][\s\S]*>/i.test(sanitisedHtml)
+                          const r = getReply(note.id)
+                          const iS = { fontSize: 13, padding: '7px 10px', border: '1px solid #d8d5cf', borderRadius: 8, outline: 'none', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' }
+                          return (
+                            <div key={note.id} style={{ background: '#fffcf8', border: '1px solid #e8c898', borderRadius: 10, overflow: 'hidden' }}>
+                              {/* Email header bar */}
+                              <div style={{ background: '#fff8f0', borderBottom: '1px solid #e8c898', padding: '9px 14px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: 14, flexShrink: 0 }}>✉</span>
+                                <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 999, fontWeight: 500, background: isOut ? '#fff0e8' : '#e1f5ee', color: isOut ? '#a04010' : '#0a5a3c', flexShrink: 0 }}>
+                                  {isOut ? 'Email out' : 'Email in'}
+                                </span>
+                                {isOut && toAddr && (
+                                  <span style={{ fontSize: 12, color: '#888' }}>
+                                    To: <span style={{ color: '#555', fontWeight: 500 }}>{hl(toAddr)}</span>
+                                    {ccAddr && <span> · CC: <span style={{ color: '#555', fontWeight: 500 }}>{hl(ccAddr)}</span></span>}
+                                  </span>
+                                )}
+                                {!isOut && note.author && (
+                                  <span style={{ fontSize: 12, color: '#888' }}>
+                                    From: <span style={{ color: '#555', fontWeight: 500 }}>{hl(note.author)}</span>
+                                  </span>
+                                )}
+                                <span style={{ marginLeft: 'auto', fontSize: 11, color: '#aaa', flexShrink: 0 }}>
+                                  {new Date(note.created_at).toLocaleString('en-GB')}
+                                </span>
+                                <button
+                                  onClick={() => r.open ? setReply(note.id, { open: false }) : openReply(note, emailBody, isOut, toAddr)}
+                                  style={{ fontSize: 11, padding: '3px 10px', border: '1px solid #d8a060', borderRadius: 6, background: r.open ? '#fceaea' : '#fff', color: r.open ? '#8b2020' : '#a04010', cursor: 'pointer', flexShrink: 0 }}
+                                >
+                                  {r.open ? 'Cancel' : '↩ Reply'}
+                                </button>
+                              </div>
+
+                              {/* Subject + body */}
+                              <div style={{ padding: '12px 14px' }}>
+                                {note.subject && (
+                                  <div style={{ fontSize: 13, fontWeight: 700, color: '#222', marginBottom: emailBody ? 8 : 0 }}>{hl(note.subject)}</div>
+                                )}
+                                {emailBody && (
+                                  isHtml
+                                    ? <div style={{ fontSize: 13, color: '#555', lineHeight: 1.65, maxHeight: 300, overflowY: 'auto', wordBreak: 'break-word' }} dangerouslySetInnerHTML={{ __html: sanitisedHtml }} />
+                                    : <div style={{ fontSize: 13, color: '#555', lineHeight: 1.65, maxHeight: 300, overflowY: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{hl(emailBody)}</div>
+                                )}
+                                {!isOut && !emailBody && note.notes && (
+                                  <div style={{ fontSize: 13, color: '#555', lineHeight: 1.65, maxHeight: 300, overflowY: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{hl(note.notes)}</div>
+                                )}
+                              </div>
 
                         {/* Inline reply compose */}
                         {r.open && (
@@ -1174,24 +1255,31 @@ export default function LeadDetail() {
                     )
                   }
 
-                  return (
-                    <div key={note.id} style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 10, padding: '12px 14px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 11, padding: '2px 9px', borderRadius: 999, fontWeight: 500, background: c.bg, color: c.color }}>{note.type}</span>
-                        {note.subject && <span style={{ fontSize: 13, fontWeight: 600 }}>{note.subject}</span>}
-                        <span style={{ marginLeft: 'auto', fontSize: 11, color: '#aaa' }}>{note.author} · {new Date(note.created_at).toLocaleString('en-GB')}</span>
-                      </div>
-                      {note.notes && <div style={{ fontSize: 13, color: '#555', lineHeight: 1.6, marginBottom: fileUrl ? 8 : 0 }}>{note.notes}</div>}
-                      {fileUrl && (
-                        <a href={fileUrl} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#3d35a8', textDecoration: 'none', fontWeight: 500 }}>
-                          📎 {note.filename} ↗
-                        </a>
+                        return (
+                          <div key={note.id} style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 10, padding: '12px 14px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: 11, padding: '2px 9px', borderRadius: 999, fontWeight: 500, background: c.bg, color: c.color }}>{note.type}</span>
+                              {note.subject && <span style={{ fontSize: 13, fontWeight: 600 }}>{hl(note.subject)}</span>}
+                              <span style={{ marginLeft: 'auto', fontSize: 11, color: '#aaa' }}>{hl(note.author)} · {new Date(note.created_at).toLocaleString('en-GB')}</span>
+                            </div>
+                            {note.notes && <div style={{ fontSize: 13, color: '#555', lineHeight: 1.6, marginBottom: fileUrl ? 8 : 0 }}>{hl(note.notes)}</div>}
+                            {fileUrl && (
+                              <a href={fileUrl} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#3d35a8', textDecoration: 'none', fontWeight: 500 }}>
+                                📎 {note.filename} ↗
+                              </a>
+                            )}
+                          </div>
+                        )
+                      })}
+                      {filteredNotes.length === 0 && (
+                        <div style={{ color: '#aaa', fontSize: 13, textAlign: 'center', padding: 40 }}>
+                          {noteSearch.trim() ? `No results for "${noteSearch.trim()}"` : 'No file notes yet'}
+                        </div>
                       )}
                     </div>
-                  )
-                })}
-                {leadNotes.length === 0 && <div style={{ color: '#aaa', fontSize: 13, textAlign: 'center', padding: 40 }}>No file notes yet</div>}
-              </div>
+                  </>
+                )
+              })()}
             </div>
           )}
 

@@ -5,6 +5,7 @@ import LeadDetail from './pages/LeadDetail'
 import Calendar from './pages/Calendar'
 import Tasks from './pages/Tasks'
 import UnmatchedEmails from './pages/UnmatchedEmails'
+import Settings from './pages/Settings'
 import Login from './pages/Login'
 import './App.css'
 
@@ -24,6 +25,7 @@ function AppRoutes() {
       <Route path="/calendar" element={<Calendar />} />
       <Route path="/tasks" element={<Tasks />} />
       <Route path="/unmatched-emails" element={<UnmatchedEmails />} />
+      <Route path="/settings" element={<Settings />} />
     </Routes>
   )
 }

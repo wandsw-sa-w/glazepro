@@ -4,6 +4,7 @@ import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { useUsers } from '../hooks/useUsers'
 import { useUnmatchedCount } from '../hooks/useUnmatchedCount'
+import { useCurrentUser } from '../hooks/useCurrentUser'
 
 const STAGES = [
   'New', 'In contact with customer', 'Budget quote provided',
@@ -187,6 +188,7 @@ export default function Leads() {
   const { user, signOut } = useAuth()
   const { users } = useUsers()
   const unmatchedCount = useUnmatchedCount()
+  const currentUser = useCurrentUser()
   const [leads, setLeads] = useState([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('board')
@@ -371,6 +373,11 @@ export default function Leads() {
             </div>
           )
         })}
+        {currentUser?.role === 'Admin' && (
+          <div onClick={() => navigate('/settings')} style={{ margin: '4px 7px 2px', padding: '8px 11px', fontSize: 13, borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8, color: '#555', cursor: 'pointer' }}>
+            <span>⚙</span><span>Settings</span>
+          </div>
+        )}
         <div style={{ marginTop: 'auto', padding: 13, borderTop: '1px solid #e8e6e0' }}>
           <div style={{ fontSize: 11, color: '#555', fontWeight: 500, marginBottom: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {user?.email}
