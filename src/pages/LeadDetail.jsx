@@ -43,6 +43,7 @@ const NOTE_TYPE_COLOURS = {
   'Phone in':      { bg: '#e1f5ee', color: '#0a5a3c' },
   'In person':     { bg: '#eeedfe', color: '#4a3ab0' },
   'Email out':     { bg: '#fff0e8', color: '#a04010' },
+  'Email in':      { bg: '#fff0e8', color: '#a04010' },
 }
 const APPT_TYPE_COLOURS = {
   Survey:       { bg: '#e6f0fb', color: '#1a5fa8' },
@@ -91,6 +92,7 @@ export default function LeadDetail() {
   const [showCompose, setShowCompose] = useState(false)
   const [emailForm, setEmailForm] = useState({ to: '', cc: '', subject: '', body: '' })
   const [sendingEmail, setSendingEmail] = useState(false)
+  const [sendResult, setSendResult] = useState(null) // { ok: true } | { error: '...' } | null
   const [tasks, setTasks] = useState([])
   const [newTask, setNewTask] = useState({ subject: '', due_date: '', assigned_to: '', notes: '' })
   const [savingTask, setSavingTask] = useState(false)
@@ -277,39 +279,63 @@ export default function LeadDetail() {
   async function sendEmail() {
     if (!emailForm.to.trim()) return
     setSendingEmail(true)
-    const { error } = await supabase.functions.invoke('send-email', {
-      body: {
-        to: emailForm.to,
-        cc: emailForm.cc || undefined,
-        subject: emailForm.subject,
-        body: emailForm.body,
-        lead_id: leadId,
-      },
-    })
-    if (error) {
-      alert('Failed to send email: ' + error.message)
+    setSendResult(null)
+
+    let sendOk = false
+    try {
+      const res = await fetch('https://ubmxstufxyeimaywcevk.supabase.co/functions/v1/send-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer sb_publishable_YbIHzqpnFXin94E1bpVUug_c_B-UvTw',
+        },
+        body: JSON.stringify({
+          to: emailForm.to,
+          ...(emailForm.cc ? { cc: emailForm.cc } : {}),
+          subject: emailForm.subject,
+          body: emailForm.body,
+          from_mailbox: user?.email,
+        }),
+      })
+      if (!res.ok) {
+        let msg = `HTTP ${res.status}`
+        try { const j = await res.json(); msg = j.error || j.message || msg } catch (_) {}
+        setSendResult({ error: `Failed to send: ${msg}` })
+        setSendingEmail(false)
+        return
+      }
+      sendOk = true
+    } catch (err) {
+      setSendResult({ error: err.message || 'Network error' })
       setSendingEmail(false)
       return
     }
-    const notesBody = [
-      `To: ${emailForm.to}`,
-      emailForm.cc ? `CC: ${emailForm.cc}` : null,
-      '',
-      emailForm.body,
-    ].filter(l => l !== null).join('\n')
 
-    await supabase.from('lead_notes').insert([{
-      lead_id: leadId,
-      subject: emailForm.subject,
-      type: 'Email out',
-      notes: notesBody,
-      author: user?.email || 'Unknown',
-      created_at: new Date().toISOString(),
-    }])
-    await fetchLeadNotes()
-    setShowCompose(false)
-    setEmailForm({ to: '', cc: '', subject: '', body: '' })
-    setSendingEmail(false)
+    if (sendOk) {
+      const notesBody = [
+        `To: ${emailForm.to}`,
+        emailForm.cc ? `CC: ${emailForm.cc}` : null,
+        '',
+        emailForm.body,
+      ].filter(l => l !== null).join('\n')
+
+      await supabase.from('lead_notes').insert([{
+        lead_id: leadId,
+        subject: emailForm.subject,
+        type: 'Email out',
+        notes: notesBody,
+        author: user?.email || 'Unknown',
+        created_at: new Date().toISOString(),
+      }])
+      await fetchLeadNotes()
+      setSendResult({ ok: true })
+      setSendingEmail(false)
+      setTimeout(() => {
+        setShowCompose(false)
+        setEmailForm({ to: '', cc: '', subject: '', body: '' })
+        setSendResult(null)
+      }, 1800)
+    }
   }
 
   async function addContact() {
@@ -915,12 +941,17 @@ export default function LeadDetail() {
                         <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Body</label>
                         <textarea value={emailForm.body} onChange={e => setEmailForm(p => ({ ...p, body: e.target.value }))} rows={6} placeholder="Write your email here…" style={{ ...iS, resize: 'vertical' }} />
                       </div>
+                      {sendResult && (
+                        <div style={{ fontSize: 12, padding: '8px 12px', borderRadius: 8, background: sendResult.ok ? '#e1f5ee' : '#fceaea', color: sendResult.ok ? '#0a5a3c' : '#8b2020', fontWeight: 500 }}>
+                          {sendResult.ok ? '✓ Email sent successfully' : `✕ ${sendResult.error}`}
+                        </div>
+                      )}
                       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                        <button onClick={() => setShowCompose(false)} style={{ fontSize: 12, padding: '7px 14px', border: '1px solid #d8d5cf', borderRadius: 8, background: '#fff', cursor: 'pointer' }}>Cancel</button>
+                        <button onClick={() => { setShowCompose(false); setSendResult(null) }} style={{ fontSize: 12, padding: '7px 14px', border: '1px solid #d8d5cf', borderRadius: 8, background: '#fff', cursor: 'pointer' }}>Cancel</button>
                         <button
                           onClick={sendEmail}
-                          disabled={sendingEmail || !emailForm.to.trim()}
-                          style={{ fontSize: 12, padding: '7px 16px', border: 'none', borderRadius: 8, background: sendingEmail || !emailForm.to.trim() ? '#c8905a' : '#a04010', color: '#fff', cursor: sendingEmail || !emailForm.to.trim() ? 'default' : 'pointer', fontWeight: 500 }}
+                          disabled={sendingEmail || !emailForm.to.trim() || sendResult?.ok}
+                          style={{ fontSize: 12, padding: '7px 16px', border: 'none', borderRadius: 8, background: sendingEmail || !emailForm.to.trim() || sendResult?.ok ? '#c8905a' : '#a04010', color: '#fff', cursor: sendingEmail || !emailForm.to.trim() || sendResult?.ok ? 'default' : 'pointer', fontWeight: 500 }}
                         >
                           {sendingEmail ? 'Sending…' : 'Send email'}
                         </button>
@@ -933,8 +964,64 @@ export default function LeadDetail() {
               {/* Note list */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {leadNotes.map(note => {
+                  const isEmailNote = note.type === 'Email out' || note.type === 'Email in'
                   const c = NOTE_TYPE_COLOURS[note.type] || NOTE_TYPE_COLOURS['Internal note']
                   const fileUrl = note.file_path ? supabase.storage.from('lead-files').getPublicUrl(note.file_path).data.publicUrl : null
+
+                  if (isEmailNote) {
+                    const isOut = note.type === 'Email out'
+                    // Parse To:/CC: header lines out of the notes body (Email out format)
+                    let toAddr = '', ccAddr = '', emailBody = note.notes || ''
+                    if (isOut && note.notes) {
+                      const lines = note.notes.split('\n')
+                      let bodyStart = 0
+                      for (let i = 0; i < lines.length; i++) {
+                        if (lines[i].startsWith('To: ')) { toAddr = lines[i].slice(4); bodyStart = i + 1 }
+                        else if (lines[i].startsWith('CC: ')) { ccAddr = lines[i].slice(4); bodyStart = i + 1 }
+                        else if (lines[i] === '' && i > 0) { bodyStart = i + 1; break }
+                        else if (i > 1) break
+                      }
+                      emailBody = lines.slice(bodyStart).join('\n').trim()
+                    }
+                    return (
+                      <div key={note.id} style={{ background: '#fffcf8', border: '1px solid #e8c898', borderRadius: 10, overflow: 'hidden' }}>
+                        {/* Email header bar */}
+                        <div style={{ background: '#fff8f0', borderBottom: '1px solid #e8c898', padding: '9px 14px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 14, flexShrink: 0 }}>✉</span>
+                          <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 999, fontWeight: 500, background: isOut ? '#fff0e8' : '#e1f5ee', color: isOut ? '#a04010' : '#0a5a3c', flexShrink: 0 }}>
+                            {isOut ? 'Email out' : 'Email in'}
+                          </span>
+                          {isOut && toAddr && (
+                            <span style={{ fontSize: 12, color: '#888' }}>
+                              To: <span style={{ color: '#555', fontWeight: 500 }}>{toAddr}</span>
+                              {ccAddr && <span> · CC: <span style={{ color: '#555', fontWeight: 500 }}>{ccAddr}</span></span>}
+                            </span>
+                          )}
+                          {!isOut && note.author && (
+                            <span style={{ fontSize: 12, color: '#888' }}>
+                              From: <span style={{ color: '#555', fontWeight: 500 }}>{note.author}</span>
+                            </span>
+                          )}
+                          <span style={{ marginLeft: 'auto', fontSize: 11, color: '#aaa', flexShrink: 0 }}>
+                            {new Date(note.created_at).toLocaleString('en-GB')}
+                          </span>
+                        </div>
+                        {/* Subject + body */}
+                        <div style={{ padding: '12px 14px' }}>
+                          {note.subject && (
+                            <div style={{ fontSize: 13, fontWeight: 700, color: '#222', marginBottom: emailBody ? 8 : 0 }}>{note.subject}</div>
+                          )}
+                          {emailBody && (
+                            <div style={{ fontSize: 13, color: '#555', lineHeight: 1.65, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{emailBody}</div>
+                          )}
+                          {!isOut && !emailBody && note.notes && (
+                            <div style={{ fontSize: 13, color: '#555', lineHeight: 1.65, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{note.notes}</div>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  }
+
                   return (
                     <div key={note.id} style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 10, padding: '12px 14px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>

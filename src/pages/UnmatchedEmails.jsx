@@ -135,7 +135,7 @@ export default function UnmatchedEmails() {
     await supabase.from('lead_notes').insert([{
       lead_id: s.selected.id,
       subject: email.subject || '(No subject)',
-      type: 'Phone in',
+      type: 'Email in',
       notes: email.body || '',
       author: [email.from_name, email.from_email].filter(Boolean).join(' '),
       created_at: email.received_at || new Date().toISOString(),
@@ -225,6 +225,13 @@ export default function UnmatchedEmails() {
               {emails.length} unmatched
             </span>
           )}
+          <button
+            onClick={fetchEmails}
+            disabled={loading}
+            style={{ fontSize: 12, padding: '6px 13px', border: '1px solid #d8d5cf', borderRadius: 7, background: '#fff', cursor: loading ? 'default' : 'pointer', color: '#555', opacity: loading ? 0.5 : 1 }}
+          >
+            {loading ? 'Loading…' : 'Refresh'}
+          </button>
         </div>
 
         {/* Content */}

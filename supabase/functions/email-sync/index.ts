@@ -5,7 +5,7 @@ const AZURE_TENANT_ID = Deno.env.get("AZURE_TENANT_ID")
 const AZURE_CLIENT_ID = Deno.env.get("AZURE_CLIENT_ID")
 const AZURE_CLIENT_SECRET = Deno.env.get("AZURE_CLIENT_SECRET")
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")
-const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
+const SUPABASE_SERVICE_KEY = Deno.env.get("SERVICE_ROLE_KEY")
 
 async function getAccessToken() {
   const res = await fetch(`https://login.microsoftonline.com/${AZURE_TENANT_ID}/oauth2/v2.0/token`, {
