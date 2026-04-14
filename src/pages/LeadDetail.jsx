@@ -73,6 +73,7 @@ export default function LeadDetail() {
   const [uploading, setUploading] = useState(false)
   const [coords, setCoords] = useState(null)
   const [geoLoading, setGeoLoading] = useState(false)
+  const [enquiryNotes, setEnquiryNotes] = useState('')
 
   useEffect(() => { fetchLead(); fetchUploads() }, [leadId])
 
@@ -102,6 +103,7 @@ export default function LeadDetail() {
     if (data) {
       setLead(data)
       setContacts(data.lead_contacts || [])
+      setEnquiryNotes(data.description || '')
     }
     setLoading(false)
   }
@@ -261,6 +263,27 @@ export default function LeadDetail() {
           {activeTab === 'general' && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, maxWidth: 900 }}>
 
+              {/* Status + Assigned to */}
+              <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, padding: '16px 18px', gridColumn: '1/-1' }}>
+                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Status</div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+                  {STAGES.map(stage => (
+                    <div key={stage} onClick={() => updateLead({ stage })} style={{ fontSize: 12, padding: '7px 14px', border: `2px solid ${lead.stage === stage ? '#3d35a8' : '#e8e6e0'}`, borderRadius: 8, background: lead.stage === stage ? '#f0eefc' : '#fff', color: lead.stage === stage ? '#3d35a8' : '#555', cursor: 'pointer', fontWeight: lead.stage === stage ? 600 : 400 }}>{stage}</div>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingTop: 12, borderTop: '1px solid #f0eeea' }}>
+                  <label style={{ fontSize: 12, color: '#888', fontWeight: 500, flexShrink: 0 }}>Assigned to</label>
+                  <select
+                    value={lead.assigned_to || ''}
+                    onChange={e => updateLead({ assigned_to: e.target.value })}
+                    style={{ fontSize: 13, padding: '6px 10px', border: '1px solid #d8d5cf', borderRadius: 8, outline: 'none', background: '#fff', cursor: 'pointer', minWidth: 160 }}
+                  >
+                    <option value="">— Unassigned —</option>
+                    {SURVEYORS.map(s => <option key={s}>{s}</option>)}
+                  </select>
+                </div>
+              </div>
+
               {/* Lead Tags */}
               <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, padding: '16px 18px', gridColumn: '1/-1' }}>
                 <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Tags</div>
@@ -321,25 +344,22 @@ export default function LeadDetail() {
                   ['Estimated units', lead.estimated_units],
                   ['Source', lead.source],
                   ['Priority', lead.priority],
-                  ['Assigned to', lead.assigned_to],
                 ].map(([label, val]) => val ? (
                   <div key={label} style={{ display: 'flex', padding: '6px 0', borderBottom: '1px solid #f5f4f0', fontSize: 13 }}>
                     <span style={{ color: '#888', minWidth: 120, fontSize: 12 }}>{label}</span>
                     <span style={{ fontWeight: 500 }}>{val}</span>
                   </div>
                 ) : null)}
-                {lead.notes && (
-                  <div style={{ marginTop: 10, padding: '10px 12px', background: '#faf9f7', borderRadius: 8, fontSize: 12, color: '#555', lineHeight: 1.6 }}>{lead.notes}</div>
-                )}
-              </div>
-
-              {/* Status */}
-              <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, padding: '16px 18px', gridColumn: '1/-1' }}>
-                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Status</div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {STAGES.map(stage => (
-                    <div key={stage} onClick={() => updateLead({ stage })} style={{ fontSize: 12, padding: '7px 14px', border: `2px solid ${lead.stage === stage ? '#3d35a8' : '#e8e6e0'}`, borderRadius: 8, background: lead.stage === stage ? '#f0eefc' : '#fff', color: lead.stage === stage ? '#3d35a8' : '#555', cursor: 'pointer', fontWeight: lead.stage === stage ? 600 : 400 }}>{stage}</div>
-                  ))}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 12 }}>
+                  <label style={{ fontSize: 12, color: '#888', fontWeight: 500 }}>Enquiry notes</label>
+                  <textarea
+                    value={enquiryNotes}
+                    onChange={e => setEnquiryNotes(e.target.value)}
+                    onBlur={e => { if (e.target.value !== (lead.description || '')) updateLead({ description: e.target.value }) }}
+                    rows={4}
+                    placeholder="Add enquiry notes…"
+                    style={{ fontSize: 13, padding: '8px 11px', border: '1px solid #d8d5cf', borderRadius: 8, outline: 'none', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5, width: '100%', boxSizing: 'border-box' }}
+                  />
                 </div>
               </div>
 
@@ -769,32 +789,36 @@ export default function LeadDetail() {
                 ) : (
                   <>
                     <div style={{ fontSize: 13, color: '#555', marginBottom: 16 }}>{fullAddress}</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                      <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, overflow: 'hidden' }}>
-                        <div style={{ padding: '12px 14px', borderBottom: '1px solid #e8e6e0', fontSize: 12, fontWeight: 600, color: '#555' }}>Map</div>
-                        <iframe
-                          title="map"
-                          src={mapSrc}
-                          width="100%"
-                          height="400"
-                          style={{ display: 'block', border: 'none' }}
-                          allowFullScreen
-                          loading="lazy"
-                          referrerPolicy="no-referrer-when-downgrade"
-                        />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: '#555', marginBottom: 6 }}>Map</div>
+                        <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, overflow: 'hidden' }}>
+                          <iframe
+                            title="map"
+                            src={mapSrc}
+                            width="100%"
+                            height="450"
+                            style={{ display: 'block', border: 'none' }}
+                            allowFullScreen
+                            loading="lazy"
+                            referrerPolicy="no-referrer-when-downgrade"
+                          />
+                        </div>
                       </div>
-                      <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, overflow: 'hidden' }}>
-                        <div style={{ padding: '12px 14px', borderBottom: '1px solid #e8e6e0', fontSize: 12, fontWeight: 600, color: '#555' }}>Street View</div>
-                        <iframe
-                          title="streetview"
-                          src={svSrc}
-                          width="100%"
-                          height="400"
-                          style={{ display: 'block', border: 'none' }}
-                          allowFullScreen
-                          loading="lazy"
-                          referrerPolicy="no-referrer-when-downgrade"
-                        />
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: '#555', marginBottom: 6 }}>Street View</div>
+                        <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, overflow: 'hidden' }}>
+                          <iframe
+                            title="streetview"
+                            src={svSrc}
+                            width="100%"
+                            height="450"
+                            style={{ display: 'block', border: 'none' }}
+                            allowFullScreen
+                            loading="lazy"
+                            referrerPolicy="no-referrer-when-downgrade"
+                          />
+                        </div>
                       </div>
                     </div>
                   </>
