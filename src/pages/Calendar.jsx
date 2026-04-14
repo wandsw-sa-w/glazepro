@@ -26,8 +26,23 @@ const TOTAL_H = SLOTS.length * SLOT_H
 
 const EMPTY_FORM = {
   title: '', type: 'Survey', date: '', start_time: '',
-  end_time: '', assigned_to: STAFF[0], lead_ref: '', notes: '',
+  end_time: '', assigned_to: STAFF[0], lead_id: null, notes: '', allday: false,
 }
+
+const DURATIONS = [
+  { label: '15 min',   mins: 15 },
+  { label: '30 min',   mins: 30 },
+  { label: '45 min',   mins: 45 },
+  { label: '1 hr',     mins: 60 },
+  { label: '1 hr 15',  mins: 75 },
+  { label: '1 hr 30',  mins: 90 },
+  { label: '1 hr 45',  mins: 105 },
+  { label: '2 hrs',    mins: 120 },
+  { label: '2 hrs 30', mins: 150 },
+  { label: '3 hrs',    mins: 180 },
+  { label: '3 hrs 30', mins: 210 },
+  { label: '4 hrs',    mins: 240 },
+]
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -61,9 +76,9 @@ function calcHeight(startStr, endStr) {
   const mins = parseTime(endStr) - parseTime(startStr)
   return Math.max((mins / 30) * SLOT_H, SLOT_H / 2)
 }
-function addOneHour(timeStr) {
-  const min = parseTime(timeStr) + 60
-  return `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`
+function addMinutes(timeStr, mins) {
+  const total = parseTime(timeStr) + mins
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -80,6 +95,13 @@ export default function Calendar() {
   const [modal, setModal] = useState(null)   // { mode: 'new'|'detail'|'edit', appt? }
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
+  const [duration, setDuration] = useState(60)
+
+  // Lead search
+  const [leadSearch, setLeadSearch] = useState('')
+  const [leadResults, setLeadResults] = useState([])
+  const [leadLoading, setLeadLoading] = useState(false)
+  const [selectedLead, setSelectedLead] = useState(null)
 
   // Derived
   const today = new Date()
@@ -116,7 +138,7 @@ export default function Calendar() {
   }
 
   async function saveAppointment() {
-    if (!form.title.trim()) return
+    if (!form.lead_id) return
     setSaving(true)
     if (modal.mode === 'new') {
       await supabase.from('appointments').insert([{ ...form, created_at: new Date().toISOString() }])
@@ -134,23 +156,77 @@ export default function Calendar() {
     closeModal()
   }
 
-  function closeModal() { setModal(null); setForm(EMPTY_FORM) }
+  function resetLeadSearch() {
+    setLeadSearch('')
+    setLeadResults([])
+    setLeadLoading(false)
+    setSelectedLead(null)
+  }
+
+  function closeModal() {
+    setModal(null)
+    setForm(EMPTY_FORM)
+    setDuration(60)
+    resetLeadSearch()
+  }
 
   function openNew(date, time) {
-    setForm({ ...EMPTY_FORM, date, start_time: time, end_time: addOneHour(time) })
+    resetLeadSearch()
+    setDuration(60)
+    setForm({ ...EMPTY_FORM, date, start_time: time, end_time: addMinutes(time, 60) })
     setModal({ mode: 'new' })
   }
 
   function openDetail(appt) { setModal({ mode: 'detail', appt }) }
 
-  function openEdit(appt) {
+  async function openEdit(appt) {
+    resetLeadSearch()
+    const computedDuration = (appt.start_time && appt.end_time)
+      ? parseTime(appt.end_time) - parseTime(appt.start_time)
+      : 60
+    setDuration(computedDuration > 0 ? computedDuration : 60)
     setForm({
       title: appt.title || '', type: appt.type || 'Survey',
       date: appt.date || '', start_time: appt.start_time || '',
       end_time: appt.end_time || '', assigned_to: appt.assigned_to || STAFF[0],
-      lead_ref: appt.lead_ref || '', notes: appt.notes || '',
+      lead_id: appt.lead_id || null, notes: appt.notes || '',
+      allday: appt.allday || false,
     })
     setModal({ mode: 'edit', appt })
+    if (appt.lead_id) {
+      const { data } = await supabase
+        .from('leads')
+        .select('id, lead_number, property_road, property_town, property_postcode')
+        .eq('id', appt.lead_id)
+        .single()
+      if (data) setSelectedLead(data)
+    }
+  }
+
+  async function searchLeads(query) {
+    if (!query.trim()) { setLeadResults([]); return }
+    setLeadLoading(true)
+    const { data } = await supabase
+      .from('leads')
+      .select('id, lead_number, property_road, property_town, property_postcode')
+      .or(`lead_number.ilike.%${query}%,property_road.ilike.%${query}%,property_town.ilike.%${query}%`)
+      .limit(8)
+    setLeadResults(data || [])
+    setLeadLoading(false)
+  }
+
+  function selectLead(lead) {
+    const parts = [lead.lead_number, lead.property_road, lead.property_town].filter(Boolean)
+    const title = parts.join(' – ')
+    setSelectedLead(lead)
+    setForm(p => ({ ...p, lead_id: lead.id, title }))
+    setLeadSearch('')
+    setLeadResults([])
+  }
+
+  function clearLead() {
+    setSelectedLead(null)
+    setForm(p => ({ ...p, lead_id: null, title: '' }))
   }
 
   const iStyle = {
@@ -181,20 +257,19 @@ export default function Calendar() {
         <div style={{ padding: '14px 14px 4px', fontSize: 10, color: '#aaa', letterSpacing: '.07em', textTransform: 'uppercase' }}>Workflow</div>
         {[
           ['Lead capture', '/leads'],
-          ['Calendar', '/calendar'],
           ['Quotes & orders', null],
           ['Production', null],
-          ['Scheduling', null],
+          ['Scheduling', '/calendar'],
           ['Invoicing', null],
         ].map(([item, path]) => {
-          const active = item === 'Calendar'
+          const active = item === 'Scheduling'
           return (
             <div
               key={item}
               onClick={path ? () => navigate(path) : undefined}
               style={{
                 padding: '8px 11px', fontSize: 13, borderRadius: 8, margin: '1px 7px',
-                color: active ? '#3d35a8' : '#aaa',
+                color: active ? '#3d35a8' : path ? '#555' : '#aaa',
                 fontWeight: active ? 500 : 400,
                 background: active ? '#f0eefc' : 'transparent',
                 cursor: path ? 'pointer' : 'not-allowed',
@@ -278,101 +353,141 @@ export default function Calendar() {
                 {weekMon.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
               </div>
 
-              <div style={{ display: 'flex' }}>
+              {(() => {
+                // Compute all-day row height for this week
+                const weekDates = [0,1,2,3,4,5,6].map(di => formatDate(addDays(weekMon, di)))
+                const visibleAppts = appointments.filter(a =>
+                  weekDates.includes(a.date) &&
+                  (filterStaff.length === 0 || filterStaff.includes(a.assigned_to))
+                )
+                const alldayApptsByDay = weekDates.map(d => visibleAppts.filter(a => a.allday && a.date === d))
+                const maxAlldayCount = Math.max(0, ...alldayApptsByDay.map(a => a.length))
+                const ALLDAY_H = maxAlldayCount > 0 ? maxAlldayCount * 24 + 6 : 0
 
-                {/* Time label gutter */}
-                <div style={{ width: 46, flexShrink: 0, borderRight: '1px solid #f0eeea', position: 'relative' }}>
-                  {/* Header spacer */}
-                  <div style={{ height: 38, borderBottom: '1px solid #e8e6e0' }} />
-                  {/* Time labels */}
-                  <div style={{ position: 'relative', height: TOTAL_H }}>
-                    {SLOTS.map((slot, si) => {
-                      const show = slot === '07:30' || slot.endsWith(':00')
-                      if (!show) return null
-                      return (
-                        <div key={slot} style={{ position: 'absolute', top: si * SLOT_H - 6, left: 0, right: 4, textAlign: 'right', fontSize: 9, color: '#c0bdb8', lineHeight: 1 }}>
-                          {slot}
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
+                return (
+                  <div style={{ display: 'flex' }}>
 
-                {/* Day columns */}
-                {DAY_NAMES.map((dayName, di) => {
-                  const day = addDays(weekMon, di)
-                  const dayStr = formatDate(day)
-                  const isToday = dayStr === todayStr
-                  const dayAppts = appointments.filter(a =>
-                    a.date === dayStr &&
-                    (filterStaff.length === 0 || filterStaff.includes(a.assigned_to))
-                  )
-
-                  return (
-                    <div key={di} style={{ flex: 1, borderLeft: '1px solid #f0eeea', minWidth: 0 }}>
-
-                      {/* Day header */}
-                      <div style={{
-                        height: 38, display: 'flex', flexDirection: 'column', alignItems: 'center',
-                        justifyContent: 'center', borderBottom: '1px solid #e8e6e0',
-                        background: isToday ? '#f0eefc' : 'transparent',
-                      }}>
-                        <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: isToday ? '#3d35a8' : '#bbb' }}>{dayName}</span>
-                        <span style={{ fontSize: 13, fontWeight: isToday ? 700 : 500, color: isToday ? '#3d35a8' : '#444', lineHeight: 1.2 }}>{day.getDate()}</span>
-                      </div>
-
-                      {/* Slots + appointments */}
+                    {/* Time label gutter */}
+                    <div style={{ width: 46, flexShrink: 0, borderRight: '1px solid #f0eeea', position: 'relative' }}>
+                      {/* Header spacer */}
+                      <div style={{ height: 38, borderBottom: '1px solid #e8e6e0' }} />
+                      {/* All-day spacer */}
+                      {ALLDAY_H > 0 && <div style={{ height: ALLDAY_H, borderBottom: '1px solid #e8e6e0', background: '#faf9f7' }} />}
+                      {/* Time labels */}
                       <div style={{ position: 'relative', height: TOTAL_H }}>
-
-                        {/* Click targets / slot lines */}
-                        {SLOTS.map((slot, si) => (
-                          <div
-                            key={slot}
-                            title={`New appointment ${dayStr} ${slot}`}
-                            onClick={() => openNew(dayStr, slot)}
-                            style={{
-                              position: 'absolute', top: si * SLOT_H, height: SLOT_H, left: 0, right: 0,
-                              borderBottom: `1px solid ${slot.endsWith(':00') ? '#eeece8' : '#f5f4f2'}`,
-                              cursor: 'pointer',
-                            }}
-                          />
-                        ))}
-
-                        {/* Appointment blocks */}
-                        {dayAppts.map(appt => {
-                          const c = TYPE_COLOUR[appt.type] || TYPE_COLOUR.Other
-                          const top = calcTop(appt.start_time)
-                          const height = calcHeight(appt.start_time, appt.end_time)
-                          if (top < 0 || top >= TOTAL_H) return null
+                        {SLOTS.map((slot, si) => {
+                          const show = slot === '07:30' || slot.endsWith(':00')
+                          if (!show) return null
                           return (
-                            <div
-                              key={appt.id}
-                              onClick={e => { e.stopPropagation(); openDetail(appt) }}
-                              style={{
-                                position: 'absolute', top: top + 1, left: 2, right: 2,
-                                height: Math.min(height - 2, TOTAL_H - top - 2),
-                                background: c.bg, border: `1px solid ${c.border}`,
-                                borderLeft: `3px solid ${c.color}`,
-                                borderRadius: 4, padding: '2px 4px',
-                                cursor: 'pointer', overflow: 'hidden', zIndex: 2,
-                              }}
-                            >
-                              <div style={{ fontSize: 10, fontWeight: 700, color: c.color, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {appt.title}
-                              </div>
-                              {height >= SLOT_H && (
-                                <div style={{ fontSize: 9, color: c.color, opacity: 0.75, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                  {appt.assigned_to}
-                                </div>
-                              )}
+                            <div key={slot} style={{ position: 'absolute', top: si * SLOT_H - 6, left: 0, right: 4, textAlign: 'right', fontSize: 9, color: '#c0bdb8', lineHeight: 1 }}>
+                              {slot}
                             </div>
                           )
                         })}
                       </div>
                     </div>
-                  )
-                })}
-              </div>
+
+                    {/* Day columns */}
+                    {DAY_NAMES.map((dayName, di) => {
+                      const day = addDays(weekMon, di)
+                      const dayStr = formatDate(day)
+                      const isToday = dayStr === todayStr
+                      const alldayAppts = alldayApptsByDay[di]
+                      const timedAppts = visibleAppts.filter(a => !a.allday && a.date === dayStr)
+
+                      return (
+                        <div key={di} style={{ flex: 1, borderLeft: '1px solid #f0eeea', minWidth: 0 }}>
+
+                          {/* Day header */}
+                          <div style={{
+                            height: 38, display: 'flex', flexDirection: 'column', alignItems: 'center',
+                            justifyContent: 'center', borderBottom: '1px solid #e8e6e0',
+                            background: isToday ? '#f0eefc' : 'transparent',
+                          }}>
+                            <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: isToday ? '#3d35a8' : '#bbb' }}>{dayName}</span>
+                            <span style={{ fontSize: 13, fontWeight: isToday ? 700 : 500, color: isToday ? '#3d35a8' : '#444', lineHeight: 1.2 }}>{day.getDate()}</span>
+                          </div>
+
+                          {/* All-day strip */}
+                          {ALLDAY_H > 0 && (
+                            <div style={{ height: ALLDAY_H, borderBottom: '1px solid #e8e6e0', background: '#faf9f7', position: 'relative', padding: '3px 2px 0' }}>
+                              {alldayAppts.map((appt, ai) => {
+                                const c = TYPE_COLOUR[appt.type] || TYPE_COLOUR.Other
+                                return (
+                                  <div
+                                    key={appt.id}
+                                    onClick={e => { e.stopPropagation(); openDetail(appt) }}
+                                    style={{
+                                      height: 20, marginBottom: 3,
+                                      background: c.bg, border: `1px solid ${c.border}`,
+                                      borderLeft: `3px solid ${c.color}`,
+                                      borderRadius: 3, padding: '1px 4px',
+                                      cursor: 'pointer', overflow: 'hidden',
+                                    }}
+                                  >
+                                    <div style={{ fontSize: 9, fontWeight: 700, color: c.color, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: '18px' }}>
+                                      {appt.title}
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
+
+                          {/* Slots + timed appointments */}
+                          <div style={{ position: 'relative', height: TOTAL_H }}>
+
+                            {/* Click targets / slot lines */}
+                            {SLOTS.map((slot, si) => (
+                              <div
+                                key={slot}
+                                title={`New appointment ${dayStr} ${slot}`}
+                                onClick={() => openNew(dayStr, slot)}
+                                style={{
+                                  position: 'absolute', top: si * SLOT_H, height: SLOT_H, left: 0, right: 0,
+                                  borderBottom: `1px solid ${slot.endsWith(':00') ? '#eeece8' : '#f5f4f2'}`,
+                                  cursor: 'pointer',
+                                }}
+                              />
+                            ))}
+
+                            {/* Timed appointment blocks */}
+                            {timedAppts.map(appt => {
+                              const c = TYPE_COLOUR[appt.type] || TYPE_COLOUR.Other
+                              const top = calcTop(appt.start_time)
+                              const height = calcHeight(appt.start_time, appt.end_time)
+                              if (top < 0 || top >= TOTAL_H) return null
+                              return (
+                                <div
+                                  key={appt.id}
+                                  onClick={e => { e.stopPropagation(); openDetail(appt) }}
+                                  style={{
+                                    position: 'absolute', top: top + 1, left: 2, right: 2,
+                                    height: Math.min(height - 2, TOTAL_H - top - 2),
+                                    background: c.bg, border: `1px solid ${c.border}`,
+                                    borderLeft: `3px solid ${c.color}`,
+                                    borderRadius: 4, padding: '2px 4px',
+                                    cursor: 'pointer', overflow: 'hidden', zIndex: 2,
+                                  }}
+                                >
+                                  <div style={{ fontSize: 10, fontWeight: 700, color: c.color, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {appt.title}
+                                  </div>
+                                  {height >= SLOT_H && (
+                                    <div style={{ fontSize: 9, color: c.color, opacity: 0.75, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                      {appt.assigned_to}
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
             </div>
           ))}
         </div>
@@ -398,53 +513,147 @@ export default function Calendar() {
                 // ── Detail view
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {[
+                    ['Lead',        modal.appt.title],
                     ['Type',        modal.appt.type],
+                    ['All day',     modal.appt.allday ? 'Yes' : null],
                     ['Date',        modal.appt.date],
-                    ['Start',       modal.appt.start_time],
-                    ['End',         modal.appt.end_time],
+                    ['Start',       modal.appt.allday ? null : modal.appt.start_time],
+                    ['End',         modal.appt.allday ? null : modal.appt.end_time],
                     ['Assigned to', modal.appt.assigned_to],
-                    ['Lead ref',    modal.appt.lead_ref],
                     ['Notes',       modal.appt.notes],
                   ].map(([label, val]) => val ? (
                     <div key={label} style={{ display: 'flex', gap: 16, fontSize: 13, padding: '5px 0', borderBottom: '1px solid #f5f4f0' }}>
                       <span style={{ minWidth: 90, color: '#888', fontSize: 12, flexShrink: 0 }}>{label}</span>
-                      <span style={{ fontWeight: 500 }}>{val}</span>
+                      <span style={{ fontWeight: label === 'Lead' ? 600 : 500 }}>{val}</span>
                     </div>
                   ) : null)}
-                  <div style={{ display: 'flex', gap: 16, fontSize: 13, padding: '5px 0', borderBottom: '1px solid #f5f4f0' }}>
-                    <span style={{ minWidth: 90, color: '#888', fontSize: 12, flexShrink: 0 }}>Title</span>
-                    <span style={{ fontWeight: 600 }}>{modal.appt.title}</span>
-                  </div>
                 </div>
               ) : (
                 // ── New / Edit form
                 <>
+                  {/* Lead search */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Title</label>
-                    <input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} placeholder="e.g. Survey – 14 Elm Road" style={iStyle} />
+                    <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Lead</label>
+                    {selectedLead ? (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 11px', border: '1px solid #b0cff0', borderRadius: 8, background: '#f0f7ff' }}>
+                        <div>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: '#1a5fa8' }}>{selectedLead.lead_number}</span>
+                          {(selectedLead.property_road || selectedLead.property_town) && (
+                            <span style={{ fontSize: 12, color: '#555', marginLeft: 8 }}>
+                              {[selectedLead.property_road, selectedLead.property_town].filter(Boolean).join(', ')}
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          onClick={clearLead}
+                          style={{ fontSize: 16, color: '#888', cursor: 'pointer', border: 'none', background: 'none', lineHeight: 1, padding: '0 2px', flexShrink: 0 }}
+                        >×</button>
+                      </div>
+                    ) : (
+                      <div style={{ position: 'relative' }}>
+                        <input
+                          value={leadSearch}
+                          onChange={e => { setLeadSearch(e.target.value); searchLeads(e.target.value) }}
+                          onBlur={() => setTimeout(() => setLeadResults([]), 150)}
+                          placeholder="Search by lead number or address…"
+                          style={iStyle}
+                        />
+                        {(leadResults.length > 0 || leadLoading) && (
+                          <div style={{ position: 'absolute', top: 'calc(100% + 3px)', left: 0, right: 0, background: '#fff', border: '1px solid #e8e6e0', borderRadius: 10, zIndex: 200, boxShadow: '0 4px 16px rgba(0,0,0,.1)', overflow: 'hidden' }}>
+                            {leadLoading && !leadResults.length && (
+                              <div style={{ padding: '10px 14px', fontSize: 12, color: '#888' }}>Searching…</div>
+                            )}
+                            {leadResults.map(lead => (
+                              <div
+                                key={lead.id}
+                                onMouseDown={e => e.preventDefault()}
+                                onClick={() => selectLead(lead)}
+                                style={{ padding: '9px 14px', cursor: 'pointer', borderBottom: '1px solid #f5f4f0', fontSize: 13, display: 'flex', gap: 10, alignItems: 'baseline' }}
+                              >
+                                <span style={{ fontWeight: 600, color: '#1a5fa8', flexShrink: 0 }}>{lead.lead_number}</span>
+                                <span style={{ color: '#555', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {[lead.property_road, lead.property_town].filter(Boolean).join(', ')}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
+                      <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Type</label>
+                      <select value={form.type} onChange={e => setForm(p => ({ ...p, type: e.target.value }))} style={{ ...iStyle, background: '#fff' }}>
+                        {APPT_TYPES.map(t => <option key={t}>{t}</option>)}
+                      </select>
+                    </div>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, color: '#555', fontWeight: 500, flexShrink: 0, paddingTop: 18 }}>
+                      <input
+                        type="checkbox"
+                        checked={form.allday}
+                        onChange={e => setForm(p => ({ ...p, allday: e.target.checked }))}
+                        style={{ width: 15, height: 15, cursor: 'pointer', accentColor: '#3d35a8' }}
+                      />
+                      All day
+                    </label>
                   </div>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Type</label>
-                    <select value={form.type} onChange={e => setForm(p => ({ ...p, type: e.target.value }))} style={{ ...iStyle, background: '#fff' }}>
-                      {APPT_TYPES.map(t => <option key={t}>{t}</option>)}
-                    </select>
+                    <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Date</label>
+                    <input type="date" value={form.date} onChange={e => setForm(p => ({ ...p, date: e.target.value }))} style={iStyle} />
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Date</label>
-                      <input type="date" value={form.date} onChange={e => setForm(p => ({ ...p, date: e.target.value }))} style={iStyle} />
+                  {!form.allday && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 1fr', gap: 10 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Start</label>
+                        <input
+                          type="time"
+                          value={form.start_time}
+                          onChange={e => {
+                            const val = e.target.value
+                            const newEnd = val && duration ? addMinutes(val, duration) : form.end_time
+                            setForm(p => ({ ...p, start_time: val, end_time: newEnd }))
+                          }}
+                          style={iStyle}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Duration</label>
+                        <select
+                          value={duration}
+                          onChange={e => {
+                            const mins = Number(e.target.value)
+                            setDuration(mins)
+                            if (form.start_time) setForm(p => ({ ...p, end_time: addMinutes(p.start_time, mins) }))
+                          }}
+                          style={{ ...iStyle, background: '#fff' }}
+                        >
+                          {DURATIONS.map(d => (
+                            <option key={d.mins} value={d.mins}>{d.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>End</label>
+                        <input
+                          type="time"
+                          value={form.end_time}
+                          onChange={e => {
+                            const val = e.target.value
+                            if (form.start_time && val) {
+                              const diff = parseTime(val) - parseTime(form.start_time)
+                              if (diff > 0) setDuration(diff)
+                            }
+                            setForm(p => ({ ...p, end_time: val }))
+                          }}
+                          style={iStyle}
+                        />
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Start</label>
-                      <input type="time" value={form.start_time} onChange={e => setForm(p => ({ ...p, start_time: e.target.value }))} style={iStyle} />
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>End</label>
-                      <input type="time" value={form.end_time} onChange={e => setForm(p => ({ ...p, end_time: e.target.value }))} style={iStyle} />
-                    </div>
-                  </div>
+                  )}
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Assigned to</label>
@@ -454,12 +663,7 @@ export default function Calendar() {
                   </div>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Lead reference <span style={{ color: '#aaa', fontWeight: 400 }}>(optional)</span></label>
-                    <input value={form.lead_ref} onChange={e => setForm(p => ({ ...p, lead_ref: e.target.value }))} placeholder="e.g. L123456" style={iStyle} />
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Notes</label>
+                    <label style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>Notes <span style={{ color: '#aaa', fontWeight: 400 }}>(optional)</span></label>
                     <textarea value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={3} style={{ ...iStyle, resize: 'none' }} />
                   </div>
                 </>
@@ -493,8 +697,8 @@ export default function Calendar() {
                   </button>
                   <button
                     onClick={saveAppointment}
-                    disabled={saving || !form.title.trim()}
-                    style={{ fontSize: 12, padding: '7px 14px', border: 'none', borderRadius: 8, background: saving || !form.title.trim() ? '#9993d4' : '#3d35a8', color: '#fff', cursor: saving || !form.title.trim() ? 'default' : 'pointer', fontWeight: 500 }}
+                    disabled={saving || !form.lead_id}
+                    style={{ fontSize: 12, padding: '7px 14px', border: 'none', borderRadius: 8, background: saving || !form.lead_id ? '#9993d4' : '#3d35a8', color: '#fff', cursor: saving || !form.lead_id ? 'default' : 'pointer', fontWeight: 500 }}
                   >
                     {saving ? 'Saving…' : modal.mode === 'edit' ? 'Save changes' : 'Save'}
                   </button>
