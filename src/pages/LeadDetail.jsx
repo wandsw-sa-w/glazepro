@@ -235,7 +235,9 @@ export default function LeadDetail() {
     setSurveyDate(slot.date || '')
     setSurveyTime(slot.time || '')
     setSurveyorVal(slot.surveyor || slot.surveyor_name || '')
-    confirmButtonRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setTimeout(() => {
+  confirmButtonRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+}, 100)
   }
 
   async function confirmSurveyBooking() {
