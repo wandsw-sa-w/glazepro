@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
+import { useAuth } from '../context/AuthContext'
 
 const stageColours = {
   New: { bg: '#e6f0fb', color: '#1a5fa8' },
@@ -33,6 +34,7 @@ function Toggle({ value, onChange, label }) {
 export default function LeadDetail() {
   const { id: leadId } = useParams()
   const navigate = useNavigate()
+  const { user, signOut } = useAuth()
   const [lead, setLead] = useState(null)
   const [contacts, setContacts] = useState([])
   const [loading, setLoading] = useState(true)
@@ -131,12 +133,16 @@ export default function LeadDetail() {
             {item}
           </div>
         ))}
-        <div style={{ marginTop: 'auto', padding: 13, borderTop: '1px solid #e8e6e0', display: 'flex', alignItems: 'center', gap: 9 }}>
-          <div style={{ width: 30, height: 30, borderRadius: '50%', background: '#e6f0fb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, color: '#1a5fa8' }}>NS</div>
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 500 }}>Nathan Smith</div>
-            <div style={{ fontSize: 11, color: '#aaa' }}>Admin</div>
+        <div style={{ marginTop: 'auto', padding: 13, borderTop: '1px solid #e8e6e0' }}>
+          <div style={{ fontSize: 11, color: '#555', fontWeight: 500, marginBottom: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {user?.email}
           </div>
+          <button
+            onClick={signOut}
+            style={{ fontSize: 11, padding: '5px 10px', border: '1px solid #d8d5cf', borderRadius: 6, background: '#fff', cursor: 'pointer', color: '#555' }}
+          >
+            Sign out
+          </button>
         </div>
       </div>
 
