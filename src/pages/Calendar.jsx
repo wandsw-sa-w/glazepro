@@ -140,11 +140,32 @@ export default function Calendar() {
   async function saveAppointment() {
     if (!form.lead_id) return
     setSaving(true)
-    if (modal.mode === 'new') {
-      await supabase.from('appointments').insert([{ ...form, created_at: new Date().toISOString() }])
-    } else {
-      await supabase.from('appointments').update(form).eq('id', modal.appt.id)
+
+    const payload = {
+      title:       form.title,
+      type:        form.type,
+      date:        form.date,
+      start_time:  form.allday ? null : form.start_time,
+      end_time:    form.allday ? null : form.end_time,
+      assigned_to: form.assigned_to,
+      lead_id:     form.lead_id,
+      notes:       form.notes,
+      allday:      form.allday,
     }
+
+    if (modal.mode === 'new') {
+      const { error } = await supabase
+        .from('appointments')
+        .insert([{ ...payload, created_at: new Date().toISOString() }])
+      if (error) { console.error('Appointment insert error:', error); setSaving(false); return }
+    } else {
+      const { error } = await supabase
+        .from('appointments')
+        .update(payload)
+        .eq('id', modal.appt.id)
+      if (error) { console.error('Appointment update error:', error); setSaving(false); return }
+    }
+
     await fetchAppointments()
     closeModal()
     setSaving(false)
@@ -354,15 +375,12 @@ export default function Calendar() {
               </div>
 
               {(() => {
-                // Compute all-day row height for this week
                 const weekDates = [0,1,2,3,4,5,6].map(di => formatDate(addDays(weekMon, di)))
                 const visibleAppts = appointments.filter(a =>
                   weekDates.includes(a.date) &&
                   (filterStaff.length === 0 || filterStaff.includes(a.assigned_to))
                 )
                 const alldayApptsByDay = weekDates.map(d => visibleAppts.filter(a => a.allday && a.date === d))
-                const maxAlldayCount = Math.max(0, ...alldayApptsByDay.map(a => a.length))
-                const ALLDAY_H = maxAlldayCount > 0 ? maxAlldayCount * 24 + 6 : 0
 
                 return (
                   <div style={{ display: 'flex' }}>
@@ -371,8 +389,6 @@ export default function Calendar() {
                     <div style={{ width: 46, flexShrink: 0, borderRight: '1px solid #f0eeea', position: 'relative' }}>
                       {/* Header spacer */}
                       <div style={{ height: 38, borderBottom: '1px solid #e8e6e0' }} />
-                      {/* All-day spacer */}
-                      {ALLDAY_H > 0 && <div style={{ height: ALLDAY_H, borderBottom: '1px solid #e8e6e0', background: '#faf9f7' }} />}
                       {/* Time labels */}
                       <div style={{ position: 'relative', height: TOTAL_H }}>
                         {SLOTS.map((slot, si) => {
@@ -393,6 +409,7 @@ export default function Calendar() {
                       const dayStr = formatDate(day)
                       const isToday = dayStr === todayStr
                       const alldayAppts = alldayApptsByDay[di]
+                      const hasAllday = alldayAppts.length > 0
                       const timedAppts = visibleAppts.filter(a => !a.allday && a.date === dayStr)
 
                       return (
@@ -408,48 +425,60 @@ export default function Calendar() {
                             <span style={{ fontSize: 13, fontWeight: isToday ? 700 : 500, color: isToday ? '#3d35a8' : '#444', lineHeight: 1.2 }}>{day.getDate()}</span>
                           </div>
 
-                          {/* All-day strip */}
-                          {ALLDAY_H > 0 && (
-                            <div style={{ height: ALLDAY_H, borderBottom: '1px solid #e8e6e0', background: '#faf9f7', position: 'relative', padding: '3px 2px 0' }}>
-                              {alldayAppts.map((appt, ai) => {
-                                const c = TYPE_COLOUR[appt.type] || TYPE_COLOUR.Other
-                                return (
-                                  <div
-                                    key={appt.id}
-                                    onClick={e => { e.stopPropagation(); openDetail(appt) }}
-                                    style={{
-                                      height: 20, marginBottom: 3,
-                                      background: c.bg, border: `1px solid ${c.border}`,
-                                      borderLeft: `3px solid ${c.color}`,
-                                      borderRadius: 3, padding: '1px 4px',
-                                      cursor: 'pointer', overflow: 'hidden',
-                                    }}
-                                  >
-                                    <div style={{ fontSize: 9, fontWeight: 700, color: c.color, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: '18px' }}>
-                                      {appt.title}
-                                    </div>
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          )}
-
-                          {/* Slots + timed appointments */}
+                          {/* Slots + appointments */}
                           <div style={{ position: 'relative', height: TOTAL_H }}>
 
-                            {/* Click targets / slot lines */}
+                            {/* Slot grid lines — clickable only when no all-day appointment */}
                             {SLOTS.map((slot, si) => (
                               <div
                                 key={slot}
-                                title={`New appointment ${dayStr} ${slot}`}
-                                onClick={() => openNew(dayStr, slot)}
+                                title={hasAllday ? undefined : `New appointment ${dayStr} ${slot}`}
+                                onClick={hasAllday ? undefined : () => openNew(dayStr, slot)}
                                 style={{
                                   position: 'absolute', top: si * SLOT_H, height: SLOT_H, left: 0, right: 0,
                                   borderBottom: `1px solid ${slot.endsWith(':00') ? '#eeece8' : '#f5f4f2'}`,
-                                  cursor: 'pointer',
+                                  cursor: hasAllday ? 'default' : 'pointer',
                                 }}
                               />
                             ))}
+
+                            {/* All-day full-height blocks */}
+                            {alldayAppts.map((appt, ai) => {
+                              const c = TYPE_COLOUR[appt.type] || TYPE_COLOUR.Other
+                              const count = alldayAppts.length
+                              const w = count > 1 ? `calc(${100 / count}% - 3px)` : undefined
+                              return (
+                                <div
+                                  key={appt.id}
+                                  onClick={e => { e.stopPropagation(); openDetail(appt) }}
+                                  style={{
+                                    position: 'absolute',
+                                    top: 0,
+                                    left: count > 1 ? `calc(${(ai / count) * 100}% + 1px)` : 2,
+                                    width: count > 1 ? w : undefined,
+                                    right: count > 1 ? undefined : 2,
+                                    height: TOTAL_H,
+                                    background: c.bg,
+                                    border: `1px solid ${c.border}`,
+                                    borderLeft: `3px solid ${c.color}`,
+                                    borderRadius: 4,
+                                    cursor: 'pointer',
+                                    zIndex: 3,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                  }}
+                                >
+                                  <div style={{
+                                    fontSize: 11, fontWeight: 700, color: c.color,
+                                    textAlign: 'center', padding: '0 6px',
+                                    wordBreak: 'break-word', lineHeight: 1.4,
+                                  }}>
+                                    {appt.title}
+                                  </div>
+                                </div>
+                              )
+                            })}
 
                             {/* Timed appointment blocks */}
                             {timedAppts.map(appt => {
@@ -527,6 +556,14 @@ export default function Calendar() {
                       <span style={{ fontWeight: label === 'Lead' ? 600 : 500 }}>{val}</span>
                     </div>
                   ) : null)}
+                  {modal.appt.lead_id && (
+                    <div
+                      onClick={() => navigate(`/leads/${modal.appt.lead_id}`)}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#3d35a8', fontWeight: 500, cursor: 'pointer', paddingTop: 4 }}
+                    >
+                      View lead →
+                    </div>
+                  )}
                 </div>
               ) : (
                 // ── New / Edit form
