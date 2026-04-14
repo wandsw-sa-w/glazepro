@@ -134,6 +134,8 @@ export default function LeadDetail() {
   // slotKey forces re-mount of survey inputs with pre-filled defaults when a slot is clicked
   const [slotKey, setSlotKey] = useState(0)
   const [slotDefault, setSlotDefault] = useState({ date: '', time: '', surveyor: '' })
+  const [confirmingBooking, setConfirmingBooking] = useState(false)
+  const [surveyBookedMsg, setSurveyBookedMsg] = useState(false)
 
   useEffect(() => { fetchLead(); fetchUploads() }, [leadId])
 
@@ -219,12 +221,59 @@ export default function LeadDetail() {
   }
 
   function applySlot(slot) {
+    setSurveyBookedMsg(false)
     setSlotDefault({
       date: slot.date || '',
       time: slot.time || '',
       surveyor: slot.surveyor || slot.surveyor_name || '',
     })
     setSlotKey(k => k + 1)
+  }
+
+  async function confirmSurveyBooking() {
+    const { date, time, surveyor } = slotDefault
+    setConfirmingBooking(true)
+
+    // Compute a 1-hour end time for the appointment
+    const [hh, mm] = time.split(':').map(Number)
+    const endTotal = hh * 60 + mm + 60
+    const endTime = `${String(Math.floor(endTotal / 60)).padStart(2, '0')}:${String(endTotal % 60).padStart(2, '0')}`
+
+    // 1. Update the lead with survey details and status
+    const { error: leadError } = await supabase.from('leads').update({
+      survey_date: date,
+      survey_time: time,
+      surveyor,
+      status: 'Appointment arranged',
+      last_updated_at: new Date().toISOString(),
+    }).eq('id', leadId)
+    if (leadError) console.log('Error updating lead:', leadError)
+
+    // 2. Create the appointment record
+    const { error: aptError } = await supabase.from('appointments').insert({
+      type: 'Survey',
+      lead_id: leadId,
+      date,
+      start_time: time,
+      end_time: endTime,
+      assigned_to: surveyor,
+      status: 'Confirmed',
+      title: `Survey – ${[lead.property_road, lead.property_town, lead.property_postcode].filter(Boolean).join(', ')}`,
+    })
+    if (aptError) console.log('Error creating appointment:', aptError)
+
+    // 3. Refresh lead, clear geo results and slot state
+    await fetchLead()
+    setGeoClusterSlots(null)
+    setGeoClusterError(null)
+    setSlotDefault({ date: '', time: '', surveyor: '' })
+    setSlotKey(0)
+
+    // 4. Show success banner
+    setSurveyBookedMsg(true)
+    setTimeout(() => setSurveyBookedMsg(false), 5000)
+
+    setConfirmingBooking(false)
   }
 
   async function toggleLeadTag(tag) {
@@ -1456,12 +1505,38 @@ export default function LeadDetail() {
                     </select>
                   </div>
                 </div>
-                {lead.survey_date && (
+                {/* Confirm booking button — shown when a slot has been pre-filled */}
+                {slotDefault.date && slotDefault.time && slotDefault.surveyor && !surveyBookedMsg && (
+                  <div style={{ padding: '14px 16px', background: '#f0eefc', border: '1px solid #c0b8f0', borderRadius: 8, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 14 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#3d35a8', marginBottom: 2 }}>Ready to confirm</div>
+                      <div style={{ fontSize: 12, color: '#555' }}>
+                        {new Date(slotDefault.date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} at {slotDefault.time} with {slotDefault.surveyor}
+                      </div>
+                    </div>
+                    <button
+                      onClick={confirmSurveyBooking}
+                      disabled={confirmingBooking}
+                      style={{ fontSize: 13, padding: '9px 20px', border: 'none', borderRadius: 8, background: confirmingBooking ? '#9993d4' : '#3d35a8', color: '#fff', cursor: confirmingBooking ? 'default' : 'pointer', fontWeight: 600, flexShrink: 0 }}
+                    >
+                      {confirmingBooking ? 'Saving…' : 'Confirm survey booking'}
+                    </button>
+                  </div>
+                )}
+
+                {/* Success banner */}
+                {surveyBookedMsg && (
+                  <div style={{ padding: '12px 14px', background: '#e1f5ee', border: '1px solid #b2dece', borderRadius: 8, fontSize: 13, color: '#0a5a3c', fontWeight: 500, marginBottom: 12 }}>
+                    ✓ Survey booked and appointment created
+                  </div>
+                )}
+
+                {lead.survey_date && !surveyBookedMsg && (
                   <div style={{ padding: '12px 14px', background: '#e1f5ee', borderRadius: 8, fontSize: 13, color: '#0a5a3c', fontWeight: 500 }}>
                     Survey booked: {new Date(lead.survey_date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} at {lead.survey_time} with {lead.surveyor}
                   </div>
                 )}
-                {!lead.survey_date && (
+                {!lead.survey_date && !slotDefault.date && (
                   <div style={{ padding: '12px 14px', background: '#faf9f7', borderRadius: 8, fontSize: 13, color: '#aaa' }}>No survey booked yet</div>
                 )}
               </div>

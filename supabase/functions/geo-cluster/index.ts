@@ -11,6 +11,11 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 }
 
+function slotToMins(slot: string): number {
+  const [h, m] = slot.split(":").map(Number)
+  return h * 60 + m
+}
+
 async function getDriveTime(origin: string, destination: string): Promise<number | null> {
   try {
     const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${encodeURIComponent(origin)}&destinations=${encodeURIComponent(destination)}&mode=driving&key=${GOOGLE_MAPS_KEY}`
@@ -119,8 +124,11 @@ serve(async (req) => {
     const recommendations: any[] = []
     const allSlots: any[] = []
 
-    // Only calculate drive times for days that already have appointments
-    // For days without appointments, just list slots without drive time
+    // Cutoff for today: only offer slots >= now + 30 minutes (UTC)
+    const nowUtc = new Date()
+    const todayStr = nowUtc.toISOString().split("T")[0]
+    const cutoffMins = nowUtc.getUTCHours() * 60 + nowUtc.getUTCMinutes() + 30
+
     for (const surveyor of surveyors || []) {
       for (const date of dates) {
         // Check availability rule for this surveyor on this day of week (0=Sun, 1=Mon … 6=Sat)
@@ -129,15 +137,30 @@ serve(async (req) => {
 
         if (rule === "unavailable") continue
 
-        const daySlots = rule === "morning"
+        let daySlots = rule === "morning"
           ? MORNING_SLOTS
           : rule === "afternoon"
             ? AFTERNOON_SLOTS
             : TIME_SLOTS
 
+        // Fix 1: filter out past slots when the date is today
+        if (date === todayStr) {
+          daySlots = daySlots.filter(s => slotToMins(s) >= cutoffMins)
+          if (daySlots.length === 0) continue
+        }
+
         const key = `${surveyor.full_name}_${date}`
         const dayApts = (aptsByKey[key] || []).sort((a, b) => a.start_time.localeCompare(b.start_time))
-        const takenSlots = new Set(dayApts.map(a => a.start_time))
+
+        // Fix 2: exclude every slot that falls within any existing appointment window [start_time, end_time]
+        const takenSlots = new Set<string>()
+        for (const apt of dayApts) {
+          for (const slot of daySlots) {
+            if (slot >= apt.start_time && slot <= apt.end_time) {
+              takenSlots.add(slot)
+            }
+          }
+        }
 
         const availableSlots = daySlots.filter(s => !takenSlots.has(s))
 
@@ -148,8 +171,8 @@ serve(async (req) => {
           const lastAptAddress = lastApt.lead_id ? leadAddresses[lastApt.lead_id] : null
           const originAddress = lastAptAddress || surveyor.home_postcode
 
-          // Only calculate for slots after the last appointment
-          const slotsAfterLast = availableSlots.filter(s => s > lastApt.end_time || s > lastApt.start_time)
+          // Only slots that start strictly after the last appointment ends
+          const slotsAfterLast = availableSlots.filter(s => s > lastApt.end_time)
 
           for (const slot of slotsAfterLast.slice(0, 5)) {
             const driveMinutes = await getDriveTime(originAddress, newPropertyAddress)
