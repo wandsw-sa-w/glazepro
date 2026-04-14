@@ -175,7 +175,11 @@ export default function Leads() {
       .from('leads')
       .select('*, lead_contacts(contact_id, is_main_contact, contacts(title, first_name, last_name, phone, email))')
       .order('created_at', { ascending: false })
-    if (!error) setLeads(data ?? [])
+    if (error) {
+      console.error('fetchLeads error:', error)
+    } else {
+      setLeads(data ?? [])
+    }
     setLoading(false)
   }
 
