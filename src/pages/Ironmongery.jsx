@@ -264,14 +264,23 @@ export default function Ironmongery() {
   return row
 })
     if (rows.length > 0) {
-      console.log('Saving variants:', rows)
-      const { data, error } = await supabase
-  .from('ironmongery_variants')
-  .upsert(rows, { onConflict: 'product_id,finish_name', ignoreDuplicates: false })
-  .select()
-      console.log('Save result:', data, error)
-      if (error) console.error('Error saving variants:', error)
-    }
+  console.log('Saving variants:', rows)
+  
+  const finishCodes = rows.map(r => r.finish_code)
+  await supabase
+    .from('ironmongery_variants')
+    .delete()
+    .eq('product_id', selectedProduct.id)
+    .in('finish_code', finishCodes)
+
+  const { data, error } = await supabase
+    .from('ironmongery_variants')
+    .insert(rows)
+    .select()
+
+  console.log('Save result:', data, error)
+  if (error) console.error('Error saving variants:', error)
+}
     // Reload to capture generated IDs for new rows
     const { data } = await supabase
       .from('ironmongery_variants')
