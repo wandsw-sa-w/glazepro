@@ -310,6 +310,13 @@ export default function Calendar() {
             </div>
           )
         })}
+        <div style={{ padding: '14px 14px 4px', fontSize: 10, color: '#aaa', letterSpacing: '.07em', textTransform: 'uppercase' }}>Catalogue</div>
+        <div
+          onClick={() => navigate('/ironmongery')}
+          style={{ padding: '8px 11px', fontSize: 13, borderRadius: 8, margin: '1px 7px', display: 'flex', alignItems: 'center', color: '#555', fontWeight: 400, background: 'transparent', cursor: 'pointer' }}
+        >
+          <span>Ironmongery</span>
+        </div>
         <div onClick={() => navigate('/settings')} style={{ margin: '4px 7px 2px', padding: '8px 11px', fontSize: 13, borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8, color: '#555', cursor: 'pointer' }}>
           <span>⚙</span><span>Settings</span>
         </div>
