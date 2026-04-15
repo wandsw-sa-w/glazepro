@@ -6,7 +6,7 @@ import { useUsers } from '../hooks/useUsers'
 import { useUnmatchedCount } from '../hooks/useUnmatchedCount'
 import { useCurrentUser } from '../hooks/useCurrentUser'
 import QuoteDrawer from '../components/QuoteDrawer'
-import QuoteMatrixDrawer from '../components/QuoteMatrixDrawer'
+import QuoteMatrix from '../components/QuoteMatrix'
 
 const stageColours = {
   New: { bg: '#e6f0fb', color: '#1a5fa8' },
@@ -1951,11 +1951,10 @@ export default function LeadDetail() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                   <div style={{ fontSize: 14, fontWeight: 600 }}>Quotes</div>
                   <button
-                    onClick={createQuote}
-                    disabled={creatingQuote}
-                    style={{ fontSize: 12, padding: '6px 14px', border: 'none', borderRadius: 7, background: '#3d35a8', color: '#fff', cursor: creatingQuote ? 'not-allowed' : 'pointer', fontWeight: 500, opacity: creatingQuote ? 0.7 : 1 }}
+                    onClick={() => setOpenQuoteMatrix(true)}
+                    style={{ fontSize: 12, padding: '6px 14px', border: 'none', borderRadius: 7, background: '#3d35a8', color: '#fff', cursor: 'pointer', fontWeight: 500 }}
                   >
-                    {creatingQuote ? 'Creating…' : '+ New Quote'}
+                    + New Quote
                   </button>
                 </div>
 
@@ -1981,7 +1980,7 @@ export default function LeadDetail() {
                             {new Date(q.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                           </div>
                           <button
-                            onClick={() => setOpenQuoteMatrix(q)}
+                            onClick={() => setOpenQuoteMatrix(true)}
                             style={{ fontSize: 12, padding: '5px 14px', border: '1px solid #d8d5cf', borderRadius: 7, background: '#fff', cursor: 'pointer', fontWeight: 500 }}
                           >
                             Open
@@ -2009,9 +2008,9 @@ export default function LeadDetail() {
       )}
 
       {openQuoteMatrix && (
-        <QuoteMatrixDrawer
-          quote={openQuoteMatrix}
-          lead={lead}
+        <QuoteMatrix
+          leadId={lead?.id}
+          leadNumber={lead?.lead_number}
           onClose={() => { setOpenQuoteMatrix(null); fetchQuotes() }}
         />
       )}
