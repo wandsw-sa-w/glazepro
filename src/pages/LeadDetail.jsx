@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { useUsers } from '../hooks/useUsers'
 import { useUnmatchedCount } from '../hooks/useUnmatchedCount'
 import { useCurrentUser } from '../hooks/useCurrentUser'
+import QuoteDrawer from '../components/QuoteDrawer'
 
 const stageColours = {
   New: { bg: '#e6f0fb', color: '#1a5fa8' },
@@ -137,12 +138,17 @@ export default function LeadDetail() {
   const [surveyorVal, setSurveyorVal] = useState('')
   const [confirmingBooking, setConfirmingBooking] = useState(false)
   const [surveyBookedMsg, setSurveyBookedMsg] = useState(false)
+  const [quotes, setQuotes] = useState([])
+  const [quotesLoading, setQuotesLoading] = useState(false)
+  const [creatingQuote, setCreatingQuote] = useState(false)
+  const [openQuote, setOpenQuote] = useState(null)
 
   useEffect(() => { fetchLead(); fetchUploads() }, [leadId])
 
   useEffect(() => {
     if (activeTab === 'tracking') fetchLeadAppointments()
     if (activeTab === 'correspondence') { fetchTasks(); fetchLeadNotes() }
+    if (activeTab === 'quotes') fetchQuotes()
   }, [activeTab, leadId])
 
   useEffect(() => {
@@ -328,6 +334,44 @@ export default function LeadDetail() {
       .eq('lead_id', leadId)
       .order('date', { ascending: false })
     setLeadAppointments(data || [])
+  }
+
+  async function fetchQuotes() {
+    setQuotesLoading(true)
+    const { data } = await supabase
+      .from('quotes')
+      .select('*, quote_items(calculated_price), salesperson:salesperson_id(first_name, last_name)')
+      .eq('lead_id', leadId)
+      .order('created_at', { ascending: false })
+    setQuotes(data || [])
+    setQuotesLoading(false)
+  }
+
+  async function createQuote() {
+    if (!lead) return
+    setCreatingQuote(true)
+    const { data: existing } = await supabase
+      .from('quotes')
+      .select('quote_number')
+      .eq('lead_id', leadId)
+    const nextNum = (existing?.length || 0) + 1
+    const quoteNumber = `Q${nextNum}`
+    const { data: newQuote, error } = await supabase
+      .from('quotes')
+      .insert({
+        lead_id: leadId,
+        quote_number: quoteNumber,
+        status: 'Open',
+        salesperson_id: currentUser?.id || null,
+        created_at: new Date().toISOString(),
+      })
+      .select('*, quote_items(calculated_price), salesperson:salesperson_id(first_name, last_name)')
+      .single()
+    setCreatingQuote(false)
+    if (!error && newQuote) {
+      setQuotes(prev => [newQuote, ...prev])
+      setOpenQuote(newQuote)
+    }
   }
 
   async function fetchTasks() {
@@ -703,7 +747,7 @@ export default function LeadDetail() {
 
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 2, padding: '0 20px', background: '#fff', borderBottom: '1px solid #e8e6e0', flexShrink: 0 }}>
-          {[['general', 'General'], ['contacts', 'Contacts'], ['correspondence', 'Correspondence'], ['survey', 'Survey'], ['uploads', 'Uploads'], ['location', 'Location'], ['tracking', 'Tracking']].map(([id, label]) => (
+          {[['general', 'General'], ['contacts', 'Contacts'], ['correspondence', 'Correspondence'], ['survey', 'Survey'], ['uploads', 'Uploads'], ['location', 'Location'], ['tracking', 'Tracking'], ['quotes', 'Quotes']].map(([id, label]) => (
             <div key={id} onClick={() => setActiveTab(id)} style={{ padding: '12px 16px', fontSize: 13, color: activeTab === id ? '#3d35a8' : '#888', cursor: 'pointer', borderBottom: activeTab === id ? '2px solid #3d35a8' : '2px solid transparent', fontWeight: 500 }}>{label}</div>
           ))}
         </div>
@@ -1745,8 +1789,72 @@ export default function LeadDetail() {
             </div>
           )}
 
+          {/* QUOTES TAB */}
+          {activeTab === 'quotes' && (
+            <div style={{ maxWidth: 800 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+                <div style={{ fontSize: 14, fontWeight: 600 }}>Quotes</div>
+                <button
+                  onClick={createQuote}
+                  disabled={creatingQuote}
+                  style={{ fontSize: 13, padding: '7px 16px', border: 'none', borderRadius: 8, background: '#3d35a8', color: '#fff', cursor: creatingQuote ? 'not-allowed' : 'pointer', fontWeight: 500, opacity: creatingQuote ? 0.7 : 1 }}
+                >
+                  {creatingQuote ? 'Creating…' : '+ New Quote'}
+                </button>
+              </div>
+
+              {quotesLoading ? (
+                <div style={{ color: '#aaa', fontSize: 13, textAlign: 'center', padding: '40px 24px' }}>Loading…</div>
+              ) : quotes.length === 0 ? (
+                <div style={{ color: '#aaa', fontSize: 13, textAlign: 'center', padding: '40px 24px', background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12 }}>
+                  No quotes yet for this lead
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {quotes.map(q => {
+                    const total = (q.quote_items || []).reduce((sum, item) => sum + (item.calculated_price || 0), 0)
+                    const salesperson = q.salesperson ? `${q.salesperson.first_name || ''} ${q.salesperson.last_name || ''}`.trim() : '—'
+                    const statusStyle = q.status === 'Open'
+                      ? { bg: '#f5f4f0', color: '#666' }
+                      : q.status === 'Published'
+                      ? { bg: '#e6f0fb', color: '#1a5fa8' }
+                      : { bg: '#e1f5ee', color: '#0a5a3c' }
+                    return (
+                      <div key={q.id} style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 10, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 16 }}>
+                        <div style={{ fontWeight: 600, fontSize: 14, minWidth: 48 }}>{q.quote_number}</div>
+                        <span style={{ fontSize: 11, padding: '2px 9px', borderRadius: 999, fontWeight: 500, background: statusStyle.bg, color: statusStyle.color }}>{q.status}</span>
+                        <div style={{ fontSize: 12, color: '#888', flex: 1 }}>
+                          {new Date(q.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          {salesperson && <span style={{ marginLeft: 12 }}>👤 {salesperson}</span>}
+                        </div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: '#333' }}>
+                          £{total.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </div>
+                        <button
+                          onClick={() => setOpenQuote(q)}
+                          style={{ fontSize: 12, padding: '5px 14px', border: '1px solid #d8d5cf', borderRadius: 7, background: '#fff', cursor: 'pointer', fontWeight: 500 }}
+                        >
+                          Open
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
         </div>
       </div>
+
+      {openQuote && (
+        <QuoteDrawer
+          quote={openQuote}
+          lead={lead}
+          onClose={() => { setOpenQuote(null); fetchQuotes() }}
+          onQuoteUpdate={updated => setOpenQuote(updated)}
+        />
+      )}
     </div>
   )
 }
