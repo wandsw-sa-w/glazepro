@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
+import QuoteDrawer from './QuoteDrawer'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -27,9 +28,14 @@ export default function QuoteMatrix({ leadId, leadNumber, onClose }) {
   const [creating,   setCreating]   = useState(false)
 
   // Sidebar
-  const [focusedQuoteId, setFocusedQuoteId] = useState(null)
-  const [sidebarDraft,   setSidebarDraft]   = useState(null)
+  const [focusedQuoteId,  setFocusedQuoteId]  = useState(null)
+  const [sidebarDraft,    setSidebarDraft]    = useState(null)
+  const [salespersonName, setSalespersonName] = useState('')
   const sidebarSaveRef = useRef(null)
+
+  // Drawing drawer
+  const [selectedDrawingId,  setSelectedDrawingId]  = useState(null)
+  const [selectedJobItemId,  setSelectedJobItemId]  = useState(null)
 
   useEffect(() => { load() }, [leadId])
 
@@ -136,6 +142,26 @@ export default function QuoteMatrix({ leadId, leadNumber, onClose }) {
     })
   }
 
+  // Fetch salesperson name whenever the focused quote changes
+  useEffect(() => {
+    const q = quotes.find(q => q.id === focusedQuoteId)
+    if (!q?.salesperson_id) { setSalespersonName(''); return }
+    let cancelled = false
+    supabase.from('users').select('full_name').eq('id', q.salesperson_id).single()
+      .then(({ data }) => {
+        if (cancelled) return
+        if (data?.full_name) setSalespersonName(data.full_name)
+        else if (user?.id === q.salesperson_id && user?.email) setSalespersonName(user.email)
+        else setSalespersonName('Unknown')
+      })
+    return () => { cancelled = true }
+  }, [focusedQuoteId, quotes])
+
+  function openDrawing(jobItemId, drawingId) {
+    setSelectedJobItemId(jobItemId)
+    setSelectedDrawingId(drawingId)
+  }
+
   function updateSidebarField(field, value) {
     const fqId = focusedQuoteId
     setSidebarDraft(prev => {
@@ -156,6 +182,7 @@ export default function QuoteMatrix({ leadId, leadNumber, onClose }) {
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
+    <>
     <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'stretch' }}>
 
       {/* Backdrop */}
@@ -190,13 +217,13 @@ export default function QuoteMatrix({ leadId, leadNumber, onClose }) {
           <button
             onClick={onClose}
             style={{
-              width: 32, height: 32, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.2)',
-              background: 'rgba(255,255,255,0.08)', cursor: 'pointer', fontSize: 16,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.7)',
-              flexShrink: 0,
+              padding: '6px 14px', border: '1px solid rgba(255,255,255,0.25)',
+              borderRadius: 7, background: 'rgba(255,255,255,0.1)', cursor: 'pointer',
+              fontSize: 13, fontWeight: 500, color: '#fff', flexShrink: 0,
+              letterSpacing: '.01em',
             }}
           >
-            ✕
+            ✕ Close
           </button>
         </div>
 
@@ -321,17 +348,22 @@ export default function QuoteMatrix({ leadId, leadNumber, onClose }) {
                               <div style={{ fontSize: 11, color: '#888', marginBottom: 5 }}>
                                 {[item.floor_level, item.elevation].filter(Boolean).join(' · ') || 'No location set'}
                               </div>
-                              {/* Drawing badges */}
+                              {/* Drawing badges — clickable to open drawer */}
                               {itemDrawings.length > 0 && (
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                                   {itemDrawings.slice(0, 4).map(dwg => (
-                                    <span key={dwg.id} style={{
-                                      fontSize: 10, padding: '1px 6px', borderRadius: 4,
-                                      background: '#f0eefc', color: '#5448c8', fontWeight: 500,
-                                      border: '1px solid #dcd9f5',
-                                    }}>
+                                    <button
+                                      key={dwg.id}
+                                      onClick={() => openDrawing(item.id, dwg.id)}
+                                      style={{
+                                        fontSize: 10, padding: '1px 6px', borderRadius: 4,
+                                        background: '#f0eefc', color: '#5448c8', fontWeight: 500,
+                                        border: '1px solid #dcd9f5', cursor: 'pointer',
+                                        lineHeight: 1.6,
+                                      }}
+                                    >
                                       {item.item_number}.{dwg.drawing_number}
-                                    </span>
+                                    </button>
                                   ))}
                                   {itemDrawings.length > 4 && (
                                     <span style={{ fontSize: 10, color: '#aaa', padding: '1px 4px' }}>
@@ -506,9 +538,9 @@ export default function QuoteMatrix({ leadId, leadNumber, onClose }) {
                   <div style={{ fontSize: 12, color: '#aaa' }}>
                     Created {new Date(focusedQuote.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                   </div>
-                  {focusedQuote.salesperson_id && (
+                  {salespersonName && (
                     <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
-                      {focusedQuote.salesperson_id === user?.id ? `You (${user.email})` : focusedQuote.salesperson_id}
+                      {salespersonName}
                     </div>
                   )}
                 </div>
@@ -585,6 +617,17 @@ export default function QuoteMatrix({ leadId, leadNumber, onClose }) {
         </div>
       </div>
     </div>
+
+    {/* Drawing drawer — opens on top of the matrix (zIndex 1100) */}
+    {selectedDrawingId && (
+      <QuoteDrawer
+        drawingId={selectedDrawingId}
+        jobItemId={selectedJobItemId}
+        leadNumber={leadNumber}
+        onClose={() => { setSelectedDrawingId(null); setSelectedJobItemId(null) }}
+      />
+    )}
+    </>
   )
 }
 
