@@ -249,7 +249,7 @@ export default function Ironmongery() {
     const rows = active.map(draft => {
       const finish = FINISHES.find(f => f.code === draft.finish_code)
       return {
-        ...(draft.id ? { id: draft.id } : {}),
+        ...(Number.isInteger(draft.id) && draft.id > 0 ? { id: draft.id } : {}),
         product_id: selectedProduct.id,
         finish_name: finish?.name || draft.finish_name || draft.finish_code,
         finish_code: draft.finish_code,
