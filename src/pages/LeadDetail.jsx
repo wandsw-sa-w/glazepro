@@ -340,7 +340,7 @@ export default function LeadDetail() {
     setQuotesLoading(true)
     const { data } = await supabase
       .from('quotes')
-      .select('*, quote_items(calculated_price), salesperson:salesperson_id(first_name, last_name)')
+      .select('*')
       .eq('lead_id', leadId)
       .order('created_at', { ascending: false })
     setQuotes(data || [])
@@ -356,21 +356,26 @@ export default function LeadDetail() {
       .eq('lead_id', leadId)
     const nextNum = (existing?.length || 0) + 1
     const quoteNumber = `Q${nextNum}`
+    const validUntil = new Date()
+    validUntil.setDate(validUntil.getDate() + 30)
     const { data: newQuote, error } = await supabase
       .from('quotes')
       .insert({
         lead_id: leadId,
         quote_number: quoteNumber,
         status: 'Open',
-        salesperson_id: currentUser?.id || null,
+        salesperson_id: user?.id || null,
+        valid_until: validUntil.toISOString().split('T')[0],
         created_at: new Date().toISOString(),
       })
-      .select('*, quote_items(calculated_price), salesperson:salesperson_id(first_name, last_name)')
+      .select('*')
       .single()
     setCreatingQuote(false)
     if (!error && newQuote) {
       setQuotes(prev => [newQuote, ...prev])
       setOpenQuote(newQuote)
+    } else if (error) {
+      console.error('Error creating quote:', error)
     }
   }
 
@@ -1813,7 +1818,6 @@ export default function LeadDetail() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {quotes.map(q => {
                     const total = (q.quote_items || []).reduce((sum, item) => sum + (item.calculated_price || 0), 0)
-                    const salesperson = q.salesperson ? `${q.salesperson.first_name || ''} ${q.salesperson.last_name || ''}`.trim() : '—'
                     const statusStyle = q.status === 'Open'
                       ? { bg: '#f5f4f0', color: '#666' }
                       : q.status === 'Published'
@@ -1825,7 +1829,7 @@ export default function LeadDetail() {
                         <span style={{ fontSize: 11, padding: '2px 9px', borderRadius: 999, fontWeight: 500, background: statusStyle.bg, color: statusStyle.color }}>{q.status}</span>
                         <div style={{ fontSize: 12, color: '#888', flex: 1 }}>
                           {new Date(q.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                          {salesperson && <span style={{ marginLeft: 12 }}>👤 {salesperson}</span>}
+                          {q.salesperson_id && <span style={{ marginLeft: 12 }}>👤 {q.salesperson_id}</span>}
                         </div>
                         <div style={{ fontSize: 13, fontWeight: 600, color: '#333' }}>
                           £{total.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
