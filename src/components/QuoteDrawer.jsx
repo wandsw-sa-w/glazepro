@@ -151,19 +151,19 @@ function SashSVG({ spec }) {
   const gW = dW - 2 * fT
   const gH = dH - 2 * fT
 
+  const sashH = Math.floor((gH - mR) / 2) // each sash identical height
   let topH, botH, mrY
   if (!spec.equal_sash && parseFloat(spec.top_sash_height) && parseFloat(spec.bottom_sash_height)) {
     const t = parseFloat(spec.top_sash_height)
     const b = parseFloat(spec.bottom_sash_height)
     topH = Math.round((gH - mR) * t / (t + b))
-    mrY = gY + topH
+    botH = (gH - mR) - topH
   } else {
-    // Meeting rail at exactly 50% of glass area height
-    mrY = gY + Math.round(gH / 2)
-    topH = mrY - gY
+    topH = sashH
+    botH = sashH
   }
+  mrY = gY + topH
   const botGlassY = mrY + mR
-  botH = gY + gH - botGlassY
 
   const dc = '#666'
   const df = 8
@@ -228,7 +228,11 @@ function SashSVG({ spec }) {
   const hornBumpH = 20
 
   return (
-    <svg width={SVG_W} height={SVG_H} style={{ maxWidth: '100%', display: 'block' }}>
+    <svg
+      width={SVG_W} height={SVG_H}
+      viewBox={`-14 -10 ${SVG_W + 28} ${SVG_H + 10}`}
+      style={{ maxWidth: '100%', display: 'block', overflow: 'visible' }}
+    >
       <defs>
         {topIsSand && (
           <pattern id="sbTop" patternUnits="userSpaceOnUse" width={6} height={6}>
@@ -245,12 +249,12 @@ function SashSVG({ spec }) {
       {/* Frame */}
       <rect x={M} y={M} width={dW} height={dH} fill="#c4a882" />
 
-      {/* Horn bumps */}
+      {/* Victorian horns — two rects outside the frame corners */}
       {spec.top_horn === 'Victorian' && (
-        <>
-          <rect x={M - hornBumpW} y={M} width={hornBumpW} height={hornBumpH} fill="#c4a882" />
-          <rect x={M + dW} y={M} width={hornBumpW} height={hornBumpH} fill="#c4a882" />
-        </>
+        <g>
+          <rect x={M - 12} y={M - 8} width={12} height={25} fill="#c4a882" />
+          <rect x={M + dW} y={M - 8} width={12} height={25} fill="#c4a882" />
+        </g>
       )}
 
       {/* Top glass */}
@@ -272,9 +276,9 @@ function SashSVG({ spec }) {
       <text x={gX + 3} y={gY + 9} fontSize={7} fill="#3d35a8" opacity={0.75}>{spec.top_operation} A1</text>
       <text x={gX + 3} y={botGlassY + 9} fontSize={7} fill="#3d35a8" opacity={0.75}>{spec.bottom_operation} A2</text>
 
-      {/* Movement arrows */}
-      {topCanMove && <text x={gX + gW / 2} y={gY + topH / 2} textAnchor="middle" dominantBaseline="middle" fontSize={20} fill="#666">↕</text>}
-      {botCanMove && <text x={gX + gW / 2} y={botGlassY + botH / 2} textAnchor="middle" dominantBaseline="middle" fontSize={20} fill="#666">↕</text>}
+      {/* Movement arrows — \u2195 to guarantee correct glyph */}
+      {topCanMove && <text x={gX + gW / 2} y={gY + topH / 2} textAnchor="middle" dominantBaseline="middle" fontSize={16} fill="#555">{'\u2195'}</text>}
+      {botCanMove && <text x={gX + gW / 2} y={botGlassY + botH / 2} textAnchor="middle" dominantBaseline="middle" fontSize={16} fill="#555">{'\u2195'}</text>}
 
       {/* Dimension lines */}
       {hDim(M, M + dW, M - 10, dimW)}
