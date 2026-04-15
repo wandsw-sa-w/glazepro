@@ -151,19 +151,19 @@ function SashSVG({ spec }) {
   const gW = dW - 2 * fT
   const gH = dH - 2 * fT
 
-  const totalSashH = gH - mR
-  let topH, botH
+  let topH, botH, mrY
   if (!spec.equal_sash && parseFloat(spec.top_sash_height) && parseFloat(spec.bottom_sash_height)) {
     const t = parseFloat(spec.top_sash_height)
     const b = parseFloat(spec.bottom_sash_height)
-    topH = Math.round(totalSashH * t / (t + b))
+    topH = Math.round((gH - mR) * t / (t + b))
+    mrY = gY + topH
   } else {
-    topH = Math.round(totalSashH / 2)
+    // Meeting rail at exactly 50% of glass area height
+    mrY = gY + Math.round(gH / 2)
+    topH = mrY - gY
   }
-  botH = totalSashH - topH
-
-  const mrY = gY + topH
   const botGlassY = mrY + mR
+  botH = gY + gH - botGlassY
 
   const dc = '#666'
   const df = 8
@@ -224,8 +224,8 @@ function SashSVG({ spec }) {
   const botIsSand = spec.bottom_glass === 'Sandblasted Toughened'
   const topCanMove = spec.top_operation !== 'Fix'
   const botCanMove = spec.bottom_operation !== 'Fix'
-  const hornBumpW = Math.max(6, Math.round(fT * 0.65))
-  const hornBumpH = Math.round(fT * 0.55)
+  const hornBumpW = 15
+  const hornBumpH = 20
 
   return (
     <svg width={SVG_W} height={SVG_H} style={{ maxWidth: '100%', display: 'block' }}>
@@ -264,17 +264,17 @@ function SashSVG({ spec }) {
       <rect x={gX} y={botGlassY} width={gW} height={botH} fill="#d4e8f0" opacity={0.85} />
       {botIsSand && <rect x={gX} y={botGlassY} width={gW} height={botH} fill="url(#sbBot)" />}
 
-      {/* Glazing bars */}
-      {bars(gX, gY, gW, topH, spec.top_bars_wide || 1, spec.top_bars_high || 1)}
-      {bars(gX, botGlassY, gW, botH, spec.bottom_bars_wide || 1, spec.bottom_bars_high || 1)}
+      {/* Glazing bars — each wrapped in a <g> to avoid key collisions */}
+      <g>{bars(gX, gY, gW, topH, spec.top_bars_wide || 1, spec.top_bars_high || 1)}</g>
+      <g>{bars(gX, botGlassY, gW, botH, spec.bottom_bars_wide || 1, spec.bottom_bars_high || 1)}</g>
 
       {/* Operation labels */}
       <text x={gX + 3} y={gY + 9} fontSize={7} fill="#3d35a8" opacity={0.75}>{spec.top_operation} A1</text>
       <text x={gX + 3} y={botGlassY + 9} fontSize={7} fill="#3d35a8" opacity={0.75}>{spec.bottom_operation} A2</text>
 
       {/* Movement arrows */}
-      {topCanMove && <text x={gX + gW / 2} y={gY + topH / 2 + 4} textAnchor="middle" fontSize={13} fill="#3d35a8" opacity={0.5}>↕</text>}
-      {botCanMove && <text x={gX + gW / 2} y={botGlassY + botH / 2 + 4} textAnchor="middle" fontSize={13} fill="#3d35a8" opacity={0.5}>↕</text>}
+      {topCanMove && <text x={gX + gW / 2} y={gY + topH / 2} textAnchor="middle" dominantBaseline="middle" fontSize={20} fill="#666">↕</text>}
+      {botCanMove && <text x={gX + gW / 2} y={botGlassY + botH / 2} textAnchor="middle" dominantBaseline="middle" fontSize={20} fill="#666">↕</text>}
 
       {/* Dimension lines */}
       {hDim(M, M + dW, M - 10, dimW)}
