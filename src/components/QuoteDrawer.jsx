@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabase'
-import { useAuth } from '../context/AuthContext'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -16,45 +15,147 @@ const OPERATIONS     = ['Cord Hung', 'Spiral Hung', 'Fix']
 const HORNS          = ['Victorian', 'None']
 const SASH_SURROUNDS = 'Nosing, Ogee Architrave Internal Architrave'
 
+// Local state shape — field names match DB column names where a column exists.
+// Fields with no DB column (ironmongery_items, staff_bead_type, cad_required,
+// finish_*_custom) are kept in local state only and excluded from DB saves.
 const DEFAULT_SPEC = {
-  window_type:             'Box Sash',
-  service_type:            'Complete New',
-  timber_frame:            'Solid Redwood',
-  timber_sash:             'Solid Redwood',
-  cill_material:           'Solid Utile Hardwood',
-  doc_l:                   true,
-  frame_width:             '',
-  frame_height:            '',
-  sash_width:              '',
-  sash_height:             '',
-  equal_sash:              true,
-  top_sash_height:         '',
-  bottom_sash_height:      '',
-  top_operation:           'Cord Hung',
-  top_horn:                'Victorian',
-  top_bars_wide:           1,
-  top_bars_high:           1,
-  top_glass:               'Clear Toughened',
-  bottom_operation:        'Cord Hung',
-  bottom_horn:             'Victorian',
-  bottom_bars_wide:        1,
-  bottom_bars_high:        1,
-  bottom_glass:            'Clear Toughened',
-  trickle_vent:            false,
-  internal_finish:         'Clean White',
-  internal_finish_custom:  '',
-  external_finish:         'Clean White',
-  external_finish_custom:  '',
-  cill_finish:             'Clean White',
-  cill_finish_custom:      '',
-  ironmongery_finish:      'PB',
-  ironmongery_items:       [],
-  surrounds:               '',
-  quote_notes:             '',
-  installation_notes:      '',
-  hs_notes:                '',
-  staff_bead_type:         'Small',
-  cad_required:            false,
+  window_type:                     'Box Sash',
+  service_type:                    'Complete New',
+  material_frame:                  'Solid Redwood',
+  material_sash:                   'Solid Redwood',
+  material_cill:                   'Solid Utile Hardwood',
+  doc_l:                           true,
+  frame_width:                     '',
+  frame_height:                    '',
+  sash_width:                      '',
+  sash_height:                     '',
+  equal_sash_division:             true,
+  top_sash_height:                 '',
+  bottom_sash_height:              '',
+  top_sash_operation:              'Cord Hung',
+  top_sash_horn:                   'Victorian',
+  top_sash_glazing_bars_wide:      1,
+  top_sash_glazing_bars_high:      1,
+  top_sash_glass:                  'Clear Toughened',
+  bottom_sash_operation:           'Cord Hung',
+  bottom_sash_horn:                'Victorian',
+  bottom_sash_glazing_bars_wide:   1,
+  bottom_sash_glazing_bars_high:   1,
+  bottom_sash_glass:               'Clear Toughened',
+  trickle_vent:                    false,
+  finish_internal:                 'Clean White',
+  finish_internal_custom:          '',   // local only
+  finish_external:                 'Clean White',
+  finish_external_custom:          '',   // local only
+  finish_cill:                     'Clean White',
+  finish_cill_custom:              '',   // local only
+  ironmongery_finish:              'PB',
+  ironmongery_items:               [],   // local only — no DB column
+  surrounds:                       '',
+  notes_quote:                     '',
+  notes_installation:              '',
+  notes_hs:                        '',
+  staff_bead_type:                 'Small',  // local only
+  cad_required:                    false,    // local only
+}
+
+// ── DB ↔ spec conversion ──────────────────────────────────────────────────────
+
+// Build local spec state from a drawings row.
+function dbToSpec(drawing) {
+  function finishField(dbVal, defaultVal) {
+    if (!dbVal) return { value: defaultVal, custom: '' }
+    if (FINISH_OPTIONS.includes(dbVal)) return { value: dbVal, custom: '' }
+    return { value: 'Custom', custom: dbVal }
+  }
+  const fi = finishField(drawing.finish_internal, DEFAULT_SPEC.finish_internal)
+  const fe = finishField(drawing.finish_external, DEFAULT_SPEC.finish_external)
+  const fc = finishField(drawing.finish_cill,     DEFAULT_SPEC.finish_cill)
+
+  return {
+    window_type:                   drawing.window_type                   || DEFAULT_SPEC.window_type,
+    service_type:                  drawing.service_type                  || DEFAULT_SPEC.service_type,
+    material_frame:                drawing.material_frame                || DEFAULT_SPEC.material_frame,
+    material_sash:                 drawing.material_sash                 || DEFAULT_SPEC.material_sash,
+    material_cill:                 drawing.material_cill                 || DEFAULT_SPEC.material_cill,
+    doc_l:                         drawing.doc_l                         ?? DEFAULT_SPEC.doc_l,
+    frame_width:                   drawing.frame_width                   || '',
+    frame_height:                  drawing.frame_height                  || '',
+    sash_width:                    drawing.sash_width                    || '',
+    sash_height:                   drawing.sash_height                   || '',
+    equal_sash_division:           drawing.equal_sash_division           ?? DEFAULT_SPEC.equal_sash_division,
+    top_sash_height:               drawing.top_sash_height               || '',
+    bottom_sash_height:            drawing.bottom_sash_height            || '',
+    top_sash_operation:            drawing.top_sash_operation            || DEFAULT_SPEC.top_sash_operation,
+    top_sash_horn:                 drawing.top_sash_horn                 || DEFAULT_SPEC.top_sash_horn,
+    top_sash_glazing_bars_wide:    drawing.top_sash_glazing_bars_wide    || 1,
+    top_sash_glazing_bars_high:    drawing.top_sash_glazing_bars_high    || 1,
+    top_sash_glass:                drawing.top_sash_glass                || DEFAULT_SPEC.top_sash_glass,
+    bottom_sash_operation:         drawing.bottom_sash_operation         || DEFAULT_SPEC.bottom_sash_operation,
+    bottom_sash_horn:              drawing.bottom_sash_horn              || DEFAULT_SPEC.bottom_sash_horn,
+    bottom_sash_glazing_bars_wide: drawing.bottom_sash_glazing_bars_wide || 1,
+    bottom_sash_glazing_bars_high: drawing.bottom_sash_glazing_bars_high || 1,
+    bottom_sash_glass:             drawing.bottom_sash_glass             || DEFAULT_SPEC.bottom_sash_glass,
+    trickle_vent:                  drawing.trickle_vent                  ?? DEFAULT_SPEC.trickle_vent,
+    finish_internal:               fi.value,
+    finish_internal_custom:        fi.custom,
+    finish_external:               fe.value,
+    finish_external_custom:        fe.custom,
+    finish_cill:                   fc.value,
+    finish_cill_custom:            fc.custom,
+    ironmongery_finish:            drawing.ironmongery_finish            || DEFAULT_SPEC.ironmongery_finish,
+    ironmongery_items:             [],
+    surrounds:                     drawing.surrounds                     || '',
+    notes_quote:                   drawing.notes_quote                   || '',
+    notes_installation:            drawing.notes_installation            || '',
+    notes_hs:                      drawing.notes_hs                      || '',
+    staff_bead_type:               DEFAULT_SPEC.staff_bead_type,
+    cad_required:                  DEFAULT_SPEC.cad_required,
+  }
+}
+
+// Build a DB update payload from local spec state.
+// Only includes columns that exist in the drawings table.
+// For Custom finishes, saves the custom text rather than the literal "Custom".
+function specToDb(spec) {
+  function finishVal(finish, custom) {
+    return finish === 'Custom' ? (custom || 'Custom') : finish
+  }
+  return {
+    window_type:                   spec.window_type,
+    service_type:                  spec.service_type,
+    material_frame:                spec.material_frame,
+    material_sash:                 spec.material_sash,
+    material_cill:                 spec.material_cill,
+    doc_l:                         spec.doc_l,
+    frame_width:                   spec.frame_width   || null,
+    frame_height:                  spec.frame_height  || null,
+    sash_width:                    spec.sash_width    || null,
+    sash_height:                   spec.sash_height   || null,
+    equal_sash_division:           spec.equal_sash_division,
+    top_sash_height:               spec.top_sash_height    || null,
+    bottom_sash_height:            spec.bottom_sash_height || null,
+    top_sash_operation:            spec.top_sash_operation,
+    top_sash_horn:                 spec.top_sash_horn,
+    top_sash_glazing_bars_wide:    spec.top_sash_glazing_bars_wide,
+    top_sash_glazing_bars_high:    spec.top_sash_glazing_bars_high,
+    top_sash_glass:                spec.top_sash_glass,
+    bottom_sash_operation:         spec.bottom_sash_operation,
+    bottom_sash_horn:              spec.bottom_sash_horn,
+    bottom_sash_glazing_bars_wide: spec.bottom_sash_glazing_bars_wide,
+    bottom_sash_glazing_bars_high: spec.bottom_sash_glazing_bars_high,
+    bottom_sash_glass:             spec.bottom_sash_glass,
+    trickle_vent:                  spec.trickle_vent,
+    finish_internal:               finishVal(spec.finish_internal, spec.finish_internal_custom),
+    finish_external:               finishVal(spec.finish_external, spec.finish_external_custom),
+    finish_cill:                   finishVal(spec.finish_cill,     spec.finish_cill_custom),
+    ironmongery_finish:            spec.ironmongery_finish,
+    surrounds:                     spec.surrounds,
+    notes_quote:                   spec.notes_quote,
+    notes_installation:            spec.notes_installation,
+    notes_hs:                      spec.notes_hs,
+    updated_at:                    new Date().toISOString(),
+  }
 }
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
@@ -161,7 +262,7 @@ function SashSVG({ spec }) {
 
   const sashH = Math.floor((gH - mR) / 2)
   let topH, botH, mrY
-  if (!spec.equal_sash && parseFloat(spec.top_sash_height) && parseFloat(spec.bottom_sash_height)) {
+  if (!spec.equal_sash_division && parseFloat(spec.top_sash_height) && parseFloat(spec.bottom_sash_height)) {
     const t = parseFloat(spec.top_sash_height)
     const b = parseFloat(spec.bottom_sash_height)
     topH = Math.round((gH - mR) * t / (t + b))
@@ -228,10 +329,10 @@ function SashSVG({ spec }) {
     )
   }
 
-  const topIsSand   = spec.top_glass    === 'Sandblasted Toughened'
-  const botIsSand   = spec.bottom_glass === 'Sandblasted Toughened'
-  const topCanMove  = spec.top_operation    !== 'Fix'
-  const botCanMove  = spec.bottom_operation !== 'Fix'
+  const topIsSand  = spec.top_sash_glass    === 'Sandblasted Toughened'
+  const botIsSand  = spec.bottom_sash_glass === 'Sandblasted Toughened'
+  const topCanMove = spec.top_sash_operation    !== 'Fix'
+  const botCanMove = spec.bottom_sash_operation !== 'Fix'
   const hornW = 8, hornH = 15
   const hornLX = gX - 6
   const hornRX = gX + gW - 2
@@ -266,14 +367,14 @@ function SashSVG({ spec }) {
       {botIsSand && <rect x={gX} y={botGlassY} width={gW} height={botH} fill="url(#sbBot)" />}
 
       {/* Victorian horns — top sash (protrude downward from bottom stile corners) */}
-      {spec.top_horn === 'Victorian' && (
+      {spec.top_sash_horn === 'Victorian' && (
         <g>
           <rect x={hornLX} y={mrY}          width={hornW} height={hornH} fill="#c4a882" />
           <rect x={hornRX} y={mrY}          width={hornW} height={hornH} fill="#c4a882" />
         </g>
       )}
       {/* Victorian horns — bottom sash (protrude upward from top stile corners) */}
-      {spec.bottom_horn === 'Victorian' && (
+      {spec.bottom_sash_horn === 'Victorian' && (
         <g>
           <rect x={hornLX} y={mrY - hornH} width={hornW} height={hornH} fill="#c4a882" />
           <rect x={hornRX} y={mrY - hornH} width={hornW} height={hornH} fill="#c4a882" />
@@ -281,12 +382,12 @@ function SashSVG({ spec }) {
       )}
 
       {/* Glazing bars */}
-      <g>{bars(gX, gY,        gW, topH, spec.top_bars_wide    || 1, spec.top_bars_high    || 1)}</g>
-      <g>{bars(gX, botGlassY, gW, botH, spec.bottom_bars_wide || 1, spec.bottom_bars_high || 1)}</g>
+      <g>{bars(gX, gY,        gW, topH, spec.top_sash_glazing_bars_wide    || 1, spec.top_sash_glazing_bars_high    || 1)}</g>
+      <g>{bars(gX, botGlassY, gW, botH, spec.bottom_sash_glazing_bars_wide || 1, spec.bottom_sash_glazing_bars_high || 1)}</g>
 
       {/* Operation labels */}
-      <text x={gX + 3} y={gY        + 9} fontSize={7} fill="#3d35a8" opacity={0.75}>{spec.top_operation}    A1</text>
-      <text x={gX + 3} y={botGlassY + 9} fontSize={7} fill="#3d35a8" opacity={0.75}>{spec.bottom_operation} A2</text>
+      <text x={gX + 3} y={gY        + 9} fontSize={7} fill="#3d35a8" opacity={0.75}>{spec.top_sash_operation}    A1</text>
+      <text x={gX + 3} y={botGlassY + 9} fontSize={7} fill="#3d35a8" opacity={0.75}>{spec.bottom_sash_operation} A2</text>
 
       {/* Movement arrows */}
       {topCanMove && <text x={gX + gW / 2} y={gY        + topH / 2} textAnchor="middle" dominantBaseline="middle" fontSize={16} fill="#555">{'\u2195'}</text>}
@@ -362,17 +463,17 @@ function IronmongeryModal({ finish, onAdd, onClose }) {
 
 function DrawingBoard({ drawing }) {
   const initSpec = () => {
-    const s = { ...DEFAULT_SPEC, ...(drawing.spec || {}) }
+    const s = dbToSpec(drawing)
     if (SASH_TYPES.has(s.window_type) && !s.surrounds) s.surrounds = SASH_SURROUNDS
     return s
   }
 
-  const [spec, setSpec]             = useState(initSpec)
+  const [spec, setSpec]               = useState(initSpec)
   const [showIronModal, setShowIronModal] = useState(false)
-  const debounceRef   = useRef(null)
-  const prevTypeRef   = useRef(spec.window_type)
+  const debounceRef = useRef(null)
+  const prevTypeRef = useRef(spec.window_type)
 
-  const isSash       = SASH_TYPES.has(spec.window_type)
+  const isSash        = SASH_TYPES.has(spec.window_type)
   const isReplacement = spec.service_type !== 'Complete New'
 
   // Auto-populate surrounds when switching into a sash type
@@ -387,9 +488,9 @@ function DrawingBoard({ drawing }) {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
       supabase.from('drawings')
-        .update({ spec: next })
+        .update(specToDb(next))
         .eq('id', drawing.id)
-        .then(({ error }) => { if (error) console.error('Spec save error:', error) })
+        .then(({ error }) => { if (error) console.error('Drawing save error:', error) })
     }, 500)
   }
 
@@ -437,15 +538,15 @@ function DrawingBoard({ drawing }) {
             </Field>
           )}
           <Field label="Timber — Frame">
-            <Sel value={spec.timber_frame} onChange={v => update('timber_frame', v)} options={TIMBER_OPTIONS} />
+            <Sel value={spec.material_frame} onChange={v => update('material_frame', v)} options={TIMBER_OPTIONS} />
           </Field>
           {isSash && (
             <Field label="Timber — Sash">
-              <Sel value={spec.timber_sash} onChange={v => update('timber_sash', v)} options={TIMBER_OPTIONS} />
+              <Sel value={spec.material_sash} onChange={v => update('material_sash', v)} options={TIMBER_OPTIONS} />
             </Field>
           )}
           <Field label="Cill material">
-            <Sel value={spec.cill_material} onChange={v => update('cill_material', v)} options={CILL_OPTIONS} />
+            <Sel value={spec.material_cill} onChange={v => update('material_cill', v)} options={CILL_OPTIONS} />
           </Field>
           <Tog value={spec.doc_l} onChange={v => update('doc_l', v)} label="Doc L" />
         </Section>
@@ -477,9 +578,9 @@ function DrawingBoard({ drawing }) {
         {isSash && (
           <Section title="Sash Details">
             <Field label="Sash division">
-              <BtnGroup options={['Equal', 'Custom']} value={spec.equal_sash ? 'Equal' : 'Custom'} onChange={v => update('equal_sash', v === 'Equal')} />
+              <BtnGroup options={['Equal', 'Custom']} value={spec.equal_sash_division ? 'Equal' : 'Custom'} onChange={v => update('equal_sash_division', v === 'Equal')} />
             </Field>
-            {!spec.equal_sash && (
+            {!spec.equal_sash_division && (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }}>
                 <Field label="Top sash height mm">
                   <input type="number" value={spec.top_sash_height} onChange={e => update('top_sash_height', e.target.value)} style={SI} />
@@ -492,40 +593,40 @@ function DrawingBoard({ drawing }) {
 
             <div style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '.05em', margin: '12px 0 8px' }}>Top Sash</div>
             <Field label="Operation">
-              <BtnGroup options={OPERATIONS} value={spec.top_operation} onChange={v => update('top_operation', v)} />
+              <BtnGroup options={OPERATIONS} value={spec.top_sash_operation} onChange={v => update('top_sash_operation', v)} />
             </Field>
             <Field label="Horn">
-              <BtnGroup options={HORNS} value={spec.top_horn} onChange={v => update('top_horn', v)} />
+              <BtnGroup options={HORNS} value={spec.top_sash_horn} onChange={v => update('top_sash_horn', v)} />
             </Field>
             <Field label="Glazing bars">
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <input type="number" min={1} max={6} value={spec.top_bars_wide} onChange={e => update('top_bars_wide', Math.max(1, parseInt(e.target.value) || 1))} style={{ ...SI, width: 50 }} />
+                <input type="number" min={1} max={6} value={spec.top_sash_glazing_bars_wide} onChange={e => update('top_sash_glazing_bars_wide', Math.max(1, parseInt(e.target.value) || 1))} style={{ ...SI, width: 50 }} />
                 <span style={{ fontSize: 12, color: '#888', whiteSpace: 'nowrap' }}>wide ×</span>
-                <input type="number" min={1} max={6} value={spec.top_bars_high} onChange={e => update('top_bars_high', Math.max(1, parseInt(e.target.value) || 1))} style={{ ...SI, width: 50 }} />
+                <input type="number" min={1} max={6} value={spec.top_sash_glazing_bars_high} onChange={e => update('top_sash_glazing_bars_high', Math.max(1, parseInt(e.target.value) || 1))} style={{ ...SI, width: 50 }} />
                 <span style={{ fontSize: 12, color: '#888' }}>high</span>
               </div>
             </Field>
             <Field label="Glass type">
-              <Sel value={spec.top_glass} onChange={v => update('top_glass', v)} options={GLASS_TYPES} />
+              <Sel value={spec.top_sash_glass} onChange={v => update('top_sash_glass', v)} options={GLASS_TYPES} />
             </Field>
 
             <div style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '.05em', margin: '12px 0 8px' }}>Bottom Sash</div>
             <Field label="Operation">
-              <BtnGroup options={OPERATIONS} value={spec.bottom_operation} onChange={v => update('bottom_operation', v)} />
+              <BtnGroup options={OPERATIONS} value={spec.bottom_sash_operation} onChange={v => update('bottom_sash_operation', v)} />
             </Field>
             <Field label="Horn">
-              <BtnGroup options={HORNS} value={spec.bottom_horn} onChange={v => update('bottom_horn', v)} />
+              <BtnGroup options={HORNS} value={spec.bottom_sash_horn} onChange={v => update('bottom_sash_horn', v)} />
             </Field>
             <Field label="Glazing bars">
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <input type="number" min={1} max={6} value={spec.bottom_bars_wide} onChange={e => update('bottom_bars_wide', Math.max(1, parseInt(e.target.value) || 1))} style={{ ...SI, width: 50 }} />
+                <input type="number" min={1} max={6} value={spec.bottom_sash_glazing_bars_wide} onChange={e => update('bottom_sash_glazing_bars_wide', Math.max(1, parseInt(e.target.value) || 1))} style={{ ...SI, width: 50 }} />
                 <span style={{ fontSize: 12, color: '#888', whiteSpace: 'nowrap' }}>wide ×</span>
-                <input type="number" min={1} max={6} value={spec.bottom_bars_high} onChange={e => update('bottom_bars_high', Math.max(1, parseInt(e.target.value) || 1))} style={{ ...SI, width: 50 }} />
+                <input type="number" min={1} max={6} value={spec.bottom_sash_glazing_bars_high} onChange={e => update('bottom_sash_glazing_bars_high', Math.max(1, parseInt(e.target.value) || 1))} style={{ ...SI, width: 50 }} />
                 <span style={{ fontSize: 12, color: '#888' }}>high</span>
               </div>
             </Field>
             <Field label="Glass type">
-              <Sel value={spec.bottom_glass} onChange={v => update('bottom_glass', v)} options={GLASS_TYPES} />
+              <Sel value={spec.bottom_sash_glass} onChange={v => update('bottom_sash_glass', v)} options={GLASS_TYPES} />
             </Field>
 
             <div style={{ marginTop: 10 }}>
@@ -535,9 +636,9 @@ function DrawingBoard({ drawing }) {
         )}
 
         <Section title="Finish & Ironmongery">
-          <FinishField label="Internal finish" field="internal_finish" customField="internal_finish_custom" spec={spec} update={update} />
-          <FinishField label="External finish" field="external_finish" customField="external_finish_custom" spec={spec} update={update} />
-          <FinishField label="Cill finish"     field="cill_finish"     customField="cill_finish_custom"     spec={spec} update={update} />
+          <FinishField label="Internal finish" field="finish_internal" customField="finish_internal_custom" spec={spec} update={update} />
+          <FinishField label="External finish" field="finish_external" customField="finish_external_custom" spec={spec} update={update} />
+          <FinishField label="Cill finish"     field="finish_cill"     customField="finish_cill_custom"     spec={spec} update={update} />
 
           <Field label="Ironmongery finish">
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
@@ -579,13 +680,13 @@ function DrawingBoard({ drawing }) {
 
         <Section title="Notes" defaultOpen={false}>
           <Field label="Quote notes">
-            <textarea value={spec.quote_notes} onChange={e => update('quote_notes', e.target.value)} rows={3} style={{ ...SI, resize: 'vertical' }} />
+            <textarea value={spec.notes_quote} onChange={e => update('notes_quote', e.target.value)} rows={3} style={{ ...SI, resize: 'vertical' }} />
           </Field>
           <Field label="Installation notes">
-            <textarea value={spec.installation_notes} onChange={e => update('installation_notes', e.target.value)} rows={3} style={{ ...SI, resize: 'vertical' }} />
+            <textarea value={spec.notes_installation} onChange={e => update('notes_installation', e.target.value)} rows={3} style={{ ...SI, resize: 'vertical' }} />
           </Field>
           <Field label="H&S / Access notes">
-            <textarea value={spec.hs_notes} onChange={e => update('hs_notes', e.target.value)} rows={2} style={{ ...SI, resize: 'vertical' }} />
+            <textarea value={spec.notes_hs} onChange={e => update('notes_hs', e.target.value)} rows={2} style={{ ...SI, resize: 'vertical' }} />
           </Field>
         </Section>
 
