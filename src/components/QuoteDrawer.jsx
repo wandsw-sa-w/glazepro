@@ -4,64 +4,60 @@ import { useAuth } from '../context/AuthContext'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const WINDOW_TYPES = ['Box Sash', 'Spiral Sash', 'Flush Casement', 'Stormproof Casement', 'Front Door', 'Single Door', 'French Door', 'Bifolding Door']
-const SASH_TYPES = new Set(['Box Sash', 'Spiral Sash'])
-const SERVICE_TYPES = ['Complete New', 'Sash Replacement 35mm', 'Sash Replacement 40mm', 'Sash Replacement 45mm']
+const WINDOW_TYPES   = ['Box Sash', 'Spiral Sash', 'Flush Casement', 'Stormproof Casement', 'Front Door', 'Single Door', 'French Door', 'Bifolding Door']
+const SASH_TYPES     = new Set(['Box Sash', 'Spiral Sash'])
+const SERVICE_TYPES  = ['Complete New', 'Sash Replacement 35mm', 'Sash Replacement 40mm', 'Sash Replacement 45mm']
 const TIMBER_OPTIONS = ['Solid Redwood', 'Accoya', 'Sapele']
-const CILL_OPTIONS = ['Solid Utile Hardwood', 'Accoya']
-const GLASS_TYPES = ['Clear Toughened', 'Sandblasted Toughened', 'Antique Cathedral', 'Pilkington K']
-const FINISH_OPTIONS = ['Teknos Spray Finish Clean White', 'Teknos Spray Finish White Gloss', 'Colour Match Satin', 'Colour Match Gloss']
-const IRON_FINISHES = ['PB', 'PC', 'SC', 'Blk', 'Pwt', 'ABs', 'ABlk', 'Wht', 'AgBs', 'ABz', 'PN']
-const OPERATIONS = ['Cord Hung', 'Chain Hung', 'Spiral Hung', 'Fix']
-const HORNS = ['Victorian', 'None']
-const SASH_SURROUNDS_DEFAULT = 'Nosing, Ogee Architrave Internal Architrave'
+const CILL_OPTIONS   = ['Solid Utile Hardwood', 'Accoya']
+const GLASS_TYPES    = ['Clear Toughened', 'Sandblasted Toughened', 'Antique Cathedral', 'Pilkington K']
+const FINISH_OPTIONS = ['Clean White', 'White Gloss', 'White Satin', 'Colour Match Satin', 'Colour Match Gloss', 'Custom']
+const IRON_FINISHES  = ['PB', 'PC', 'SC', 'Blk', 'Pwt', 'ABs', 'ABlk', 'Wht', 'AgBs', 'ABz', 'PN']
+const OPERATIONS     = ['Cord Hung', 'Spiral Hung', 'Fix']
+const HORNS          = ['Victorian', 'None']
+const SASH_SURROUNDS = 'Nosing, Ogee Architrave Internal Architrave'
 
 const DEFAULT_SPEC = {
-  location: '',
-  window_type: 'Box Sash',
-  service_type: 'Complete New',
-  timber_frame: 'Solid Redwood',
-  timber_sash: 'Solid Redwood',
-  cill_material: 'Solid Utile Hardwood',
-  doc_l: true,
-  frame_width: '',
-  frame_height: '',
-  sash_width: '',
-  sash_height: '',
-  equal_sash: true,
-  top_sash_height: '',
-  bottom_sash_height: '',
-  top_operation: 'Cord Hung',
-  top_horn: 'Victorian',
-  top_bars_wide: 1,
-  top_bars_high: 1,
-  top_glass: 'Clear Toughened',
-  bottom_operation: 'Cord Hung',
-  bottom_horn: 'Victorian',
-  bottom_bars_wide: 1,
-  bottom_bars_high: 1,
-  bottom_glass: 'Clear Toughened',
-  trickle_vent: false,
-  internal_finish: 'Teknos Spray Finish Clean White',
-  external_finish: 'Teknos Spray Finish Clean White',
-  cill_finish: 'Teknos Spray Finish Clean White',
-  ironmongery_finish: 'PB',
-  ironmongery_items: [],
-  surrounds: '',
-  quote_notes: '',
-  installation_notes: '',
-  hs_notes: '',
-  staff_bead_type: 'Small',
-  cad_required: false,
+  window_type:             'Box Sash',
+  service_type:            'Complete New',
+  timber_frame:            'Solid Redwood',
+  timber_sash:             'Solid Redwood',
+  cill_material:           'Solid Utile Hardwood',
+  doc_l:                   true,
+  frame_width:             '',
+  frame_height:            '',
+  sash_width:              '',
+  sash_height:             '',
+  equal_sash:              true,
+  top_sash_height:         '',
+  bottom_sash_height:      '',
+  top_operation:           'Cord Hung',
+  top_horn:                'Victorian',
+  top_bars_wide:           1,
+  top_bars_high:           1,
+  top_glass:               'Clear Toughened',
+  bottom_operation:        'Cord Hung',
+  bottom_horn:             'Victorian',
+  bottom_bars_wide:        1,
+  bottom_bars_high:        1,
+  bottom_glass:            'Clear Toughened',
+  trickle_vent:            false,
+  internal_finish:         'Clean White',
+  internal_finish_custom:  '',
+  external_finish:         'Clean White',
+  external_finish_custom:  '',
+  cill_finish:             'Clean White',
+  cill_finish_custom:      '',
+  ironmongery_finish:      'PB',
+  ironmongery_items:       [],
+  surrounds:               '',
+  quote_notes:             '',
+  installation_notes:      '',
+  hs_notes:                '',
+  staff_bead_type:         'Small',
+  cad_required:            false,
 }
 
-const STATUS_STYLE = {
-  Open:      { bg: '#f5f4f0', color: '#666' },
-  Published: { bg: '#e6f0fb', color: '#1a5fa8' },
-  Ordered:   { bg: '#e1f5ee', color: '#0a5a3c' },
-}
-
-// ── Shared input style ────────────────────────────────────────────────────────
+// ── Shared styles ─────────────────────────────────────────────────────────────
 
 const SI = {
   width: '100%', padding: '6px 8px', fontSize: 12, border: '1px solid #d8d5cf',
@@ -74,10 +70,7 @@ function Section({ title, defaultOpen = true, children }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
     <div style={{ borderBottom: '1px solid #ede9e2' }}>
-      <div
-        onClick={() => setOpen(o => !o)}
-        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', cursor: 'pointer', userSelect: 'none' }}
-      >
+      <div onClick={() => setOpen(o => !o)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', cursor: 'pointer', userSelect: 'none' }}>
         <span style={{ fontSize: 11, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: '.06em' }}>{title}</span>
         <span style={{ fontSize: 10, color: '#aaa' }}>{open ? '▲' : '▼'}</span>
       </div>
@@ -121,37 +114,52 @@ function BtnGroup({ options, value, onChange }) {
         <button key={o} onClick={() => onChange(o)} style={{
           padding: '4px 9px', fontSize: 11, border: '1px solid', borderRadius: 6, cursor: 'pointer', fontWeight: 500,
           borderColor: value === o ? '#3d35a8' : '#d8d5cf',
-          background: value === o ? '#f0eefc' : '#fff',
-          color: value === o ? '#3d35a8' : '#555',
+          background:  value === o ? '#f0eefc' : '#fff',
+          color:       value === o ? '#3d35a8' : '#555',
         }}>{o}</button>
       ))}
     </div>
   )
 }
 
+function FinishField({ label, field, customField, spec, update }) {
+  return (
+    <Field label={label}>
+      <Sel value={spec[field]} onChange={v => update(field, v)} options={FINISH_OPTIONS} />
+      {spec[field] === 'Custom' && (
+        <input
+          value={spec[customField] || ''}
+          onChange={e => update(customField, e.target.value)}
+          placeholder="Describe finish…"
+          style={{ ...SI, marginTop: 4 }}
+        />
+      )}
+    </Field>
+  )
+}
+
 // ── SVG Preview ───────────────────────────────────────────────────────────────
 
 function SashSVG({ spec }) {
-  const frameW = parseFloat(spec.frame_width) || 900
+  const frameW = parseFloat(spec.frame_width)  || 900
   const frameH = parseFloat(spec.frame_height) || 1200
   const isSash = SASH_TYPES.has(spec.window_type)
 
   const SVG_W = 260
-  const aspect = frameH / frameW
-  const SVG_H = Math.min(Math.max(Math.round(SVG_W * aspect), 180), 440)
-  const M = 30 // margin for dim lines
+  const SVG_H = Math.min(Math.max(Math.round(SVG_W * frameH / frameW), 180), 440)
+  const M     = 30
 
   const dW = SVG_W - 2 * M
   const dH = SVG_H - 2 * M
   const fT = Math.max(10, Math.round(dW * 0.09))
-  const mR = Math.max(5, Math.round(dH * 0.026))
+  const mR = Math.max(5,  Math.round(dH * 0.026))
 
   const gX = M + fT
   const gY = M + fT
   const gW = dW - 2 * fT
   const gH = dH - 2 * fT
 
-  const sashH = Math.floor((gH - mR) / 2) // each sash identical height
+  const sashH = Math.floor((gH - mR) / 2)
   let topH, botH, mrY
   if (!spec.equal_sash && parseFloat(spec.top_sash_height) && parseFloat(spec.bottom_sash_height)) {
     const t = parseFloat(spec.top_sash_height)
@@ -205,7 +213,7 @@ function SashSVG({ spec }) {
     return els
   }
 
-  const dimW = spec.frame_width ? `${spec.frame_width}` : '—'
+  const dimW = spec.frame_width  ? `${spec.frame_width}`  : '—'
   const dimH = spec.frame_height ? `${spec.frame_height}` : '—'
 
   if (!isSash) {
@@ -220,16 +228,13 @@ function SashSVG({ spec }) {
     )
   }
 
-  const topIsSand = spec.top_glass === 'Sandblasted Toughened'
-  const botIsSand = spec.bottom_glass === 'Sandblasted Toughened'
-  const topCanMove = spec.top_operation !== 'Fix'
-  const botCanMove = spec.bottom_operation !== 'Fix'
-
-  // Victorian horn positions — straddle the glass edge by 6px, 8px wide, 15px tall
-  const hornW = 8
-  const hornH = 15
-  const hornLeftX  = gX - 6
-  const hornRightX = gX + gW - 2
+  const topIsSand   = spec.top_glass    === 'Sandblasted Toughened'
+  const botIsSand   = spec.bottom_glass === 'Sandblasted Toughened'
+  const topCanMove  = spec.top_operation    !== 'Fix'
+  const botCanMove  = spec.bottom_operation !== 'Fix'
+  const hornW = 8, hornH = 15
+  const hornLX = gX - 6
+  const hornRX = gX + gW - 2
 
   return (
     <svg width={SVG_W} height={SVG_H} style={{ maxWidth: '100%', display: 'block' }}>
@@ -260,32 +265,31 @@ function SashSVG({ spec }) {
       <rect x={gX} y={botGlassY} width={gW} height={botH} fill="#d4e8f0" opacity={0.85} />
       {botIsSand && <rect x={gX} y={botGlassY} width={gW} height={botH} fill="url(#sbBot)" />}
 
-      {/* Victorian horns — top sash: protrude DOWN from bottom of top sash stiles */}
+      {/* Victorian horns — top sash (protrude downward from bottom stile corners) */}
       {spec.top_horn === 'Victorian' && (
         <g>
-          <rect x={hornLeftX}  y={mrY} width={hornW} height={hornH} fill="#c4a882" />
-          <rect x={hornRightX} y={mrY} width={hornW} height={hornH} fill="#c4a882" />
+          <rect x={hornLX} y={mrY}          width={hornW} height={hornH} fill="#c4a882" />
+          <rect x={hornRX} y={mrY}          width={hornW} height={hornH} fill="#c4a882" />
         </g>
       )}
-
-      {/* Victorian horns — bottom sash: protrude UP from top of bottom sash stiles */}
+      {/* Victorian horns — bottom sash (protrude upward from top stile corners) */}
       {spec.bottom_horn === 'Victorian' && (
         <g>
-          <rect x={hornLeftX}  y={mrY - hornH} width={hornW} height={hornH} fill="#c4a882" />
-          <rect x={hornRightX} y={mrY - hornH} width={hornW} height={hornH} fill="#c4a882" />
+          <rect x={hornLX} y={mrY - hornH} width={hornW} height={hornH} fill="#c4a882" />
+          <rect x={hornRX} y={mrY - hornH} width={hornW} height={hornH} fill="#c4a882" />
         </g>
       )}
 
-      {/* Glazing bars — each wrapped in a <g> to avoid key collisions */}
-      <g>{bars(gX, gY, gW, topH, spec.top_bars_wide || 1, spec.top_bars_high || 1)}</g>
+      {/* Glazing bars */}
+      <g>{bars(gX, gY,        gW, topH, spec.top_bars_wide    || 1, spec.top_bars_high    || 1)}</g>
       <g>{bars(gX, botGlassY, gW, botH, spec.bottom_bars_wide || 1, spec.bottom_bars_high || 1)}</g>
 
       {/* Operation labels */}
-      <text x={gX + 3} y={gY + 9} fontSize={7} fill="#3d35a8" opacity={0.75}>{spec.top_operation} A1</text>
+      <text x={gX + 3} y={gY        + 9} fontSize={7} fill="#3d35a8" opacity={0.75}>{spec.top_operation}    A1</text>
       <text x={gX + 3} y={botGlassY + 9} fontSize={7} fill="#3d35a8" opacity={0.75}>{spec.bottom_operation} A2</text>
 
-      {/* Movement arrows — \u2195 to guarantee correct glyph */}
-      {topCanMove && <text x={gX + gW / 2} y={gY + topH / 2} textAnchor="middle" dominantBaseline="middle" fontSize={16} fill="#555">{'\u2195'}</text>}
+      {/* Movement arrows */}
+      {topCanMove && <text x={gX + gW / 2} y={gY        + topH / 2} textAnchor="middle" dominantBaseline="middle" fontSize={16} fill="#555">{'\u2195'}</text>}
       {botCanMove && <text x={gX + gW / 2} y={botGlassY + botH / 2} textAnchor="middle" dominantBaseline="middle" fontSize={16} fill="#555">{'\u2195'}</text>}
 
       {/* Dimension lines */}
@@ -298,9 +302,9 @@ function SashSVG({ spec }) {
 // ── Ironmongery modal ─────────────────────────────────────────────────────────
 
 function IronmongeryModal({ finish, onAdd, onClose }) {
-  const [search, setSearch] = useState('')
+  const [search,   setSearch]   = useState('')
   const [products, setProducts] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [loading,  setLoading]  = useState(true)
 
   useEffect(() => {
     supabase
@@ -310,7 +314,9 @@ function IronmongeryModal({ finish, onAdd, onClose }) {
       .then(({ data }) => { setProducts(data || []); setLoading(false) })
   }, [])
 
-  const filtered = products.filter(p => p.name.toLowerCase().includes(search.toLowerCase()))
+  const filtered = products.filter(p =>
+    p.name.toLowerCase().includes(search.toLowerCase())
+  )
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.45)' }}>
@@ -320,7 +326,7 @@ function IronmongeryModal({ finish, onAdd, onClose }) {
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#888' }}>✕</button>
         </div>
         <div style={{ padding: '10px 18px', borderBottom: '1px solid #f0ede8' }}>
-          <input autoFocus value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products…" style={{ ...SI }} />
+          <input autoFocus value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products…" style={SI} />
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '4px 18px' }}>
           {loading ? (
@@ -332,7 +338,10 @@ function IronmongeryModal({ finish, onAdd, onClose }) {
             return (
               <div
                 key={p.id}
-                onClick={() => { onAdd({ product_id: p.id, product_name: p.name, variant_id: variant?.id || null, finish_code: variant?.finish_code || finish, part_no: variant?.part_no || '', quantity: 1 }); onClose() }}
+                onClick={() => {
+                  onAdd({ product_id: p.id, product_name: p.name, variant_id: variant?.id || null, finish_code: variant?.finish_code || finish, part_no: variant?.part_no || '', quantity: 1 })
+                  onClose()
+                }}
                 style={{ padding: '10px 0', borderBottom: '1px solid #f5f4f0', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
               >
                 <div>
@@ -349,37 +358,37 @@ function IronmongeryModal({ finish, onAdd, onClose }) {
   )
 }
 
-// ── Drawing board ─────────────────────────────────────────────────────────────
+// ── Drawing board form ────────────────────────────────────────────────────────
 
-function DrawingBoard({ item }) {
+function DrawingBoard({ drawing }) {
   const initSpec = () => {
-    const s = { ...DEFAULT_SPEC, ...(item.spec || {}), location: item.location || '' }
-    if (SASH_TYPES.has(s.window_type) && !s.surrounds) s.surrounds = SASH_SURROUNDS_DEFAULT
+    const s = { ...DEFAULT_SPEC, ...(drawing.spec || {}) }
+    if (SASH_TYPES.has(s.window_type) && !s.surrounds) s.surrounds = SASH_SURROUNDS
     return s
   }
 
-  const [spec, setSpec] = useState(initSpec)
+  const [spec, setSpec]             = useState(initSpec)
   const [showIronModal, setShowIronModal] = useState(false)
-  const debounceRef = useRef(null)
-  const prevWindowType = useRef(spec.window_type)
+  const debounceRef   = useRef(null)
+  const prevTypeRef   = useRef(spec.window_type)
 
-  const isSash = SASH_TYPES.has(spec.window_type)
+  const isSash       = SASH_TYPES.has(spec.window_type)
   const isReplacement = spec.service_type !== 'Complete New'
 
-  // Auto-populate surrounds when switching to a sash type
+  // Auto-populate surrounds when switching into a sash type
   useEffect(() => {
-    if (SASH_TYPES.has(spec.window_type) && !SASH_TYPES.has(prevWindowType.current) && !spec.surrounds) {
-      update('surrounds', SASH_SURROUNDS_DEFAULT)
+    if (SASH_TYPES.has(spec.window_type) && !SASH_TYPES.has(prevTypeRef.current) && !spec.surrounds) {
+      update('surrounds', SASH_SURROUNDS)
     }
-    prevWindowType.current = spec.window_type
+    prevTypeRef.current = spec.window_type
   }, [spec.window_type])
 
-  function scheduleSave(nextSpec) {
+  function scheduleSave(next) {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
-      supabase.from('quote_items')
-        .update({ spec: nextSpec, location: nextSpec.location })
-        .eq('id', item.id)
+      supabase.from('drawings')
+        .update({ spec: next })
+        .eq('id', drawing.id)
         .then(({ error }) => { if (error) console.error('Spec save error:', error) })
     }, 500)
   }
@@ -415,13 +424,10 @@ function DrawingBoard({ item }) {
   return (
     <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
 
-      {/* ── Form — 40% ─────────────────────────────────────────────────────── */}
+      {/* ── Form — 40% ──────────────────────────────────────────────────────── */}
       <div style={{ width: '40%', borderRight: '1px solid #e8e6e0', overflowY: 'auto', padding: '14px 16px 40px', background: '#fff' }}>
 
-        <Section title="Item Details">
-          <Field label="Location">
-            <input value={spec.location} onChange={e => update('location', e.target.value)} placeholder="e.g. Front bedroom window" style={SI} />
-          </Field>
+        <Section title="Window Spec">
           <Field label="Window type">
             <Sel value={spec.window_type} onChange={v => update('window_type', v)} options={WINDOW_TYPES} />
           </Field>
@@ -529,27 +535,23 @@ function DrawingBoard({ item }) {
         )}
 
         <Section title="Finish & Ironmongery">
-          <Field label="Internal finish">
-            <Sel value={spec.internal_finish} onChange={v => update('internal_finish', v)} options={FINISH_OPTIONS} />
-          </Field>
-          <Field label="External finish">
-            <Sel value={spec.external_finish} onChange={v => update('external_finish', v)} options={FINISH_OPTIONS} />
-          </Field>
-          <Field label="Cill finish">
-            <Sel value={spec.cill_finish} onChange={v => update('cill_finish', v)} options={FINISH_OPTIONS} />
-          </Field>
+          <FinishField label="Internal finish" field="internal_finish" customField="internal_finish_custom" spec={spec} update={update} />
+          <FinishField label="External finish" field="external_finish" customField="external_finish_custom" spec={spec} update={update} />
+          <FinishField label="Cill finish"     field="cill_finish"     customField="cill_finish_custom"     spec={spec} update={update} />
+
           <Field label="Ironmongery finish">
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
               {IRON_FINISHES.map(f => (
                 <button key={f} onClick={() => changeIronFinish(f)} style={{
                   padding: '3px 8px', fontSize: 10, border: '1px solid', borderRadius: 5, cursor: 'pointer', fontWeight: 600,
                   borderColor: spec.ironmongery_finish === f ? '#3d35a8' : '#d8d5cf',
-                  background: spec.ironmongery_finish === f ? '#f0eefc' : '#fff',
-                  color: spec.ironmongery_finish === f ? '#3d35a8' : '#666',
+                  background:  spec.ironmongery_finish === f ? '#f0eefc' : '#fff',
+                  color:       spec.ironmongery_finish === f ? '#3d35a8' : '#666',
                 }}>{f}</button>
               ))}
             </div>
           </Field>
+
           <Field label="Ironmongery items">
             <div>
               {(spec.ironmongery_items || []).map((itm, i) => (
@@ -571,7 +573,7 @@ function DrawingBoard({ item }) {
             onChange={e => update('surrounds', e.target.value)}
             rows={3}
             style={{ ...SI, resize: 'vertical' }}
-            placeholder={isSash ? SASH_SURROUNDS_DEFAULT : ''}
+            placeholder={isSash ? SASH_SURROUNDS : ''}
           />
         </Section>
 
@@ -598,16 +600,14 @@ function DrawingBoard({ item }) {
 
       </div>
 
-      {/* ── SVG Preview — 60% ──────────────────────────────────────────────── */}
+      {/* ── SVG Preview — 60% ───────────────────────────────────────────────── */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', background: '#f7f6f2', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <div style={{ fontSize: 10, color: '#999', marginBottom: 10, letterSpacing: '.07em', textTransform: 'uppercase', fontWeight: 700 }}>Internal View</div>
         <SashSVG spec={spec} />
-        {spec.window_type && (
-          <div style={{ marginTop: 10, fontSize: 11, color: '#888', textAlign: 'center' }}>
-            {spec.window_type}
-            {spec.frame_width && spec.frame_height ? ` — ${spec.frame_width} × ${spec.frame_height} mm` : ''}
-          </div>
-        )}
+        <div style={{ marginTop: 10, fontSize: 11, color: '#888', textAlign: 'center' }}>
+          {spec.window_type}
+          {spec.frame_width && spec.frame_height ? ` — ${spec.frame_width} × ${spec.frame_height} mm` : ''}
+        </div>
       </div>
 
       {showIronModal && (
@@ -623,55 +623,30 @@ function DrawingBoard({ item }) {
 
 // ── QuoteDrawer ───────────────────────────────────────────────────────────────
 
-export default function QuoteDrawer({ quote, lead, onClose, onQuoteUpdate }) {
-  const { user } = useAuth()
-  const [items, setItems] = useState([])
-  const [loadingItems, setLoadingItems] = useState(true)
-  const [selectedItem, setSelectedItem] = useState(null)
-  const [addingItem, setAddingItem] = useState(false)
-  const [publishing, setPublishing] = useState(false)
+export default function QuoteDrawer({ drawingId, jobItemId, leadNumber, onClose }) {
+  const [drawing, setDrawing] = useState(null)
+  const [jobItem, setJobItem] = useState(null)
+  const [loading, setLoading] = useState(true)
 
-  const statusStyle = STATUS_STYLE[quote.status] || STATUS_STYLE.Open
-
-  useEffect(() => { fetchItems() }, [quote.id])
-
-  async function fetchItems() {
-    setLoadingItems(true)
-    const { data } = await supabase
-      .from('quote_items')
-      .select('*')
-      .eq('quote_id', quote.id)
-      .order('item_number', { ascending: true })
-    setItems(data || [])
-    setLoadingItems(false)
-  }
-
-  async function addItem() {
-    setAddingItem(true)
-    const nextNum = items.length + 1
-    const { data: newItem, error } = await supabase
-      .from('quote_items')
-      .insert({ quote_id: quote.id, item_number: nextNum })
-      .select()
-      .single()
-    setAddingItem(false)
-    if (!error && newItem) {
-      setItems(prev => [...prev, newItem])
-      setSelectedItem(newItem)
+  useEffect(() => {
+    async function load() {
+      setLoading(true)
+      const [{ data: dwg }, { data: ji }] = await Promise.all([
+        supabase.from('drawings').select('*').eq('id', drawingId).single(),
+        supabase.from('job_items').select('*').eq('id', jobItemId).single(),
+      ])
+      setDrawing(dwg || null)
+      setJobItem(ji  || null)
+      setLoading(false)
     }
-  }
+    load()
+  }, [drawingId, jobItemId])
 
-  async function publishQuote() {
-    setPublishing(true)
-    const { data: updated, error } = await supabase
-      .from('quotes')
-      .update({ status: 'Published' })
-      .eq('id', quote.id)
-      .select('*')
-      .single()
-    setPublishing(false)
-    if (!error && updated && onQuoteUpdate) onQuoteUpdate(updated)
-  }
+  const drawingLabel = drawing && jobItem
+    ? `Drawing ${jobItem.item_number}.${drawing.drawing_number}`
+    : 'Drawing'
+
+  const contextParts = [jobItem?.floor_level, jobItem?.elevation, jobItem?.room_name].filter(Boolean)
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'stretch' }}>
@@ -683,18 +658,12 @@ export default function QuoteDrawer({ quote, lead, onClose, onQuoteUpdate }) {
 
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0 20px', height: 56, borderBottom: '1px solid #e8e6e0', background: '#fff', flexShrink: 0 }}>
-          <div style={{ fontWeight: 600, fontSize: 15 }}>{lead?.lead_number} / {quote.quote_number}</div>
-          <span style={{ fontSize: 11, padding: '2px 9px', borderRadius: 999, fontWeight: 500, background: statusStyle.bg, color: statusStyle.color }}>{quote.status}</span>
-          <div style={{ flex: 1 }} />
-          {quote.status === 'Open' && (
-            <button
-              onClick={publishQuote}
-              disabled={publishing}
-              style={{ fontSize: 13, padding: '6px 16px', border: 'none', borderRadius: 8, background: '#3d35a8', color: '#fff', cursor: publishing ? 'not-allowed' : 'pointer', fontWeight: 500, opacity: publishing ? 0.7 : 1 }}
-            >
-              {publishing ? 'Publishing…' : 'Publish Quote'}
-            </button>
+          {leadNumber && <div style={{ fontSize: 12, color: '#aaa', fontWeight: 500 }}>{leadNumber}</div>}
+          <div style={{ fontWeight: 600, fontSize: 15 }}>{drawingLabel}</div>
+          {contextParts.length > 0 && (
+            <div style={{ fontSize: 12, color: '#888' }}>{contextParts.join(' · ')}</div>
           )}
+          <div style={{ flex: 1 }} />
           <button
             onClick={onClose}
             style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #e8e6e0', background: '#fff', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#555', flexShrink: 0 }}
@@ -704,59 +673,20 @@ export default function QuoteDrawer({ quote, lead, onClose, onQuoteUpdate }) {
         </div>
 
         {/* Body */}
-        <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-
-          {/* Items list */}
-          <div style={{ width: 200, flexShrink: 0, borderRight: '1px solid #e8e6e0', background: '#fff', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <div style={{ padding: '12px 14px 8px', fontSize: 11, fontWeight: 700, color: '#777', textTransform: 'uppercase', letterSpacing: '.06em', borderBottom: '1px solid #f0ede8', flexShrink: 0 }}>Items</div>
-            <div style={{ flex: 1, overflowY: 'auto' }}>
-              {loadingItems ? (
-                <div style={{ padding: 20, color: '#aaa', fontSize: 12, textAlign: 'center' }}>Loading…</div>
-              ) : items.length === 0 ? (
-                <div style={{ padding: '28px 14px', color: '#aaa', fontSize: 12, textAlign: 'center' }}>No items yet</div>
-              ) : items.map(item => {
-                const isSel = selectedItem?.id === item.id
-                return (
-                  <div
-                    key={item.id}
-                    onClick={() => setSelectedItem(item)}
-                    style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid #f0ede8', background: isSel ? '#f0eefc' : 'transparent', borderLeft: isSel ? '3px solid #3d35a8' : '3px solid transparent' }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: isSel ? '#3d35a8' : '#333' }}>Item {item.item_number}</div>
-                      {item.calculated_price != null && (
-                        <div style={{ fontSize: 10, fontWeight: 600, color: '#555' }}>£{Number(item.calculated_price).toLocaleString('en-GB', { minimumFractionDigits: 2 })}</div>
-                      )}
-                    </div>
-                    {item.location && <div style={{ fontSize: 11, color: '#888', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.location}</div>}
-                    {item.spec?.window_type && <div style={{ fontSize: 10, color: '#bbb', marginTop: 1 }}>{item.spec.window_type}</div>}
-                  </div>
-                )
-              })}
+        <div style={{ flex: 1, overflow: 'hidden' }}>
+          {loading ? (
+            <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#aaa', fontSize: 13 }}>
+              Loading…
             </div>
-            <div style={{ padding: '10px 14px', borderTop: '1px solid #e8e6e0', flexShrink: 0 }}>
-              <button
-                onClick={addItem}
-                disabled={addingItem}
-                style={{ width: '100%', padding: '7px 0', fontSize: 12, border: '1px dashed #c0bdb5', borderRadius: 7, background: 'transparent', cursor: addingItem ? 'not-allowed' : 'pointer', color: '#555', fontWeight: 500, opacity: addingItem ? 0.6 : 1 }}
-              >
-                {addingItem ? 'Adding…' : '+ Add Item'}
-              </button>
+          ) : drawing ? (
+            <DrawingBoard key={drawing.id} drawing={drawing} />
+          ) : (
+            <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbb', fontSize: 14 }}>
+              Drawing not found
             </div>
-          </div>
-
-          {/* Drawing board */}
-          <div style={{ flex: 1, overflow: 'hidden' }}>
-            {!selectedItem ? (
-              <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbb', fontSize: 14 }}>
-                Select an item or add a new one
-              </div>
-            ) : (
-              <DrawingBoard key={selectedItem.id} item={selectedItem} />
-            )}
-          </div>
-
+          )}
         </div>
+
       </div>
     </div>
   )

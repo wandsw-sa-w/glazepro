@@ -6,6 +6,7 @@ import { useUsers } from '../hooks/useUsers'
 import { useUnmatchedCount } from '../hooks/useUnmatchedCount'
 import { useCurrentUser } from '../hooks/useCurrentUser'
 import QuoteDrawer from '../components/QuoteDrawer'
+import QuoteMatrixDrawer from '../components/QuoteMatrixDrawer'
 
 const stageColours = {
   New: { bg: '#e6f0fb', color: '#1a5fa8' },
@@ -141,14 +142,20 @@ export default function LeadDetail() {
   const [quotes, setQuotes] = useState([])
   const [quotesLoading, setQuotesLoading] = useState(false)
   const [creatingQuote, setCreatingQuote] = useState(false)
-  const [openQuote, setOpenQuote] = useState(null)
+  const [openQuoteMatrix, setOpenQuoteMatrix] = useState(null)
+  const [jobItems, setJobItems] = useState([])
+  const [drawings, setDrawings] = useState([])
+  const [jobItemsLoading, setJobItemsLoading] = useState(false)
+  const [addingJobItem, setAddingJobItem] = useState(false)
+  const [openDrawing, setOpenDrawing] = useState(null) // { drawingId, jobItemId }
+  const jobItemDebounceRefs = useRef({})
 
   useEffect(() => { fetchLead(); fetchUploads() }, [leadId])
 
   useEffect(() => {
     if (activeTab === 'tracking') fetchLeadAppointments()
     if (activeTab === 'correspondence') { fetchTasks(); fetchLeadNotes() }
-    if (activeTab === 'quotes') fetchQuotes()
+    if (activeTab === 'quotes') { fetchJobItemsAndDrawings(); fetchQuotes() }
   }, [activeTab, leadId])
 
   useEffect(() => {
@@ -373,9 +380,67 @@ export default function LeadDetail() {
     setCreatingQuote(false)
     if (!error && newQuote) {
       setQuotes(prev => [newQuote, ...prev])
-      setOpenQuote(newQuote)
+      setOpenQuoteMatrix(newQuote)
     } else if (error) {
       console.error('Error creating quote:', error)
+    }
+  }
+
+  async function fetchJobItemsAndDrawings() {
+    setJobItemsLoading(true)
+    const { data: items } = await supabase
+      .from('job_items')
+      .select('*')
+      .eq('lead_id', leadId)
+      .order('item_number', { ascending: true })
+    setJobItems(items || [])
+    if (items && items.length > 0) {
+      const { data: dwgs } = await supabase
+        .from('drawings')
+        .select('*')
+        .in('job_item_id', items.map(i => i.id))
+        .order('drawing_number', { ascending: true })
+      setDrawings(dwgs || [])
+    } else {
+      setDrawings([])
+    }
+    setJobItemsLoading(false)
+  }
+
+  async function addJobItem() {
+    setAddingJobItem(true)
+    const nextNum = jobItems.length + 1
+    const { data: newItem, error } = await supabase
+      .from('job_items')
+      .insert({ lead_id: leadId, item_number: nextNum })
+      .select()
+      .single()
+    setAddingJobItem(false)
+    if (!error && newItem) setJobItems(prev => [...prev, newItem])
+  }
+
+  function updateJobItemField(itemId, field, value) {
+    setJobItems(prev => prev.map(it => it.id === itemId ? { ...it, [field]: value } : it))
+    if (jobItemDebounceRefs.current[itemId]) clearTimeout(jobItemDebounceRefs.current[itemId])
+    jobItemDebounceRefs.current[itemId] = setTimeout(() => {
+      supabase.from('job_items').update({ [field]: value }).eq('id', itemId)
+        .then(({ error }) => { if (error) console.error('Job item save error:', error) })
+    }, 500)
+  }
+
+  async function addDrawing(jobItemId) {
+    const itemDrawings = drawings.filter(d => d.job_item_id === jobItemId)
+    const nextNum = itemDrawings.length + 1
+    const { data: newDrawing, error } = await supabase
+      .from('drawings')
+      .insert({ job_item_id: jobItemId, drawing_number: nextNum })
+      .select()
+      .single()
+    if (!error && newDrawing) {
+      setDrawings(prev => [...prev, newDrawing])
+      setOpenDrawing({ drawingId: newDrawing.id, jobItemId })
+    } else if (error) {
+      console.error('Error creating drawing:', error)
     }
   }
 
@@ -1796,67 +1861,158 @@ export default function LeadDetail() {
 
           {/* QUOTES TAB */}
           {activeTab === 'quotes' && (
-            <div style={{ maxWidth: 800 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-                <div style={{ fontSize: 14, fontWeight: 600 }}>Quotes</div>
-                <button
-                  onClick={createQuote}
-                  disabled={creatingQuote}
-                  style={{ fontSize: 13, padding: '7px 16px', border: 'none', borderRadius: 8, background: '#3d35a8', color: '#fff', cursor: creatingQuote ? 'not-allowed' : 'pointer', fontWeight: 500, opacity: creatingQuote ? 0.7 : 1 }}
-                >
-                  {creatingQuote ? 'Creating…' : '+ New Quote'}
-                </button>
+            <div style={{ maxWidth: 860 }}>
+
+              {/* ── SECTION 1: JOB ITEMS ─────────────────────────────── */}
+              <div style={{ marginBottom: 32 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600 }}>Items</div>
+                  <button
+                    onClick={addJobItem}
+                    disabled={addingJobItem}
+                    style={{ fontSize: 12, padding: '6px 14px', border: 'none', borderRadius: 7, background: '#3d35a8', color: '#fff', cursor: addingJobItem ? 'not-allowed' : 'pointer', fontWeight: 500, opacity: addingJobItem ? 0.7 : 1 }}
+                  >
+                    {addingJobItem ? 'Adding…' : '+ Add Item'}
+                  </button>
+                </div>
+
+                {jobItemsLoading ? (
+                  <div style={{ color: '#aaa', fontSize: 13, textAlign: 'center', padding: '32px 0' }}>Loading…</div>
+                ) : jobItems.length === 0 ? (
+                  <div style={{ color: '#aaa', fontSize: 13, textAlign: 'center', padding: '32px 24px', background: '#fff', border: '1px solid #e8e6e0', borderRadius: 10 }}>
+                    No items yet — add an item to start specifying windows
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {jobItems.map(item => {
+                      const itemDrawings = drawings.filter(d => d.job_item_id === item.id)
+                      return (
+                        <div key={item.id} style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 10, padding: '14px 16px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                            <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#f0eefc', color: '#3d35a8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
+                              {item.item_number}
+                            </div>
+                            <select
+                              value={item.floor_level || ''}
+                              onChange={e => updateJobItemField(item.id, 'floor_level', e.target.value)}
+                              style={{ fontSize: 12, padding: '5px 8px', border: '1px solid #d8d5cf', borderRadius: 6, outline: 'none', background: '#fff' }}
+                            >
+                              <option value="">Floor level…</option>
+                              {['Ground Floor', 'First Floor', 'Second Floor', 'Third Floor', 'Basement', 'Loft', 'Other'].map(o => <option key={o} value={o}>{o}</option>)}
+                            </select>
+                            <select
+                              value={item.elevation || ''}
+                              onChange={e => updateJobItemField(item.id, 'elevation', e.target.value)}
+                              style={{ fontSize: 12, padding: '5px 8px', border: '1px solid #d8d5cf', borderRadius: 6, outline: 'none', background: '#fff' }}
+                            >
+                              <option value="">Elevation…</option>
+                              {['Front Elevation', 'Rear Elevation', 'Side Elevation LHS', 'Side Elevation RHS', 'Internal'].map(o => <option key={o} value={o}>{o}</option>)}
+                            </select>
+                            <input
+                              value={item.room_name || ''}
+                              onChange={e => updateJobItemField(item.id, 'room_name', e.target.value)}
+                              placeholder="Room name…"
+                              style={{ fontSize: 12, padding: '5px 8px', border: '1px solid #d8d5cf', borderRadius: 6, outline: 'none', background: '#fff', width: 140 }}
+                            />
+                          </div>
+
+                          {/* Drawings list */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            {itemDrawings.map(dwg => (
+                              <button
+                                key={dwg.id}
+                                onClick={() => setOpenDrawing({ drawingId: dwg.id, jobItemId: item.id })}
+                                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', fontSize: 11, border: '1px solid #d8d5cf', borderRadius: 6, background: '#fafaf8', cursor: 'pointer', fontWeight: 500 }}
+                              >
+                                <span style={{ color: '#555' }}>Dwg {item.item_number}.{dwg.drawing_number}</span>
+                                {dwg.spec?.window_type && (
+                                  <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 999, background: '#f0eefc', color: '#3d35a8', fontWeight: 600 }}>
+                                    {dwg.spec.window_type}
+                                  </span>
+                                )}
+                              </button>
+                            ))}
+                            <button
+                              onClick={() => addDrawing(item.id)}
+                              style={{ padding: '4px 10px', fontSize: 11, border: '1px dashed #c0bdb5', borderRadius: 6, background: 'transparent', cursor: 'pointer', color: '#777' }}
+                            >
+                              + Add Drawing
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
 
-              {quotesLoading ? (
-                <div style={{ color: '#aaa', fontSize: 13, textAlign: 'center', padding: '40px 24px' }}>Loading…</div>
-              ) : quotes.length === 0 ? (
-                <div style={{ color: '#aaa', fontSize: 13, textAlign: 'center', padding: '40px 24px', background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12 }}>
-                  No quotes yet for this lead
+              {/* ── SECTION 2: QUOTES ────────────────────────────────── */}
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600 }}>Quotes</div>
+                  <button
+                    onClick={createQuote}
+                    disabled={creatingQuote}
+                    style={{ fontSize: 12, padding: '6px 14px', border: 'none', borderRadius: 7, background: '#3d35a8', color: '#fff', cursor: creatingQuote ? 'not-allowed' : 'pointer', fontWeight: 500, opacity: creatingQuote ? 0.7 : 1 }}
+                  >
+                    {creatingQuote ? 'Creating…' : '+ New Quote'}
+                  </button>
                 </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {quotes.map(q => {
-                    const total = (q.quote_items || []).reduce((sum, item) => sum + (item.calculated_price || 0), 0)
-                    const statusStyle = q.status === 'Open'
-                      ? { bg: '#f5f4f0', color: '#666' }
-                      : q.status === 'Published'
-                      ? { bg: '#e6f0fb', color: '#1a5fa8' }
-                      : { bg: '#e1f5ee', color: '#0a5a3c' }
-                    return (
-                      <div key={q.id} style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 10, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 16 }}>
-                        <div style={{ fontWeight: 600, fontSize: 14, minWidth: 48 }}>{q.quote_number}</div>
-                        <span style={{ fontSize: 11, padding: '2px 9px', borderRadius: 999, fontWeight: 500, background: statusStyle.bg, color: statusStyle.color }}>{q.status}</span>
-                        <div style={{ fontSize: 12, color: '#888', flex: 1 }}>
-                          {new Date(q.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                          {q.salesperson_id && <span style={{ marginLeft: 12 }}>👤 {q.salesperson_id}</span>}
+
+                {quotesLoading ? (
+                  <div style={{ color: '#aaa', fontSize: 13, textAlign: 'center', padding: '32px 0' }}>Loading…</div>
+                ) : quotes.length === 0 ? (
+                  <div style={{ color: '#aaa', fontSize: 13, textAlign: 'center', padding: '32px 24px', background: '#fff', border: '1px solid #e8e6e0', borderRadius: 10 }}>
+                    No quotes yet for this lead
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {quotes.map(q => {
+                      const statusStyle = q.status === 'Open'
+                        ? { bg: '#f5f4f0', color: '#666' }
+                        : q.status === 'Published'
+                        ? { bg: '#e6f0fb', color: '#1a5fa8' }
+                        : { bg: '#e1f5ee', color: '#0a5a3c' }
+                      return (
+                        <div key={q.id} style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 10, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 14 }}>
+                          <div style={{ fontWeight: 600, fontSize: 14, minWidth: 44 }}>{q.quote_number}</div>
+                          <span style={{ fontSize: 11, padding: '2px 9px', borderRadius: 999, fontWeight: 500, background: statusStyle.bg, color: statusStyle.color }}>{q.status}</span>
+                          <div style={{ fontSize: 12, color: '#888', flex: 1 }}>
+                            {new Date(q.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </div>
+                          <button
+                            onClick={() => setOpenQuoteMatrix(q)}
+                            style={{ fontSize: 12, padding: '5px 14px', border: '1px solid #d8d5cf', borderRadius: 7, background: '#fff', cursor: 'pointer', fontWeight: 500 }}
+                          >
+                            Open
+                          </button>
                         </div>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: '#333' }}>
-                          £{total.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </div>
-                        <button
-                          onClick={() => setOpenQuote(q)}
-                          style={{ fontSize: 12, padding: '5px 14px', border: '1px solid #d8d5cf', borderRadius: 7, background: '#fff', cursor: 'pointer', fontWeight: 500 }}
-                        >
-                          Open
-                        </button>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+
             </div>
           )}
 
         </div>
       </div>
 
-      {openQuote && (
+      {openDrawing && (
         <QuoteDrawer
-          quote={openQuote}
+          drawingId={openDrawing.drawingId}
+          jobItemId={openDrawing.jobItemId}
+          leadNumber={lead?.lead_number}
+          onClose={() => { setOpenDrawing(null); fetchJobItemsAndDrawings() }}
+        />
+      )}
+
+      {openQuoteMatrix && (
+        <QuoteMatrixDrawer
+          quote={openQuoteMatrix}
           lead={lead}
-          onClose={() => { setOpenQuote(null); fetchQuotes() }}
-          onQuoteUpdate={updated => setOpenQuote(updated)}
+          onClose={() => { setOpenQuoteMatrix(null); fetchQuotes() }}
         />
       )}
     </div>
