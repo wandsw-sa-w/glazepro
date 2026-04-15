@@ -680,8 +680,17 @@ export default function Import() {
         productId = inserted.id
       }
 
-      // Batch upsert all variants for this product
-      const variantRows = group.variants.map(v => ({
+      // Deduplicate variants by finish_code (keep first occurrence)
+      const seen = new Set()
+      const dedupedVariants = group.variants.filter(v => {
+        const key = v.finish.code
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+
+      // Batch insert all variants for this product
+      const variantRows = dedupedVariants.map(v => ({
         product_id:   productId,
         finish_name:  v.finish.name,
         finish_code:  v.finish.code,
@@ -692,7 +701,7 @@ export default function Import() {
 
       const { error: vErr } = await supabase
         .from('ironmongery_variants')
-        .upsert(variantRows, { onConflict: 'product_id,finish_name' })
+        .insert(variantRows)
 
       if (vErr) {
         addLog(`  ✗ Variant error for "${group.name}": ${vErr.message}`)
