@@ -11,6 +11,7 @@ const CILL_OPTIONS   = ['Solid Utile Hardwood', 'Accoya']
 const GLASS_TYPES    = ['Clear Toughened', 'Sandblasted Toughened', 'Antique Cathedral', 'Pilkington K']
 const FINISH_OPTIONS = ['Clean White', 'White Gloss', 'White Satin', 'Colour Match Satin', 'Colour Match Gloss', 'Custom']
 const IRON_FINISHES  = ['PB', 'PC', 'SC', 'Blk', 'Pwt', 'ABs', 'ABlk', 'Wht', 'AgBs', 'ABz', 'PN']
+const IRON_CATEGORIES = ['All', 'Sash Fastener', 'Sash Lift', 'Sash Pulley', 'Sash Restrictor', 'Casement Handle', 'Casement Stay', 'Casement Hinge', 'Door Handle', 'Door Lock', 'Door Hinge', 'Door Knocker', 'Letterplate', 'Numerals', 'Trickle Vent', 'Cylinder']
 const OPERATIONS     = ['Cord Hung', 'Spiral Hung', 'Fix']
 const HORNS          = ['Victorian', 'None']
 const SASH_SURROUNDS = 'Nosing, Ogee Architrave Internal Architrave'
@@ -402,54 +403,158 @@ function SashSVG({ spec }) {
 
 // ── Ironmongery modal ─────────────────────────────────────────────────────────
 
-function IronmongeryModal({ finish, onAdd, onClose }) {
+function IronmongeryModal({ drawingId, finish, sortOrderNext, onAdded, onClose }) {
   const [search,   setSearch]   = useState('')
+  const [category, setCategory] = useState('All')
   const [products, setProducts] = useState([])
   const [loading,  setLoading]  = useState(true)
+  const [adding,   setAdding]   = useState(null) // product id currently being inserted
 
   useEffect(() => {
     supabase
       .from('ironmongery_products')
-      .select('*, ironmongery_variants(*)')
+      .select('id, name, category, ironmongery_variants(id, finish_code, finish_name, part_no, cost)')
       .order('name')
-      .then(({ data }) => { setProducts(data || []); setLoading(false) })
+      .then(({ data, error }) => {
+        if (error) console.error('Failed to load products:', error)
+        setProducts(data || [])
+        setLoading(false)
+      })
   }, [])
 
-  const filtered = products.filter(p =>
-    p.name.toLowerCase().includes(search.toLowerCase())
-  )
+  const filtered = products.filter(p => {
+    const nameMatch = p.name.toLowerCase().includes(search.toLowerCase())
+    const catMatch  = category === 'All' || p.category === category
+    return nameMatch && catMatch
+  })
+
+  async function handleAdd(product) {
+    setAdding(product.id)
+    const variant = product.ironmongery_variants?.find(v => v.finish_code === finish)
+      || product.ironmongery_variants?.[0]
+      || null
+
+    const { data: newRow, error } = await supabase
+      .from('drawing_ironmongery')
+      .insert({
+        drawing_id: drawingId,
+        product_id: product.id,
+        variant_id: variant?.id ?? null,
+        quantity:   1,
+        sort_order: sortOrderNext,
+      })
+      .select('id, drawing_id, product_id, variant_id, quantity, sort_order, ironmongery_products(id, name, category), ironmongery_variants(id, finish_code, finish_name, part_no, cost)')
+      .single()
+
+    if (error) {
+      console.error('Failed to add ironmongery:', error)
+      setAdding(null)
+      return
+    }
+    onAdded(newRow)
+    setAdding(null)
+  }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.45)' }}>
-      <div style={{ background: '#fff', borderRadius: 12, width: 480, maxHeight: '78vh', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 40px rgba(0,0,0,0.2)' }}>
-        <div style={{ padding: '14px 18px', borderBottom: '1px solid #e8e6e0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ fontWeight: 600, fontSize: 14 }}>Add Ironmongery</div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#888' }}>✕</button>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)' }}>
+      <div style={{ background: '#fff', borderRadius: 12, width: 700, height: '80vh', display: 'flex', flexDirection: 'column', boxShadow: '0 12px 48px rgba(0,0,0,0.22)' }}>
+
+        {/* Header */}
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid #e8e6e0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+          <div style={{ fontWeight: 700, fontSize: 15, color: '#1a1a2e' }}>Add Ironmongery</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#aaa', lineHeight: 1, padding: '0 2px' }}>✕</button>
         </div>
-        <div style={{ padding: '10px 18px', borderBottom: '1px solid #f0ede8' }}>
-          <input autoFocus value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products…" style={SI} />
+
+        {/* Search + category filter */}
+        <div style={{ padding: '12px 20px', borderBottom: '1px solid #f0ede8', display: 'flex', gap: 10, flexShrink: 0 }}>
+          <input
+            autoFocus
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search products…"
+            style={{ ...SI, flex: 1 }}
+          />
+          <select
+            value={category}
+            onChange={e => setCategory(e.target.value)}
+            style={{ ...SI, width: 200 }}
+          >
+            {IRON_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
         </div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '4px 18px' }}>
+
+        {/* Product list */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '8px 20px 16px' }}>
           {loading ? (
-            <div style={{ padding: 24, textAlign: 'center', color: '#aaa', fontSize: 13 }}>Loading…</div>
+            <div style={{ padding: 32, textAlign: 'center', color: '#aaa', fontSize: 13 }}>Loading…</div>
           ) : filtered.length === 0 ? (
-            <div style={{ padding: 24, textAlign: 'center', color: '#aaa', fontSize: 13 }}>No products found</div>
-          ) : filtered.map(p => {
-            const variant = p.ironmongery_variants?.find(v => v.finish_code === finish) || p.ironmongery_variants?.[0]
+            <div style={{ padding: 32, textAlign: 'center', color: '#aaa', fontSize: 13 }}>No products found</div>
+          ) : filtered.map(product => {
+            const matchVariant = product.ironmongery_variants?.find(v => v.finish_code === finish)
+              || product.ironmongery_variants?.[0]
+            const availFinishes = [...new Set((product.ironmongery_variants || []).map(v => v.finish_code))]
+            const isAdding = adding === product.id
+
             return (
-              <div
-                key={p.id}
-                onClick={() => {
-                  onAdd({ product_id: p.id, product_name: p.name, variant_id: variant?.id || null, finish_code: variant?.finish_code || finish, part_no: variant?.part_no || '', quantity: 1 })
-                  onClose()
-                }}
-                style={{ padding: '10px 0', borderBottom: '1px solid #f5f4f0', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
-              >
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 500 }}>{p.name}</div>
-                  {variant && <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>{variant.finish_code}{variant.part_no ? ` — ${variant.part_no}` : ''}</div>}
+              <div key={product.id} style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                padding: '10px 0', borderBottom: '1px solid #f5f4f0',
+              }}>
+                {/* Info */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1a2e', marginBottom: 3 }}>
+                    {product.name}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    {product.category && (
+                      <span style={{ fontSize: 10, padding: '1px 7px', borderRadius: 999, background: '#f0eefc', color: '#5448c8', fontWeight: 600, border: '1px solid #dcd9f5' }}>
+                        {product.category}
+                      </span>
+                    )}
+                    {/* Available finish badges */}
+                    {availFinishes.map(fc => (
+                      <span key={fc} style={{
+                        fontSize: 10, padding: '1px 5px', borderRadius: 4, fontWeight: 600,
+                        background: fc === finish ? '#3d35a8' : '#f5f4f0',
+                        color:      fc === finish ? '#fff'     : '#888',
+                        border:     `1px solid ${fc === finish ? '#3d35a8' : '#e0ddd8'}`,
+                      }}>
+                        {fc}
+                      </span>
+                    ))}
+                  </div>
+                  {matchVariant?.part_no && (
+                    <div style={{ fontSize: 11, color: '#aaa', marginTop: 3 }}>{matchVariant.part_no}</div>
+                  )}
                 </div>
-                <span style={{ fontSize: 11, color: '#3d35a8', fontWeight: 600 }}>+ Add</span>
+
+                {/* Cost */}
+                <div style={{ textAlign: 'right', flexShrink: 0, minWidth: 60 }}>
+                  {matchVariant?.cost != null ? (
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#1a5a1a' }}>
+                      £{parseFloat(matchVariant.cost).toFixed(2)}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 11, color: '#ccc' }}>—</div>
+                  )}
+                  {matchVariant && matchVariant.finish_code !== finish && (
+                    <div style={{ fontSize: 10, color: '#e07000', marginTop: 1 }}>No {finish} variant</div>
+                  )}
+                </div>
+
+                {/* Add button */}
+                <button
+                  onClick={() => handleAdd(product)}
+                  disabled={isAdding}
+                  style={{
+                    flexShrink: 0, padding: '5px 14px', fontSize: 11, fontWeight: 600,
+                    border: 'none', borderRadius: 6,
+                    background: isAdding ? '#c0bcec' : '#3d35a8', color: '#fff',
+                    cursor: isAdding ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {isAdding ? '…' : '+ Add'}
+                </button>
               </div>
             )
           })}
@@ -470,6 +575,8 @@ function DrawingBoard({ drawing }) {
 
   const [spec, setSpec]               = useState(initSpec)
   const [showIronModal, setShowIronModal] = useState(false)
+  const [ironmongeryItems, setIronmongeryItems] = useState([])
+  const [loadingIron, setLoadingIron]   = useState(false)
   const debounceRef = useRef(null)
   const prevTypeRef = useRef(spec.window_type)
 
@@ -483,6 +590,24 @@ function DrawingBoard({ drawing }) {
     }
     prevTypeRef.current = spec.window_type
   }, [spec.window_type])
+
+  // Fetch existing ironmongery for this drawing from the DB
+  useEffect(() => {
+    let cancelled = false
+    setLoadingIron(true)
+    supabase
+      .from('drawing_ironmongery')
+      .select('id, drawing_id, product_id, variant_id, quantity, sort_order, ironmongery_products(id, name, category), ironmongery_variants(id, finish_code, finish_name, part_no, cost)')
+      .eq('drawing_id', drawing.id)
+      .order('sort_order')
+      .then(({ data, error }) => {
+        if (cancelled) return
+        if (error) console.error('Failed to load ironmongery:', error)
+        setIronmongeryItems(data || [])
+        setLoadingIron(false)
+      })
+    return () => { cancelled = true }
+  }, [drawing.id])
 
   function scheduleSave(next) {
     if (debounceRef.current) clearTimeout(debounceRef.current)
@@ -502,24 +627,43 @@ function DrawingBoard({ drawing }) {
     })
   }
 
-  function changeIronFinish(finish) {
+  async function changeIronFinish(finish) {
     setSpec(prev => {
-      const next = {
-        ...prev,
-        ironmongery_finish: finish,
-        ironmongery_items: (prev.ironmongery_items || []).map(it => ({ ...it, finish_code: finish })),
-      }
+      const next = { ...prev, ironmongery_finish: finish }
       scheduleSave(next)
       return next
     })
+    if (ironmongeryItems.length === 0) return
+    // For each item, find the matching variant for the new finish and update the DB row
+    const updated = await Promise.all(ironmongeryItems.map(async item => {
+      const { data: v } = await supabase
+        .from('ironmongery_variants')
+        .select('id, finish_code, finish_name, part_no, cost')
+        .eq('product_id', item.product_id)
+        .eq('finish_code', finish)
+        .maybeSingle()
+      if (!v) return item // no variant for this finish — leave as-is
+      const { error } = await supabase
+        .from('drawing_ironmongery')
+        .update({ variant_id: v.id })
+        .eq('id', item.id)
+      if (error) { console.error('Failed to update ironmongery variant:', error); return item }
+      return { ...item, variant_id: v.id, ironmongery_variants: v }
+    }))
+    setIronmongeryItems(updated)
   }
 
-  function addIronmongery(product) {
-    update('ironmongery_items', [...(spec.ironmongery_items || []), product])
+  async function removeIronmongery(itemId) {
+    const { error } = await supabase.from('drawing_ironmongery').delete().eq('id', itemId)
+    if (error) { console.error('Failed to remove ironmongery:', error); return }
+    setIronmongeryItems(prev => prev.filter(it => it.id !== itemId))
   }
 
-  function removeIronmongery(idx) {
-    update('ironmongery_items', (spec.ironmongery_items || []).filter((_, i) => i !== idx))
+  async function updateIronmongeryQty(itemId, qty) {
+    const parsed = Math.max(1, parseInt(qty, 10) || 1)
+    setIronmongeryItems(prev => prev.map(it => it.id === itemId ? { ...it, quantity: parsed } : it))
+    supabase.from('drawing_ironmongery').update({ quantity: parsed }).eq('id', itemId)
+      .then(({ error }) => { if (error) console.error('Failed to update ironmongery qty:', error) })
   }
 
   return (
@@ -655,12 +799,35 @@ function DrawingBoard({ drawing }) {
 
           <Field label="Ironmongery items">
             <div>
-              {(spec.ironmongery_items || []).map((itm, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid #f5f4f0', fontSize: 12 }}>
-                  <span>{itm.product_name} <span style={{ color: '#888' }}>[{itm.finish_code}]</span> × {itm.quantity}</span>
-                  <button onClick={() => removeIronmongery(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#c00', fontSize: 14, lineHeight: 1 }}>×</button>
-                </div>
-              ))}
+              {loadingIron ? (
+                <div style={{ fontSize: 11, color: '#aaa', padding: '4px 0' }}>Loading…</div>
+              ) : ironmongeryItems.length === 0 ? (
+                <div style={{ fontSize: 11, color: '#ccc', padding: '4px 0' }}>No ironmongery added</div>
+              ) : ironmongeryItems.map(item => {
+                const v = item.ironmongery_variants
+                return (
+                  <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid #f5f4f0' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#1a1a2e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {item.ironmongery_products?.name}
+                      </div>
+                      <div style={{ fontSize: 10, color: '#888', marginTop: 2, display: 'flex', gap: 6 }}>
+                        {v?.finish_code && <span style={{ fontWeight: 600 }}>{v.finish_code}</span>}
+                        {v?.part_no && <span>{v.part_no}</span>}
+                        {v?.cost != null && <span style={{ color: '#1a5a1a', fontWeight: 600 }}>£{parseFloat(v.cost).toFixed(2)}</span>}
+                      </div>
+                    </div>
+                    <input
+                      type="number"
+                      min={1}
+                      value={item.quantity}
+                      onChange={e => updateIronmongeryQty(item.id, e.target.value)}
+                      style={{ ...SI, width: 46, textAlign: 'center' }}
+                    />
+                    <button onClick={() => removeIronmongery(item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#c00', fontSize: 16, lineHeight: 1, flexShrink: 0 }}>×</button>
+                  </div>
+                )
+              })}
               <button onClick={() => setShowIronModal(true)} style={{ marginTop: 6, fontSize: 11, padding: '4px 10px', border: '1px dashed #c0bdb5', borderRadius: 6, background: 'transparent', cursor: 'pointer', color: '#555' }}>
                 + Add ironmongery
               </button>
@@ -713,8 +880,10 @@ function DrawingBoard({ drawing }) {
 
       {showIronModal && (
         <IronmongeryModal
+          drawingId={drawing.id}
           finish={spec.ironmongery_finish}
-          onAdd={addIronmongery}
+          sortOrderNext={ironmongeryItems.length + 1}
+          onAdded={item => setIronmongeryItems(prev => [...prev, item])}
           onClose={() => setShowIronModal(false)}
         />
       )}
