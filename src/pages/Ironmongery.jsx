@@ -273,10 +273,11 @@ export default function Ironmongery() {
     .eq('product_id', selectedProduct.id)
     .in('finish_code', finishCodes)
 
-  const { data, error } = await supabase
-    .from('ironmongery_variants')
-    .insert(rows)
-    .select()
+  const cleanRows = rows.map(({ id, ...rest }) => rest)
+const { data, error } = await supabase
+  .from('ironmongery_variants')
+  .insert(cleanRows)
+  .select()
 
   console.log('Save result:', data, error)
   if (error) console.error('Error saving variants:', error)
