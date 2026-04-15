@@ -125,8 +125,9 @@ export default function Ironmongery() {
         ? { ...existing, _active: true }
         : {
             product_id: productId,
+            finish_name: f.name,
             finish_code: f.code,
-            part_number: '',
+            part_no: '',
             internal_name: '',
             cost: '',
             photo_url: null,
@@ -202,8 +203,9 @@ export default function Ironmongery() {
       ...prev,
       [finishCode]: {
         product_id: selectedProduct.id,
+        finish_name: FINISHES.find(f => f.code === finishCode)?.name || finishCode,
         finish_code: finishCode,
-        part_number: '',
+        part_no: '',
         internal_name: '',
         cost: '',
         photo_url: null,
@@ -217,15 +219,36 @@ export default function Ironmongery() {
     if (!file) return
     setUploadingFinish(finishCode)
     const ext = file.name.split('.').pop()
-    const path = `${selectedProduct.id}/${finishCode}-${Date.now()}.${ext}`
-    const { error } = await supabase.storage
+    const path = `${selectedProduct.id}-${finishCode}-${Date.now()}.${ext}`
+    const { error: uploadError } = await supabase.storage
       .from('ironmongery-photos')
       .upload(path, file, { upsert: true })
-    if (!error) {
+    if (!uploadError) {
       const { data: { publicUrl } } = supabase.storage
         .from('ironmongery-photos')
         .getPublicUrl(path)
+      // Update local state immediately so the image renders
       setVariantField(finishCode, 'photo_url', publicUrl)
+      // Persist photo_url to the DB right away — don't wait for Save variants
+      const draft = variantDrafts[finishCode]
+      const finish = FINISHES.find(f => f.code === finishCode)
+      await supabase.from('ironmongery_variants').upsert({
+        ...(draft?.id ? { id: draft.id } : {}),
+        product_id: selectedProduct.id,
+        finish_name: finish?.name || finishCode,
+        finish_code: finishCode,
+        part_no: draft?.part_no || null,
+        internal_name: draft?.internal_name || null,
+        cost: draft?.cost === '' || draft?.cost == null ? null : parseFloat(draft.cost) || null,
+        photo_url: publicUrl,
+        available: draft?.available ?? true,
+      }, { onConflict: 'product_id,finish_name' })
+      // Reload so local draft gets the DB-assigned id if this was a new row
+      const { data: fresh } = await supabase
+        .from('ironmongery_variants')
+        .select('*')
+        .eq('product_id', selectedProduct.id)
+      buildDrafts(selectedProduct.id, fresh || [])
     }
     setUploadingFinish(null)
   }
@@ -234,14 +257,25 @@ export default function Ironmongery() {
     if (!selectedProduct) return
     setSaving(true)
     const active = Object.values(variantDrafts).filter(v => v._active)
-    const rows = active.map(({ _active, id, ...rest }) => ({
-      ...(id ? { id } : {}),
-      ...rest,
-      product_id: selectedProduct.id,
-      cost: rest.cost === '' || rest.cost === null ? null : parseFloat(rest.cost) || null,
-    }))
+    const rows = active.map(draft => {
+      const finish = FINISHES.find(f => f.code === draft.finish_code)
+      return {
+        ...(draft.id ? { id: draft.id } : {}),
+        product_id: selectedProduct.id,
+        finish_name: finish?.name || draft.finish_name || draft.finish_code,
+        finish_code: draft.finish_code,
+        part_no: draft.part_no || null,
+        internal_name: draft.internal_name || null,
+        cost: draft.cost === '' || draft.cost == null ? null : parseFloat(draft.cost) || null,
+        photo_url: draft.photo_url || null,
+        available: draft.available ?? true,
+      }
+    })
     if (rows.length > 0) {
-      await supabase.from('ironmongery_variants').upsert(rows, { onConflict: 'id' })
+      const { error } = await supabase
+        .from('ironmongery_variants')
+        .upsert(rows, { onConflict: 'product_id,finish_name' })
+      if (error) console.error('Error saving variants:', error)
     }
     // Reload to capture generated IDs for new rows
     const { data } = await supabase
@@ -557,9 +591,9 @@ export default function Ironmongery() {
                                     <label style={{ ...labelStyle, marginBottom: 2 }}>Part number</label>
                                     <input
                                       style={{ ...inputStyle, fontSize: 12 }}
-                                      value={draft.part_number || ''}
+                                      value={draft.part_no || ''}
                                       placeholder="e.g. PB-001"
-                                      onChange={e => setVariantField(finish.code, 'part_number', e.target.value)}
+                                      onChange={e => setVariantField(finish.code, 'part_no', e.target.value)}
                                     />
                                   </div>
 
