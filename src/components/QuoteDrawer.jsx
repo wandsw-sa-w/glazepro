@@ -443,7 +443,7 @@ function IronmongeryModal({ drawingId, finish, sortOrderNext, onAdded, onClose }
         quantity:   1,
         sort_order: sortOrderNext,
       })
-      .select('id, drawing_id, product_id, variant_id, quantity, sort_order, ironmongery_products(id, name, category), ironmongery_variants(id, finish_code, finish_name, part_no, cost)')
+      .select('id, quantity, sort_order, product_id, variant_id, ironmongery_products(name, category), ironmongery_variants(finish_name, finish_code, cost, photo_url)')
       .single()
 
     if (error) {
@@ -466,18 +466,18 @@ function IronmongeryModal({ drawingId, finish, sortOrderNext, onAdded, onClose }
         </div>
 
         {/* Search + category filter */}
-        <div style={{ padding: '12px 20px', borderBottom: '1px solid #f0ede8', display: 'flex', gap: 10, flexShrink: 0 }}>
+        <div style={{ padding: '10px 20px 12px', borderBottom: '1px solid #f0ede8', display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0 }}>
           <input
             autoFocus
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search products…"
-            style={{ ...SI, flex: 1 }}
+            style={{ ...SI }}
           />
           <select
             value={category}
             onChange={e => setCategory(e.target.value)}
-            style={{ ...SI, width: 200 }}
+            style={{ ...SI }}
           >
             {IRON_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
@@ -523,8 +523,8 @@ function IronmongeryModal({ drawingId, finish, sortOrderNext, onAdded, onClose }
                       </span>
                     ))}
                   </div>
-                  {matchVariant?.part_no && (
-                    <div style={{ fontSize: 11, color: '#aaa', marginTop: 3 }}>{matchVariant.part_no}</div>
+                  {matchVariant?.finish_name && (
+                    <div style={{ fontSize: 11, color: '#aaa', marginTop: 3 }}>{matchVariant.finish_name}</div>
                   )}
                 </div>
 
@@ -597,7 +597,7 @@ function DrawingBoard({ drawing }) {
     setLoadingIron(true)
     supabase
       .from('drawing_ironmongery')
-      .select('id, drawing_id, product_id, variant_id, quantity, sort_order, ironmongery_products(id, name, category), ironmongery_variants(id, finish_code, finish_name, part_no, cost)')
+      .select('id, quantity, sort_order, product_id, variant_id, ironmongery_products(name, category), ironmongery_variants(finish_name, finish_code, cost, photo_url)')
       .eq('drawing_id', drawing.id)
       .order('sort_order')
       .then(({ data, error }) => {
@@ -638,7 +638,7 @@ function DrawingBoard({ drawing }) {
     const updated = await Promise.all(ironmongeryItems.map(async item => {
       const { data: v } = await supabase
         .from('ironmongery_variants')
-        .select('id, finish_code, finish_name, part_no, cost')
+        .select('id, finish_code, finish_name, cost, photo_url')
         .eq('product_id', item.product_id)
         .eq('finish_code', finish)
         .maybeSingle()
@@ -813,7 +813,7 @@ function DrawingBoard({ drawing }) {
                       </div>
                       <div style={{ fontSize: 10, color: '#888', marginTop: 2, display: 'flex', gap: 6 }}>
                         {v?.finish_code && <span style={{ fontWeight: 600 }}>{v.finish_code}</span>}
-                        {v?.part_no && <span>{v.part_no}</span>}
+                        {v?.finish_name && <span>{v.finish_name}</span>}
                         {v?.cost != null && <span style={{ color: '#1a5a1a', fontWeight: 600 }}>£{parseFloat(v.cost).toFixed(2)}</span>}
                       </div>
                     </div>
