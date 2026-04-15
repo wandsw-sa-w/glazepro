@@ -181,10 +181,15 @@ export default function Ironmongery() {
   }
 
   function setVariantField(finishCode, field, value) {
-    setVariantDrafts(prev => ({
-      ...prev,
-      [finishCode]: { ...prev[finishCode], [field]: value },
-    }))
+    setVariantDrafts(prev => {
+      const current = prev[finishCode] || {}
+      const updated = { ...current, [field]: value }
+      // Auto-activate the card when any meaningful value is entered
+      if (value !== '' && value !== null && value !== undefined) {
+        updated._active = true
+      }
+      return { ...prev, [finishCode]: updated }
+    })
   }
 
   function activateVariant(finishCode) {
@@ -218,8 +223,8 @@ export default function Ironmongery() {
   async function uploadPhoto(finishCode, file) {
     if (!file) return
     setUploadingFinish(finishCode)
-    const ext = file.name.split('.').pop()
-    const path = `${selectedProduct.id}-${finishCode}-${Date.now()}.${ext}`
+    // Path: productId/finishCode/timestamp.jpg — no spaces or special characters
+    const path = `${selectedProduct.id}/${finishCode}/${Date.now()}.jpg`
     const { error: uploadError } = await supabase.storage
       .from('ironmongery-photos')
       .upload(path, file, { upsert: true })
@@ -227,28 +232,10 @@ export default function Ironmongery() {
       const { data: { publicUrl } } = supabase.storage
         .from('ironmongery-photos')
         .getPublicUrl(path)
-      // Update local state immediately so the image renders
+      // Store in local draft — will be persisted when Save variants is clicked
       setVariantField(finishCode, 'photo_url', publicUrl)
-      // Persist photo_url to the DB right away — don't wait for Save variants
-      const draft = variantDrafts[finishCode]
-      const finish = FINISHES.find(f => f.code === finishCode)
-      await supabase.from('ironmongery_variants').upsert({
-        ...(draft?.id ? { id: draft.id } : {}),
-        product_id: selectedProduct.id,
-        finish_name: finish?.name || finishCode,
-        finish_code: finishCode,
-        part_no: draft?.part_no || null,
-        internal_name: draft?.internal_name || null,
-        cost: draft?.cost === '' || draft?.cost == null ? null : parseFloat(draft.cost) || null,
-        photo_url: publicUrl,
-        available: draft?.available ?? true,
-      }, { onConflict: 'product_id,finish_name' })
-      // Reload so local draft gets the DB-assigned id if this was a new row
-      const { data: fresh } = await supabase
-        .from('ironmongery_variants')
-        .select('*')
-        .eq('product_id', selectedProduct.id)
-      buildDrafts(selectedProduct.id, fresh || [])
+    } else {
+      console.error('Photo upload error:', uploadError)
     }
     setUploadingFinish(null)
   }
@@ -256,7 +243,9 @@ export default function Ironmongery() {
   async function saveVariants() {
     if (!selectedProduct) return
     setSaving(true)
-    const active = Object.values(variantDrafts).filter(v => v._active)
+    const active = Object.values(variantDrafts).filter(v =>
+      v._active || v.part_no || v.internal_name || (v.cost !== '' && v.cost != null) || v.photo_url
+    )
     const rows = active.map(draft => {
       const finish = FINISHES.find(f => f.code === draft.finish_code)
       return {
