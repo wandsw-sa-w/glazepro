@@ -266,7 +266,7 @@ export default function Ironmongery() {
   .from('ironmongery_variants')
   .upsert(rows, { onConflict: 'product_id,finish_name', ignoreDuplicates: false })
   .select()
-      console.log('Upsert result:', upsertData, error)
+      console.log('Save result:', data, error)
       if (error) console.error('Error saving variants:', error)
     }
     // Reload to capture generated IDs for new rows
