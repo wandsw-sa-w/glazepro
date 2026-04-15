@@ -224,15 +224,15 @@ function SashSVG({ spec }) {
   const botIsSand = spec.bottom_glass === 'Sandblasted Toughened'
   const topCanMove = spec.top_operation !== 'Fix'
   const botCanMove = spec.bottom_operation !== 'Fix'
-  const hornBumpW = 15
-  const hornBumpH = 20
+
+  // Victorian horn positions — straddle the glass edge by 6px, 8px wide, 15px tall
+  const hornW = 8
+  const hornH = 15
+  const hornLeftX  = gX - 6
+  const hornRightX = gX + gW - 2
 
   return (
-    <svg
-      width={SVG_W} height={SVG_H}
-      viewBox={`-14 -10 ${SVG_W + 28} ${SVG_H + 10}`}
-      style={{ maxWidth: '100%', display: 'block', overflow: 'visible' }}
-    >
+    <svg width={SVG_W} height={SVG_H} style={{ maxWidth: '100%', display: 'block' }}>
       <defs>
         {topIsSand && (
           <pattern id="sbTop" patternUnits="userSpaceOnUse" width={6} height={6}>
@@ -249,14 +249,6 @@ function SashSVG({ spec }) {
       {/* Frame */}
       <rect x={M} y={M} width={dW} height={dH} fill="#c4a882" />
 
-      {/* Victorian horns — two rects outside the frame corners */}
-      {spec.top_horn === 'Victorian' && (
-        <g>
-          <rect x={M - 12} y={M - 8} width={12} height={25} fill="#c4a882" />
-          <rect x={M + dW} y={M - 8} width={12} height={25} fill="#c4a882" />
-        </g>
-      )}
-
       {/* Top glass */}
       <rect x={gX} y={gY} width={gW} height={topH} fill="#d4e8f0" opacity={0.85} />
       {topIsSand && <rect x={gX} y={gY} width={gW} height={topH} fill="url(#sbTop)" />}
@@ -267,6 +259,22 @@ function SashSVG({ spec }) {
       {/* Bottom glass */}
       <rect x={gX} y={botGlassY} width={gW} height={botH} fill="#d4e8f0" opacity={0.85} />
       {botIsSand && <rect x={gX} y={botGlassY} width={gW} height={botH} fill="url(#sbBot)" />}
+
+      {/* Victorian horns — top sash: protrude DOWN from bottom of top sash stiles */}
+      {spec.top_horn === 'Victorian' && (
+        <g>
+          <rect x={hornLeftX}  y={mrY} width={hornW} height={hornH} fill="#c4a882" />
+          <rect x={hornRightX} y={mrY} width={hornW} height={hornH} fill="#c4a882" />
+        </g>
+      )}
+
+      {/* Victorian horns — bottom sash: protrude UP from top of bottom sash stiles */}
+      {spec.bottom_horn === 'Victorian' && (
+        <g>
+          <rect x={hornLeftX}  y={mrY - hornH} width={hornW} height={hornH} fill="#c4a882" />
+          <rect x={hornRightX} y={mrY - hornH} width={hornW} height={hornH} fill="#c4a882" />
+        </g>
+      )}
 
       {/* Glazing bars — each wrapped in a <g> to avoid key collisions */}
       <g>{bars(gX, gY, gW, topH, spec.top_bars_wide || 1, spec.top_bars_high || 1)}</g>
