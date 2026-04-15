@@ -247,19 +247,22 @@ export default function Ironmongery() {
       v._active || v.part_no || v.internal_name || (v.cost !== '' && v.cost != null) || v.photo_url
     )
     const rows = active.map(draft => {
-      const finish = FINISHES.find(f => f.code === draft.finish_code)
-      return {
-        ...(Number.isInteger(draft.id) && draft.id > 0 ? { id: draft.id } : {}),
-        product_id: selectedProduct.id,
-        finish_name: finish?.name || draft.finish_name || draft.finish_code,
-        finish_code: draft.finish_code,
-        part_no: draft.part_no || null,
-        internal_name: draft.internal_name || null,
-        cost: draft.cost === '' || draft.cost == null ? null : parseFloat(draft.cost) || null,
-        photo_url: draft.photo_url || null,
-        available: draft.available ?? true,
-      }
-    })
+  const finish = FINISHES.find(f => f.code === draft.finish_code)
+  const row = {
+    product_id: selectedProduct.id,
+    finish_name: finish?.name || draft.finish_name || draft.finish_code,
+    finish_code: draft.finish_code,
+    part_no: draft.part_no || null,
+    internal_name: draft.internal_name || null,
+    cost: draft.cost === '' || draft.cost == null ? null : parseFloat(draft.cost) || null,
+    photo_url: draft.photo_url || null,
+    available: draft.available ?? true,
+  }
+  if (draft.id && Number.isInteger(Number(draft.id)) && Number(draft.id) > 0) {
+    row.id = Number(draft.id)
+  }
+  return row
+})
     if (rows.length > 0) {
       console.log('Saving variants:', rows)
       const { data, error } = await supabase
