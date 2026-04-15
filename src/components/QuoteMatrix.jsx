@@ -51,16 +51,20 @@ export default function QuoteMatrix({ leadId, leadNumber, onClose }) {
       .eq('lead_id', leadId)
       .order('created_at')
 
-    // Quote-drawing selections
+    // Quote-drawing selections — requires UNIQUE (quote_id, job_item_id) on quote_drawings
     const quoteIds = (qts || []).map(q => q.id)
     const qdMap = {}
     if (quoteIds.length > 0) {
-      const { data: qds } = await supabase
+      const { data: qds, error: qdErr } = await supabase
         .from('quote_drawings')
-        .select('*')
+        .select('quote_id, job_item_id, drawing_id')
         .in('quote_id', quoteIds)
-      for (const qd of (qds || [])) {
-        qdMap[`${qd.quote_id}_${qd.job_item_id}`] = qd.drawing_id
+      if (qdErr) {
+        console.error('Failed to load quote_drawings:', qdErr)
+      } else {
+        for (const qd of (qds || [])) {
+          qdMap[`${qd.quote_id}_${qd.job_item_id}`] = qd.drawing_id
+        }
       }
     }
 
@@ -73,24 +77,35 @@ export default function QuoteMatrix({ leadId, leadNumber, onClose }) {
 
   async function handleCellChange(quoteId, jobItemId, drawingId) {
     const key = `${quoteId}_${jobItemId}`
+
     if (!drawingId) {
-      await supabase
+      // "Not included" — remove the row
+      const { error } = await supabase
         .from('quote_drawings')
         .delete()
         .eq('quote_id', quoteId)
         .eq('job_item_id', jobItemId)
+      if (error) {
+        console.error('Failed to remove quote_drawing:', error)
+        return
+      }
       setSelections(prev => {
         const next = { ...prev }
         delete next[key]
         return next
       })
     } else {
-      await supabase
+      // Drawing selected — upsert; requires UNIQUE (quote_id, job_item_id) on quote_drawings
+      const { error } = await supabase
         .from('quote_drawings')
         .upsert(
           { quote_id: quoteId, job_item_id: jobItemId, drawing_id: drawingId },
           { onConflict: 'quote_id,job_item_id' }
         )
+      if (error) {
+        console.error('Failed to save quote_drawing:', error)
+        return
+      }
       setSelections(prev => ({ ...prev, [key]: drawingId }))
     }
   }
