@@ -255,10 +255,14 @@ export default function RuleEditor({ fileId, ruleFamily, readOnly = false }) {
   }
 
   async function updateField(rule, field, value) {
+    console.log('[updateField] rule:', JSON.stringify(rule))
+    console.log('[updateField] isNew check — _unsaved:', rule._unsaved, '| id:', rule.id)
+
     const updated = { ...rule, [field]: value }
     setRules(rs => rs.map(r => r.id === rule.id ? updated : r))
 
     const isNew = rule._unsaved === true
+    console.log('[updateField] isNew:', isNew)
 
     if (isNew) {
       const tempId = rule.id
@@ -279,11 +283,13 @@ export default function RuleEditor({ fileId, ruleFamily, readOnly = false }) {
         is_active:     updated.is_active,
         sort_order:    updated.sort_order,
       }
+      console.log('[updateField] insert payload:', JSON.stringify(payload))
       const { data, error } = await supabase
         .from('price_rules')
         .insert(payload)
         .select('id')
         .single()
+      console.log('[updateField] insert result — data:', data, '| error:', error)
       setSaving(s => { const n = new Set(s); n.delete(tempId); return n })
       if (!error && data) {
         setRules(rs => rs.map(r => r.id === tempId ? { ...updated, id: data.id, _unsaved: false } : r))
