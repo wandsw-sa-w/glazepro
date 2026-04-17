@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, Fragment, useId } from 'react'
+import { useState, useEffect, useRef, useId } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '../../supabase'
 
@@ -139,50 +139,7 @@ const VARIABLES = [
 
 const VARIABLE_GROUPS = [...new Set(VARIABLES.map(v => v.group))]
 
-// ── Column config per rule family ──────────────────────────────────────────
-
-const SHARED_TAIL = [
-  { key: 'comment', label: 'Comment', width: 140, type: 'text' },
-]
-
-function getColumns(ruleFamily) {
-  if (ruleFamily === 'install_labour' || ruleFamily === 'manufacture_labour') {
-    return [
-      { key: 'is_active',   label: 'On',          width: 44,  type: 'bool'        },
-      { key: 'name',        label: 'Name',        width: 160, type: 'text'        },
-      { key: 'group_name',  label: 'Group',       width: 130, type: 'group_name'  },
-      { key: 'loop_target', label: 'Loop Target', width: 140, type: 'loop_target' },
-      { key: 'condition',   label: 'Condition',   width: 220, type: 'formula'     },
-      { key: 'quantity',    label: 'Minutes',     width: 160, type: 'formula'     },
-      ...SHARED_TAIL,
-    ]
-  }
-  if (ruleFamily === 'parts') {
-    return [
-      { key: 'is_active',   label: 'On',          width: 44,  type: 'bool'        },
-      { key: 'name',        label: 'Name',        width: 150, type: 'text'        },
-      { key: 'group_name',  label: 'Group',       width: 130, type: 'group_name'  },
-      { key: 'loop_target', label: 'Loop Target', width: 140, type: 'loop_target' },
-      { key: 'condition',   label: 'Condition',   width: 200, type: 'formula'     },
-      { key: 'part_code',   label: 'Part Code',   width: 130, type: 'text'        },
-      { key: 'quantity',    label: 'Quantity',    width: 150, type: 'formula'     },
-      ...SHARED_TAIL,
-    ]
-  }
-  // price
-  return [
-    { key: 'is_active',   label: 'On',          width: 44,  type: 'bool'        },
-    { key: 'name',        label: 'Name',        width: 150, type: 'text'        },
-    { key: 'group_name',  label: 'Group',       width: 130, type: 'group_name'  },
-    { key: 'level',       label: 'Level',       width: 80,  type: 'level'       },
-    { key: 'loop_target', label: 'Loop Target', width: 140, type: 'loop_target' },
-    { key: 'condition',   label: 'Condition',   width: 200, type: 'formula'     },
-    { key: 'quantity',    label: 'Quantity',    width: 150, type: 'formula'     },
-    { key: 'value',       label: 'Value (£)',   width: 150, type: 'formula'     },
-    { key: 'markup',      label: 'Markup %',    width: 90,  type: 'number'      },
-    ...SHARED_TAIL,
-  ]
-}
+// ── Blank rule factory ─────────────────────────────────────────────────────
 
 function blankRule(ruleFamily, sortOrder) {
   return {
@@ -208,11 +165,10 @@ function blankRule(ruleFamily, sortOrder) {
 // ── RuleEditor ─────────────────────────────────────────────────────────────
 
 export default function RuleEditor({ fileId, ruleFamily, readOnly = false }) {
-  const [rules,   setRules]   = useState([])
-  const [loading, setLoading] = useState(true)
-  const [saving,  setSaving]  = useState(new Set())
+  const [rules,       setRules]       = useState([])
+  const [loading,     setLoading]     = useState(true)
+  const [editingRule, setEditingRule] = useState(null)
 
-  const columns    = getColumns(ruleFamily)
   const groupNames = [...new Set(rules.map(r => r.group_name).filter(Boolean))]
 
   useEffect(() => {
@@ -223,7 +179,7 @@ export default function RuleEditor({ fileId, ruleFamily, readOnly = false }) {
     setLoading(true)
     const { data, error } = await supabase
       .from('price_rules')
-      .select('id, rule_family, level, name, group_name, loop_target, condition, quantity, value, markup, part_code, comment, is_active, sort_order')
+      .select('id, rule_family, level, name, group_name, loop_target, condition, quantity, value, markup, part_code, comment, is_active, sort_order, output_unit')
       .eq('price_file_id', fileId)
       .eq('rule_family', ruleFamily)
       .order('sort_order', { ascending: true })
@@ -234,14 +190,63 @@ export default function RuleEditor({ fileId, ruleFamily, readOnly = false }) {
   function addRule() {
     const maxOrder = rules.reduce((m, r) => Math.max(m, r.sort_order ?? 0), 0)
     const tempId   = `_new_${Date.now()}`
-    setRules(rs => [...rs, { ...blankRule(ruleFamily, maxOrder + 10), id: tempId }])
+    const rule     = { ...blankRule(ruleFamily, maxOrder + 10), id: tempId }
+    setRules(rs => [...rs, rule])
+    setEditingRule(rule)
   }
 
-  async function removeRule(rule) {
-    if (!rule._unsaved && rule.id && !String(rule.id).startsWith('_new_')) {
+  async function saveRule(ruleData) {
+    const isNew = ruleData._unsaved === true
+    const payload = {
+      rule_family: ruleFamily,
+      level:       ruleData.level,
+      name:        ruleData.name,
+      group_name:  ruleData.group_name,
+      loop_target: ruleData.loop_target,
+      condition:   ruleData.condition,
+      quantity:    ruleData.quantity,
+      value:       ruleData.value,
+      markup:      ruleData.markup,
+      part_code:   ruleData.part_code,
+      comment:     ruleData.comment,
+      output_unit: ruleData.output_unit,
+      is_active:   ruleData.is_active,
+      sort_order:  ruleData.sort_order,
+    }
+
+    if (isNew) {
+      const { data, error } = await supabase
+        .from('price_rules')
+        .insert({ ...payload, price_file_id: fileId })
+        .select('id')
+        .single()
+      if (error) { console.error('Insert error:', error); return false }
+      setRules(rs => rs.map(r => r.id === ruleData.id ? { ...ruleData, id: data.id, _unsaved: false } : r))
+    } else {
+      const { error } = await supabase
+        .from('price_rules')
+        .update(payload)
+        .eq('id', ruleData.id)
+      if (error) { console.error('Update error:', error); return false }
+      setRules(rs => rs.map(r => r.id === ruleData.id ? { ...ruleData } : r))
+    }
+    return true
+  }
+
+  async function deleteRule(rule) {
+    if (!rule._unsaved) {
       await supabase.from('price_rules').delete().eq('id', rule.id)
     }
     setRules(rs => rs.filter(r => r.id !== rule.id))
+    setEditingRule(null)
+  }
+
+  async function toggleActive(rule) {
+    const next = !rule.is_active
+    setRules(rs => rs.map(r => r.id === rule.id ? { ...r, is_active: next } : r))
+    if (!rule._unsaved) {
+      await supabase.from('price_rules').update({ is_active: next }).eq('id', rule.id)
+    }
   }
 
   async function moveRule(index, direction) {
@@ -257,156 +262,129 @@ export default function RuleEditor({ fileId, ruleFamily, readOnly = false }) {
     await Promise.all(updates)
   }
 
-  async function updateField(rule, field, value) {
-    console.log('[updateField] rule:', JSON.stringify(rule))
-    console.log('[updateField] isNew check — _unsaved:', rule._unsaved, '| id:', rule.id)
-
-    const updated = { ...rule, [field]: value }
-    setRules(rs => rs.map(r => r.id === rule.id ? updated : r))
-
-    const isNew = rule._unsaved === true
-    console.log('[updateField] isNew:', isNew)
-
-    if (isNew) {
-      const tempId = rule.id
-      setSaving(s => new Set(s).add(tempId))
-      const payload = {
-        price_file_id: fileId,
-        rule_family:   ruleFamily,
-        level:         updated.level,
-        name:          updated.name,
-        group_name:    updated.group_name,
-        loop_target:   updated.loop_target,
-        condition:     updated.condition,
-        quantity:      updated.quantity,
-        value:         updated.value,
-        markup:        updated.markup,
-        part_code:     updated.part_code,
-        comment:       updated.comment,
-        output_unit:   updated.output_unit,
-        is_active:     updated.is_active,
-        sort_order:    updated.sort_order,
-      }
-      console.log('[updateField] insert payload:', JSON.stringify(payload))
-      const { data, error } = await supabase
-        .from('price_rules')
-        .insert(payload)
-        .select('id')
-        .single()
-      console.log('[updateField] insert result — data:', data, '| error:', error)
-      setSaving(s => { const n = new Set(s); n.delete(tempId); return n })
-      if (!error && data) {
-        setRules(rs => rs.map(r => r.id === tempId ? { ...updated, id: data.id, _unsaved: false } : r))
-      }
-    } else {
-      const { error } = await supabase
-        .from('price_rules')
-        .update({ [field]: value })
-        .eq('id', rule.id)
-      if (error) console.error('Rule update error:', error)
+  function handleCancel(rule) {
+    if (rule._unsaved) {
+      setRules(rs => rs.filter(r => r.id !== rule.id))
     }
+    setEditingRule(null)
   }
 
   if (loading) {
     return <div style={{ color: '#aaa', fontSize: 13, padding: 24 }}>Loading rules…</div>
   }
 
+  const addBtn = (
+    <button
+      onClick={addRule}
+      style={{ fontSize: 12, padding: '5px 14px', borderRadius: 6, border: '1px dashed #c8c5be', background: 'transparent', color: '#888', cursor: 'pointer' }}
+    >
+      + Add rule
+    </button>
+  )
+
   return (
     <div style={{ fontSize: 13 }}>
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 600 }}>
-          <thead>
-            <tr style={{ borderBottom: '2px solid #e8e6e0' }}>
-              <th style={{ width: 36, padding: '6px 4px' }} />
-              {columns.map(c => (
-                <th key={c.key} style={{ textAlign: 'left', padding: '6px 8px', fontWeight: 600, color: '#555', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', width: c.width }}>
-                  {c.label}
-                </th>
-              ))}
-              {!readOnly && <th style={{ width: 36 }} />}
-            </tr>
-          </thead>
-          <tbody>
-            {rules.map((rule, index) => {
-              const prevGroupName  = index > 0 ? rules[index - 1].group_name : null
-              const showGroupHeader = rule.group_name && rule.group_name !== prevGroupName
-              return (
-                <Fragment key={rule.id}>
-                  {showGroupHeader && (
-                    <tr style={{ background: '#faf9f7' }}>
-                      <td />
-                      <td colSpan={columns.length + (readOnly ? 0 : 1)} style={{ padding: '6px 8px', fontWeight: 600, color: '#444', fontSize: 12, borderBottom: '1px solid #e8e6e0' }}>
-                        {rule.group_name}
-                      </td>
-                    </tr>
-                  )}
-                  <RuleRow
-                    rule={rule}
-                    columns={columns}
-                    index={index}
-                    total={rules.length}
-                    readOnly={readOnly}
-                    saving={saving.has(rule.id)}
-                    groupNames={groupNames}
-                    onUpdate={(field, value) => updateField(rule, field, value)}
-                    onRemove={() => removeRule(rule)}
-                    onMove={dir => moveRule(index, dir)}
-                  />
-                </Fragment>
-              )
-            })}
-            {rules.length === 0 && (
-              <tr>
-                <td colSpan={columns.length + 2} style={{ padding: '24px 8px', color: '#bbb', textAlign: 'center' }}>
-                  No rules yet. Add one below.
+      {!readOnly && <div style={{ marginBottom: 12 }}>{addBtn}</div>}
+
+      <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+        <thead>
+          <tr style={{ borderBottom: '2px solid #e8e6e0' }}>
+            <th style={{ width: 36, padding: '6px 4px' }} />
+            <th style={{ width: 44, padding: '6px 8px', textAlign: 'left', fontWeight: 600, color: '#555', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em' }}>On</th>
+            <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: 600, color: '#555', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em' }}>Name</th>
+            <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: 600, color: '#555', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em' }}>Group</th>
+            <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: 600, color: '#555', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em' }}>Loop Target</th>
+            <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: 600, color: '#555', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em' }}>Condition</th>
+            <th style={{ width: 36, padding: '6px 4px' }} />
+            {!readOnly && <th style={{ width: 36, padding: '6px 4px' }} />}
+          </tr>
+        </thead>
+        <tbody>
+          {rules.map((rule, index) => (
+            <tr
+              key={rule.id}
+              style={{ borderBottom: '1px solid #f0ede8', opacity: rule.is_active ? 1 : 0.45 }}
+            >
+              <td style={{ padding: '2px 4px', verticalAlign: 'middle' }}>
+                {!readOnly && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    <button onClick={() => moveRule(index, -1)} disabled={index === 0}            style={arrowBtn}>▲</button>
+                    <button onClick={() => moveRule(index,  1)} disabled={index === rules.length - 1} style={arrowBtn}>▼</button>
+                  </div>
+                )}
+              </td>
+              <td style={{ padding: '3px 8px', verticalAlign: 'middle' }}>
+                <input
+                  type="checkbox"
+                  checked={!!rule.is_active}
+                  disabled={readOnly}
+                  onChange={() => toggleActive(rule)}
+                  style={{ cursor: readOnly ? 'default' : 'pointer' }}
+                />
+              </td>
+              <td style={{ padding: '3px 8px', verticalAlign: 'middle', color: '#222', fontWeight: 500, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {rule.name || <span style={{ color: '#bbb' }}>Unnamed</span>}
+              </td>
+              <td style={{ padding: '3px 8px', verticalAlign: 'middle', color: '#666', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {rule.group_name || '—'}
+              </td>
+              <td style={{ padding: '3px 8px', verticalAlign: 'middle', color: '#666', maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {rule.loop_target || '—'}
+              </td>
+              <td style={{ padding: '3px 8px', verticalAlign: 'middle', maxWidth: 260 }}>
+                <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#555', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>
+                  {rule.condition ? (rule.condition.length > 60 ? rule.condition.slice(0, 60) + '…' : rule.condition) : '—'}
+                </span>
+              </td>
+              <td style={{ padding: '2px 4px', verticalAlign: 'middle' }}>
+                <button
+                  onClick={() => setEditingRule(rule)}
+                  title="Edit"
+                  style={{ fontSize: 13, color: '#888', background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px' }}
+                >
+                  ✏
+                </button>
+              </td>
+              {!readOnly && (
+                <td style={{ padding: '2px 4px', verticalAlign: 'middle' }}>
+                  <button
+                    onClick={() => deleteRule(rule)}
+                    title="Delete"
+                    style={{ fontSize: 15, color: '#bbb', background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px' }}
+                  >
+                    ×
+                  </button>
                 </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-      {!readOnly && (
-        <button
-          onClick={addRule}
-          style={{ marginTop: 12, fontSize: 12, padding: '5px 14px', borderRadius: 6, border: '1px dashed #c8c5be', background: 'transparent', color: '#888', cursor: 'pointer' }}
-        >
-          + Add rule
-        </button>
+              )}
+            </tr>
+          ))}
+          {rules.length === 0 && (
+            <tr>
+              <td colSpan={8} style={{ padding: '24px 8px', color: '#bbb', textAlign: 'center' }}>
+                No rules yet. Add one above.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+
+      {!readOnly && <div style={{ marginTop: 12 }}>{addBtn}</div>}
+
+      {editingRule && (
+        <RuleModal
+          rule={editingRule}
+          ruleFamily={ruleFamily}
+          groupNames={groupNames}
+          readOnly={readOnly}
+          onSave={async (ruleData) => {
+            const ok = await saveRule(ruleData)
+            if (ok) setEditingRule(null)
+          }}
+          onCancel={() => handleCancel(editingRule)}
+          onDelete={() => deleteRule(editingRule)}
+        />
       )}
     </div>
-  )
-}
-
-// ── RuleRow ────────────────────────────────────────────────────────────────
-
-function RuleRow({ rule, columns, index, total, readOnly, saving, groupNames, onUpdate, onRemove, onMove }) {
-  return (
-    <tr style={{ borderBottom: '1px solid #f0ede8', opacity: rule.is_active ? 1 : 0.45 }}>
-      <td style={{ padding: '2px 4px', whiteSpace: 'nowrap', verticalAlign: 'middle' }}>
-        {!readOnly && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            <button onClick={() => onMove(-1)} disabled={index === 0}         style={arrowBtn}>▲</button>
-            <button onClick={() => onMove(1)}  disabled={index === total - 1} style={arrowBtn}>▼</button>
-          </div>
-        )}
-      </td>
-      {columns.map(col => (
-        <td key={col.key} style={{ padding: '3px 4px', verticalAlign: 'middle' }}>
-          <CellEditor
-            col={col}
-            value={rule[col.key]}
-            readOnly={readOnly || saving}
-            groupNames={groupNames}
-            onChange={v => onUpdate(col.key, v)}
-          />
-        </td>
-      ))}
-      {!readOnly && (
-        <td style={{ padding: '2px 4px', verticalAlign: 'middle' }}>
-          <button onClick={onRemove} style={{ fontSize: 14, color: '#bbb', background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px' }} title="Delete">×</button>
-        </td>
-      )}
-    </tr>
   )
 }
 
@@ -415,111 +393,279 @@ const arrowBtn = {
   cursor: 'pointer', padding: '1px 3px', lineHeight: 1,
 }
 
-// ── CellEditor ─────────────────────────────────────────────────────────────
+// ── RuleModal ──────────────────────────────────────────────────────────────
 
-function CellEditor({ col, value, readOnly, groupNames, onChange }) {
+function RuleModal({ rule, ruleFamily, groupNames, readOnly, onSave, onCancel, onDelete }) {
+  const [draft,   setDraft]   = useState({ ...rule })
+  const [saving,  setSaving]  = useState(false)
   const listId = useId()
 
-  if (col.type === 'bool') {
-    return (
-      <input
-        type="checkbox"
-        checked={!!value}
-        disabled={readOnly}
-        onChange={e => onChange(e.target.checked)}
-        style={{ cursor: readOnly ? 'default' : 'pointer' }}
-      />
-    )
+  useEffect(() => {
+    function onKey(e) { if (e.key === 'Escape') onCancel() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onCancel])
+
+  function set(field, value) {
+    setDraft(d => ({ ...d, [field]: value }))
   }
 
-  if (col.type === 'level') {
-    return (
-      <select
-        value={value ?? 'item'}
-        disabled={readOnly}
-        onChange={e => onChange(e.target.value)}
-        style={{ fontSize: 12, border: '1px solid #e0ddd8', borderRadius: 4, padding: '3px 6px', background: '#fff', cursor: readOnly ? 'default' : 'pointer' }}
+  async function handleSave() {
+    setSaving(true)
+    await onSave(draft)
+    setSaving(false)
+  }
+
+  const isPrice    = ruleFamily === 'price'
+  const isParts    = ruleFamily === 'parts'
+  const isLabour   = ruleFamily === 'install_labour' || ruleFamily === 'manufacture_labour'
+
+  return createPortal(
+    <div
+      onClick={onCancel}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 1000,
+        background: 'rgba(0,0,0,0.45)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          width: 620, maxHeight: '90vh', overflow: 'auto',
+          background: '#fff', borderRadius: 12,
+          boxShadow: '0 8px 40px rgba(0,0,0,0.18)',
+          display: 'flex', flexDirection: 'column',
+        }}
       >
-        <option value="item">Item</option>
-        <option value="quote">Quote</option>
-      </select>
-    )
-  }
+        {/* Modal header */}
+        <div style={{ padding: '18px 24px 14px', borderBottom: '1px solid #e8e6e0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: '#222' }}>
+            {rule._unsaved ? 'New Rule' : 'Edit Rule'}
+          </div>
+          <button onClick={onCancel} style={{ fontSize: 18, color: '#bbb', background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}>×</button>
+        </div>
 
-  if (col.type === 'loop_target') {
-    return (
-      <select
-        value={value ?? 'frame'}
-        disabled={readOnly}
-        onChange={e => onChange(e.target.value)}
-        style={{ fontSize: 12, border: '1px solid #e0ddd8', borderRadius: 4, padding: '3px 6px', background: '#fff', cursor: readOnly ? 'default' : 'pointer' }}
-      >
-        {LOOP_TARGETS.map(t => (
-          <option key={t} value={t}>{t}</option>
-        ))}
-      </select>
-    )
-  }
+        {/* Fields */}
+        <div style={{ padding: '18px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-  if (col.type === 'group_name') {
-    return (
-      <>
-        <datalist id={listId}>
-          {groupNames.map(g => <option key={g} value={g} />)}
-        </datalist>
-        <input
-          type="text"
-          list={listId}
-          value={value ?? ''}
-          readOnly={readOnly}
-          onChange={e => onChange(e.target.value)}
-          style={{ ...inputStyle, width: col.width - 20 }}
-        />
-      </>
-    )
-  }
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <Field label="Name">
+              <input
+                type="text"
+                value={draft.name ?? ''}
+                readOnly={readOnly}
+                onChange={e => set('name', e.target.value)}
+                style={modalInput}
+              />
+            </Field>
+            <Field label="Group">
+              <>
+                <datalist id={listId}>
+                  {groupNames.map(g => <option key={g} value={g} />)}
+                </datalist>
+                <input
+                  type="text"
+                  list={listId}
+                  value={draft.group_name ?? ''}
+                  readOnly={readOnly}
+                  onChange={e => set('group_name', e.target.value)}
+                  style={modalInput}
+                />
+              </>
+            </Field>
+          </div>
 
-  if (col.type === 'number') {
-    return (
-      <input
-        type="number"
-        step="0.01"
-        value={value ?? ''}
-        readOnly={readOnly}
-        onChange={e => onChange(e.target.value === '' ? null : parseFloat(e.target.value))}
-        style={{ ...inputStyle, width: 80 }}
-      />
-    )
-  }
+          <div style={{ display: 'grid', gridTemplateColumns: isPrice ? '1fr 1fr' : '1fr', gap: 14 }}>
+            <Field label="Loop Target">
+              <select
+                value={draft.loop_target ?? 'frame'}
+                disabled={readOnly}
+                onChange={e => set('loop_target', e.target.value)}
+                style={modalSelect}
+              >
+                {LOOP_TARGETS.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </Field>
+            {isPrice && (
+              <Field label="Level">
+                <select
+                  value={draft.level ?? 'item'}
+                  disabled={readOnly}
+                  onChange={e => set('level', e.target.value)}
+                  style={modalSelect}
+                >
+                  <option value="item">Item</option>
+                  <option value="quote">Quote</option>
+                </select>
+              </Field>
+            )}
+          </div>
 
-  if (col.type === 'formula') {
-    return <FormulaEditor value={value ?? ''} readOnly={readOnly} onChange={onChange} />
-  }
+          <Field label="Condition">
+            <FormulaEditor
+              value={draft.condition ?? ''}
+              rows={3}
+              readOnly={readOnly}
+              onChange={v => set('condition', v)}
+            />
+          </Field>
 
-  return (
-    <input
-      type="text"
-      value={value ?? ''}
-      readOnly={readOnly}
-      onChange={e => onChange(e.target.value)}
-      style={{ ...inputStyle, width: col.width - 20 }}
-    />
+          <Field label={isLabour ? 'Minutes' : isParts ? 'Quantity' : 'Quantity'}>
+            <FormulaEditor
+              value={draft.quantity ?? ''}
+              rows={2}
+              readOnly={readOnly}
+              onChange={v => set('quantity', v)}
+            />
+          </Field>
+
+          {isPrice && (
+            <Field label="Value (£)">
+              <FormulaEditor
+                value={draft.value ?? ''}
+                rows={2}
+                readOnly={readOnly}
+                onChange={v => set('value', v)}
+              />
+            </Field>
+          )}
+
+          {isPrice && (
+            <Field label="Markup %">
+              <input
+                type="number"
+                step="0.01"
+                value={draft.markup ?? ''}
+                readOnly={readOnly}
+                onChange={e => set('markup', e.target.value === '' ? null : parseFloat(e.target.value))}
+                style={{ ...modalInput, width: 120 }}
+              />
+            </Field>
+          )}
+
+          {isParts && (
+            <Field label="Part Code">
+              <input
+                type="text"
+                value={draft.part_code ?? ''}
+                readOnly={readOnly}
+                onChange={e => set('part_code', e.target.value)}
+                style={modalInput}
+              />
+            </Field>
+          )}
+
+          <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: 14 }}>
+            <Field label="Sort Order">
+              <input
+                type="number"
+                step="1"
+                value={draft.sort_order ?? ''}
+                readOnly={readOnly}
+                onChange={e => set('sort_order', e.target.value === '' ? null : parseInt(e.target.value, 10))}
+                style={{ ...modalInput, width: 80 }}
+              />
+            </Field>
+            <Field label="Active">
+              <div style={{ paddingTop: 4 }}>
+                <input
+                  type="checkbox"
+                  checked={!!draft.is_active}
+                  disabled={readOnly}
+                  onChange={e => set('is_active', e.target.checked)}
+                  style={{ cursor: readOnly ? 'default' : 'pointer', width: 16, height: 16 }}
+                />
+              </div>
+            </Field>
+          </div>
+
+          <Field label="Comment">
+            <textarea
+              value={draft.comment ?? ''}
+              readOnly={readOnly}
+              rows={2}
+              onChange={e => set('comment', e.target.value)}
+              style={{ ...modalInput, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
+            />
+          </Field>
+
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: '12px 24px', borderTop: '1px solid #e8e6e0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            {!readOnly && !rule._unsaved && (
+              <button
+                onClick={onDelete}
+                style={{ fontSize: 13, padding: '6px 14px', borderRadius: 7, border: '1px solid #f5c0c0', background: '#fff', color: '#c0392b', cursor: 'pointer' }}
+              >
+                Delete
+              </button>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={onCancel}
+              style={{ fontSize: 13, padding: '6px 14px', borderRadius: 7, border: '1px solid #e0ddd8', background: '#fff', color: '#555', cursor: 'pointer' }}
+            >
+              Cancel
+            </button>
+            {!readOnly && (
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                style={{ fontSize: 13, padding: '6px 16px', borderRadius: 7, border: 'none', background: '#3d35a8', color: '#fff', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1, fontWeight: 500 }}
+              >
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
   )
 }
 
-const inputStyle = {
-  fontSize: 12,
-  border: '1px solid transparent',
-  borderRadius: 4,
-  padding: '3px 6px',
-  background: 'transparent',
+const modalInput = {
+  fontSize: 13,
+  border: '1px solid #e0ddd8',
+  borderRadius: 6,
+  padding: '6px 10px',
   outline: 'none',
   width: '100%',
+  boxSizing: 'border-box',
+  fontFamily: 'inherit',
+}
+
+const modalSelect = {
+  fontSize: 13,
+  border: '1px solid #e0ddd8',
+  borderRadius: 6,
+  padding: '6px 10px',
+  background: '#fff',
+  width: '100%',
+  boxSizing: 'border-box',
+  cursor: 'pointer',
+}
+
+// ── Field ──────────────────────────────────────────────────────────────────
+
+function Field({ label, children }) {
+  return (
+    <div>
+      <div style={{ fontSize: 11, fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 5 }}>
+        {label}
+      </div>
+      {children}
+    </div>
+  )
 }
 
 // ── FormulaEditor ──────────────────────────────────────────────────────────
 
-function FormulaEditor({ value, readOnly, onChange }) {
+function FormulaEditor({ value, rows = 2, readOnly, onChange }) {
   const [open,    setOpen]    = useState(false)
   const [query,   setQuery]   = useState('')
   const [popPos,  setPopPos]  = useState({ top: 0, left: 0 })
@@ -617,23 +763,34 @@ function FormulaEditor({ value, readOnly, onChange }) {
   )
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-      <input
+    <div style={{ display: 'flex', gap: 4, alignItems: 'flex-start' }}>
+      <textarea
         ref={inputRef}
-        type="text"
+        rows={rows}
         value={value ?? ''}
         readOnly={readOnly}
         onChange={e => onChange(e.target.value)}
-        style={{ ...inputStyle, flex: 1, minWidth: 0 }}
+        style={{
+          flex: 1,
+          fontSize: 12,
+          fontFamily: 'monospace',
+          border: '1px solid #e0ddd8',
+          borderRadius: 6,
+          padding: '6px 10px',
+          outline: 'none',
+          resize: 'vertical',
+          lineHeight: 1.5,
+          boxSizing: 'border-box',
+        }}
         onFocus={e => { e.currentTarget.style.borderColor = '#c5c0f0' }}
-        onBlur={e  => { e.currentTarget.style.borderColor = 'transparent' }}
+        onBlur={e  => { e.currentTarget.style.borderColor = '#e0ddd8' }}
       />
       {!readOnly && (
         <button
           ref={buttonRef}
           onMouseDown={e => { e.preventDefault(); openPicker() }}
           title="Insert variable"
-          style={{ fontSize: 10, padding: '2px 5px', borderRadius: 4, border: '1px solid #ddd', background: '#faf9f7', cursor: 'pointer', color: '#888', flexShrink: 0, lineHeight: 1.2 }}
+          style={{ fontSize: 10, padding: '5px 7px', borderRadius: 5, border: '1px solid #ddd', background: '#faf9f7', cursor: 'pointer', color: '#888', flexShrink: 0, lineHeight: 1.2, marginTop: 1 }}
         >
           {'{x}'}
         </button>
