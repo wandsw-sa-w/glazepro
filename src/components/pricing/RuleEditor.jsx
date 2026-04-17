@@ -142,13 +142,13 @@ const VARIABLE_GROUPS = [...new Set(VARIABLES.map(v => v.group))]
 // ── Column config per rule family ──────────────────────────────────────────
 
 const SHARED_TAIL = [
-  { key: 'comment',     label: 'Comment', width: 180, type: 'text' },
-  { key: 'is_active',   label: 'Active',  width: 60,  type: 'bool' },
+  { key: 'comment', label: 'Comment', width: 140, type: 'text' },
 ]
 
 function getColumns(ruleFamily) {
   if (ruleFamily === 'install_labour' || ruleFamily === 'manufacture_labour') {
     return [
+      { key: 'is_active',   label: 'On',          width: 44,  type: 'bool'        },
       { key: 'name',        label: 'Name',        width: 160, type: 'text'        },
       { key: 'group_name',  label: 'Group',       width: 130, type: 'group_name'  },
       { key: 'loop_target', label: 'Loop Target', width: 140, type: 'loop_target' },
@@ -159,6 +159,7 @@ function getColumns(ruleFamily) {
   }
   if (ruleFamily === 'parts') {
     return [
+      { key: 'is_active',   label: 'On',          width: 44,  type: 'bool'        },
       { key: 'name',        label: 'Name',        width: 150, type: 'text'        },
       { key: 'group_name',  label: 'Group',       width: 130, type: 'group_name'  },
       { key: 'loop_target', label: 'Loop Target', width: 140, type: 'loop_target' },
@@ -170,6 +171,7 @@ function getColumns(ruleFamily) {
   }
   // price
   return [
+    { key: 'is_active',   label: 'On',          width: 44,  type: 'bool'        },
     { key: 'name',        label: 'Name',        width: 150, type: 'text'        },
     { key: 'group_name',  label: 'Group',       width: 130, type: 'group_name'  },
     { key: 'level',       label: 'Level',       width: 80,  type: 'level'       },
