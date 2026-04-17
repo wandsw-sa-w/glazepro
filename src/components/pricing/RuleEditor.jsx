@@ -196,6 +196,7 @@ function blankRule(ruleFamily, sortOrder) {
     markup:      ruleFamily === 'price' ? 0   : null,
     part_code:   ruleFamily === 'parts' ? ''  : null,
     comment:     '',
+    output_unit: ruleFamily === 'price' ? 'gbp' : ruleFamily === 'parts' ? 'quantity' : 'minutes',
     is_active:   true,
     sort_order:  sortOrder,
     _unsaved:    true,
@@ -280,6 +281,7 @@ export default function RuleEditor({ fileId, ruleFamily, readOnly = false }) {
         markup:        updated.markup,
         part_code:     updated.part_code,
         comment:       updated.comment,
+        output_unit:   updated.output_unit,
         is_active:     updated.is_active,
         sort_order:    updated.sort_order,
       }
