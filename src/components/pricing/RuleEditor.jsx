@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, Fragment, useId } from 'react'
+import { createPortal } from 'react-dom'
 import { supabase } from '../../supabase'
 
 // ── Loop targets ───────────────────────────────────────────────────────────
@@ -257,7 +258,7 @@ export default function RuleEditor({ fileId, ruleFamily, readOnly = false }) {
     const updated = { ...rule, [field]: value }
     setRules(rs => rs.map(r => r.id === rule.id ? updated : r))
 
-    const isNew = !rule.id || String(rule.id).startsWith('_new_')
+    const isNew = rule._unsaved === true
 
     if (isNew) {
       const tempId = rule.id
@@ -509,16 +510,27 @@ const inputStyle = {
 // ── FormulaEditor ──────────────────────────────────────────────────────────
 
 function FormulaEditor({ value, readOnly, onChange }) {
-  const [open,  setOpen]  = useState(false)
-  const [query, setQuery] = useState('')
-  const inputRef = useRef(null)
-  const popRef   = useRef(null)
+  const [open,    setOpen]    = useState(false)
+  const [query,   setQuery]   = useState('')
+  const [popPos,  setPopPos]  = useState({ top: 0, left: 0 })
+  const inputRef  = useRef(null)
+  const buttonRef = useRef(null)
+  const popRef    = useRef(null)
 
   const filtered = query
     ? VARIABLES.filter(v => v.name.includes(query.toLowerCase()))
     : VARIABLES
 
   const groups = VARIABLE_GROUPS.filter(g => filtered.some(v => v.group === g))
+
+  function openPicker() {
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect()
+      setPopPos({ top: rect.bottom + 4, left: rect.left })
+    }
+    setOpen(o => !o)
+    setQuery('')
+  }
 
   function insertVariable(varName) {
     const el = inputRef.current
@@ -539,7 +551,7 @@ function FormulaEditor({ value, readOnly, onChange }) {
   useEffect(() => {
     if (!open) return
     function handle(e) {
-      if (!popRef.current?.contains(e.target) && e.target !== inputRef.current) {
+      if (!popRef.current?.contains(e.target) && e.target !== buttonRef.current) {
         setOpen(false)
       }
     }
@@ -547,8 +559,55 @@ function FormulaEditor({ value, readOnly, onChange }) {
     return () => document.removeEventListener('mousedown', handle)
   }, [open])
 
+  const popover = open && createPortal(
+    <div
+      ref={popRef}
+      style={{
+        position: 'fixed', top: popPos.top, left: popPos.left, zIndex: 9999,
+        background: '#fff', border: '1px solid #e0ddd8', borderRadius: 8,
+        boxShadow: '0 4px 16px rgba(0,0,0,.1)',
+        width: 280, maxHeight: 340, overflow: 'hidden',
+        display: 'flex', flexDirection: 'column',
+      }}
+    >
+      <div style={{ padding: '6px 8px', borderBottom: '1px solid #f0ede8' }}>
+        <input
+          autoFocus
+          type="text"
+          placeholder="Search variables…"
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          style={{ width: '100%', fontSize: 12, border: '1px solid #ddd', borderRadius: 5, padding: '4px 8px', outline: 'none', boxSizing: 'border-box' }}
+        />
+      </div>
+      <div style={{ overflowY: 'auto', flex: 1 }}>
+        {groups.map(group => (
+          <div key={group}>
+            <div style={{ padding: '5px 8px 2px', fontSize: 10, color: '#aaa', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>{group}</div>
+            {filtered.filter(v => v.group === group).map(v => (
+              <div
+                key={v.name}
+                onMouseDown={e => { e.preventDefault(); insertVariable(v.name) }}
+                style={{ padding: '4px 12px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#f5f3ff'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              >
+                <span style={{ fontSize: 12, color: '#222', fontFamily: 'monospace' }}>{v.name}</span>
+                <span style={{ fontSize: 10, color: v.type === 'boolean' ? '#6a5acd' : '#2a7a40', marginLeft: 8 }}>{v.type}</span>
+              </div>
+            ))}
+          </div>
+        ))}
+        {groups.length === 0 && (
+          <div style={{ padding: 16, color: '#bbb', fontSize: 12, textAlign: 'center' }}>No matches</div>
+        )}
+      </div>
+    </div>,
+    document.body
+  )
+
   return (
-    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 2 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
       <input
         ref={inputRef}
         type="text"
@@ -561,58 +620,15 @@ function FormulaEditor({ value, readOnly, onChange }) {
       />
       {!readOnly && (
         <button
-          onMouseDown={e => { e.preventDefault(); setOpen(o => !o); setQuery('') }}
+          ref={buttonRef}
+          onMouseDown={e => { e.preventDefault(); openPicker() }}
           title="Insert variable"
           style={{ fontSize: 10, padding: '2px 5px', borderRadius: 4, border: '1px solid #ddd', background: '#faf9f7', cursor: 'pointer', color: '#888', flexShrink: 0, lineHeight: 1.2 }}
         >
           {'{x}'}
         </button>
       )}
-      {open && (
-        <div
-          ref={popRef}
-          style={{
-            position: 'absolute', top: '100%', left: 0, zIndex: 1000,
-            background: '#fff', border: '1px solid #e0ddd8', borderRadius: 8,
-            boxShadow: '0 4px 16px rgba(0,0,0,.1)',
-            width: 280, maxHeight: 340, overflow: 'hidden',
-            display: 'flex', flexDirection: 'column',
-          }}
-        >
-          <div style={{ padding: '6px 8px', borderBottom: '1px solid #f0ede8' }}>
-            <input
-              autoFocus
-              type="text"
-              placeholder="Search variables…"
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              style={{ width: '100%', fontSize: 12, border: '1px solid #ddd', borderRadius: 5, padding: '4px 8px', outline: 'none', boxSizing: 'border-box' }}
-            />
-          </div>
-          <div style={{ overflowY: 'auto', flex: 1 }}>
-            {groups.map(group => (
-              <div key={group}>
-                <div style={{ padding: '5px 8px 2px', fontSize: 10, color: '#aaa', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>{group}</div>
-                {filtered.filter(v => v.group === group).map(v => (
-                  <div
-                    key={v.name}
-                    onMouseDown={e => { e.preventDefault(); insertVariable(v.name) }}
-                    style={{ padding: '4px 12px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#f5f3ff'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <span style={{ fontSize: 12, color: '#222', fontFamily: 'monospace' }}>{v.name}</span>
-                    <span style={{ fontSize: 10, color: v.type === 'boolean' ? '#6a5acd' : '#2a7a40', marginLeft: 8 }}>{v.type}</span>
-                  </div>
-                ))}
-              </div>
-            ))}
-            {groups.length === 0 && (
-              <div style={{ padding: 16, color: '#bbb', fontSize: 12, textAlign: 'center' }}>No matches</div>
-            )}
-          </div>
-        </div>
-      )}
+      {popover}
     </div>
   )
 }
