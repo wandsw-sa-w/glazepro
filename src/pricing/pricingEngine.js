@@ -90,7 +90,7 @@ export async function priceDrawing(drawingId, supabase) {
     // ── 3. Fetch published price file ─────────────────────────────────────────
     const { data: priceFile, error: pfErr } = await supabase
       .from('price_files')
-      .select('id, name')
+      .select('id')
       .eq('status', 'published')
       .single()
 
@@ -414,7 +414,7 @@ export async function priceQuote(quoteId, supabase) {
     // ── 3. Fetch published price file ─────────────────────────────────────────
     const { data: priceFile, error: pfErr } = await supabase
       .from('price_files')
-      .select('id, name')
+      .select('id')
       .eq('status', 'published')
       .single()
 

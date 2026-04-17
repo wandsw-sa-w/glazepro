@@ -16,18 +16,18 @@ export default function RuleEditorPage({ ruleFamily, title, description }) {
   const { fileId } = useParams()
   const { user, signOut } = useAuth()
 
-  const [file, setFile] = useState(null)
+  const [file, setFile] = useState(undefined)
 
   useEffect(() => {
     supabase
       .from('price_files')
-      .select('id, name, status')
+      .select('id, status')
       .eq('id', fileId)
       .single()
       .then(({ data }) => { if (data) setFile(data) })
   }, [fileId])
 
-  const readOnly = file?.status !== 'draft'
+  const readOnly = file === undefined ? false : file.status !== 'draft'
 
   return (
     <div style={{ display: 'flex', height: '100vh', fontFamily: 'inherit' }}>
