@@ -10,6 +10,12 @@ import Settings from './pages/Settings'
 import Ironmongery from './pages/Ironmongery'
 import Import from './pages/Import'
 import Login from './pages/Login'
+import PricingPage            from './pages/PricingPage'
+import PriceFileDetail        from './pages/PriceFileDetail'
+import PriceRulesEditor       from './pages/pricing/PriceRulesEditor'
+import InstallLabourEditor     from './pages/pricing/InstallLabourEditor'
+import ManufactureLabourEditor from './pages/pricing/ManufactureLabourEditor'
+import PartsEditor             from './pages/pricing/PartsEditor'
 import './App.css'
 
 function AppRoutes() {
@@ -31,6 +37,12 @@ function AppRoutes() {
       <Route path="/settings" element={<Settings />} />
       <Route path="/ironmongery" element={<Ironmongery />} />
       <Route path="/import" element={<Import />} />
+      <Route path="/pricing"                     element={<PricingPage />} />
+      <Route path="/pricing/:fileId"             element={<PriceFileDetail />} />
+      <Route path="/pricing/:fileId/price"       element={<PriceRulesEditor />} />
+      <Route path="/pricing/:fileId/install"     element={<InstallLabourEditor />} />
+      <Route path="/pricing/:fileId/manufacture" element={<ManufactureLabourEditor />} />
+      <Route path="/pricing/:fileId/parts"       element={<PartsEditor />} />
     </Routes>
   )
 }

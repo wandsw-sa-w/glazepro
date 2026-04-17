@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabase'
+import { priceDrawing } from '../pricing/pricingEngine.js'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const WINDOW_TYPES   = ['Box Sash', 'Spiral Sash', 'Flush Casement', 'Stormproof Casement', 'Front Door', 'Single Door', 'French Door', 'Bifolding Door']
 const SASH_TYPES     = new Set(['Box Sash', 'Spiral Sash'])
-const SERVICE_TYPES  = ['Complete New', 'Sash Replacement 35mm', 'Sash Replacement 40mm', 'Sash Replacement 45mm']
+const SERVICE_TYPES  = ['Complete New', 'Sash Replacement 35mm', 'Sash Replacement 40mm', 'Sash Replacement 45mm', 'Sash Replacement 50mm']
 const TIMBER_OPTIONS = ['Solid Redwood', 'Accoya', 'Sapele']
 const CILL_OPTIONS   = ['Solid Utile Hardwood', 'Accoya']
 const GLASS_TYPES    = ['Clear Toughened', 'Sandblasted Toughened', 'Antique Cathedral', 'Pilkington K']
@@ -615,7 +616,17 @@ function DrawingBoard({ drawing }) {
       supabase.from('drawings')
         .update(specToDb(next))
         .eq('id', drawing.id)
-        .then(({ error }) => { if (error) console.error('Drawing save error:', error) })
+        .then(async ({ error }) => {
+          if (error) {
+            console.error('Drawing save error:', error)
+            return
+          }
+          // Trigger pricing engine after successful save
+          const result = await priceDrawing(drawing.id, supabase)
+          if (!result.success) {
+            console.error('Pricing engine error:', result.error)
+          }
+        })
     }, 500)
   }
 

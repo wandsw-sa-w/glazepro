@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -la /c/Users/NathanSmith-Wandswor/Desktop/glazepro/supabase/*.sql)",
+      "Bash(git -C /c/Users/NathanSmith-Wandswor/Desktop/glazepro log --name-only --oneline --all)",
+      "Bash(git -C /c/Users/NathanSmith-Wandswor/Desktop/glazepro log --all --full-history -- \"*.sql\" --oneline)",
+      "Bash(git -C /c/Users/NathanSmith-Wandswor/Desktop/glazepro show HEAD:supabase/seed.sql)",
+      "Bash(git *)",
+      "Bash(supabase --version)",
+      "Bash(npm install *)",
+      "Bash(npx vitest *)",
+      "Bash(node *)"
+    ]
+  }
+}
