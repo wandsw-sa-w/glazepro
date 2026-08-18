@@ -9,7 +9,8 @@
       "Bash(supabase --version)",
       "Bash(npm install *)",
       "Bash(npx vitest *)",
-      "Bash(node *)"
+      "Bash(node *)",
+      "Bash(xargs cat *)"
     ]
   }
 }
