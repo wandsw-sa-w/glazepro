@@ -9,6 +9,7 @@ import UnmatchedEmails from './pages/UnmatchedEmails'
 import Settings from './pages/Settings'
 import Ironmongery from './pages/Ironmongery'
 import ReferenceData from './pages/ReferenceData'
+import DefaultsAndParts from './pages/DefaultsAndParts'
 import Import from './pages/Import'
 import Login from './pages/Login'
 import PricingPage            from './pages/PricingPage'
@@ -45,6 +46,7 @@ function AppRoutes() {
       <Route path="/pricing/:fileId/manufacture" element={<ManufactureLabourEditor />} />
       <Route path="/pricing/:fileId/parts"       element={<PartsEditor />} />
       <Route path="/reference-data"               element={<ReferenceData />} />
+      <Route path="/defaults"                     element={<DefaultsAndParts />} />
     </Routes>
   )
 }

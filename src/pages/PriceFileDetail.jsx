@@ -158,6 +158,12 @@ export default function PriceFileDetail() {
         >
           <span>Reference Data</span>
         </div>
+        <div
+          onClick={() => navigate('/defaults')}
+          style={{ padding: '8px 11px', fontSize: 13, borderRadius: 8, margin: '1px 7px', display: 'flex', alignItems: 'center', color: '#555', fontWeight: 400, background: 'transparent', cursor: 'pointer' }}
+        >
+          <span>Defaults &amp; Parts</span>
+        </div>
         <div onClick={() => navigate('/settings')} style={{ margin: '4px 7px 2px', padding: '8px 11px', fontSize: 13, borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8, color: '#555', cursor: 'pointer' }}>
           <span>⚙</span><span>Settings</span>
         </div>
