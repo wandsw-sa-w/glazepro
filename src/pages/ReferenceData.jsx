@@ -262,14 +262,14 @@ export default function ReferenceData() {
 
     // Build attributes — omit keys with empty/null values
     const attrKeys = getAttributeKeys()
-    let attributes = null
+    let attributes = {}
     if (showAttributes && attrKeys.length > 0) {
       const built = {}
       attrKeys.forEach(k => {
         const v = form.attributes?.[k]
         if (v !== '' && v !== null && v !== undefined) built[k] = v
       })
-      attributes = Object.keys(built).length > 0 ? built : null
+      attributes = Object.keys(built).length > 0 ? built : {}
     }
 
     const payload = {
