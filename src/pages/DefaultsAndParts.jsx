@@ -142,10 +142,12 @@ export default function DefaultsAndParts() {
     const fieldKeys = (defs || []).map(d => d.field_key)
     let vals = []
     if (fieldKeys.length > 0) {
-      const { data } = await supabase
+      const { data, error: valsError } = await supabase
         .from('default_profile_values')
         .select('*')
         .in('field_key', fieldKeys)
+      // TODO: remove after diagnosing
+      console.log('[loadFields] default_profile_values result:', { rowCount: data?.length, rows: data, error: valsError })
       vals = data || []
     }
     setFields(defs || [])
