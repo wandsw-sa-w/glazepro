@@ -6,28 +6,6 @@ import { useUnmatchedCount } from '../hooks/useUnmatchedCount'
 
 // ─── Shared UI primitives ──────────────────────────────────────────────────────
 
-function Toggle({ value, onChange }) {
-  return (
-    <div
-      onClick={() => onChange(!value)}
-      style={{
-        width: 36, height: 20, borderRadius: 10,
-        background: value ? '#3d35a8' : '#d8d5cf',
-        position: 'relative', cursor: 'pointer', flexShrink: 0,
-        transition: 'background 0.15s',
-      }}
-    >
-      <div style={{
-        position: 'absolute', top: 3,
-        left: value ? 19 : 3,
-        width: 14, height: 14, borderRadius: 7,
-        background: '#fff', transition: 'left 0.15s',
-        boxShadow: '0 1px 3px rgba(0,0,0,.2)',
-      }} />
-    </div>
-  )
-}
-
 const labelStyle = {
   fontSize: 11,
   fontWeight: 500,
@@ -81,7 +59,6 @@ export default function DefaultsAndParts() {
   const [values, setValues] = useState({}) // keyed by `${profileId}:${fieldKey}`
   const [loadingFields, setLoadingFields] = useState(false)
   const [search, setSearch] = useState('')
-  const [showMinMax, setShowMinMax] = useState(false)
   const [savedKey, setSavedKey] = useState(null) // key that just saved
   const savedTimerRef = useRef(null)
 
@@ -110,11 +87,12 @@ export default function DefaultsAndParts() {
   }
 
   async function fetchProfiles() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('default_profiles')
       .select('*')
-      .eq('is_active', true)
       .order('sort_order')
+    // TODO: remove after diagnosing
+    console.log('[fetchProfiles] result:', { rowCount: data?.length, rows: data, error })
     setProfiles(data || [])
   }
 
@@ -211,26 +189,6 @@ export default function DefaultsAndParts() {
     const currentVal = existing?.default_value ?? ''
     if (trimmed === currentVal) return
     await saveValue(profileId, field, { default_value: trimmed || null })
-  }
-
-  async function handleMinBlur(profileId, field, rawValue) {
-    const trimmed = rawValue.trim()
-    const existing = values[`${profileId}:${field.field_key}`]
-    const current = existing?.min_value !== undefined && existing?.min_value !== null ? String(existing.min_value) : ''
-    if (trimmed === current) return
-    const num = trimmed === '' ? null : parseFloat(trimmed)
-    if (trimmed !== '' && isNaN(num)) return
-    await saveValue(profileId, field, { min_value: num })
-  }
-
-  async function handleMaxBlur(profileId, field, rawValue) {
-    const trimmed = rawValue.trim()
-    const existing = values[`${profileId}:${field.field_key}`]
-    const current = existing?.max_value !== undefined && existing?.max_value !== null ? String(existing.max_value) : ''
-    if (trimmed === current) return
-    const num = trimmed === '' ? null : parseFloat(trimmed)
-    if (trimmed !== '' && isNaN(num)) return
-    await saveValue(profileId, field, { max_value: num })
   }
 
   async function handleVisibilityChange(field, newVis) {
@@ -534,13 +492,9 @@ export default function DefaultsAndParts() {
                         values={values}
                         search={search}
                         onSearchChange={setSearch}
-                        showMinMax={showMinMax}
-                        onToggleMinMax={() => setShowMinMax(v => !v)}
                         loadingFields={loadingFields}
                         savedKey={savedKey}
                         onValueBlur={handleValueBlur}
-                        onMinBlur={handleMinBlur}
-                        onMaxBlur={handleMaxBlur}
                         onVisibilityChange={handleVisibilityChange}
                       />
                     : <ChildrenTab
@@ -569,8 +523,8 @@ export default function DefaultsAndParts() {
 
 function FieldsTab({
   fields, allFields, profiles, values, search, onSearchChange,
-  showMinMax, onToggleMinMax, loadingFields, savedKey,
-  onValueBlur, onMinBlur, onMaxBlur, onVisibilityChange,
+  loadingFields, savedKey,
+  onValueBlur, onVisibilityChange,
 }) {
   return (
     <div style={{ padding: 20 }}>
@@ -585,10 +539,6 @@ function FieldsTab({
             borderRadius: 8, outline: 'none', background: '#fff', width: 220, boxSizing: 'border-box',
           }}
         />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginLeft: 4 }}>
-          <Toggle value={showMinMax} onChange={onToggleMinMax} />
-          <span style={{ fontSize: 12, color: '#666', userSelect: 'none' }}>Show min/max</span>
-        </div>
         {search && (
           <span style={{ fontSize: 12, color: '#aaa' }}>{fields.length} of {allFields.length} fields</span>
         )}
@@ -616,7 +566,7 @@ function FieldsTab({
                   Visibility
                 </th>
                 {profiles.map(p => (
-                  <th key={p.id} style={{ textAlign: 'left', padding: '8px 10px', fontWeight: 600, color: '#888', fontSize: 11, minWidth: showMinMax ? 180 : 110, whiteSpace: 'nowrap' }}>
+                  <th key={p.id} style={{ textAlign: 'left', padding: '8px 10px', fontWeight: 600, color: '#888', fontSize: 11, minWidth: 110, whiteSpace: 'nowrap' }}>
                     {p.label}
                   </th>
                 ))}
@@ -629,12 +579,9 @@ function FieldsTab({
                   field={field}
                   profiles={profiles}
                   values={values}
-                  showMinMax={showMinMax}
                   savedKey={savedKey}
                   isLast={idx === fields.length - 1}
                   onValueBlur={onValueBlur}
-                  onMinBlur={onMinBlur}
-                  onMaxBlur={onMaxBlur}
                   onVisibilityChange={onVisibilityChange}
                 />
               ))}
@@ -648,7 +595,7 @@ function FieldsTab({
 
 // ─── FieldRow ──────────────────────────────────────────────────────────────────
 
-function FieldRow({ field, profiles, values, showMinMax, savedKey, isLast, onValueBlur, onMinBlur, onMaxBlur, onVisibilityChange }) {
+function FieldRow({ field, profiles, values, savedKey, isLast, onValueBlur, onVisibilityChange }) {
   return (
     <tr style={{ borderBottom: isLast ? 'none' : '1px solid #f0eeeb' }}>
       {/* Field name */}
@@ -691,11 +638,8 @@ function FieldRow({ field, profiles, values, showMinMax, savedKey, isLast, onVal
             field={field}
             row={row}
             vkey={vkey}
-            showMinMax={showMinMax}
             savedKey={savedKey}
             onValueBlur={onValueBlur}
-            onMinBlur={onMinBlur}
-            onMaxBlur={onMaxBlur}
           />
         )
       })}
@@ -705,76 +649,38 @@ function FieldRow({ field, profiles, values, showMinMax, savedKey, isLast, onVal
 
 // ─── ProfileCell ───────────────────────────────────────────────────────────────
 
-function ProfileCell({ profileId, field, row, vkey, showMinMax, savedKey, onValueBlur, onMinBlur, onMaxBlur }) {
+function ProfileCell({ profileId, field, row, vkey, savedKey, onValueBlur }) {
   const [localVal, setLocalVal] = useState(row?.default_value ?? '')
-  const [localMin, setLocalMin] = useState(row?.min_value !== undefined && row?.min_value !== null ? String(row.min_value) : '')
-  const [localMax, setLocalMax] = useState(row?.max_value !== undefined && row?.max_value !== null ? String(row.max_value) : '')
 
   // Keep local state in sync when row changes from outside
   useEffect(() => {
     setLocalVal(row?.default_value ?? '')
   }, [row?.default_value])
-  useEffect(() => {
-    setLocalMin(row?.min_value !== undefined && row?.min_value !== null ? String(row.min_value) : '')
-  }, [row?.min_value])
-  useEffect(() => {
-    setLocalMax(row?.max_value !== undefined && row?.max_value !== null ? String(row.max_value) : '')
-  }, [row?.max_value])
 
   const isSaved = savedKey === vkey
 
   return (
-    <td style={{ padding: '5px 10px', verticalAlign: 'middle', minWidth: showMinMax ? 180 : 110 }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-        {/* Main value input + source_ref tag */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-          <input
-            value={localVal}
-            onChange={e => setLocalVal(e.target.value)}
-            onBlur={() => onValueBlur(profileId, field, localVal)}
-            placeholder="—"
-            style={{
-              fontSize: 12, padding: '4px 7px',
-              border: `1px solid ${isSaved ? '#a8d5b5' : '#e8e6e0'}`,
-              borderRadius: 6, outline: 'none', background: '#fff',
-              width: '100%', boxSizing: 'border-box',
-              transition: 'border-color 0.3s',
-            }}
-          />
-          {row?.source_ref && (
-            <span style={{ fontSize: 10, color: '#aaa', background: '#f5f4f0', borderRadius: 4, padding: '1px 5px', whiteSpace: 'nowrap', flexShrink: 0, fontFamily: 'monospace' }}>
-              {row.source_ref}
-            </span>
-          )}
-          <SavedIndicator show={isSaved} />
-        </div>
-        {/* Min / Max inputs */}
-        {showMinMax && (
-          <div style={{ display: 'flex', gap: 4 }}>
-            <input
-              value={localMin}
-              onChange={e => setLocalMin(e.target.value)}
-              onBlur={() => onMinBlur(profileId, field, localMin)}
-              placeholder="min"
-              style={{
-                fontSize: 11, padding: '3px 6px',
-                border: '1px solid #e8e6e0', borderRadius: 5, outline: 'none',
-                background: '#faf9f7', width: '50%', boxSizing: 'border-box', color: '#666',
-              }}
-            />
-            <input
-              value={localMax}
-              onChange={e => setLocalMax(e.target.value)}
-              onBlur={() => onMaxBlur(profileId, field, localMax)}
-              placeholder="max"
-              style={{
-                fontSize: 11, padding: '3px 6px',
-                border: '1px solid #e8e6e0', borderRadius: 5, outline: 'none',
-                background: '#faf9f7', width: '50%', boxSizing: 'border-box', color: '#666',
-              }}
-            />
-          </div>
+    <td style={{ padding: '5px 10px', verticalAlign: 'middle', minWidth: 110 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+        <input
+          value={localVal}
+          onChange={e => setLocalVal(e.target.value)}
+          onBlur={() => onValueBlur(profileId, field, localVal)}
+          placeholder="—"
+          style={{
+            fontSize: 12, padding: '4px 7px',
+            border: `1px solid ${isSaved ? '#a8d5b5' : '#e8e6e0'}`,
+            borderRadius: 6, outline: 'none', background: '#fff',
+            width: '100%', boxSizing: 'border-box',
+            transition: 'border-color 0.3s',
+          }}
+        />
+        {row?.source_ref && (
+          <span style={{ fontSize: 10, color: '#aaa', background: '#f5f4f0', borderRadius: 4, padding: '1px 5px', whiteSpace: 'nowrap', flexShrink: 0, fontFamily: 'monospace' }}>
+            {row.source_ref}
+          </span>
         )}
+        <SavedIndicator show={isSaved} />
       </div>
     </td>
   )
