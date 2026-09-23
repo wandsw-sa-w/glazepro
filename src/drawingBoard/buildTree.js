@@ -11,6 +11,8 @@
 //   tree      — nested node: { key, part_type, sort_order, values, children }
 //   warnings  — string[] of reference-value match failures
 
+import { applyOperationDefaults } from './applyOperationDefaults.js'
+
 // Hardcoded template: always include these children for these part types,
 // regardless of min_count. Covers optional-by-schema parts that are always
 // present in a box sash (e.g. cillPart under assemblyFramePart).
@@ -136,6 +138,27 @@ export function buildNewBoxSash({
     }
   }
 
-  const tree = buildPart('drawingItemPart', 0)
+  const rawTree = buildPart('drawingItemPart', 0)
+
+  // Ensure every sash part has an operation value.
+  // If the profile already populated one via convertValue, this is a no-op.
+  // Look up "Cord Hung" code from refOptions — never hardcode.
+  const cordHungCode = (refOptions['sash_operation'] ?? [])
+    .find(o => o.label.toLowerCase() === 'cord hung')?.code ?? null
+
+  function ensureOperation(node) {
+    if (node.part_type === 'topSashPart' || node.part_type === 'bottomSashPart') {
+      if ((node.values?.operation ?? null) === null && cordHungCode) {
+        return { ...node, values: { ...node.values, operation: cordHungCode } }
+      }
+    }
+    return { ...node, children: (node.children ?? []).map(ensureOperation) }
+  }
+
+  const treeWithOp = cordHungCode ? ensureOperation(rawTree) : rawTree
+
+  // Apply cord/spiral frame and cill size defaults from the profile.
+  const tree = applyOperationDefaults(treeWithOp, profileValues, refOptions)
+
   return { tree, warnings }
 }

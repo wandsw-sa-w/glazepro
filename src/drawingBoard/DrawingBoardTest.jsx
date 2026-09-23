@@ -106,13 +106,41 @@ function diffTrees(a, b, path = 'root') {
   return diffs
 }
 
-// Remove glassPart from the first topSashPart found in the tree (immutably)
-function removeGlassFromTopSash(node) {
+// Remove the glassPart child from the first topSashPart found in the tree (immutably).
+// All other parts and parent links are preserved.
+// Expected RPC rejection: topSashPart(key)→glassPart: allowed 1..1, got 0
+function removeGlassFromTopSash(node, done = { v: false }) {
   if (!node) return node
-  if (node.part_type === 'topSashPart') {
+  if (!done.v && node.part_type === 'topSashPart') {
+    done.v = true
     return { ...node, children: (node.children ?? []).filter(c => c.part_type !== 'glassPart') }
   }
-  return { ...node, children: (node.children ?? []).map(removeGlassFromTopSash) }
+  return { ...node, children: (node.children ?? []).map(c => removeGlassFromTopSash(c, done)) }
+}
+
+// Stamp the Integrate-check dimensions onto the in-memory tree (no DB write).
+// Sets: frame.width=500, frame.height=1849, frame.leftOuterJamb=101,
+//       drawingItemPart.typeOfWork='complete_new'
+// With cord profile defaults (topHeight=79, leftWidth=85, rightWidth=85, cill.height=70)
+// already applied, derived should show: internalWidth=330, internalHeight=1700,
+// jambDifference=16, newFrame=true.
+function applyTestDimensions(node) {
+  if (!node) return node
+  if (node.part_type === 'drawingItemPart') {
+    return {
+      ...node,
+      values: { ...node.values, typeOfWork: 'complete_new' },
+      children: (node.children ?? []).map(applyTestDimensions),
+    }
+  }
+  if (node.part_type === 'assemblyFramePart') {
+    return {
+      ...node,
+      values: { ...node.values, width: 500, height: 1849, leftOuterJamb: 101 },
+      children: (node.children ?? []).map(applyTestDimensions),
+    }
+  }
+  return { ...node, children: (node.children ?? []).map(applyTestDimensions) }
 }
 
 // ── Styles ───────────────────────────────────────────────────────────────────
@@ -220,7 +248,9 @@ export default function DrawingBoardTest() {
     }
   }
 
-  // Remove glassPart from topSashPart then try to save — RPC should reject
+  // Remove glassPart from topSashPart then try to save — RPC should reject.
+  // Expected error names the failing instance:
+  //   topSashPart(key)→glassPart: allowed 1..1, got 0
   async function handleBreakContainment() {
     if (!tree) { setError('Build a tree first.'); return }
     if (!drawingId.trim()) { setError('Enter a drawing ID first.'); return }
@@ -228,12 +258,23 @@ export default function DrawingBoardTest() {
     try {
       const broken = removeGlassFromTopSash(tree)
       await saveDrawingParts(Number(drawingId), broken)
-      setError('Save succeeded unexpectedly — containment check did not fire.\n(Are the min_count updates from step-a applied?)')
+      setError('Save succeeded unexpectedly — containment check did not fire.')
     } catch (e) {
       setError('Expected rejection from RPC:\n' + (e?.message ?? String(e)))
     } finally {
       setLoading(false)
     }
+  }
+
+  // Stamp Integrate-check dimensions onto the in-memory tree and recompute derived.
+  // Does not save to DB.
+  function handleFillTestDimensions() {
+    if (!tree) { setError('Build a tree first.'); return }
+    setError(null)
+    const updated = applyTestDimensions(tree)
+    setTree(updated)
+    setDerived(computeDerived(updated))
+    setReloadedTree(null); setMatchStatus(null); setDiffs([])
   }
 
   // Format the derived map as displayable lines
@@ -269,6 +310,9 @@ export default function DrawingBoardTest() {
         </button>
         <button style={S.btnBreak} onClick={handleBreakContainment} disabled={loading || !tree}>
           Break containment
+        </button>
+        <button style={S.btn} onClick={handleFillTestDimensions} disabled={!tree}>
+          Fill test dimensions
         </button>
       </div>
 
