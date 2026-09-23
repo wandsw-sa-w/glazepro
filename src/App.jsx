@@ -18,6 +18,7 @@ import PriceRulesEditor       from './pages/pricing/PriceRulesEditor'
 import InstallLabourEditor     from './pages/pricing/InstallLabourEditor'
 import ManufactureLabourEditor from './pages/pricing/ManufactureLabourEditor'
 import PartsEditor             from './pages/pricing/PartsEditor'
+import DrawingBoardTest        from './drawingBoard/DrawingBoardTest.jsx'
 import './App.css'
 
 function AppRoutes() {
@@ -47,6 +48,7 @@ function AppRoutes() {
       <Route path="/pricing/:fileId/parts"       element={<PartsEditor />} />
       <Route path="/reference-data"               element={<ReferenceData />} />
       <Route path="/defaults"                     element={<DefaultsAndParts />} />
+      <Route path="/dev/drawing-board-test"       element={<DrawingBoardTest />} />
     </Routes>
   )
 }
