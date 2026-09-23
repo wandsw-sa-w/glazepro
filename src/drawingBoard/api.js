@@ -144,5 +144,5 @@ export async function saveDrawingParts(drawingId, tree) {
     p_parts:      parts,
   })
   if (error) throw error
-  return data
+  return { rowsWritten: parts.length, data }
 }

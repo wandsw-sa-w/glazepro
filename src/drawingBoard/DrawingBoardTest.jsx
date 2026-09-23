@@ -40,26 +40,70 @@ function renderTreeLines(node, depth = 0) {
   return lines
 }
 
-// Structural comparison: ignore key/id, compare part_type + values + children
-function treesMatch(a, b) {
-  if (!a && !b) return true
-  if (!a || !b) return false
-  if (a.part_type !== b.part_type) return false
+// Sort children by sort_order (stable for comparison)
+function sortedChildren(node) {
+  return [...(node.children ?? [])].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+}
 
+// Describe a value with its type for diff output
+function describe(v) {
+  if (v === null || v === undefined) return 'null'
+  if (typeof v === 'string') return `"${v}" (string)`
+  if (typeof v === 'number') return `${v} (number)`
+  if (typeof v === 'boolean') return `${v} (boolean)`
+  return JSON.stringify(v)
+}
+
+// Collect all diffs between two trees, matched by part_type + position.
+// Returns array of strings describing each difference.
+function diffTrees(a, b, path = 'root') {
+  const diffs = []
+
+  if (!a && !b) return diffs
+  if (!a) { diffs.push(`${path}: missing in saved tree`); return diffs }
+  if (!b) { diffs.push(`${path}: missing in reloaded tree`); return diffs }
+
+  if (a.part_type !== b.part_type) {
+    diffs.push(`${path}: part_type saved=${a.part_type} reloaded=${b.part_type}`)
+    return diffs  // children won't be comparable
+  }
+
+  // Compare values — treat missing key same as null
   const av = a.values ?? {}
   const bv = b.values ?? {}
-  const keys = new Set([...Object.keys(av), ...Object.keys(bv)])
-  for (const k of keys) {
-    if (JSON.stringify(av[k] ?? null) !== JSON.stringify(bv[k] ?? null)) return false
+  const allKeys = [...new Set([...Object.keys(av), ...Object.keys(bv)])].sort()
+  for (const k of allKeys) {
+    const aVal = av[k] ?? null
+    const bVal = bv[k] ?? null
+    if (JSON.stringify(aVal) !== JSON.stringify(bVal)) {
+      diffs.push(`${path}.${k}: saved=${describe(aVal)}  reloaded=${describe(bVal)}`)
+    }
   }
 
-  const ac = a.children ?? []
-  const bc = b.children ?? []
-  if (ac.length !== bc.length) return false
-  for (let i = 0; i < ac.length; i++) {
-    if (!treesMatch(ac[i], bc[i])) return false
+  // Compare label_override
+  const aLabel = a.label_override ?? null
+  const bLabel = b.label_override ?? null
+  if (aLabel !== bLabel) {
+    diffs.push(`${path}.label_override: saved=${describe(aLabel)}  reloaded=${describe(bLabel)}`)
   }
-  return true
+
+  // Compare overrides array
+  const aOver = JSON.stringify((a.overrides ?? []).slice().sort())
+  const bOver = JSON.stringify((b.overrides ?? []).slice().sort())
+  if (aOver !== bOver) {
+    diffs.push(`${path}.overrides: saved=${aOver}  reloaded=${bOver}`)
+  }
+
+  // Recurse into children sorted by sort_order
+  const ac = sortedChildren(a)
+  const bc = sortedChildren(b)
+  const len = Math.max(ac.length, bc.length)
+  for (let i = 0; i < len; i++) {
+    const childPath = `${path}[${i}:${ac[i]?.part_type ?? bc[i]?.part_type ?? '?'}]`
+    diffs.push(...diffTrees(ac[i] ?? null, bc[i] ?? null, childPath))
+  }
+
+  return diffs
 }
 
 // Remove glassPart from the first topSashPart found in the tree (immutably)
@@ -99,12 +143,14 @@ export default function DrawingBoardTest() {
   const [derived,      setDerived]      = useState(null)
   const [reloadedTree, setReloadedTree] = useState(null)
   const [matchStatus,  setMatchStatus]  = useState(null)   // 'match' | 'mismatch'
+  const [diffs,        setDiffs]        = useState([])
+  const [rowsWritten,  setRowsWritten]  = useState(null)
   const [error,        setError]        = useState(null)
   const [loading,      setLoading]      = useState(false)
 
   function clearResults() {
     setTree(null); setWarnings([]); setDerived(null)
-    setReloadedTree(null); setMatchStatus(null); setError(null)
+    setReloadedTree(null); setMatchStatus(null); setDiffs([]); setRowsWritten(null); setError(null)
   }
 
   // Build a new box sash tree using the Sash profile defaults
@@ -144,9 +190,10 @@ export default function DrawingBoardTest() {
   async function handleSave(treeToSave) {
     if (!drawingId.trim()) { setError('Enter a drawing ID first.'); return }
     if (!treeToSave)       { setError('Build a tree first.'); return }
-    setLoading(true); setError(null)
+    setLoading(true); setError(null); setRowsWritten(null)
     try {
-      await saveDrawingParts(Number(drawingId), treeToSave)
+      const result = await saveDrawingParts(Number(drawingId), treeToSave)
+      setRowsWritten(result?.rowsWritten ?? null)
     } catch (e) {
       setError(e?.message ?? String(e))
     } finally {
@@ -157,12 +204,14 @@ export default function DrawingBoardTest() {
   // Reload from DB and compare structure with the last saved tree
   async function handleReload() {
     if (!drawingId.trim()) { setError('Enter a drawing ID first.'); return }
-    setLoading(true); setError(null); setReloadedTree(null); setMatchStatus(null)
+    setLoading(true); setError(null); setReloadedTree(null); setMatchStatus(null); setDiffs([])
     try {
       const loaded = await loadDrawingParts(Number(drawingId))
       setReloadedTree(loaded)
       if (tree && loaded) {
-        setMatchStatus(treesMatch(tree, loaded) ? 'match' : 'mismatch')
+        const d = diffTrees(tree, loaded)
+        setDiffs(d)
+        setMatchStatus(d.length === 0 ? 'match' : 'mismatch')
       }
     } catch (e) {
       setError(e?.message ?? String(e))
@@ -248,12 +297,22 @@ export default function DrawingBoardTest() {
         </div>
       )}
 
+      {rowsWritten !== null && (
+        <div style={S.section}>
+          <div style={S.label}>Save result</div>
+          <div style={{ fontSize: 12 }}>{rowsWritten} row{rowsWritten === 1 ? '' : 's'} sent to RPC</div>
+        </div>
+      )}
+
       {matchStatus && (
         <div style={S.section}>
           <div style={matchStatus === 'match' ? S.match : S.mismatch}>
             {matchStatus === 'match' ? '✓ MATCH' : '✗ MISMATCH'}
             {' '}— reloaded tree {matchStatus === 'match' ? 'matches' : 'does not match'} saved tree
           </div>
+          {diffs.length > 0 && (
+            <pre style={{ ...S.pre, marginTop: 8, color: '#b91c1c' }}>{diffs.join('\n')}</pre>
+          )}
         </div>
       )}
 
