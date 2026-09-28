@@ -1,6 +1,7 @@
 // Force rebuild - v2
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import Home from './pages/Home'
 import Leads from './pages/Leads'
 import LeadDetail from './pages/LeadDetail'
 import Calendar from './pages/Calendar'
@@ -32,7 +33,7 @@ function AppRoutes() {
 
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/leads" replace />} />
+      <Route path="/" element={<Home />} />
       <Route path="/leads" element={<Leads />} />
       <Route path="/leads/:id" element={<LeadDetail />} />
       <Route path="/calendar" element={<Calendar />} />

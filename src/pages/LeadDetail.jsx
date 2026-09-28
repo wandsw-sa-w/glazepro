@@ -7,6 +7,7 @@ import { useUnmatchedCount } from '../hooks/useUnmatchedCount'
 import { useCurrentUser } from '../hooks/useCurrentUser'
 import QuoteDrawer from '../components/QuoteDrawer'
 import QuoteMatrix from '../components/QuoteMatrix'
+import { Layout, LeadsSubNav } from '../components/Layout'
 
 const stageColours = {
   New: { bg: '#e6f0fb', color: '#1a5fa8' },
@@ -149,6 +150,9 @@ export default function LeadDetail() {
   const [addingJobItem, setAddingJobItem] = useState(false)
   const [openDrawing, setOpenDrawing] = useState(null) // { drawingId, jobItemId }
   const jobItemDebounceRefs = useRef({})
+  const [leadHistory, setLeadHistory] = useState([])
+  const [editingField, setEditingField] = useState(null)
+  const [fieldDraft, setFieldDraft] = useState('')
 
   useEffect(() => { fetchLead(); fetchUploads() }, [leadId])
 
@@ -156,6 +160,7 @@ export default function LeadDetail() {
     if (activeTab === 'tracking') fetchLeadAppointments()
     if (activeTab === 'correspondence') { fetchTasks(); fetchLeadNotes() }
     if (activeTab === 'quotes') { fetchJobItemsAndDrawings(); fetchQuotes() }
+    if (activeTab === 'general') fetchLeadHistory()
   }, [activeTab, leadId])
 
   useEffect(() => {
@@ -203,6 +208,23 @@ export default function LeadDetail() {
     await supabase.from('leads').update({ ...updates, last_updated_at: new Date().toISOString() }).eq('id', leadId)
     await fetchLead()
     setSaving(false)
+  }
+
+  async function fetchLeadHistory() {
+    const { data, error } = await supabase
+      .from('lead_history')
+      .select('*')
+      .eq('lead_id', leadId)
+      .order('created_at', { ascending: false })
+      .limit(100)
+    if (!error) setLeadHistory(data || [])
+  }
+
+  async function saveFieldEdit() {
+    if (!editingField) return
+    await updateLead({ [editingField]: fieldDraft })
+    setEditingField(null)
+    setFieldDraft('')
   }
 
   async function findGeoSlots() {
@@ -751,241 +773,330 @@ export default function LeadDetail() {
   const mainContactLink = contacts.find(lc => lc.is_main_contact) || contacts[0]
   const mainContact = mainContactLink?.contacts
 
-  return (
-    <div style={{ display: 'flex', height: '100vh', fontFamily: 'inherit' }}>
+  // Lead tags derived
+  const leadTagList = lead.lead_tags ? lead.lead_tags.split(',').map(t => t.trim()).filter(Boolean) : []
 
-      {/* Sidebar */}
-      <div style={{ width: 215, background: '#fff', borderRight: '1px solid #e8e6e0', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-        <div style={{ padding: 16, borderBottom: '1px solid #e8e6e0' }}>
-          <div style={{ fontSize: 16, fontWeight: 600 }}>GlazePro</div>
-          <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>Window management</div>
-        </div>
-        <div style={{ padding: '14px 14px 4px', fontSize: 10, color: '#aaa', letterSpacing: '.07em', textTransform: 'uppercase' }}>Workflow</div>
-        {[
-          ['Leads',             '/leads',              null],
-          ['Quotes & orders',   null,                  null],
-          ['Production',        null,                  null],
-          ['Scheduling',        '/calendar',           null],
-          ['Invoicing',         null,                  null],
-          ['Tasks',             '/tasks',              null],
-          ['Unmatched emails',  '/unmatched-emails',   unmatchedCount || null],
-        ].map(([item, path, badge]) => (
-          <div key={item} onClick={path ? () => navigate(path) : undefined} style={{ padding: '8px 11px', fontSize: 13, color: item === 'Leads' ? '#3d35a8' : path ? '#555' : '#aaa', fontWeight: item === 'Leads' ? 500 : 400, background: item === 'Leads' ? '#f0eefc' : 'transparent', borderRadius: 8, margin: '1px 7px', cursor: path ? 'pointer' : 'not-allowed', opacity: path ? 1 : 0.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span>{item}</span>
-            {badge > 0 && <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 999, background: '#fceaea', color: '#8b2020', fontWeight: 600, flexShrink: 0 }}>{badge}</span>}
-          </div>
-        ))}
-        <div style={{ padding: '14px 14px 4px', fontSize: 10, color: '#aaa', letterSpacing: '.07em', textTransform: 'uppercase' }}>Catalogue</div>
-        <div
-          onClick={() => navigate('/ironmongery')}
-          style={{ padding: '8px 11px', fontSize: 13, borderRadius: 8, margin: '1px 7px', display: 'flex', alignItems: 'center', color: '#555', fontWeight: 400, background: 'transparent', cursor: 'pointer' }}
-        >
-          <span>Ironmongery</span>
-        </div>
-        <div
-          onClick={() => navigate('/pricing')}
-          style={{ padding: '8px 11px', fontSize: 13, borderRadius: 8, margin: '1px 7px', display: 'flex', alignItems: 'center', color: '#555', fontWeight: 400, background: 'transparent', cursor: 'pointer' }}
-        >
-          <span>Pricing</span>
-        </div>
-        <div
-          onClick={() => navigate('/reference-data')}
-          style={{ padding: '8px 11px', fontSize: 13, borderRadius: 8, margin: '1px 7px', display: 'flex', alignItems: 'center', color: '#555', fontWeight: 400, background: 'transparent', cursor: 'pointer' }}
-        >
-          <span>Reference Data</span>
-        </div>
-        <div
-          onClick={() => navigate('/defaults')}
-          style={{ padding: '8px 11px', fontSize: 13, borderRadius: 8, margin: '1px 7px', display: 'flex', alignItems: 'center', color: '#555', fontWeight: 400, background: 'transparent', cursor: 'pointer' }}
-        >
-          <span>Defaults &amp; Parts</span>
-        </div>
-        <div onClick={() => navigate('/settings')} style={{ margin: '4px 7px 2px', padding: '8px 11px', fontSize: 13, borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8, color: '#555', cursor: 'pointer' }}>
-          <span>⚙</span><span>Settings</span>
-        </div>
-        <div style={{ marginTop: 'auto', padding: 13, borderTop: '1px solid #e8e6e0' }}>
-          <div style={{ fontSize: 11, color: '#555', fontWeight: 500, marginBottom: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {user?.email}
-          </div>
-          <button
-            onClick={signOut}
-            style={{ fontSize: 11, padding: '5px 10px', border: '1px solid #d8d5cf', borderRadius: 6, background: '#fff', cursor: 'pointer', color: '#555' }}
-          >
-            Sign out
-          </button>
+  // History helpers
+  const createdByRow = leadHistory.length > 0 ? leadHistory[leadHistory.length - 1] : null
+  const modifiedByRow = leadHistory.length > 0 ? leadHistory[0] : null
+
+  return (
+    <Layout subMenu={<LeadsSubNav />}>
+
+      {/* Lead title bar */}
+      <div style={{ background: '#fff', borderBottom: '1px solid #e8e6e0', padding: '12px 24px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, flexWrap: 'wrap' }}>
+        <button onClick={() => navigate('/leads')} style={{ fontSize: 12, padding: '5px 11px', border: '1px solid #d8d5cf', borderRadius: 7, background: '#fff', cursor: 'pointer', fontWeight: 500, color: '#555', marginRight: 4, fontFamily: 'inherit' }}>← Leads</button>
+        <span style={{ fontWeight: 700, fontSize: 16, color: '#1a1a1a' }}>{lead.lead_number}</span>
+        {mainContact?.last_name && (
+          <span style={{ fontSize: 15, color: '#555', fontWeight: 500 }}>{mainContact.last_name}</span>
+        )}
+        {leadTagList.map(tag => {
+          const c = LEAD_TAG_COLOURS[tag] || { bg: '#f0eefc', color: '#3d35a8' }
+          return <span key={tag} style={{ fontSize: 11, padding: '2px 9px', borderRadius: 999, fontWeight: 500, background: c.bg, color: c.color }}>{tag}</span>
+        })}
+        {lead.listed_building && <span style={{ fontSize: 11, padding: '2px 9px', borderRadius: 999, fontWeight: 500, background: '#faeeda', color: '#7a4a08' }}>Listed</span>}
+        {lead.conservation_area && <span style={{ fontSize: 11, padding: '2px 9px', borderRadius: 999, fontWeight: 500, background: '#fceaea', color: '#8b2020' }}>Conservation area</span>}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
+          {saving && <span style={{ fontSize: 12, color: '#aaa' }}>Saving…</span>}
+          <button style={{ fontSize: 12, padding: '6px 14px', border: 'none', borderRadius: 8, background: '#3d35a8', color: '#fff', cursor: 'pointer', fontWeight: 600, fontFamily: 'inherit' }}>Convert to quote →</button>
         </div>
       </div>
 
-      {/* Main */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 0, padding: '0 24px', background: '#fff', borderBottom: '1px solid #e8e6e0', flexShrink: 0 }}>
+        {[['general', 'General'], ['contacts', 'Contacts'], ['correspondence', 'Correspondence'], ['survey', 'Survey'], ['uploads', 'Uploads'], ['location', 'Location'], ['tracking', 'Tracking'], ['quotes', 'Quotes']].map(([id, label]) => (
+          <div key={id} onClick={() => setActiveTab(id)} style={{ padding: '11px 16px', fontSize: 13, color: activeTab === id ? '#3d35a8' : '#888', cursor: 'pointer', borderBottom: activeTab === id ? '2px solid #3d35a8' : '2px solid transparent', fontWeight: 500 }}>{label}</div>
+        ))}
+      </div>
 
-        {/* Topbar */}
-        <div style={{ height: 52, background: '#fff', borderBottom: '1px solid #e8e6e0', display: 'flex', alignItems: 'center', padding: '0 20px', gap: 12, flexShrink: 0 }}>
-          <button onClick={() => navigate('/leads')} style={{ fontSize: 12, padding: '6px 12px', border: '1px solid #d8d5cf', borderRadius: 8, background: '#fff', cursor: 'pointer', fontWeight: 500 }}>← Back</button>
-          <div style={{ fontSize: 15, fontWeight: 600 }}>{lead.lead_number}</div>
-          {mainContact && <div style={{ fontSize: 13, color: '#555' }}>{mainContact.first_name} {mainContact.last_name}</div>}
-          <Pill text={lead.stage} colourMap={stageColours} />
-          {lead.listed_building && <span style={{ fontSize: 11, padding: '2px 9px', borderRadius: 999, fontWeight: 500, background: '#faeeda', color: '#7a4a08' }}>Listed building</span>}
-          {lead.conservation_area && <span style={{ fontSize: 11, padding: '2px 9px', borderRadius: 999, fontWeight: 500, background: '#fceaea', color: '#8b2020' }}>Conservation area</span>}
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-            {saving && <span style={{ fontSize: 12, color: '#aaa' }}>Saving...</span>}
-            <button style={{ fontSize: 12, padding: '6px 14px', border: 'none', borderRadius: 8, background: '#3d35a8', color: '#fff', cursor: 'pointer', fontWeight: 500 }}>Convert to quote →</button>
-          </div>
-        </div>
-
-        {/* Tabs */}
-        <div style={{ display: 'flex', gap: 2, padding: '0 20px', background: '#fff', borderBottom: '1px solid #e8e6e0', flexShrink: 0 }}>
-          {[['general', 'General'], ['contacts', 'Contacts'], ['correspondence', 'Correspondence'], ['survey', 'Survey'], ['uploads', 'Uploads'], ['location', 'Location'], ['tracking', 'Tracking'], ['quotes', 'Quotes']].map(([id, label]) => (
-            <div key={id} onClick={() => setActiveTab(id)} style={{ padding: '12px 16px', fontSize: 13, color: activeTab === id ? '#3d35a8' : '#888', cursor: 'pointer', borderBottom: activeTab === id ? '2px solid #3d35a8' : '2px solid transparent', fontWeight: 500 }}>{label}</div>
-          ))}
-        </div>
-
-        <div style={{ flex: 1, padding: 24, overflowY: 'auto' }}>
+      <div style={{ flex: 1, padding: 24, overflowY: 'auto', background: '#f5f4f0' }}>
 
           {/* GENERAL TAB */}
-          {activeTab === 'general' && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, maxWidth: 900 }}>
+          {activeTab === 'general' && (() => {
+            const iStyle = { fontSize: 13, padding: '7px 10px', border: '1px solid #d8d5cf', borderRadius: 7, outline: 'none', background: '#fff', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' }
+            const allTags = LEAD_TAGS
+            const activeTags = lead.lead_tags ? lead.lead_tags.split(',').map(t => t.trim()).filter(Boolean) : []
 
-              {/* Contacts (read-only) */}
-              {contacts.length > 0 && (
-                <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, padding: '16px 18px', gridColumn: '1/-1' }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Contacts</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {contacts.map(lc => {
-                      const tagList = lc.contacts?.tags ? lc.contacts.tags.split(',').map(t => t.trim()).filter(Boolean) : []
-                      return (
-                        <div key={lc.id} style={{ border: `1px solid ${lc.is_main_contact ? '#b0a8f0' : '#e8e6e0'}`, borderRadius: 10, padding: '12px 14px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-                            <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#e6f0fb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, color: '#1a5fa8', flexShrink: 0 }}>
-                              {(lc.contacts?.first_name?.[0] || '') + (lc.contacts?.last_name?.[0] || '')}
-                            </div>
-                            <div>
-                              <div style={{ fontSize: 13, fontWeight: 600 }}>
-                                {[lc.contacts?.title, lc.contacts?.first_name, lc.contacts?.last_name].filter(Boolean).join(' ')}
-                              </div>
-                              {lc.is_main_contact && <span style={{ fontSize: 10, padding: '1px 7px', borderRadius: 999, background: '#f0eefc', color: '#3d35a8', fontWeight: 500 }}>Main contact</span>}
-                            </div>
-                          </div>
-                          <div style={{ fontSize: 12, color: '#555', display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: tagList.length ? 8 : 0 }}>
-                            {lc.contacts?.phone && <span>📞 {lc.contacts.phone}</span>}
-                            {lc.contacts?.email && <span>✉ {lc.contacts.email}</span>}
-                          </div>
-                          {tagList.length > 0 && (
-                            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                              {tagList.map(tag => (
-                                <span key={tag} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 999, background: '#f0eefc', color: '#3d35a8', fontWeight: 500 }}>{tag}</span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Status + Assigned to */}
-              <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, padding: '16px 18px', gridColumn: '1/-1' }}>
-                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Status</div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
-                  {STAGES.map(stage => (
-                    <div key={stage} onClick={() => updateLead({ stage })} style={{ fontSize: 12, padding: '7px 14px', border: `2px solid ${lead.stage === stage ? '#3d35a8' : '#e8e6e0'}`, borderRadius: 8, background: lead.stage === stage ? '#f0eefc' : '#fff', color: lead.stage === stage ? '#3d35a8' : '#555', cursor: 'pointer', fontWeight: lead.stage === stage ? 600 : 400 }}>{stage}</div>
-                  ))}
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingTop: 12, borderTop: '1px solid #f0eeea' }}>
-                  <label style={{ fontSize: 12, color: '#888', fontWeight: 500, flexShrink: 0 }}>Assigned to</label>
-                  <select
-                    value={lead.assigned_to || ''}
-                    onChange={e => updateLead({ assigned_to: e.target.value })}
-                    style={{ fontSize: 13, padding: '6px 10px', border: '1px solid #d8d5cf', borderRadius: 8, outline: 'none', background: '#fff', cursor: 'pointer', minWidth: 160 }}
-                  >
-                    <option value="">— Unassigned —</option>
-                    {users.map(u => <option key={u.id} value={u.full_name}>{u.full_name}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              {/* Lead Tags */}
-              <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, padding: '16px 18px', gridColumn: '1/-1' }}>
-                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Tags</div>
-                {(() => {
-                  const activeTags = lead.lead_tags ? lead.lead_tags.split(',').map(t => t.trim()).filter(Boolean) : []
-                  return (
-                    <>
-                      {activeTags.length > 0 && (
-                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-                          {activeTags.map(tag => {
-                            const c = LEAD_TAG_COLOURS[tag] || { bg: '#f0eefc', color: '#3d35a8' }
-                            return <span key={tag} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 999, fontWeight: 500, background: c.bg, color: c.color }}>{tag}</span>
-                          })}
-                        </div>
-                      )}
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                        {LEAD_TAGS.map(tag => {
-                          const active = activeTags.includes(tag)
-                          return (
-                            <div
-                              key={tag}
-                              onClick={() => toggleLeadTag(tag)}
-                              style={{ fontSize: 12, padding: '5px 13px', borderRadius: 8, cursor: 'pointer', fontWeight: 500, border: `1px solid ${active ? '#b0a8f0' : '#d8d5cf'}`, background: active ? '#f0eefc' : '#fff', color: active ? '#3d35a8' : '#555' }}
-                            >
-                              {tag}
-                            </div>
-                          )
-                        })}
+            function DetailRow({ field, label, value, editable, editEl }) {
+              const isEditing = editingField === field
+              return (
+                <tr>
+                  <td style={{ padding: '8px 14px', fontSize: 12, color: '#888', fontWeight: 500, width: 180, borderBottom: '1px solid #f5f4f0', verticalAlign: 'middle', background: 'inherit' }}>
+                    {label}
+                  </td>
+                  <td style={{ padding: '8px 14px', fontSize: 13, color: '#1a1a1a', borderBottom: '1px solid #f5f4f0', verticalAlign: 'middle', background: 'inherit' }}>
+                    {isEditing ? editEl : (value || <span style={{ color: '#ccc' }}>—</span>)}
+                  </td>
+                  <td style={{ padding: '8px 10px', width: 40, borderBottom: '1px solid #f5f4f0', verticalAlign: 'middle', textAlign: 'center', background: 'inherit' }}>
+                    {editable && !isEditing && (
+                      <button
+                        onClick={() => { setEditingField(field); setFieldDraft(lead[field] || '') }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#ccc', padding: '2px 4px', borderRadius: 4, fontFamily: 'inherit' }}
+                        title="Edit"
+                        onMouseEnter={e => { e.currentTarget.style.color = '#3d35a8' }}
+                        onMouseLeave={e => { e.currentTarget.style.color = '#ccc' }}
+                      >✎</button>
+                    )}
+                    {isEditing && (
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        <button onClick={saveFieldEdit} style={{ background: '#3d35a8', border: 'none', borderRadius: 5, color: '#fff', cursor: 'pointer', fontSize: 10, padding: '3px 7px', fontFamily: 'inherit' }}>Save</button>
+                        <button onClick={() => { setEditingField(null); setFieldDraft('') }} style={{ background: '#f0eeea', border: 'none', borderRadius: 5, cursor: 'pointer', fontSize: 10, padding: '3px 7px', fontFamily: 'inherit', color: '#555' }}>✕</button>
                       </div>
-                    </>
-                  )
-                })()}
-              </div>
+                    )}
+                  </td>
+                </tr>
+              )
+            }
 
-              {/* Property */}
-              <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, padding: '16px 18px' }}>
-                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Property</div>
-                {[
-                  ['Road', lead.property_road],
-                  ['Town', lead.property_town],
-                  ['Postcode', lead.property_postcode],
-                  ['Sector', lead.sector],
-                ].map(([label, val]) => val ? (
-                  <div key={label} style={{ display: 'flex', padding: '6px 0', borderBottom: '1px solid #f5f4f0', fontSize: 13 }}>
-                    <span style={{ color: '#888', minWidth: 120, fontSize: 12 }}>{label}</span>
-                    <span style={{ fontWeight: 500 }}>{val}</span>
+            return (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 16 }}>
+                {/* Left column — Lead details table */}
+                <div>
+                  <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, overflow: 'hidden' }}>
+                    <div style={{ padding: '13px 16px', borderBottom: '1px solid #f0eeea' }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a' }}>Lead details</div>
+                    </div>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <tbody>
+                        {/* Read-only rows */}
+                        {[
+                          ['Lead number', lead.lead_number],
+                          ['Created by', createdByRow?.user_email || '—'],
+                          ['Created date', lead.created_at ? new Date(lead.created_at).toLocaleDateString('en-GB') : '—'],
+                          ['Last modified by', modifiedByRow?.user_email || '—'],
+                          ['Last modified', lead.last_updated_at ? new Date(lead.last_updated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'],
+                        ].map(([lbl, val], idx) => (
+                          <tr key={lbl} style={{ background: idx % 2 === 0 ? '#fff' : '#faf9f8' }}>
+                            <td style={{ padding: '8px 14px', fontSize: 12, color: '#888', fontWeight: 500, width: 180, borderBottom: '1px solid #f5f4f0', verticalAlign: 'middle' }}>{lbl}</td>
+                            <td style={{ padding: '8px 14px', fontSize: 13, color: '#1a1a1a', borderBottom: '1px solid #f5f4f0', verticalAlign: 'middle', fontWeight: lbl === 'Lead number' ? 700 : 400 }}>{val}</td>
+                            <td style={{ width: 40, borderBottom: '1px solid #f5f4f0' }} />
+                          </tr>
+                        ))}
+                        {/* Editable: Assigned to */}
+                        {(() => { const isEdit = editingField === 'assigned_to'; return (
+                          <tr style={{ background: '#fff' }}>
+                            <td style={{ padding: '8px 14px', fontSize: 12, color: '#888', fontWeight: 500, width: 180, borderBottom: '1px solid #f5f4f0', verticalAlign: 'middle' }}>Assigned to</td>
+                            <td style={{ padding: '8px 14px', fontSize: 13, borderBottom: '1px solid #f5f4f0', verticalAlign: 'middle' }}>
+                              {isEdit
+                                ? <select value={fieldDraft} onChange={e => setFieldDraft(e.target.value)} style={iStyle}>
+                                    <option value="">— Unassigned —</option>
+                                    {users.map(u => <option key={u.id} value={u.full_name}>{u.full_name}</option>)}
+                                  </select>
+                                : <span style={{ color: lead.assigned_to ? '#1a1a1a' : '#ccc' }}>{lead.assigned_to || '—'}</span>}
+                            </td>
+                            <td style={{ padding: '8px 10px', width: 40, borderBottom: '1px solid #f5f4f0', textAlign: 'center', verticalAlign: 'middle' }}>
+                              {!isEdit
+                                ? <button onClick={() => { setEditingField('assigned_to'); setFieldDraft(lead.assigned_to || '') }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#ccc', padding: '2px 4px', fontFamily: 'inherit' }} onMouseEnter={e => { e.currentTarget.style.color = '#3d35a8' }} onMouseLeave={e => { e.currentTarget.style.color = '#ccc' }}>✎</button>
+                                : <div style={{ display: 'flex', gap: 4 }}><button onClick={saveFieldEdit} style={{ background: '#3d35a8', border: 'none', borderRadius: 5, color: '#fff', cursor: 'pointer', fontSize: 10, padding: '3px 7px', fontFamily: 'inherit' }}>Save</button><button onClick={() => { setEditingField(null); setFieldDraft('') }} style={{ background: '#f0eeea', border: 'none', borderRadius: 5, cursor: 'pointer', fontSize: 10, padding: '3px 7px', fontFamily: 'inherit', color: '#555' }}>✕</button></div>}
+                            </td>
+                          </tr>
+                        )})()}
+                        {/* Editable: Source */}
+                        {(() => { const isEdit = editingField === 'source'; return (
+                          <tr style={{ background: '#faf9f8' }}>
+                            <td style={{ padding: '8px 14px', fontSize: 12, color: '#888', fontWeight: 500, width: 180, borderBottom: '1px solid #f5f4f0', verticalAlign: 'middle' }}>Source</td>
+                            <td style={{ padding: '8px 14px', fontSize: 13, borderBottom: '1px solid #f5f4f0', verticalAlign: 'middle' }}>
+                              {isEdit
+                                ? <select value={fieldDraft} onChange={e => setFieldDraft(e.target.value)} style={iStyle}>
+                                    {['Online presence','Recommendation','Repeat customer','FRS presence','SRS presence','Physical presence','Historical remedial'].map(s => <option key={s} value={s}>{s}</option>)}
+                                  </select>
+                                : <span style={{ color: lead.source ? '#1a1a1a' : '#ccc' }}>{lead.source || '—'}</span>}
+                            </td>
+                            <td style={{ padding: '8px 10px', width: 40, borderBottom: '1px solid #f5f4f0', textAlign: 'center', verticalAlign: 'middle' }}>
+                              {!isEdit
+                                ? <button onClick={() => { setEditingField('source'); setFieldDraft(lead.source || '') }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#ccc', padding: '2px 4px', fontFamily: 'inherit' }} onMouseEnter={e => { e.currentTarget.style.color = '#3d35a8' }} onMouseLeave={e => { e.currentTarget.style.color = '#ccc' }}>✎</button>
+                                : <div style={{ display: 'flex', gap: 4 }}><button onClick={saveFieldEdit} style={{ background: '#3d35a8', border: 'none', borderRadius: 5, color: '#fff', cursor: 'pointer', fontSize: 10, padding: '3px 7px', fontFamily: 'inherit' }}>Save</button><button onClick={() => { setEditingField(null); setFieldDraft('') }} style={{ background: '#f0eeea', border: 'none', borderRadius: 5, cursor: 'pointer', fontSize: 10, padding: '3px 7px', fontFamily: 'inherit', color: '#555' }}>✕</button></div>}
+                            </td>
+                          </tr>
+                        )})()}
+                        {/* Editable: Sector */}
+                        {(() => { const isEdit = editingField === 'sector'; return (
+                          <tr style={{ background: '#fff' }}>
+                            <td style={{ padding: '8px 14px', fontSize: 12, color: '#888', fontWeight: 500, width: 180, borderBottom: '1px solid #f5f4f0', verticalAlign: 'middle' }}>Sector</td>
+                            <td style={{ padding: '8px 14px', fontSize: 13, borderBottom: '1px solid #f5f4f0', verticalAlign: 'middle' }}>
+                              {isEdit
+                                ? <select value={fieldDraft} onChange={e => setFieldDraft(e.target.value)} style={iStyle}>
+                                    <option value="">— Select —</option>
+                                    {['Residential','Commercial','Heritage','Landlord','Developer'].map(s => <option key={s} value={s}>{s}</option>)}
+                                  </select>
+                                : <span style={{ color: lead.sector ? '#1a1a1a' : '#ccc' }}>{lead.sector || '—'}</span>}
+                            </td>
+                            <td style={{ padding: '8px 10px', width: 40, borderBottom: '1px solid #f5f4f0', textAlign: 'center', verticalAlign: 'middle' }}>
+                              {!isEdit
+                                ? <button onClick={() => { setEditingField('sector'); setFieldDraft(lead.sector || '') }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#ccc', padding: '2px 4px', fontFamily: 'inherit' }} onMouseEnter={e => { e.currentTarget.style.color = '#3d35a8' }} onMouseLeave={e => { e.currentTarget.style.color = '#ccc' }}>✎</button>
+                                : <div style={{ display: 'flex', gap: 4 }}><button onClick={saveFieldEdit} style={{ background: '#3d35a8', border: 'none', borderRadius: 5, color: '#fff', cursor: 'pointer', fontSize: 10, padding: '3px 7px', fontFamily: 'inherit' }}>Save</button><button onClick={() => { setEditingField(null); setFieldDraft('') }} style={{ background: '#f0eeea', border: 'none', borderRadius: 5, cursor: 'pointer', fontSize: 10, padding: '3px 7px', fontFamily: 'inherit', color: '#555' }}>✕</button></div>}
+                            </td>
+                          </tr>
+                        )})()}
+                        {/* Editable: Status */}
+                        {(() => { const isEdit = editingField === 'stage'; return (
+                          <tr style={{ background: '#faf9f8' }}>
+                            <td style={{ padding: '8px 14px', fontSize: 12, color: '#888', fontWeight: 500, width: 180, borderBottom: '1px solid #f5f4f0', verticalAlign: 'middle' }}>Status</td>
+                            <td style={{ padding: '8px 14px', fontSize: 13, borderBottom: '1px solid #f5f4f0', verticalAlign: 'middle' }}>
+                              {isEdit
+                                ? <select value={fieldDraft} onChange={e => setFieldDraft(e.target.value)} style={iStyle}>
+                                    {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
+                                  </select>
+                                : (() => { const c = stageColours[lead.stage] || { bg: '#f5f4f0', color: '#666' }; return (
+                                    <span style={{ fontSize: 11, padding: '2px 9px', borderRadius: 999, fontWeight: 500, background: c.bg, color: c.color }}>{lead.stage}</span>
+                                  )})()}
+                            </td>
+                            <td style={{ padding: '8px 10px', width: 40, borderBottom: '1px solid #f5f4f0', textAlign: 'center', verticalAlign: 'middle' }}>
+                              {!isEdit
+                                ? <button onClick={() => { setEditingField('stage'); setFieldDraft(lead.stage || '') }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#ccc', padding: '2px 4px', fontFamily: 'inherit' }} onMouseEnter={e => { e.currentTarget.style.color = '#3d35a8' }} onMouseLeave={e => { e.currentTarget.style.color = '#ccc' }}>✎</button>
+                                : <div style={{ display: 'flex', gap: 4 }}><button onClick={saveFieldEdit} style={{ background: '#3d35a8', border: 'none', borderRadius: 5, color: '#fff', cursor: 'pointer', fontSize: 10, padding: '3px 7px', fontFamily: 'inherit' }}>Save</button><button onClick={() => { setEditingField(null); setFieldDraft('') }} style={{ background: '#f0eeea', border: 'none', borderRadius: 5, cursor: 'pointer', fontSize: 10, padding: '3px 7px', fontFamily: 'inherit', color: '#555' }}>✕</button></div>}
+                            </td>
+                          </tr>
+                        )})()}
+                        {/* Editable: Window types */}
+                        {(() => { const isEdit = editingField === 'window_types'; return (
+                          <tr style={{ background: '#fff' }}>
+                            <td style={{ padding: '8px 14px', fontSize: 12, color: '#888', fontWeight: 500, width: 180, borderBottom: '1px solid #f5f4f0', verticalAlign: 'middle' }}>Enquiry / types</td>
+                            <td style={{ padding: '8px 14px', fontSize: 13, borderBottom: '1px solid #f5f4f0', verticalAlign: 'middle' }}>
+                              {isEdit
+                                ? <input value={fieldDraft} onChange={e => setFieldDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') saveFieldEdit(); if (e.key === 'Escape') { setEditingField(null); setFieldDraft('') } }} style={iStyle} autoFocus />
+                                : <span style={{ color: lead.window_types ? '#1a1a1a' : '#ccc' }}>{lead.window_types || '—'}</span>}
+                            </td>
+                            <td style={{ padding: '8px 10px', width: 40, borderBottom: '1px solid #f5f4f0', textAlign: 'center', verticalAlign: 'middle' }}>
+                              {!isEdit
+                                ? <button onClick={() => { setEditingField('window_types'); setFieldDraft(lead.window_types || '') }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#ccc', padding: '2px 4px', fontFamily: 'inherit' }} onMouseEnter={e => { e.currentTarget.style.color = '#3d35a8' }} onMouseLeave={e => { e.currentTarget.style.color = '#ccc' }}>✎</button>
+                                : <div style={{ display: 'flex', gap: 4 }}><button onClick={saveFieldEdit} style={{ background: '#3d35a8', border: 'none', borderRadius: 5, color: '#fff', cursor: 'pointer', fontSize: 10, padding: '3px 7px', fontFamily: 'inherit' }}>Save</button><button onClick={() => { setEditingField(null); setFieldDraft('') }} style={{ background: '#f0eeea', border: 'none', borderRadius: 5, cursor: 'pointer', fontSize: 10, padding: '3px 7px', fontFamily: 'inherit', color: '#555' }}>✕</button></div>}
+                            </td>
+                          </tr>
+                        )})()}
+                        {/* Editable: Notes */}
+                        {(() => { const isEdit = editingField === 'notes'; return (
+                          <tr style={{ background: '#faf9f8' }}>
+                            <td style={{ padding: '8px 14px', fontSize: 12, color: '#888', fontWeight: 500, width: 180, borderBottom: '1px solid #f5f4f0', verticalAlign: 'top', paddingTop: 12 }}>Notes</td>
+                            <td style={{ padding: '8px 14px', fontSize: 13, borderBottom: '1px solid #f5f4f0', verticalAlign: 'middle' }}>
+                              {isEdit
+                                ? <textarea value={fieldDraft} onChange={e => setFieldDraft(e.target.value)} rows={3} style={{ ...iStyle, resize: 'vertical' }} autoFocus />
+                                : <span style={{ color: lead.notes ? '#1a1a1a' : '#ccc', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{lead.notes || '—'}</span>}
+                            </td>
+                            <td style={{ padding: '8px 10px', width: 40, borderBottom: '1px solid #f5f4f0', textAlign: 'center', verticalAlign: 'top', paddingTop: 12 }}>
+                              {!isEdit
+                                ? <button onClick={() => { setEditingField('notes'); setFieldDraft(lead.notes || '') }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#ccc', padding: '2px 4px', fontFamily: 'inherit' }} onMouseEnter={e => { e.currentTarget.style.color = '#3d35a8' }} onMouseLeave={e => { e.currentTarget.style.color = '#ccc' }}>✎</button>
+                                : <div style={{ display: 'flex', gap: 4 }}><button onClick={saveFieldEdit} style={{ background: '#3d35a8', border: 'none', borderRadius: 5, color: '#fff', cursor: 'pointer', fontSize: 10, padding: '3px 7px', fontFamily: 'inherit' }}>Save</button><button onClick={() => { setEditingField(null); setFieldDraft('') }} style={{ background: '#f0eeea', border: 'none', borderRadius: 5, cursor: 'pointer', fontSize: 10, padding: '3px 7px', fontFamily: 'inherit', color: '#555' }}>✕</button></div>}
+                            </td>
+                          </tr>
+                        )})()}
+                        {/* Tags row */}
+                        <tr style={{ background: '#fff' }}>
+                          <td style={{ padding: '10px 14px', fontSize: 12, color: '#888', fontWeight: 500, width: 180, verticalAlign: 'top', paddingTop: 12 }}>Tags</td>
+                          <td colSpan={2} style={{ padding: '10px 14px', verticalAlign: 'middle' }}>
+                            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                              {allTags.map(tag => {
+                                const active = activeTags.includes(tag)
+                                const c = LEAD_TAG_COLOURS[tag] || { bg: '#f0eefc', color: '#3d35a8' }
+                                return (
+                                  <div key={tag} onClick={() => toggleLeadTag(tag)} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 999, cursor: 'pointer', fontWeight: 500, background: active ? c.bg : '#f0eeea', color: active ? c.color : '#999', border: `1px solid ${active ? c.color + '44' : 'transparent'}` }}>
+                                    {tag}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
-                ) : null)}
-                {lead.listed_building && <div style={{ marginTop: 8 }}><span style={{ fontSize: 11, padding: '2px 9px', borderRadius: 999, fontWeight: 500, background: '#faeeda', color: '#7a4a08' }}>Listed building</span></div>}
-                {lead.conservation_area && <div style={{ marginTop: 4 }}><span style={{ fontSize: 11, padding: '2px 9px', borderRadius: 999, fontWeight: 500, background: '#fceaea', color: '#8b2020' }}>Conservation area</span></div>}
-              </div>
-
-              {/* Enquiry */}
-              <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, padding: '16px 18px' }}>
-                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Enquiry</div>
-                {[
-                  ['Window types', lead.window_types],
-                  ['Estimated units', lead.estimated_units],
-                  ['Source', lead.source],
-                  ['Priority', lead.priority],
-                ].map(([label, val]) => val ? (
-                  <div key={label} style={{ display: 'flex', padding: '6px 0', borderBottom: '1px solid #f5f4f0', fontSize: 13 }}>
-                    <span style={{ color: '#888', minWidth: 120, fontSize: 12 }}>{label}</span>
-                    <span style={{ fontWeight: 500 }}>{val}</span>
-                  </div>
-                ) : null)}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 12 }}>
-                  <label style={{ fontSize: 12, color: '#888', fontWeight: 500 }}>Enquiry notes</label>
-                  <textarea
-                    value={enquiryNotes}
-                    onChange={e => setEnquiryNotes(e.target.value)}
-                    onBlur={e => { if (e.target.value !== (lead.description || '')) updateLead({ description: e.target.value }) }}
-                    rows={4}
-                    placeholder="Add enquiry notes…"
-                    style={{ fontSize: 13, padding: '8px 11px', border: '1px solid #d8d5cf', borderRadius: 8, outline: 'none', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5, width: '100%', boxSizing: 'border-box' }}
-                  />
                 </div>
-              </div>
 
-            </div>
-          )}
+                {/* Right column */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {/* Customer card */}
+                  {mainContact && (
+                    <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, padding: '14px 16px' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 12 }}>Customer</div>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                        <div style={{ width: 38, height: 38, borderRadius: '50%', background: '#e6f0fb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#1a5fa8', flexShrink: 0 }}>
+                          {(mainContact.first_name?.[0] || '') + (mainContact.last_name?.[0] || '')}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: '#1a1a1a', marginBottom: 3 }}>
+                            {[mainContact.title, mainContact.first_name, mainContact.last_name].filter(Boolean).join(' ')}
+                          </div>
+                          <span style={{ fontSize: 10, padding: '1px 7px', borderRadius: 999, background: '#f0eefc', color: '#3d35a8', fontWeight: 600 }}>Main contact</span>
+                          <div style={{ fontSize: 12, color: '#555', marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            {mainContact.phone && (
+                              <span>📞 {mainContact.phone}</span>
+                            )}
+                            {mainContact.email && (
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>✉ {mainContact.email}</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Installation address */}
+                  <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, padding: '14px 16px' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 12 }}>Installation address</div>
+                    <div style={{ fontSize: 13, color: '#555', lineHeight: 1.7 }}>
+                      {lead.property_road && <div>{lead.property_road}</div>}
+                      {lead.property_address_2 && <div>{lead.property_address_2}</div>}
+                      {lead.property_town && <div>{lead.property_town}</div>}
+                      {lead.property_postcode && <div style={{ fontWeight: 600, color: '#1a1a1a' }}>{lead.property_postcode}</div>}
+                      {!lead.property_road && !lead.property_town && !lead.property_postcode && (
+                        <span style={{ color: '#ccc' }}>No address recorded</span>
+                      )}
+                    </div>
+                    {(lead.listed_building || lead.conservation_area) && (
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
+                        {lead.listed_building && <span style={{ fontSize: 11, padding: '2px 9px', borderRadius: 999, fontWeight: 500, background: '#faeeda', color: '#7a4a08' }}>Listed building</span>}
+                        {lead.conservation_area && <span style={{ fontSize: 11, padding: '2px 9px', borderRadius: 999, fontWeight: 500, background: '#fceaea', color: '#8b2020' }}>Conservation area</span>}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Lead history — full width */}
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, overflow: 'hidden' }}>
+                    <div style={{ padding: '13px 16px', borderBottom: '1px solid #f0eeea' }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a' }}>Lead history</div>
+                    </div>
+                    {leadHistory.length === 0 ? (
+                      <div style={{ padding: '28px 16px', textAlign: 'center', color: '#ccc', fontSize: 13 }}>
+                        No history recorded yet — history is captured automatically once the lead_history migration is run.
+                      </div>
+                    ) : (
+                      <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr style={{ background: '#faf9f7' }}>
+                            <th style={{ textAlign: 'left', padding: '8px 14px', fontWeight: 600, color: '#888', borderBottom: '1px solid #eeece8', width: 160 }}>Date</th>
+                            <th style={{ textAlign: 'left', padding: '8px 14px', fontWeight: 600, color: '#888', borderBottom: '1px solid #eeece8', width: 200 }}>User</th>
+                            <th style={{ textAlign: 'left', padding: '8px 14px', fontWeight: 600, color: '#888', borderBottom: '1px solid #eeece8' }}>Event</th>
+                            <th style={{ textAlign: 'left', padding: '8px 14px', fontWeight: 600, color: '#888', borderBottom: '1px solid #eeece8', width: 200 }}>Notes</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {leadHistory.map((row, idx) => (
+                            <tr key={row.id} style={{ background: idx % 2 === 0 ? '#fff' : '#faf9f8' }}>
+                              <td style={{ padding: '8px 14px', borderBottom: '1px solid #f5f4f0', color: '#555', whiteSpace: 'nowrap' }}>
+                                {new Date(row.created_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                              </td>
+                              <td style={{ padding: '8px 14px', borderBottom: '1px solid #f5f4f0', color: '#555' }}>
+                                {row.user_email || row.user_id || '—'}
+                              </td>
+                              <td style={{ padding: '8px 14px', borderBottom: '1px solid #f5f4f0', color: '#1a1a1a', fontWeight: 500 }}>
+                                {row.event || (row.field_name ? `${row.field_name}: ${row.old_value || '(blank)'} → ${row.new_value || '(blank)'}` : '—')}
+                              </td>
+                              <td style={{ padding: '8px 14px', borderBottom: '1px solid #f5f4f0', color: '#888' }}>
+                                {row.notes || ''}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                </div>
+
+              </div>
+            )
+          })()}
 
           {/* CONTACTS TAB */}
           {activeTab === 'contacts' && (
@@ -2024,7 +2135,6 @@ export default function LeadDetail() {
           )}
 
         </div>
-      </div>
 
       {openDrawing && (
         <QuoteDrawer
@@ -2042,6 +2152,6 @@ export default function LeadDetail() {
           onClose={() => { setOpenQuoteMatrix(null); fetchQuotes() }}
         />
       )}
-    </div>
+    </Layout>
   )
 }
