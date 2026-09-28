@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
@@ -1937,18 +1937,28 @@ export default function LeadDetail() {
                           {/* Drawings list */}
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                             {itemDrawings.map(dwg => (
-                              <button
-                                key={dwg.id}
-                                onClick={() => setOpenDrawing({ drawingId: dwg.id, jobItemId: item.id })}
-                                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', fontSize: 11, border: '1px solid #d8d5cf', borderRadius: 6, background: '#fafaf8', cursor: 'pointer', fontWeight: 500 }}
-                              >
-                                <span style={{ color: '#555' }}>Dwg {item.item_number}.{dwg.drawing_number}</span>
-                                {dwg.spec?.window_type && (
-                                  <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 999, background: '#f0eefc', color: '#3d35a8', fontWeight: 600 }}>
-                                    {dwg.spec.window_type}
-                                  </span>
+                              <React.Fragment key={dwg.id}>
+                                <button
+                                  onClick={() => setOpenDrawing({ drawingId: dwg.id, jobItemId: item.id })}
+                                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', fontSize: 11, border: '1px solid #d8d5cf', borderRadius: 6, background: '#fafaf8', cursor: 'pointer', fontWeight: 500 }}
+                                >
+                                  <span style={{ color: '#555' }}>Dwg {item.item_number}.{dwg.drawing_number}</span>
+                                  {dwg.window_type && (
+                                    <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 999, background: '#f0eefc', color: '#3d35a8', fontWeight: 600 }}>
+                                      {dwg.window_type}
+                                    </span>
+                                  )}
+                                </button>
+                                {dwg.window_type === 'Box Sash' && (
+                                  <button
+                                    onClick={() => navigate(`/drawing-board/${dwg.id}`)}
+                                    style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', fontSize: 11, border: '1px solid #3d35a8', borderRadius: 6, background: '#f0eefc', color: '#3d35a8', cursor: 'pointer', fontWeight: 500 }}
+                                    title="Open Drawing Board editor"
+                                  >
+                                    ✏ Drawing Board
+                                  </button>
                                 )}
-                              </button>
+                              </React.Fragment>
                             ))}
                             <button
                               onClick={() => addDrawing(item.id)}

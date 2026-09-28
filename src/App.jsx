@@ -19,6 +19,7 @@ import InstallLabourEditor     from './pages/pricing/InstallLabourEditor'
 import ManufactureLabourEditor from './pages/pricing/ManufactureLabourEditor'
 import PartsEditor             from './pages/pricing/PartsEditor'
 import DrawingBoardTest        from './drawingBoard/DrawingBoardTest.jsx'
+import DrawingBoard            from './pages/DrawingBoard.jsx'
 import './App.css'
 
 function AppRoutes() {
@@ -48,6 +49,7 @@ function AppRoutes() {
       <Route path="/pricing/:fileId/parts"       element={<PartsEditor />} />
       <Route path="/reference-data"               element={<ReferenceData />} />
       <Route path="/defaults"                     element={<DefaultsAndParts />} />
+      <Route path="/drawing-board/:drawingId"      element={<DrawingBoard />} />
       <Route path="/dev/drawing-board-test"       element={<DrawingBoardTest />} />
     </Routes>
   )

@@ -1,3 +1,5 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f4f0; color: #1a1a1a; font-size: 14px; }
-.app { display: flex; height: 100vh; overflow: hidden; }
+/* Pages that need full-screen layout set height:100vh on their own root div.
+   min-height (not fixed height) lets non-full-screen pages scroll naturally. */
+.app { display: flex; min-height: 100vh; }
