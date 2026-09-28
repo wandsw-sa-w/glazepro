@@ -167,12 +167,29 @@ function computePartVariables(partNode, tree, derived, baseVars) {
   }
 
   if (pt === 'assemblyFramePart') {
+    // OUTER frame dimensions (Integrate convention: width/height = outer frame in metres)
+    // outerWidth/outerHeight set explicitly in fixture (derive from sash defaults is non-trivial)
+    const outerW = v.outerWidth  ?? v.width  ?? 0
+    const outerH = v.outerHeight ?? v.height ?? 0
+
+    // Cill child part (assemblyFramePart > cillPart)
+    const cillNode = (partNode.children ?? []).find(c => c.part_type === 'cillPart')
+    const cv = cillNode?.values ?? {}
+
+    // cill_profiled_height_in_mm: height excluding frame stop (store as profiledHeight in fixture)
+    const cill_profiled_height_in_mm = cv.profiledHeight ?? cv.height ?? 0
+    // cill_length_in_mm: outer frame width + left horn + right horn
+    const cill_length_in_mm = outerW + (v.leftCillHorn ?? 0) + (v.rightCillHorn ?? 0)
+
     return {
-      to_be_replaced:     baseVars.is_complete_new ?? false,
-      width:              (v.width  ?? 0) / 1000,  // metres (Integrate convention)
-      height:             (v.height ?? 0) / 1000,  // metres
-      frame_width_in_mm:  v.width  ?? 0,           // mm (kept for rules that use _in_mm)
-      frame_height_in_mm: v.height ?? 0,
+      to_be_replaced:          baseVars.is_complete_new ?? false,
+      width:                   outerW / 1000,   // metres (OUTER — Integrate convention)
+      height:                  outerH / 1000,   // metres (OUTER)
+      frame_width_in_mm:       outerW,          // mm (OUTER)
+      frame_height_in_mm:      outerH,          // mm (OUTER)
+      frame_depth_in_mm:       v.frameDepth ?? 0,
+      cill_profiled_height_in_mm,
+      cill_length_in_mm,
     }
   }
 
@@ -185,24 +202,27 @@ function computePartVariables(partNode, tree, derived, baseVars) {
 
     let glassHeight = 0
     if (parentSash?.part_type === 'topSashPart') {
-      // topGlassHeight = topSashHeight - topRail - midrail
       const tsh      = pairDerived.topSashHeight ?? 0
       const topRail  = parentSash.values?.topHeight ?? 49
       const midrail  = pair?.values?.midrailHeight ?? 40
       glassHeight    = tsh - topRail - midrail
     } else if (parentSash?.part_type === 'bottomSashPart') {
-      // bottomGlassHeight = bottomSashHeight - bottomRail - midrail
       const bsh      = pairDerived.bottomSashHeight ?? 0
       const botRail  = parentSash.values?.bottomHeight ?? 88
       const midrail  = pair?.values?.midrailHeight ?? 40
       glassHeight    = bsh - botRail - midrail
     }
 
-    const actual_area  = (glassWidth > 0 && glassHeight > 0) ? (glassWidth * glassHeight) / 1e6 : 0
-    const rounded_area = Math.ceil(actual_area * 2) / 2  // round up to nearest 0.5
-    const glazingId    = v.glazingId ?? ''
+    // actual_area: m² rounded to 2dp (Integrate definition)
+    const actual_area  = (glassWidth > 0 && glassHeight > 0)
+      ? Math.round((glassWidth * glassHeight / 1e6) * 100) / 100
+      : 0
+    // rounded_area: actual_area, minimum 0.3 (Integrate: "rounded up to 0.3 m2 if smaller")
+    const rounded_area = Math.max(0.3, actual_area)
 
-    // to_be_replaced: glass is new if the job is complete_new OR the parent sash is replaced
+    const glazingId = v.glazingId ?? ''
+
+    // to_be_replaced
     const to_be_replaced = (baseVars.is_complete_new === true) || (parentSash?.values?.toBeReplaced === true)
 
     // Glazing bars: barsWide = vertical dividers, barsHigh = horizontal dividers
@@ -210,8 +230,27 @@ function computePartVariables(partNode, tree, derived, baseVars) {
     const barsHigh = v.barsHigh ?? 0
     const unit_gb_qty = barsWide + barsHigh
 
-    // internal_spacer_length (metres): sum of bar run lengths inside the pane opening
+    // internal_spacer_length: total run of glazing bar material in this unit (metres)
     const internal_spacer_length = (barsWide * glassHeight + barsHigh * glassWidth) / 1000
+
+    // Glass costs from parts catalogue (fixture: innerPaneCost, outerPaneCost in £/m²)
+    const inner_pane_cost  = v.innerPaneCost  ?? 0
+    const outer_pane_cost  = v.outerPaneCost  ?? 0
+    const single_pane_cost = v.singlePaneCost ?? 0
+
+    // Glass pane thicknesses (mm)
+    const inner_pane_thickness  = v.innerPaneThickness  ?? 0
+    const outer_pane_thickness  = v.outerPaneThickness  ?? 0
+    const middle_pane_thickness = v.middlePaneThickness ?? 0
+    const single_pane_thickness = v.singlePaneThickness ?? 0
+
+    // glass_unit_thickness: inner + spacer + outer (mm)
+    const spacerHeight         = v.spacerHeight ?? 0
+    const glass_unit_thickness = inner_pane_thickness + spacerHeight + outer_pane_thickness
+
+    // Spacer type flags
+    const spacerDimId = v.spacerDimId ?? ''
+    const has_white_warm_edge_spacer = spacerDimId.toLowerCase().includes('warm_edge')
 
     return {
       actual_area,
@@ -219,10 +258,18 @@ function computePartVariables(partNode, tree, derived, baseVars) {
       is_single_glazed: glazingId === 'single_glazed',
       is_double_glazed: glazingId === 'double_glazed',
       is_triple_glazed: glazingId === 'triple_glazed',
-      glass_unit_thickness: 0,  // NEEDS-DATA: spacer-based thickness not yet mapped
+      glass_unit_thickness,
       to_be_replaced,
       unit_gb_qty,
       internal_spacer_length,
+      inner_pane_cost,
+      outer_pane_cost,
+      single_pane_cost,
+      inner_pane_thickness,
+      outer_pane_thickness,
+      middle_pane_thickness,
+      single_pane_thickness,
+      has_white_warm_edge_spacer,
     }
   }
 
@@ -375,8 +422,9 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, { testMode = fal
   }
   results.manufacture_labour.total_minutes = mfgMinutes
 
-  // Make std_labour_time (hours) available for subsequent passes
-  const mfgVars = { ...baseVars, std_labour_time: mfgMinutes / 60 }
+  // Integrate rounds total hours to 2dp before multiplying by hourly rate
+  const mfgHours = Math.round((mfgMinutes / 60) * 100) / 100
+  const mfgVars = { ...baseVars, std_labour_time: mfgHours }
 
   // ── Pass 2 — install_labour ───────────────────────────────────────────────
   const instRules = rules.filter(
@@ -396,8 +444,8 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, { testMode = fal
   }
   results.install_labour.total_minutes = instMinutes
 
-  // Make installation_labour_time (hours) available for price pass
-  const priceVars = { ...mfgVars, installation_labour_time: instMinutes / 60 }
+  const instHours = Math.round((instMinutes / 60) * 100) / 100
+  const priceVars = { ...mfgVars, installation_labour_time: instHours }
 
   // ── Pass 3 — price rules (item-level) ─────────────────────────────────────
   const priceRules = rules.filter(

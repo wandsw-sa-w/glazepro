@@ -318,11 +318,12 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
     const panel_qty             = 0
 
     // ── GROUP 12 — Frame geometry (mm) ────────────────────────────────────────
-    const frame_width    = frame?.values?.width     ?? null
-    const frame_height   = frame?.values?.height    ?? null
+    // OUTER frame dimensions (Integrate: frame_width/height_in_mm = OUTER mm; width/height = OUTER metres)
+    const frame_width    = (frame?.values?.outerWidth  ?? frame?.values?.width)  ?? null
+    const frame_height   = (frame?.values?.outerHeight ?? frame?.values?.height) ?? null
     const frame_depth_in_mm = frame?.values?.frameDepth ?? null
 
-    // Integrate names
+    // Integrate names — OUTER dimensions
     const frame_width_in_mm  = frame_width
     const frame_height_in_mm = frame_height
 
@@ -342,6 +343,9 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
     const cill_length_in_mm = frame_width != null
       ? frame_width + (frame?.values?.leftCillHorn ?? 0) + (frame?.values?.rightCillHorn ?? 0)
       : null
+
+    // cill_profiled_height_in_mm: cill height excluding the frame stop
+    const cill_profiled_height_in_mm = cill?.values?.profiledHeight ?? cill?.values?.height ?? null
 
     // ── GROUP 13 — Sash geometry from derived ─────────────────────────────────
     const pairDerived    = derived[pair?.key] ?? {}
@@ -557,6 +561,7 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
       overall_frame_width,
       frame_area_m2, frame_perimeter_mm,
       cill_length_in_mm,
+      cill_profiled_height_in_mm,
 
       // Group 13 — Sash geometry
       sash_width, top_sash_height, bottom_sash_height,

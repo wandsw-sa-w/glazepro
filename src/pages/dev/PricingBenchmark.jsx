@@ -13,10 +13,20 @@ import { runPricingOnTree } from '../../pricing/pricingEngine.js'
 import { computeDerived } from '../../drawingBoard/computeDerived.js'
 
 // ── Integrate targets for L34046 Item 7 ──────────────────────────────────────
+// Integrate PF30 Item 7 targets (from live run)
 const TARGETS = {
   manufacture_minutes: 1337,
   install_minutes:     450,
-  item_cost:           1212.57,
+  // Per-group COST targets (qty × value, no markup)
+  group_cost: {
+    manufacture:           549.42,
+    labour:                301.58,
+    manufacture_materials: 115.45,
+    glass_done:            136.66,
+    installation_materials: 138.45,
+  },
+  total_cost:  1241.56,
+  total_price: 2456.24,
 }
 
 // ── Fixture tree — L34046 Item 7 ─────────────────────────────────────────────
@@ -77,6 +87,10 @@ const FIXTURE_TREE = {
         rightCillHorn:  50,
         rakeFrame:      false,
         archHead:       false,
+        // Outer frame dimensions set explicitly (inner opening is 1075×1630;
+        // derivation from sash defaults is non-trivial without Integrate's geometry engine)
+        outerWidth:  1255,
+        outerHeight: 1775,
       },
       children: [
         {
@@ -85,6 +99,8 @@ const FIXTURE_TREE = {
           values: {
             height: 70,
             depth:  200,
+            // profiledHeight: cill height excluding frame stop (~25mm assumed)
+            profiledHeight: 45,
           },
           children: [],
         },
@@ -122,8 +138,15 @@ const FIXTURE_TREE = {
                     glazingId:         'double_glazed',
                     isIndividualPanes: false,
                     spacerDimId:       '16mm_white_warm_edge',
-                    barsWide:          2,  // 6-over-6: 2 vertical bars per sash
-                    barsHigh:          1,  // 1 horizontal bar per sash
+                    barsWide:          2,   // 6-over-6: 2 vertical bars per sash
+                    barsHigh:          1,   // 1 horizontal bar per sash
+                    // Fixture prices (catalogue not yet populated): inner+outer = £57.50/m²
+                    innerPaneCost:      28.75,
+                    outerPaneCost:      28.75,
+                    // 4-16-4 unit: spacer 16mm warm edge
+                    innerPaneThickness:  4,
+                    outerPaneThickness:  4,
+                    spacerHeight:       16,  // → glass_unit_thickness = 24mm
                   },
                   children: [],
                 },
@@ -148,8 +171,15 @@ const FIXTURE_TREE = {
                     glazingId:         'double_glazed',
                     isIndividualPanes: false,
                     spacerDimId:       '16mm_white_warm_edge',
-                    barsWide:          2,  // 6-over-6: 2 vertical bars per sash
-                    barsHigh:          1,  // 1 horizontal bar per sash
+                    barsWide:          2,   // 6-over-6: 2 vertical bars per sash
+                    barsHigh:          1,   // 1 horizontal bar per sash
+                    // Fixture prices (catalogue not yet populated): inner+outer = £57.50/m²
+                    innerPaneCost:      28.75,
+                    outerPaneCost:      28.75,
+                    // 4-16-4 unit: spacer 16mm warm edge
+                    innerPaneThickness:  4,
+                    outerPaneThickness:  4,
+                    spacerHeight:       16,  // → glass_unit_thickness = 24mm
                   },
                   children: [],
                 },
@@ -282,16 +312,82 @@ function PriceTable({ lines, total }) {
   const groups = {}
   for (const line of lines) {
     const g = line.group_name ?? '(ungrouped)'
-    if (!groups[g]) groups[g] = []
-    groups[g].push(line)
+    if (!groups[g]) groups[g] = { lines: [], cost: 0, price: 0 }
+    groups[g].lines.push(line)
+    if (line.fires && !line.error) {
+      groups[g].cost  += line.quantity * line.value
+      groups[g].price += line.line_total
+    }
   }
+
+  const totalCost  = Object.values(groups).reduce((s, g) => s + g.cost,  0)
+  const totalPrice = Object.values(groups).reduce((s, g) => s + g.price, 0)
 
   return (
     <>
-      {Object.entries(groups).map(([group, groupLines]) => (
+      {/* Per-group cost vs target summary */}
+      <table style={{ ...S.table, width: 'auto', minWidth: '600px', marginBottom: '16px' }}>
+        <thead>
+          <tr>
+            <th style={S.th}>Group</th>
+            <th style={S.th}>Cost (no markup)</th>
+            <th style={S.th}>Price (with markup)</th>
+            <th style={S.th}>vs Integrate target (cost)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {Object.entries(groups).map(([group, g]) => {
+            const target = TARGETS.group_cost?.[group]
+            const diff   = target != null ? g.cost - target : null
+            const ok     = diff != null && Math.abs(diff) < 0.02
+            return (
+              <tr key={group} style={S.fired}>
+                <td style={S.td}><strong>{group}</strong></td>
+                <td style={S.td}>£{fmt(g.cost)}</td>
+                <td style={S.td}>£{fmt(g.price)}</td>
+                <td style={S.td}>
+                  {diff == null
+                    ? <span style={{ color: '#aaa' }}>—</span>
+                    : <span style={ok ? S.hit : S.miss}>
+                        {ok ? `✓ £${fmt(target)}` : `✗ diff ${diff >= 0 ? '+' : ''}£${fmt(diff)} (target £${fmt(target)})`}
+                      </span>
+                  }
+                </td>
+              </tr>
+            )
+          })}
+          <tr style={{ fontWeight: 'bold', background: '#f0f0f0' }}>
+            <td style={S.td}>TOTAL</td>
+            <td style={S.td}>£{fmt(totalCost)}</td>
+            <td style={S.td}>£{fmt(totalPrice)}</td>
+            <td style={S.td}>
+              {(() => {
+                const costDiff  = totalCost  - TARGETS.total_cost
+                const priceDiff = totalPrice - TARGETS.total_price
+                const costOk    = Math.abs(costDiff)  < 0.02
+                const priceOk   = Math.abs(priceDiff) < 0.02
+                return (
+                  <>
+                    <span style={costOk ? S.hit : S.miss}>
+                      Cost: {costOk ? '✓' : `✗ diff £${fmt(costDiff)}`} (target £{fmt(TARGETS.total_cost)})
+                    </span>
+                    {' · '}
+                    <span style={priceOk ? S.hit : S.miss}>
+                      Price: {priceOk ? '✓' : `✗ diff £${fmt(priceDiff)}`} (target £{fmt(TARGETS.total_price)})
+                    </span>
+                  </>
+                )
+              })()}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      {/* Detailed rule lines per group */}
+      {Object.entries(groups).map(([group, g]) => (
         <div key={group} style={{ marginBottom: '12px' }}>
           <div style={{ fontWeight: 'bold', color: '#555', marginBottom: '4px', fontSize: '12px' }}>
-            {group}
+            {group} — cost £{fmt(g.cost)} · price £{fmt(g.price)}
           </div>
           <table style={S.table}>
             <thead>
@@ -302,12 +398,15 @@ function PriceTable({ lines, total }) {
                 <th style={S.th}>Qty</th>
                 <th style={S.th}>× Value</th>
                 <th style={S.th}>× Markup</th>
-                <th style={S.th}>= Total</th>
+                <th style={S.th}>Cost</th>
+                <th style={S.th}>Price</th>
               </tr>
             </thead>
             <tbody>
-              {groupLines.map((line, i) => {
+              {g.lines.map((line, i) => {
                 const rowStyle = line.error ? S.errRow : (line.fires ? S.fired : S.noFire)
+                const lineCost  = line.fires && !line.error ? line.quantity * line.value : null
+                const linePrice = line.fires && !line.error ? line.line_total : null
                 return (
                   <tr key={i} style={rowStyle}>
                     <td style={S.td}>{line.name}</td>
@@ -316,7 +415,8 @@ function PriceTable({ lines, total }) {
                     <td style={S.td}>{line.error ? <span style={{ color: '#c00' }}>{line.error}</span> : fmt(line.quantity, 4)}</td>
                     <td style={S.td}>{!line.error && fmt(line.value, 4)}</td>
                     <td style={S.td}>{!line.error && fmt(line.markup, 3)}</td>
-                    <td style={S.td}>{!line.error && line.fires ? <strong>£{fmt(line.line_total)}</strong> : (!line.error ? '—' : '')}</td>
+                    <td style={S.td}>{lineCost != null ? <strong>£{fmt(lineCost)}</strong> : (!line.error ? '—' : '')}</td>
+                    <td style={S.td}>{linePrice != null ? <strong>£{fmt(linePrice)}</strong> : (!line.error ? '—' : '')}</td>
                   </tr>
                 )
               })}
@@ -324,7 +424,6 @@ function PriceTable({ lines, total }) {
           </table>
         </div>
       ))}
-      <div style={S.totals}>Total item cost: £{fmt(total)}</div>
     </>
   )
 }
@@ -459,7 +558,6 @@ export default function PricingBenchmark() {
 
   const mfgDiff  = diffLabel(mfgMin,  TARGETS.manufacture_minutes)
   const instDiff = diffLabel(instMin, TARGETS.install_minutes)
-  const priceDiff = diffLabel(price,  TARGETS.item_cost, true)
 
   const errorCount = [
     ...results.manufacture_labour.lines,
@@ -497,9 +595,15 @@ export default function PricingBenchmark() {
             <td style={S.td}><span style={instDiff.ok ? S.hit : S.miss}>{instDiff.label}</span></td>
           </tr>
           <tr>
-            <td style={S.td}>Item cost</td>
+            <td style={S.td}>Total price (all groups)</td>
             <td style={S.td}><strong>£{fmt(price)}</strong></td>
-            <td style={S.td}><span style={priceDiff.ok ? S.hit : S.miss}>{priceDiff.label}</span></td>
+            <td style={S.td}>
+              {(() => {
+                const diff = price - TARGETS.total_price
+                const ok   = Math.abs(diff) < 0.02
+                return <span style={ok ? S.hit : S.miss}>{ok ? `✓ £${fmt(TARGETS.total_price)}` : `✗ diff £${fmt(diff)} (target £${fmt(TARGETS.total_price)})`}</span>
+              })()}
+            </td>
           </tr>
         </tbody>
       </table>
@@ -561,6 +665,14 @@ export default function PricingBenchmark() {
         / {results.price.lines.length} rules
       </h2>
       <PriceTable lines={results.price.lines} total={price} />
+
+      {/* Items left for next step */}
+      <h2 style={S.h2}>Not Yet Built (Next Step)</h2>
+      <ul style={{ fontFamily: 'monospace', fontSize: '12px', color: '#888' }}>
+        <li>Ironmongery Cost (needs ironmongery part in drawing)</li>
+        <li>Component Cost (needs component parts)</li>
+        <li>Lead / Steel Weight (needs sash weight calculation)</li>
+      </ul>
 
       {/* Variables */}
       <details style={S.details}>
