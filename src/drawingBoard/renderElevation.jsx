@@ -125,6 +125,15 @@ export function SashElevation({ tree, geometry, refOptions, viewMode = 'internal
   const stileW    = n(topSash?.values?.stileWidth,   47)
   const glW       = Math.max(sashWidth - 2 * stileW, 0)  // glass clear width
 
+  // ── Coordinates ─────────────────────────────────────────────────────────────
+  const OX  = leftWidth
+  const OY  = topHeight
+  const iW  = fW - leftWidth - rightWidth
+  const iH  = fH - topHeight - cillH
+  const sx  = OX + clearLeft          // sash left edge
+  const ty  = OY + clearTop           // top sash top edge
+  const by  = ty + topSashHeight - M  // bottom sash top edge (meeting rail overlap)
+
   // ── SVG sizing ──────────────────────────────────────────────────────────────
   // dfs: annotation font size — small relative to frame, min 10
   const dfs = Math.max(Math.min(fW * 0.06, fH * 0.02), 10)
@@ -146,26 +155,17 @@ export function SashElevation({ tree, geometry, refOptions, viewMode = 'internal
   const VH = fH + dfs * 10 + topPad
 
   // R3/R4 label Y — ensure they're at least 1.6*dfs apart so they never overlap
+  // OX/OY/iH must be declared above this block (they are, in "Coordinates" above)
   const r3cyBase = OY + iH / 2
   const r4cyBase = fH / 2
   const minLabelSep = dfs * 1.6
-  const rawDiff = r4cyBase - r3cyBase
   let r3LabelY = r3cyBase
   let r4LabelY = r4cyBase
-  if (Math.abs(rawDiff) < minLabelSep) {
+  if (Math.abs(r4cyBase - r3cyBase) < minLabelSep) {
     const mid = (r3cyBase + r4cyBase) / 2
     r3LabelY = mid - minLabelSep / 2
     r4LabelY = mid + minLabelSep / 2
   }
-
-  // ── Coordinates ─────────────────────────────────────────────────────────────
-  const OX  = leftWidth
-  const OY  = topHeight
-  const iW  = fW - leftWidth - rightWidth
-  const iH  = fH - topHeight - cillH
-  const sx  = OX + clearLeft          // sash left edge
-  const ty  = OY + clearTop           // top sash top edge
-  const by  = ty + topSashHeight - M  // bottom sash top edge (meeting rail overlap)
 
   // Glass area centres (for labels)
   const glassCX    = sx + stileW + glW / 2

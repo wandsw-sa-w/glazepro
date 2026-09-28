@@ -982,17 +982,33 @@ export default function LeadDetail() {
                         <tr style={{ background: '#fff' }}>
                           <td style={{ padding: '10px 14px', fontSize: 12, color: '#888', fontWeight: 500, width: 180, verticalAlign: 'top', paddingTop: 12 }}>Tags</td>
                           <td colSpan={2} style={{ padding: '10px 14px', verticalAlign: 'middle' }}>
-                            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                              {allTags.map(tag => {
-                                const active = activeTags.includes(tag)
-                                const c = LEAD_TAG_COLOURS[tag] || { bg: '#f0eefc', color: '#3d35a8' }
-                                return (
-                                  <div key={tag} onClick={() => toggleLeadTag(tag)} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 999, cursor: 'pointer', fontWeight: 500, background: active ? c.bg : '#f0eeea', color: active ? c.color : '#999', border: `1px solid ${active ? c.color + '44' : 'transparent'}` }}>
-                                    {tag}
-                                  </div>
-                                )
-                              })}
-                            </div>
+                            {editingField === 'lead_tags' ? (
+                              <div>
+                                <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 8 }}>
+                                  {allTags.map(tag => {
+                                    const active = activeTags.includes(tag)
+                                    const c = LEAD_TAG_COLOURS[tag] || { bg: '#f0eefc', color: '#3d35a8' }
+                                    return (
+                                      <div key={tag} onClick={() => toggleLeadTag(tag)} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 999, cursor: 'pointer', fontWeight: 500, background: active ? c.bg : '#f0eeea', color: active ? c.color : '#999', border: `1px solid ${active ? c.color + '44' : 'transparent'}` }}>
+                                        {tag}
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                                <button onClick={() => setEditingField(null)} style={{ fontSize: 11, padding: '3px 10px', border: '1px solid #d8d5cf', borderRadius: 6, background: '#fff', cursor: 'pointer', color: '#555', fontFamily: 'inherit' }}>Done</button>
+                              </div>
+                            ) : (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                {activeTags.length === 0
+                                  ? <span style={{ fontSize: 12, color: '#bbb' }}>No tags</span>
+                                  : activeTags.map(tag => {
+                                      const c = LEAD_TAG_COLOURS[tag] || { bg: '#f0eefc', color: '#3d35a8' }
+                                      return <span key={tag} style={{ fontSize: 11, padding: '2px 9px', borderRadius: 999, fontWeight: 500, background: c.bg, color: c.color }}>{tag}</span>
+                                    })
+                                }
+                                <button onClick={() => setEditingField('lead_tags')} style={{ fontSize: 11, padding: '2px 7px', border: '1px solid #d8d5cf', borderRadius: 5, background: '#fff', cursor: 'pointer', color: '#888', marginLeft: 2, fontFamily: 'inherit' }}>✏</button>
+                              </div>
+                            )}
                           </td>
                         </tr>
                       </tbody>
