@@ -35,6 +35,8 @@ import { computeVariables } from './computeVariables.js'
 import { evaluateCondition, evaluateNumber, getExpressionVariables } from './evaluator.js'
 import { loadDrawingParts } from '../drawingBoard/api.js'
 import { computeDerived } from '../drawingBoard/computeDerived.js'
+import { computeSashWeight } from './sashWeight.js'
+import { allocateParts } from './partAllocator.js'
 
 // ── Tree helpers (local copies, same logic as computeDerived.js) ──────────────
 
@@ -132,7 +134,7 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
     const is_complete_new = baseVars.is_complete_new ?? false
     const to_be_replaced  = is_complete_new || v.toBeReplaced === true
 
-    // Sash geometry from pair derived
+    // Sash geometry from pair derived (inner-opening geometry — used by manufacture_materials rules)
     const pair       = findFirst(tree, 'sashPairPart')
     const pairDerived = pair ? (derived[pair.key] ?? {}) : {}
     const gross_sash_width_in_mm  = pairDerived.sashWidth        ?? null
@@ -150,6 +152,10 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
     const sash_sightline_height_in_mm = gross_sash_height_in_mm != null
       ? gross_sash_height_in_mm - (isTop ? headRail : botRail) - midrail : null
 
+    // Sash weight (uses outer-frame geometry for accurate physical weight)
+    const weightData = computeSashWeight(partNode, tree, glassCatalogue)
+    const sash_thickness = pair?.values?.sashThickness ?? 45
+
     return {
       is_top_sash:    isTop,
       is_bottom_sash: !isTop,
@@ -163,6 +169,13 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
       sash_sightline_width_in_mm,
       sash_sightline_height_in_mm,
       unit_gb_qty:   0,  // NEEDS-DATA: glazing bars per sash not yet captured
+      // Sash weight variables (outer-frame-geometry based)
+      weight_in_kg:            weightData.weight_in_kg,
+      weight_in_lb:            weightData.weight_in_lb,
+      weight_incl_panel_in_kg: weightData.weight_incl_panel_in_kg,
+      weight_incl_panel_in_lb: weightData.weight_incl_panel_in_lb,
+      sash_thickness,
+      sibling_weight: 0,  // TODO: requires two-pass to set top ↔ bottom
     }
   }
 
@@ -388,25 +401,76 @@ function evalPriceRuleLine(rule, vars, partNode) {
  * Pure function — takes a pre-built tree and list of rules and returns results.
  * Does NOT touch the database. Used directly by the benchmark page and tests.
  *
- * @param {Object}   tree         - Root parts tree node
- * @param {Array}    rules        - All price_rules rows for the price file
- * @param {Object}   pfVariables  - Price-file variables (scalars)
+ * @param {Object}   tree              - Root parts tree node
+ * @param {Array}    rules             - All price_rules rows for the price file
+ * @param {Object}   pfVariables       - Price-file variables (scalars)
  * @param {Object}   options
- * @param {boolean}  options.testMode  - If true, include inactive rules
- * @returns {{ manufacture_labour, install_labour, price, error? }}
+ * @param {boolean}  options.testMode          - If true, include inactive rules
+ * @param {Object}   options.glassCatalogue    - { partCode: { cost_per_m2, thickness_mm } }
+ * @param {Array}    options.partAllocationRules - Rows from part_allocation_rules (for component loop)
+ * @param {Object}   options.partCostMap        - { partCode: costPerUnitOfMeasure } fixture map
+ * @returns {{ manufacture_labour, install_labour, price, allocated_parts?, error? }}
  */
-export function runPricingOnTree(tree, rules, pfVariables = {}, { testMode = false, glassCatalogue = {} } = {}) {
+export function runPricingOnTree(tree, rules, pfVariables = {}, {
+  testMode = false,
+  glassCatalogue = {},
+  partAllocationRules = [],
+  partCostMap = {},
+} = {}) {
   const derived  = computeDerived(tree)
   const itemVars = computeVariables(tree, derived, pfVariables)
   if (!itemVars) return { error: 'computeVariables returned null', lines: [] }
 
+  // ── Pre-compute item-level sash weight aggregates ─────────────────────────
+  // These are computed here (not in computeVariables) because they need glassCatalogue.
+  const allTopSashes = findAll(tree, 'topSashPart')
+  const allBotSashes = findAll(tree, 'bottomSashPart')
+  const allSashes    = [...allTopSashes, ...allBotSashes]
+
+  let weight_of_heaviest_sash_to_be_replaced = 0  // lb
+  let item_nj_weight_in_kg = 0
+  const isCordHungItem = itemVars.is_cord_hung ?? false
+
+  for (const sash of allSashes) {
+    const sv = sash.values ?? {}
+    const toBeReplaced = (itemVars.is_complete_new === true) || (sv.toBeReplaced === true)
+    if (!toBeReplaced) continue
+    const wt = computeSashWeight(sash, tree, glassCatalogue)
+    if (wt.weight_in_lb > weight_of_heaviest_sash_to_be_replaced) {
+      weight_of_heaviest_sash_to_be_replaced = wt.weight_in_lb
+    }
+    item_nj_weight_in_kg += wt.weight_in_kg
+    // Cord-hung: counterweights equal the sash weight (one weight per sash)
+    if (isCordHungItem) item_nj_weight_in_kg += wt.weight_in_kg
+  }
+
+  const item_nj_weight_in_lb = item_nj_weight_in_kg * 2.20462
+
   // Price-file variables are available in all expressions
-  const baseVars = { ...pfVariables, ...itemVars }
+  const baseVars = {
+    ...pfVariables,
+    ...itemVars,
+    weight_of_heaviest_sash_to_be_replaced,
+    item_nj_weight_in_kg,
+    item_nj_weight_in_lb,
+  }
+
+  // ── Run part allocator (if rules supplied) ────────────────────────────────
+  // Must run before price pass so the component loop has parts to iterate over.
+  let allocatedParts = []
+  if (partAllocationRules.length > 0) {
+    allocatedParts = allocateParts(tree, baseVars, partAllocationRules, glassCatalogue)
+  }
+
+  // Component parts (non-weight groups) for the pricing component loop
+  // Weights are priced via the steel/lead sliding_sash price rules, not the component loop.
+  const componentParts = allocatedParts.filter(a => a.group !== 'sash_weights')
 
   const results = {
     manufacture_labour: { total_minutes: 0, lines: [] },
     install_labour:     { total_minutes: 0, lines: [] },
     price:              { total: 0, lines: [] },
+    allocated_parts:    allocatedParts,
   }
 
   // ── Pass 1 — manufacture_labour ───────────────────────────────────────────
@@ -458,6 +522,28 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, { testMode = fal
   )
   let totalPrice = 0
   for (const rule of priceRules) {
+    // Component loop: iterate over allocated non-sash-weight parts
+    // Variables: cost (unit cost per measure unit), length (measure), qty (allocated qty), part_no
+    if (rule.loop_target === 'component') {
+      for (const allocPart of componentParts) {
+        const unitCost = partCostMap[allocPart.part_code] ?? 0
+        const compVars = {
+          ...priceVars,
+          cost:      unitCost,
+          length:    allocPart.measure,
+          qty:       allocPart.qty,
+          part_no:   allocPart.part_code,
+          part_name: allocPart.label,
+        }
+        const line = evalPriceRuleLine(rule, compVars, null)
+        line.alloc_part_code = allocPart.part_code
+        line.alloc_label     = allocPart.label
+        if (!line.error && line.fires) totalPrice += line.line_total
+        results.price.lines.push(line)
+      }
+      continue
+    }
+    // Normal tree-based loop
     const loopParts = getLoopParts(tree, rule.loop_target)
     for (const partNode of loopParts) {
       const vars = partNode

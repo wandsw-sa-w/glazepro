@@ -6,6 +6,13 @@ import { Parser } from 'expr-eval'
 // constants (true, false, PI, E).
 const parser = new Parser()
 
+// round_up_to_nearest(x, n) — round x UP to the nearest multiple of n.
+// Used in sash-window bead allocation rules (e.g. round_up_to_nearest(1234, 100) = 1300).
+parser.functions.round_up_to_nearest = function(x, n) {
+  if (!n) return x
+  return Math.ceil(x / n) * n
+}
+
 /**
  * Evaluate an expression string against a variable context.
  * Returns the raw result — number, boolean, or string.

@@ -12,6 +12,28 @@ import { supabase } from '../../supabase.js'
 import { runPricingOnTree } from '../../pricing/pricingEngine.js'
 import { computeDerived } from '../../drawingBoard/computeDerived.js'
 
+// ── Fixture glass catalogue (fallback when parts_catalogue query fails) ───────
+const FIXTURE_GLASS_CATALOGUE = {
+  GL100010: { cost_per_m2: 32.00, thickness_mm: 4 },  // 4mm Clear Pilkington K Toughened
+  GL100080: { cost_per_m2: 25.50, thickness_mm: 4 },  // 4mm Clear Toughened
+}
+
+// ── Fixture part cost map (F3) — from "Referenced parts" in integrate-part-allocator.txt ──
+// Timber parts: cost per mm (£/m ÷ 1000). Nominal each: cost per unit (measure=1).
+// Steel/lead: not priced via component loop — priced by sliding_sash weight rules.
+const FIXTURE_PART_COST_MAP = {
+  TP68: 2.85 / 1000,   // Ogee Architrave 20x70 MDF £2.85/m
+  TP74: 4.50 / 1000,   // Chamfered Architrave 20x70 MDF £4.50/m
+  TT69: 2.59 / 1000,   // Pencil Round Architrave 20x70 MDF £2.59/m
+  TP61: 2.76 / 1000,   // Nosing 25x50 Redwood £2.76/m
+  TP01: 2.59 / 1000,   // Small staff bead 20x15 Redwood £2.59/m
+  TP02: 2.95 / 1000,   // Large staff bead 25x15 Redwood £2.95/m
+  TP03: 2.22 / 1000,   // Standard parting bead 8x25 Redwood £2.22/m
+  AA01: 50.00,          // Internal Linings MDF (nominal each)
+  AA02: 30.00,          // Windowboard MDF (nominal each)
+  AA03: 75.00,          // External Linings Utile (nominal each)
+}
+
 // ── Integrate targets for L34046 Item 7 ──────────────────────────────────────
 // Integrate PF30 Item 7 targets (from live run)
 const TARGETS = {
@@ -460,7 +482,10 @@ function VariablesPanel({ tree }) {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function PricingBenchmark() {
-  const [state, setState] = useState({ status: 'idle', results: null, pfName: null, ruleCount: 0, error: null })
+  const [state, setState] = useState({
+    status: 'idle', results: null, pfName: null, ruleCount: 0,
+    error: null, catalogueWarning: null, allocRulesWarning: null,
+  })
 
   useEffect(() => {
     let cancelled = false
@@ -510,19 +535,48 @@ export default function PricingBenchmark() {
 
         if (rulesErr) throw new Error(`price_rules: ${rulesErr.message}`)
 
-        // Load glass catalogue — build map { code: { cost_per_m2, thickness_mm } }
-        const { data: catalogueRows, error: catErr } = await supabase
-          .from('parts_catalogue')
-          .select('code, cost_per_m2, thickness_mm')
-          .eq('category', 'Glass')
+        // Load glass catalogue — fall back to fixture if query fails (F0 tolerance)
+        let glassCatalogue = FIXTURE_GLASS_CATALOGUE
+        let catalogueWarning = null
+        try {
+          const { data: catalogueRows, error: catErr } = await supabase
+            .from('parts_catalogue')
+            .select('code, cost_per_m2, thickness_mm')
+            .eq('category', 'Glass')
+          if (catErr) throw catErr
+          const built = Object.fromEntries(
+            (catalogueRows || []).map(r => [r.code, { cost_per_m2: r.cost_per_m2, thickness_mm: r.thickness_mm }])
+          )
+          if (Object.keys(built).length === 0) {
+            catalogueWarning = 'parts_catalogue returned no glass rows — using fixture fallback costs'
+          } else {
+            glassCatalogue = built
+          }
+        } catch (err) {
+          catalogueWarning = `parts_catalogue query failed (${err.message}) — using fixture fallback costs`
+        }
 
-        if (catErr) throw new Error(`parts_catalogue: ${catErr.message}`)
-        const glassCatalogue = Object.fromEntries(
-          (catalogueRows || []).map(r => [r.code, { cost_per_m2: r.cost_per_m2, thickness_mm: r.thickness_mm }])
-        )
+        // Load part allocation rules (F3) — fall back gracefully if table not yet seeded
+        let partAllocationRules = []
+        let allocRulesWarning = null
+        try {
+          const { data: allocRules, error: allocErr } = await supabase
+            .from('part_allocation_rules')
+            .select('id, sort_order, group_name, loop_target, label, condition, qty_expr, part_code, measure_expr, is_active')
+            .order('sort_order')
+          if (allocErr) throw allocErr
+          partAllocationRules = allocRules || []
+        } catch (err) {
+          allocRulesWarning = `part_allocation_rules query failed (${err.message}) — run sql/step-f2-part-allocator.sql first`
+        }
 
         // Run the engine in testMode (includes inactive rules for full visibility)
-        const results = runPricingOnTree(FIXTURE_TREE, rules || [], pfVariables, { testMode: true, glassCatalogue })
+        const results = runPricingOnTree(FIXTURE_TREE, rules || [], pfVariables, {
+          testMode: true,
+          glassCatalogue,
+          partAllocationRules,
+          partCostMap: FIXTURE_PART_COST_MAP,
+        })
 
         if (cancelled) return
         setState({
@@ -531,6 +585,8 @@ export default function PricingBenchmark() {
           pfName:    priceFile.name,
           ruleCount: (rules || []).length,
           error:     null,
+          catalogueWarning,
+          allocRulesWarning,
         })
       } catch (err) {
         if (!cancelled) setState({ status: 'error', results: null, pfName: null, ruleCount: 0, error: err.message })
@@ -556,7 +612,7 @@ export default function PricingBenchmark() {
     )
   }
 
-  const { results, pfName, ruleCount } = state
+  const { results, pfName, ruleCount, catalogueWarning, allocRulesWarning } = state
   const mfgMin  = results.manufacture_labour.total_minutes
   const instMin = results.install_labour.total_minutes
   const price   = results.price.total
@@ -577,6 +633,18 @@ export default function PricingBenchmark() {
         Price file: <strong>{pfName}</strong> · {ruleCount} rules loaded · testMode=true
         {errorCount > 0 && <span style={{ color: '#c00' }}> · {errorCount} rule error(s)</span>}
       </p>
+
+      {/* F0: Yellow warning banners when catalogue / alloc rules unavailable */}
+      {catalogueWarning && (
+        <div style={{ background: '#fffbe6', border: '1px solid #e6c800', padding: '8px 12px', marginBottom: '10px', borderRadius: '3px' }}>
+          ⚠ {catalogueWarning}
+        </div>
+      )}
+      {allocRulesWarning && (
+        <div style={{ background: '#fffbe6', border: '1px solid #e6c800', padding: '8px 12px', marginBottom: '10px', borderRadius: '3px' }}>
+          ⚠ {allocRulesWarning}
+        </div>
+      )}
 
       {/* Totals comparison */}
       <h2 style={S.h2}>Results vs Integrate Targets</h2>
@@ -671,12 +739,120 @@ export default function PricingBenchmark() {
       </h2>
       <PriceTable lines={results.price.lines} total={price} />
 
+      {/* Allocated parts table (F2/F3) */}
+      <h2 style={S.h2}>
+        Allocated Parts — {(results.allocated_parts ?? []).length} part line(s)
+      </h2>
+      {(results.allocated_parts ?? []).length === 0 ? (
+        <p style={{ color: '#888', fontSize: '12px' }}>
+          No parts allocated — run sql/step-f2-part-allocator.sql then reload.
+        </p>
+      ) : (
+        <table style={{ ...S.table, width: 'auto', minWidth: '700px' }}>
+          <thead>
+            <tr>
+              <th style={S.th}>Group</th>
+              <th style={S.th}>Label</th>
+              <th style={S.th}>Part</th>
+              <th style={S.th}>Qty</th>
+              <th style={S.th}>Measure</th>
+              <th style={S.th}>Unit cost</th>
+              <th style={S.th}>Line cost</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(results.allocated_parts ?? []).map((a, i) => {
+              const unitCost = FIXTURE_PART_COST_MAP[a.part_code]
+              const isTimber = unitCost != null && unitCost < 1  // per-mm cost
+              const lineCost = unitCost != null ? unitCost * a.measure * a.qty : null
+              return (
+                <tr key={i} style={S.fired}>
+                  <td style={S.td}>{a.group}</td>
+                  <td style={S.td}>{a.label}</td>
+                  <td style={S.td}><strong>{a.part_code}</strong></td>
+                  <td style={S.td}>{a.qty}</td>
+                  <td style={S.td}>
+                    {a.group === 'sash_weights'
+                      ? `${fmt(a.measure, 1)} kg`
+                      : isTimber
+                        ? `${fmt(a.measure, 0)} mm`
+                        : `${fmt(a.measure, 0)} ea`}
+                  </td>
+                  <td style={S.td}>
+                    {unitCost != null
+                      ? isTimber ? `£${fmt(unitCost * 1000, 2)}/m` : `£${fmt(unitCost, 2)}/ea`
+                      : <span style={{ color: '#a60' }}>no fixture cost</span>}
+                  </td>
+                  <td style={S.td}>
+                    {lineCost != null ? <strong>£{fmt(lineCost)}</strong> : '—'}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      )}
+
+      {/* Installation Materials gap analysis (F3) */}
+      {(() => {
+        const instLines = results.price.lines.filter(l => l.group_name === 'installation_materials' && l.fires && !l.error)
+        if (instLines.length === 0) return null
+        const instCost  = instLines.reduce((s, l) => s + l.quantity * l.value, 0)
+        const instTarget = TARGETS.group_cost.installation_materials
+        const gap = instTarget - instCost
+        const ok  = Math.abs(gap) < 0.02
+        return (
+          <>
+            <h2 style={S.h2}>Installation Materials — Line-by-line vs £{fmt(instTarget)} target</h2>
+            <table style={{ ...S.table, width: 'auto', minWidth: '600px' }}>
+              <thead>
+                <tr>
+                  <th style={S.th}>Rule</th>
+                  <th style={S.th}>Scope</th>
+                  <th style={S.th}>Qty (cost/kg or £)</th>
+                  <th style={S.th}>× Value</th>
+                  <th style={S.th}>Cost (no markup)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {instLines.map((l, i) => (
+                  <tr key={i} style={S.fired}>
+                    <td style={S.td}>{l.alloc_label ?? l.name}</td>
+                    <td style={S.td}>{l.alloc_part_code ? `${l.alloc_part_code}` : (l.part_type ?? '—')}</td>
+                    <td style={S.td}>{fmt(l.quantity, 4)}</td>
+                    <td style={S.td}>{fmt(l.value, 4)}</td>
+                    <td style={S.td}><strong>£{fmt(l.quantity * l.value)}</strong></td>
+                  </tr>
+                ))}
+                <tr style={{ fontWeight: 'bold', background: '#f0f0f0' }}>
+                  <td style={S.td} colSpan={4}>Total computed</td>
+                  <td style={S.td}>£{fmt(instCost)}</td>
+                </tr>
+                <tr style={{ background: ok ? '#f0fff0' : '#fff8e6' }}>
+                  <td style={S.td} colSpan={4}>
+                    <span style={ok ? S.hit : { color: '#a60', fontWeight: 'bold' }}>
+                      {ok ? '✓ matches target' : `Gap £${fmt(gap)} — ironmongery kit not yet built`}
+                    </span>
+                  </td>
+                  <td style={S.td} style={{ color: '#555' }}>target £{fmt(instTarget)}</td>
+                </tr>
+              </tbody>
+            </table>
+            {!ok && gap > 0 && (
+              <p style={{ fontSize: '12px', color: '#555', marginTop: '4px' }}>
+                Remaining gap ~£{fmt(gap)}: this is the ironmongery kit (sash lifts, fasteners, pulleys, etc.) —
+                priced via the <code>ironmongery_part</code> loop_target once ironmongery parts are added to the drawing.
+              </p>
+            )}
+          </>
+        )
+      })()}
+
       {/* Items left for next step */}
       <h2 style={S.h2}>Not Yet Built (Next Step)</h2>
       <ul style={{ fontFamily: 'monospace', fontSize: '12px', color: '#888' }}>
-        <li>Ironmongery Cost (needs ironmongery part in drawing)</li>
-        <li>Component Cost (needs component parts)</li>
-        <li>Lead / Steel Weight (needs sash weight calculation)</li>
+        <li>Ironmongery Cost (needs ironmongery part in drawing — closes the ~£39.60 gap)</li>
+        <li>Sash weight display on drawing board (F1 show-on-board)</li>
       </ul>
 
       {/* Variables */}
