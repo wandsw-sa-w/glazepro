@@ -135,18 +135,15 @@ const FIXTURE_TREE = {
                   key: 'glass1',
                   part_type: 'glassPart',
                   values: {
-                    glazingId:         'double_glazed',
-                    isIndividualPanes: false,
-                    spacerDimId:       '16mm_white_warm_edge',
-                    barsWide:          2,   // 6-over-6: 2 vertical bars per sash
-                    barsHigh:          1,   // 1 horizontal bar per sash
-                    // Fixture prices (catalogue not yet populated): inner+outer = £57.50/m²
-                    innerPaneCost:      28.75,
-                    outerPaneCost:      28.75,
-                    // 4-16-4 unit: spacer 16mm warm edge
-                    innerPaneThickness:  4,
-                    outerPaneThickness:  4,
-                    spacerHeight:       16,  // → glass_unit_thickness = 24mm
+                    glazingId:            'double_glazed',
+                    isIndividualPanes:    false,
+                    spacerDimId:          '16mm_white_warm_edge',
+                    barsWide:             2,   // 6-over-6: 2 vertical bars per sash
+                    barsHigh:             1,   // 1 horizontal bar per sash
+                    // Glass part codes — costs/thicknesses resolved from parts_catalogue
+                    internalGlassPartNo:  'GL100010',  // 4mm Clear Pilkington K Toughened £32.00/m²
+                    externalGlassPartNo:  'GL100080',  // 4mm Clear Toughened £25.50/m²
+                    spacerHeight:         16,  // → glass_unit_thickness = 4+16+4 = 24mm
                   },
                   children: [],
                 },
@@ -168,18 +165,15 @@ const FIXTURE_TREE = {
                   key: 'glass2',
                   part_type: 'glassPart',
                   values: {
-                    glazingId:         'double_glazed',
-                    isIndividualPanes: false,
-                    spacerDimId:       '16mm_white_warm_edge',
-                    barsWide:          2,   // 6-over-6: 2 vertical bars per sash
-                    barsHigh:          1,   // 1 horizontal bar per sash
-                    // Fixture prices (catalogue not yet populated): inner+outer = £57.50/m²
-                    innerPaneCost:      28.75,
-                    outerPaneCost:      28.75,
-                    // 4-16-4 unit: spacer 16mm warm edge
-                    innerPaneThickness:  4,
-                    outerPaneThickness:  4,
-                    spacerHeight:       16,  // → glass_unit_thickness = 24mm
+                    glazingId:            'double_glazed',
+                    isIndividualPanes:    false,
+                    spacerDimId:          '16mm_white_warm_edge',
+                    barsWide:             2,   // 6-over-6: 2 vertical bars per sash
+                    barsHigh:             1,   // 1 horizontal bar per sash
+                    // Glass part codes — costs/thicknesses resolved from parts_catalogue
+                    internalGlassPartNo:  'GL100010',  // 4mm Clear Pilkington K Toughened £32.00/m²
+                    externalGlassPartNo:  'GL100080',  // 4mm Clear Toughened £25.50/m²
+                    spacerHeight:         16,  // → glass_unit_thickness = 4+16+4 = 24mm
                   },
                   children: [],
                 },
@@ -516,8 +510,19 @@ export default function PricingBenchmark() {
 
         if (rulesErr) throw new Error(`price_rules: ${rulesErr.message}`)
 
+        // Load glass catalogue — build map { code: { cost_per_m2, thickness_mm } }
+        const { data: catalogueRows, error: catErr } = await supabase
+          .from('parts_catalogue')
+          .select('code, cost_per_m2, thickness_mm')
+          .eq('category', 'Glass')
+
+        if (catErr) throw new Error(`parts_catalogue: ${catErr.message}`)
+        const glassCatalogue = Object.fromEntries(
+          (catalogueRows || []).map(r => [r.code, { cost_per_m2: r.cost_per_m2, thickness_mm: r.thickness_mm }])
+        )
+
         // Run the engine in testMode (includes inactive rules for full visibility)
-        const results = runPricingOnTree(FIXTURE_TREE, rules || [], pfVariables, { testMode: true })
+        const results = runPricingOnTree(FIXTURE_TREE, rules || [], pfVariables, { testMode: true, glassCatalogue })
 
         if (cancelled) return
         setState({

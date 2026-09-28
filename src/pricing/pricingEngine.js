@@ -117,7 +117,7 @@ function defaultMissingVars(exprs, vars) {
 
 // ── Part-level variable computation ──────────────────────────────────────────
 
-function computePartVariables(partNode, tree, derived, baseVars) {
+function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue = {}) {
   if (!partNode) return {}
   const pt = partNode.part_type
   const v  = partNode.values ?? {}
@@ -217,8 +217,9 @@ function computePartVariables(partNode, tree, derived, baseVars) {
     const actual_area  = (glassWidth > 0 && glassHeight > 0)
       ? Math.round((glassWidth * glassHeight / 1e6) * 100) / 100
       : 0
-    // rounded_area: actual_area, minimum 0.3 (Integrate: "rounded up to 0.3 m2 if smaller")
-    const rounded_area = Math.max(0.3, actual_area)
+    // rounded_area: rounded up to nearest 0.25 m², minimum 0.3 m²
+    // (Integrate rounds to 0.25 m² increments then applies the 0.3 m² minimum)
+    const rounded_area = Math.max(0.3, Math.ceil(actual_area / 0.25) * 0.25)
 
     const glazingId = v.glazingId ?? ''
 
@@ -233,14 +234,18 @@ function computePartVariables(partNode, tree, derived, baseVars) {
     // internal_spacer_length: total run of glazing bar material in this unit (metres)
     const internal_spacer_length = (barsWide * glassHeight + barsHigh * glassWidth) / 1000
 
-    // Glass costs from parts catalogue (fixture: innerPaneCost, outerPaneCost in £/m²)
-    const inner_pane_cost  = v.innerPaneCost  ?? 0
-    const outer_pane_cost  = v.outerPaneCost  ?? 0
-    const single_pane_cost = v.singlePaneCost ?? 0
+    // Glass costs — look up from parts catalogue using part codes; fall back to fixture values
+    const innerEntry  = glassCatalogue[v.internalGlassPartNo] ?? null
+    const outerEntry  = glassCatalogue[v.externalGlassPartNo] ?? null
+    const singleEntry = glassCatalogue[v.singleGlassPartNo]   ?? null
 
-    // Glass pane thicknesses (mm)
-    const inner_pane_thickness  = v.innerPaneThickness  ?? 0
-    const outer_pane_thickness  = v.outerPaneThickness  ?? 0
+    const inner_pane_cost  = innerEntry  ? innerEntry.cost_per_m2  : (v.innerPaneCost  ?? 0)
+    const outer_pane_cost  = outerEntry  ? outerEntry.cost_per_m2  : (v.outerPaneCost  ?? 0)
+    const single_pane_cost = singleEntry ? singleEntry.cost_per_m2 : (v.singlePaneCost ?? 0)
+
+    // Glass pane thicknesses (mm) — from catalogue when available, else fixture
+    const inner_pane_thickness  = innerEntry  ? innerEntry.thickness_mm  : (v.innerPaneThickness  ?? 0)
+    const outer_pane_thickness  = outerEntry  ? outerEntry.thickness_mm  : (v.outerPaneThickness  ?? 0)
     const middle_pane_thickness = v.middlePaneThickness ?? 0
     const single_pane_thickness = v.singlePaneThickness ?? 0
 
@@ -390,7 +395,7 @@ function evalPriceRuleLine(rule, vars, partNode) {
  * @param {boolean}  options.testMode  - If true, include inactive rules
  * @returns {{ manufacture_labour, install_labour, price, error? }}
  */
-export function runPricingOnTree(tree, rules, pfVariables = {}, { testMode = false } = {}) {
+export function runPricingOnTree(tree, rules, pfVariables = {}, { testMode = false, glassCatalogue = {} } = {}) {
   const derived  = computeDerived(tree)
   const itemVars = computeVariables(tree, derived, pfVariables)
   if (!itemVars) return { error: 'computeVariables returned null', lines: [] }
@@ -413,7 +418,7 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, { testMode = fal
     const loopParts = getLoopParts(tree, rule.loop_target)
     for (const partNode of loopParts) {
       const vars = partNode
-        ? { ...baseVars, ...computePartVariables(partNode, tree, derived, baseVars) }
+        ? { ...baseVars, ...computePartVariables(partNode, tree, derived, baseVars, glassCatalogue) }
         : baseVars
       const line = evalRuleLine(rule, vars, partNode)
       if (!line.error && line.fires) mfgMinutes += line.minutes
@@ -435,7 +440,7 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, { testMode = fal
     const loopParts = getLoopParts(tree, rule.loop_target)
     for (const partNode of loopParts) {
       const vars = partNode
-        ? { ...mfgVars, ...computePartVariables(partNode, tree, derived, mfgVars) }
+        ? { ...mfgVars, ...computePartVariables(partNode, tree, derived, mfgVars, glassCatalogue) }
         : mfgVars
       const line = evalRuleLine(rule, vars, partNode)
       if (!line.error && line.fires) instMinutes += line.minutes
@@ -456,7 +461,7 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, { testMode = fal
     const loopParts = getLoopParts(tree, rule.loop_target)
     for (const partNode of loopParts) {
       const vars = partNode
-        ? { ...priceVars, ...computePartVariables(partNode, tree, derived, priceVars) }
+        ? { ...priceVars, ...computePartVariables(partNode, tree, derived, priceVars, glassCatalogue) }
         : priceVars
       const line = evalPriceRuleLine(rule, vars, partNode)
       if (!line.error && line.fires) totalPrice += line.line_total
