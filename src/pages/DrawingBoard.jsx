@@ -33,6 +33,14 @@ const OPERATION_FIELDS = new Set([
   'bottomSashPart.operation',
 ])
 
+// Fields that filter their options by a component tag ('frame'/'sash'/'cill')
+// stored in applies_to.  All other reference fields get no applies_to filter.
+const COMPONENT_FILTER = {
+  'drawingItemPart.frameMaterialId': 'frame',
+  'drawingItemPart.sashMaterialId':  'sash',
+  'drawingItemPart.cillMaterialId':  'cill',
+}
+
 // Shared input style (matches Ironmongery/QuoteDrawer)
 const SI = {
   width: '100%', padding: '6px 8px', fontSize: 12,
@@ -160,12 +168,24 @@ function PropertyField({ field, value, derivedValue, onChange, refOptions, requi
 
   if (field.data_type === 'reference') {
     let opts = refOptions[field.reference_category] ?? []
-    // Filter by applies_to when any option has it populated (after SQL migration).
-    // Before migration, applies_to is empty/null on all rows → show all.
-    const anyHasAppliesTo = opts.some(o => o.applies_to?.length > 0)
-    if (anyHasAppliesTo && partType) {
-      opts = opts.filter(o => !o.applies_to?.length || o.applies_to.includes(partType))
+    let missingValueLabel = '(unknown)'
+
+    const componentTag = COMPONENT_FILTER[field.field_key]
+    if (componentTag) {
+      // Component filter: applies_to holds component names ('frame'/'sash'/'cill').
+      // Options with no applies_to tag are allowed everywhere.
+      opts = opts.filter(o => !o.applies_to?.length || o.applies_to.includes(componentTag))
+      missingValueLabel = '(not allowed for this component)'
+    } else if (field.reference_category === 'sash_operation' && partType) {
+      // Part-type filter: applies_to holds part type codes.
+      // Only activates after the step-b2c SQL migration populates applies_to.
+      const anyHasAppliesTo = opts.some(o => o.applies_to?.length > 0)
+      if (anyHasAppliesTo) {
+        opts = opts.filter(o => !o.applies_to?.length || o.applies_to.includes(partType))
+      }
     }
+    // All other reference fields: no applies_to filtering.
+
     return (
       <div style={{ marginBottom: 10 }}>
         <label title={field.field_key} style={{ fontSize: 11, fontWeight: 500, color: '#666', display: 'block', marginBottom: 3 }}>
@@ -179,7 +199,7 @@ function PropertyField({ field, value, derivedValue, onChange, refOptions, requi
           <option value="">— select —</option>
           {opts.map(o => <option key={o.code} value={o.code}>{o.label}</option>)}
           {value && !opts.some(o => o.code === value) && (
-            <option value={value}>{value} (unknown)</option>
+            <option value={value}>{value} {missingValueLabel}</option>
           )}
         </select>
       </div>
