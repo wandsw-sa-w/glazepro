@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { useParams, useNavigate, useBlocker } from 'react-router-dom'
+import { Component, useState, useEffect, useCallback, useRef } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { useUnmatchedCount } from '../hooks/useUnmatchedCount'
@@ -449,6 +449,43 @@ function Summary({ tree, fieldDefs, derived, refOptions, onSelectKey, drawingMet
   )
 }
 
+// ── Unsaved-changes navigation guard ─────────────────────────────────────────
+// useBlocker requires a data router; BrowserRouter doesn't support it.
+// Instead we wrap navigate so any in-app navigation while dirty asks first.
+
+function useUnsavedChangesGuard(dirty, navigate) {
+  return useCallback((to, opts) => {
+    if (dirty && !window.confirm('You have unsaved changes. Leave anyway?')) return
+    navigate(to, opts)
+  }, [dirty, navigate])
+}
+
+// ── Error boundary ────────────────────────────────────────────────────────────
+
+class DrawingBoardErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { error: null } }
+  static getDerivedStateFromError(error) { return { error } }
+  render() {
+    const { error } = this.state
+    if (error) {
+      return (
+        <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit' }}>
+          <div style={{ textAlign: 'center', maxWidth: 520, padding: 24 }}>
+            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Drawing Board error</div>
+            <div style={{ fontSize: 13, color: '#b91c1c', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 8, padding: 16, marginBottom: 16, fontFamily: 'monospace', textAlign: 'left', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+              {error?.message ?? String(error)}
+            </div>
+            <button onClick={() => window.location.reload()} style={{ fontSize: 13, padding: '8px 20px', border: '1px solid #d8d5cf', borderRadius: 8, background: '#fff', cursor: 'pointer' }}>
+              Reload
+            </button>
+          </div>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
 // ── Sidebar nav (matches other pages) ────────────────────────────────────────
 
 function Sidebar({ navigate, unmatchedCount, user, signOut }) {
@@ -486,7 +523,7 @@ function Sidebar({ navigate, unmatchedCount, user, signOut }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function DrawingBoard() {
+function DrawingBoard() {
   const { drawingId } = useParams()
   const navigate      = useNavigate()
   const { user, signOut } = useAuth()
@@ -542,17 +579,8 @@ export default function DrawingBoard() {
   // ── Derived values (recompute whenever tree changes) ────────────────────────
   const derived = tree ? computeDerived(tree) : {}
 
-  // ── Route blocker for unsaved changes ───────────────────────────────────────
-  const blocker = useBlocker(dirty)
-  useEffect(() => {
-    if (blocker.state === 'blocked') {
-      if (window.confirm('You have unsaved changes. Leave anyway?')) {
-        blocker.proceed()
-      } else {
-        blocker.reset()
-      }
-    }
-  }, [blocker.state])
+  // ── Guarded navigate (in-app links while dirty) ──────────────────────────────
+  const guardedNavigate = useUnsavedChangesGuard(dirty, navigate)
 
   // Tab/window close warning
   useEffect(() => {
@@ -698,14 +726,14 @@ export default function DrawingBoard() {
     <div style={{ display: 'flex', height: '100vh', fontFamily: 'inherit', background: '#f5f4f0' }}>
 
       {/* ── Sidebar nav ──────────────────────────────────────────────────────── */}
-      <Sidebar navigate={navigate} unmatchedCount={unmatchedCount} user={user} signOut={signOut} />
+      <Sidebar navigate={guardedNavigate} unmatchedCount={unmatchedCount} user={user} signOut={signOut} />
 
       {/* ── Editor area ──────────────────────────────────────────────────────── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
 
         {/* Top bar */}
         <div style={{ height: 48, background: '#fff', borderBottom: '1px solid #e8e6e0', display: 'flex', alignItems: 'center', padding: '0 16px', gap: 12, flexShrink: 0 }}>
-          <button onClick={() => navigate(-1)} style={{ fontSize: 12, padding: '5px 10px', border: '1px solid #d8d5cf', borderRadius: 7, background: '#fff', cursor: 'pointer', color: '#555' }}>
+          <button onClick={() => guardedNavigate(-1)} style={{ fontSize: 12, padding: '5px 10px', border: '1px solid #d8d5cf', borderRadius: 7, background: '#fff', cursor: 'pointer', color: '#555' }}>
             ← Back
           </button>
           <div style={{ flex: 1, fontSize: 14, fontWeight: 600, color: '#1a1a1a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -815,5 +843,13 @@ export default function DrawingBoard() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function DrawingBoardPage() {
+  return (
+    <DrawingBoardErrorBoundary>
+      <DrawingBoard />
+    </DrawingBoardErrorBoundary>
   )
 }
