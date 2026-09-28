@@ -81,10 +81,12 @@ function collectCategories(fieldDefs) {
   return [...cats]
 }
 
-function findRequiredEmpty(tree, fieldDefs) {
+function findRequiredEmpty(tree, fieldDefs, hiddenFields = new Set()) {
   const issues = []
   function traverse(node) {
-    const fields = (fieldDefs[node.part_type] ?? []).filter(f => f.is_required && f.role === 'input')
+    const fields = (fieldDefs[node.part_type] ?? []).filter(
+      f => f.is_required && f.role === 'input' && !hiddenFields.has(f.field_key)
+    )
     for (const f of fields) {
       const v = node.values?.[f.property_name]
       if (v === null || v === undefined || v === '') {
@@ -103,7 +105,7 @@ function partLabel(node) {
 
 // ── PropertyField ─────────────────────────────────────────────────────────────
 
-function PropertyField({ field, value, derivedValue, onChange, refOptions, required }) {
+function PropertyField({ field, value, derivedValue, onChange, refOptions, required, partType }) {
   const isRequired = required && (value === null || value === undefined || value === '')
   const inputBorder = isRequired ? '1px solid #e57373' : '1px solid #d8d5cf'
 
@@ -157,7 +159,13 @@ function PropertyField({ field, value, derivedValue, onChange, refOptions, requi
   }
 
   if (field.data_type === 'reference') {
-    const opts = refOptions[field.reference_category] ?? []
+    let opts = refOptions[field.reference_category] ?? []
+    // Filter by applies_to when any option has it populated (after SQL migration).
+    // Before migration, applies_to is empty/null on all rows → show all.
+    const anyHasAppliesTo = opts.some(o => o.applies_to?.length > 0)
+    if (anyHasAppliesTo && partType) {
+      opts = opts.filter(o => !o.applies_to?.length || o.applies_to.includes(partType))
+    }
     return (
       <div style={{ marginBottom: 10 }}>
         <label title={field.field_key} style={{ fontSize: 11, fontWeight: 500, color: '#666', display: 'block', marginBottom: 3 }}>
@@ -241,7 +249,7 @@ function PropertyField({ field, value, derivedValue, onChange, refOptions, requi
 
 // ── PropertyEditor ────────────────────────────────────────────────────────────
 
-function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, onPrev, onNext, prevDisabled, nextDisabled }) {
+function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, onPrev, onNext, prevDisabled, nextDisabled, hiddenFields }) {
   if (!node) {
     return (
       <div style={{ padding: 16, color: '#aaa', fontSize: 12, textAlign: 'center', paddingTop: 48 }}>
@@ -250,7 +258,9 @@ function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, o
     )
   }
 
-  const fields = (fieldDefs[node.part_type] ?? []).filter(f => f.role !== 'config')
+  const fields = (fieldDefs[node.part_type] ?? []).filter(
+    f => f.role !== 'config' && !hiddenFields.has(f.field_key)
+  )
   const derivedMap = derived?.[node.key] ?? {}
 
   return (
@@ -284,6 +294,7 @@ function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, o
             onChange={v => onChangeField(node.key, field.property_name, v, field.field_key)}
             refOptions={refOptions}
             required={field.is_required}
+            partType={node.part_type}
           />
         ))}
       </div>
@@ -395,7 +406,7 @@ function DrawingPlaceholder({ tree, derived, refOptions }) {
 
 // ── Summary ───────────────────────────────────────────────────────────────────
 
-function Summary({ tree, fieldDefs, derived, refOptions, onSelectKey, drawingMeta }) {
+function Summary({ tree, fieldDefs, derived, refOptions, onSelectKey, drawingMeta, hiddenFields }) {
   const item  = findFirst(tree, 'drawingItemPart')
   const frame = findFirst(tree, 'assemblyFramePart')
 
@@ -408,7 +419,7 @@ function Summary({ tree, fieldDefs, derived, refOptions, onSelectKey, drawingMet
   const frameH = frame?.values?.height
   const frameSize = frameW && frameH ? `${frameW} × ${frameH} mm` : '—'
 
-  const requiredEmpty = findRequiredEmpty(tree, fieldDefs)
+  const requiredEmpty = findRequiredEmpty(tree, fieldDefs, hiddenFields)
 
   return (
     <div style={{ borderTop: '1px solid #e8e6e0', padding: '12px 14px' }}>
@@ -535,6 +546,7 @@ function DrawingBoard() {
   const [refOptions,  setRefOptions]    = useState({})
   const [profileValues, setProfileValues] = useState([])
   const [containment, setContainment]   = useState([])
+  const [hiddenFields, setHiddenFields] = useState(() => new Set())
   const [loading,     setLoading]       = useState(true)
   const [loadError,   setLoadError]     = useState(null)
 
@@ -546,16 +558,22 @@ function DrawingBoard() {
   const [saveError,   setSaveError]     = useState(null)
 
   // ── History ─────────────────────────────────────────────────────────────────
-  const undoStack = useRef([])
-  const redoStack = useRef([])
+  const undoStack  = useRef([])
+  const redoStack  = useRef([])
+  // Snapshot of the last-saved (or initially loaded) tree for dirty comparison
+  const savedTreeRef = useRef(null)
 
   function setTree(newTree) { setTreeRaw(newTree) }
+
+  function isDirtyVsSaved(candidate) {
+    return JSON.stringify(candidate) !== JSON.stringify(savedTreeRef.current)
+  }
 
   function commit(newTree) {
     undoStack.current = [...undoStack.current.slice(-49), tree]
     redoStack.current = []
     setTree(newTree)
-    setDirty(true)
+    setDirty(isDirtyVsSaved(newTree))
   }
 
   function undo() {
@@ -564,7 +582,7 @@ function DrawingBoard() {
     redoStack.current = [...redoStack.current, tree]
     undoStack.current = undoStack.current.slice(0, -1)
     setTree(prev)
-    setDirty(true)
+    setDirty(isDirtyVsSaved(prev))
   }
 
   function redo() {
@@ -573,7 +591,7 @@ function DrawingBoard() {
     undoStack.current = [...undoStack.current, tree]
     redoStack.current = redoStack.current.slice(0, -1)
     setTree(next)
-    setDirty(true)
+    setDirty(isDirtyVsSaved(next))
   }
 
   // ── Derived values (recompute whenever tree changes) ────────────────────────
@@ -633,15 +651,17 @@ function DrawingBoard() {
         setRefOptions(rOpts)
         setProfileValues(pVals)
         setContainment(cont)
+        setHiddenFields(new Set(profile.hidden_fields ?? []))
 
         // Load or build the tree
         const loadedTree = await loadDrawingParts(Number(drawingId))
         if (loadedTree) {
+          savedTreeRef.current = loadedTree
           setTree(loadedTree)
           setSelectedKey(loadedTree.key)
           setDirty(false)
         } else {
-          // No drawing_parts yet — build from profile
+          // No drawing_parts yet — build from profile; mark unsaved
           const { tree: newTree, warnings } = buildNewBoxSash({
             profile,
             fieldDefs: fDefs,
@@ -650,9 +670,10 @@ function DrawingBoard() {
             refOptions: rOpts,
           })
           if (warnings.length > 0) console.warn('buildNewBoxSash warnings:', warnings)
+          savedTreeRef.current = null  // nothing saved yet
           setTree(newTree)
           setSelectedKey(newTree.key)
-          setDirty(true)  // new tree is unsaved
+          setDirty(true)
         }
       } catch (e) {
         setLoadError(e?.message ?? String(e))
@@ -669,6 +690,7 @@ function DrawingBoard() {
     setSaveStatus('saving'); setSaveError(null)
     try {
       await saveDrawingParts(Number(drawingId), tree)
+      savedTreeRef.current = tree   // new clean baseline
       setDirty(false)
       setSaveStatus('saved')
       setTimeout(() => setSaveStatus(null), 2000)
@@ -723,7 +745,7 @@ function DrawingBoard() {
     : `Drawing ${drawingId}`
 
   return (
-    <div style={{ display: 'flex', height: '100vh', fontFamily: 'inherit', background: '#f5f4f0' }}>
+    <div style={{ display: 'flex', height: '100vh', width: '100%', fontFamily: 'inherit', background: '#f5f4f0' }}>
 
       {/* ── Sidebar nav ──────────────────────────────────────────────────────── */}
       <Sidebar navigate={guardedNavigate} unmatchedCount={unmatchedCount} user={user} signOut={signOut} />
@@ -804,6 +826,7 @@ function DrawingBoard() {
                 onNext={handleNext}
                 prevDisabled={prevDisabled}
                 nextDisabled={nextDisabled}
+                hiddenFields={hiddenFields}
               />
             </div>
 
@@ -836,6 +859,7 @@ function DrawingBoard() {
                 refOptions={refOptions}
                 onSelectKey={setSelectedKey}
                 drawingMeta={drawingMeta}
+                hiddenFields={hiddenFields}
               />
             </div>
 
