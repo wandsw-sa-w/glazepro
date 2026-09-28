@@ -201,7 +201,8 @@ describe('computeVariables — box sash complete new (solid redwood / utile cill
     expect(vars.new_sliding_sash_qty).toBe(2)
     expect(vars.frame_qty).toBe(1)
     expect(vars.new_frame_qty).toBe(1)
-    expect(vars.new_cill_qty).toBe(1)
+    // complete_new includes the cill via frame_to_be_replaced; new_cill_qty is for cill-only replacements
+    expect(vars.new_cill_qty).toBe(0)
   })
 
   it('has correct frame dimensions', () => {
@@ -396,5 +397,55 @@ describe('computeVariables — floor level flags', () => {
     const v = makeWithFloor('half_landing')
     expect(v.is_half_landing).toBe(true)
     expect(v.is_floor_set_as_half_landing).toBe(true)
+  })
+})
+
+describe('computeVariables — glazing bars (6-over-6)', () => {
+  const tree = makeBoxSashTree({
+    topGlass: { barsWide: 2, barsHigh: 1 },
+    botGlass: { barsWide: 2, barsHigh: 1 },
+  })
+  const derived = computeDerived(tree)
+  const vars    = computeVariables(tree, derived)
+
+  it('detects has_glazing_bars', () => {
+    expect(vars.has_glazing_bars).toBe(true)
+  })
+
+  it('counts 3 bars per sash (2 wide + 1 high)', () => {
+    expect(vars.top_sash_glazing_bar_count).toBe(3)
+    expect(vars.bottom_sash_glazing_bar_count).toBe(3)
+    expect(vars.total_glazing_bar_count).toBe(6)
+  })
+
+  it('gb_to_be_replaced_qty is 6 for complete_new with 6-over-6', () => {
+    expect(vars.gb_to_be_replaced_qty).toBe(6)
+  })
+
+  it('pane count is 6 per sash (3 cols × 2 rows)', () => {
+    expect(vars.top_sash_pane_count).toBe(6)
+    expect(vars.bottom_sash_pane_count).toBe(6)
+    expect(vars.total_pane_count).toBe(12)
+  })
+})
+
+describe('computeVariables — new_cill_qty for cill-only replacement', () => {
+  it('is 1 when cill.toBeReplaced=true and not complete_new', () => {
+    const tree = makeBoxSashTree({
+      item: { typeOfWork: 'draught_seal' },
+      cill: { toBeReplaced: true },
+    })
+    const derived = computeDerived(tree)
+    const vars    = computeVariables(tree, derived)
+    expect(vars.new_cill_qty).toBe(1)
+    expect(vars.is_complete_new).toBe(false)
+  })
+
+  it('is 0 for complete_new even without cill.toBeReplaced', () => {
+    const tree    = makeBoxSashTree()
+    const derived = computeDerived(tree)
+    const vars    = computeVariables(tree, derived)
+    expect(vars.new_cill_qty).toBe(0)
+    expect(vars.is_complete_new).toBe(true)
   })
 })

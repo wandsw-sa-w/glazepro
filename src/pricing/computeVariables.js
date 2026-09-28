@@ -213,12 +213,20 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
     const is_doc_l                         = false  // NEEDS-DATA
     const is_casement_window_bay           = false  // NEEDS-DATA
     const is_varnished_or_stained          = false  // NEEDS-DATA: finish codes not defined yet
-    const gb_to_be_replaced_qty            = 0     // NEEDS-DATA: glazing bar count not yet in parts
-    const sash_muntin_to_be_replaced_qty   = 0     // NEEDS-DATA
+    const sash_muntin_to_be_replaced_qty   = 0     // NEEDS-DATA: muntin data not yet captured
 
     const is_individually_glazed = allGlassParts.some(g => g.values?.isIndividualPanes === true)
     // Backwards compat alias
     const is_individual_panes = is_individually_glazed
+
+    // gb_to_be_replaced_qty: total applied glazing bars being replaced.
+    // Each glassPart stores barsWide (vertical dividers) and barsHigh (horizontal dividers).
+    // A bar is included if its parent sash is being replaced (complete_new or toBeReplaced=true).
+    const gb_to_be_replaced_qty = allGlassParts.reduce((sum, g) => {
+      const parentSash = findParent(tree, g.key)
+      const included   = is_complete_new || parentSash?.values?.toBeReplaced === true
+      return sum + (included ? (g.values?.barsWide ?? 0) + (g.values?.barsHigh ?? 0) : 0)
+    }, 0)
 
     // ── GROUP 9 — Finish flags ────────────────────────────────────────────────
     const internalFinish = paintNode?.values?.internalFinish ?? 'clean_white'
@@ -259,14 +267,23 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
     const is_single_glazed = allGlassParts.some(g => g.values?.glazingId === 'single_glazed')
     const is_triple_glazed = allGlassParts.some(g => g.values?.glazingId === 'triple_glazed')
 
-    // Glazing bar variables — NEEDS-DATA (bars not yet captured in glassPart)
-    const top_sash_glazing_bar_count    = 0
-    const bottom_sash_glazing_bar_count = 0
-    const total_glazing_bar_count       = 0
-    const has_glazing_bars              = false
-    const top_sash_pane_count           = 1
-    const bottom_sash_pane_count        = 1
-    const total_pane_count              = top_sash_pane_count + bottom_sash_pane_count
+    // Glazing bar counts — read barsWide + barsHigh from each glassPart per sash.
+    const top_sash_glazing_bar_count = allTopSashes.reduce((s, sash) =>
+      s + (sash.children ?? []).filter(c => c.part_type === 'glassPart').reduce((cs, g) =>
+        cs + (g.values?.barsWide ?? 0) + (g.values?.barsHigh ?? 0), 0), 0)
+    const bottom_sash_glazing_bar_count = allBotSashes.reduce((s, sash) =>
+      s + (sash.children ?? []).filter(c => c.part_type === 'glassPart').reduce((cs, g) =>
+        cs + (g.values?.barsWide ?? 0) + (g.values?.barsHigh ?? 0), 0), 0)
+    const total_glazing_bar_count = top_sash_glazing_bar_count + bottom_sash_glazing_bar_count
+    const has_glazing_bars        = total_glazing_bar_count > 0
+    // Pane count: (barsWide+1) × (barsHigh+1) per glass part, summed per sash
+    const top_sash_pane_count = allTopSashes.reduce((s, sash) =>
+      s + (sash.children ?? []).filter(c => c.part_type === 'glassPart').reduce((cs, g) =>
+        cs + ((g.values?.barsWide ?? 0) + 1) * ((g.values?.barsHigh ?? 0) + 1), 0), 0) || 1
+    const bottom_sash_pane_count = allBotSashes.reduce((s, sash) =>
+      s + (sash.children ?? []).filter(c => c.part_type === 'glassPart').reduce((cs, g) =>
+        cs + ((g.values?.barsWide ?? 0) + 1) * ((g.values?.barsHigh ?? 0) + 1), 0), 0) || 1
+    const total_pane_count = top_sash_pane_count + bottom_sash_pane_count
 
     // ── GROUP 11 — Counts ─────────────────────────────────────────────────────
     const sliding_sash_qty  = allTopSashes.length + allBotSashes.length
@@ -286,7 +303,10 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
     }).length
 
     const new_sash_qty          = new_sliding_sash_qty
-    const new_cill_qty          = is_complete_new ? 1 : 0
+    // new_cill_qty: 1 only when the cill is being replaced but NOT as part of a
+    // complete-new job (complete_new includes the cill implicitly via frame_to_be_replaced).
+    // A cill-only replacement sets cillPart.toBeReplaced = true on a non-complete_new job.
+    const new_cill_qty          = !is_complete_new && cill?.values?.toBeReplaced === true ? 1 : 0
     const frame_mullion_qty     = 0  // simple single-frame box sash
     const frame_transom_qty     = 0
     const new_casement_sash_qty = 0

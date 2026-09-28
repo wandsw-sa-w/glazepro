@@ -122,6 +122,8 @@ const FIXTURE_TREE = {
                     glazingId:         'double_glazed',
                     isIndividualPanes: false,
                     spacerDimId:       '16mm_white_warm_edge',
+                    barsWide:          2,  // 6-over-6: 2 vertical bars per sash
+                    barsHigh:          1,  // 1 horizontal bar per sash
                   },
                   children: [],
                 },
@@ -146,6 +148,8 @@ const FIXTURE_TREE = {
                     glazingId:         'double_glazed',
                     isIndividualPanes: false,
                     spacerDimId:       '16mm_white_warm_edge',
+                    barsWide:          2,  // 6-over-6: 2 vertical bars per sash
+                    barsHigh:          1,  // 1 horizontal bar per sash
                   },
                   children: [],
                 },
@@ -499,6 +503,37 @@ export default function PricingBenchmark() {
           </tr>
         </tbody>
       </table>
+
+      {/* Defaulted variables */}
+      {(() => {
+        const allLines = [
+          ...results.manufacture_labour.lines,
+          ...results.install_labour.lines,
+          ...results.price.lines,
+        ]
+        const defaultedSet = new Set()
+        for (const line of allLines) {
+          for (const v of (line.defaulted_vars ?? [])) defaultedSet.add(v)
+        }
+        if (defaultedSet.size === 0) return null
+        const sorted = [...defaultedSet].sort()
+        return (
+          <>
+            <h2 style={S.h2}>Defaulted Variables ({defaultedSet.size})</h2>
+            <p style={{ color: '#888', fontSize: '12px', marginBottom: '4px' }}>
+              These variable names appeared in rule expressions but were not defined — they were silently defaulted to 0.
+            </p>
+            <div style={{ ...S.varGrid, maxHeight: '120px', marginBottom: '16px' }}>
+              {sorted.map(name => (
+                <div key={name} style={S.varEntry}>
+                  <span style={{ ...S.varKey, color: '#a60' }}>{name}</span>
+                  <span style={S.varVal}>0</span>
+                </div>
+              ))}
+            </div>
+          </>
+        )
+      })()}
 
       {/* Manufacture labour */}
       <h2 style={S.h2}>

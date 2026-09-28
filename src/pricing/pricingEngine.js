@@ -32,7 +32,7 @@
  */
 
 import { computeVariables } from './computeVariables.js'
-import { evaluateCondition, evaluateNumber } from './evaluator.js'
+import { evaluateCondition, evaluateNumber, getExpressionVariables } from './evaluator.js'
 import { loadDrawingParts } from '../drawingBoard/api.js'
 import { computeDerived } from '../drawingBoard/computeDerived.js'
 
@@ -82,12 +82,37 @@ const LOOP_PART_TYPES = {
 function getLoopParts(tree, loopTarget) {
   if (!loopTarget) return [null]
   const partTypes = LOOP_PART_TYPES[loopTarget]
-  if (!partTypes) return [null]
+  if (!partTypes) return []  // unknown loop_target → skip entirely
   const parts = []
   for (const pt of partTypes) {
     parts.push(...findAll(tree, pt))
   }
-  return parts.length > 0 ? parts : [null]
+  return parts  // empty array = no matching parts in tree → skip entirely
+}
+
+// ── Missing-variable defaulting ───────────────────────────────────────────────
+
+/**
+ * Pre-scan the variable names referenced by one or more expressions.
+ * Any name not present in `vars` is injected as 0 so rule evaluation never
+ * throws "undefined variable" — unknown names just default silently to 0.
+ *
+ * @param {string[]} exprs  - Array of expression strings (may be null/undefined)
+ * @param {Object}   vars   - Current variable context
+ * @returns {{ vars: Object, defaulted: string[] }}
+ */
+function defaultMissingVars(exprs, vars) {
+  const missing = new Set()
+  for (const expr of exprs) {
+    if (!expr) continue
+    for (const name of getExpressionVariables(expr)) {
+      if (!(name in vars)) missing.add(name)
+    }
+  }
+  if (missing.size === 0) return { vars, defaulted: [] }
+  const augmented = { ...vars }
+  for (const name of missing) augmented[name] = 0
+  return { vars: augmented, defaulted: [...missing] }
 }
 
 // ── Part-level variable computation ──────────────────────────────────────────
@@ -143,10 +168,10 @@ function computePartVariables(partNode, tree, derived, baseVars) {
 
   if (pt === 'assemblyFramePart') {
     return {
-      to_be_replaced:    baseVars.is_complete_new ?? false,
-      width:             v.width  ?? 0,
-      height:            v.height ?? 0,
-      frame_width_in_mm: v.width  ?? 0,
+      to_be_replaced:     baseVars.is_complete_new ?? false,
+      width:              (v.width  ?? 0) / 1000,  // metres (Integrate convention)
+      height:             (v.height ?? 0) / 1000,  // metres
+      frame_width_in_mm:  v.width  ?? 0,           // mm (kept for rules that use _in_mm)
       frame_height_in_mm: v.height ?? 0,
     }
   }
@@ -177,6 +202,17 @@ function computePartVariables(partNode, tree, derived, baseVars) {
     const rounded_area = Math.ceil(actual_area * 2) / 2  // round up to nearest 0.5
     const glazingId    = v.glazingId ?? ''
 
+    // to_be_replaced: glass is new if the job is complete_new OR the parent sash is replaced
+    const to_be_replaced = (baseVars.is_complete_new === true) || (parentSash?.values?.toBeReplaced === true)
+
+    // Glazing bars: barsWide = vertical dividers, barsHigh = horizontal dividers
+    const barsWide = v.barsWide ?? 0
+    const barsHigh = v.barsHigh ?? 0
+    const unit_gb_qty = barsWide + barsHigh
+
+    // internal_spacer_length (metres): sum of bar run lengths inside the pane opening
+    const internal_spacer_length = (barsWide * glassHeight + barsHigh * glassWidth) / 1000
+
     return {
       actual_area,
       rounded_area,
@@ -184,7 +220,9 @@ function computePartVariables(partNode, tree, derived, baseVars) {
       is_double_glazed: glazingId === 'double_glazed',
       is_triple_glazed: glazingId === 'triple_glazed',
       glass_unit_thickness: 0,  // NEEDS-DATA: spacer-based thickness not yet mapped
-      unit_gb_qty: 0,
+      to_be_replaced,
+      unit_gb_qty,
+      internal_spacer_length,
     }
   }
 
@@ -198,26 +236,32 @@ function computePartVariables(partNode, tree, derived, baseVars) {
  * total_minutes = evaluateNumber(quantity) × evaluateNumber(value)
  */
 function evalRuleLine(rule, vars, partNode) {
+  // Pre-fill any unknown variable names with 0 to avoid "undefined variable" errors.
+  const { vars: safeVars, defaulted: defaulted_vars } = defaultMissingVars(
+    [rule.condition, rule.quantity, rule.value], vars
+  )
+
   const line = {
-    rule_id:       rule.id,
-    rule_family:   rule.rule_family,
-    group_name:    rule.group_name ?? null,
-    name:          rule.name,
-    loop_target:   rule.loop_target ?? null,
-    part_key:      partNode?.key       ?? null,
-    part_type:     partNode?.part_type ?? null,
-    fires:         false,
-    quantity:      0,
-    value:         0,
-    minutes:       0,
-    error:         null,
-    condition:     rule.condition,
-    quantity_expr: rule.quantity,
-    value_expr:    rule.value,
+    rule_id:        rule.id,
+    rule_family:    rule.rule_family,
+    group_name:     rule.group_name ?? null,
+    name:           rule.name,
+    loop_target:    rule.loop_target ?? null,
+    part_key:       partNode?.key       ?? null,
+    part_type:      partNode?.part_type ?? null,
+    fires:          false,
+    quantity:       0,
+    value:          0,
+    minutes:        0,
+    error:          null,
+    defaulted_vars,
+    condition:      rule.condition,
+    quantity_expr:  rule.quantity,
+    value_expr:     rule.value,
   }
 
   try {
-    line.fires = evaluateCondition(rule.condition || 'true', vars)
+    line.fires = evaluateCondition(rule.condition || 'true', safeVars)
   } catch (e) {
     line.error = `condition: ${e.message}`
     return line
@@ -225,13 +269,13 @@ function evalRuleLine(rule, vars, partNode) {
   if (!line.fires) return line
 
   try {
-    line.quantity = evaluateNumber(rule.quantity || '0', vars)
+    line.quantity = evaluateNumber(rule.quantity || '0', safeVars)
   } catch (e) {
     line.error = `quantity: ${e.message}`
     return line
   }
   try {
-    line.value   = evaluateNumber(rule.value || '0', vars)
+    line.value   = evaluateNumber(rule.value || '0', safeVars)
   } catch (e) {
     line.error = `value: ${e.message}`
     return line
@@ -245,25 +289,31 @@ function evalRuleLine(rule, vars, partNode) {
  * line_total = quantity × value × markup
  */
 function evalPriceRuleLine(rule, vars, partNode) {
+  // Pre-fill any unknown variable names with 0 to avoid "undefined variable" errors.
+  const { vars: safeVars, defaulted: defaulted_vars } = defaultMissingVars(
+    [rule.condition, rule.quantity, rule.value], vars
+  )
+
   const line = {
-    rule_id:     rule.id,
-    rule_family: rule.rule_family,
-    group_name:  rule.group_name ?? null,
-    name:        rule.name,
-    loop_target: rule.loop_target ?? null,
-    part_key:    partNode?.key       ?? null,
-    part_type:   partNode?.part_type ?? null,
-    fires:       false,
-    quantity:    0,
-    value:       0,
-    markup:      rule.markup ?? 1,
-    line_total:  0,
-    error:       null,
-    condition:   rule.condition,
+    rule_id:        rule.id,
+    rule_family:    rule.rule_family,
+    group_name:     rule.group_name ?? null,
+    name:           rule.name,
+    loop_target:    rule.loop_target ?? null,
+    part_key:       partNode?.key       ?? null,
+    part_type:      partNode?.part_type ?? null,
+    fires:          false,
+    quantity:       0,
+    value:          0,
+    markup:         rule.markup ?? 1,
+    line_total:     0,
+    error:          null,
+    defaulted_vars,
+    condition:      rule.condition,
   }
 
   try {
-    line.fires = evaluateCondition(rule.condition || 'true', vars)
+    line.fires = evaluateCondition(rule.condition || 'true', safeVars)
   } catch (e) {
     line.error = `condition: ${e.message}`
     return line
@@ -271,8 +321,8 @@ function evalPriceRuleLine(rule, vars, partNode) {
   if (!line.fires) return line
 
   try {
-    line.quantity = evaluateNumber(rule.quantity || '0', vars)
-    line.value    = evaluateNumber(rule.value    || '0', vars)
+    line.quantity = evaluateNumber(rule.quantity || '0', safeVars)
+    line.value    = evaluateNumber(rule.value    || '0', safeVars)
     line.line_total = line.quantity * line.value * (rule.markup ?? 1)
   } catch (e) {
     line.error = `calc: ${e.message}`

@@ -62,3 +62,19 @@ export function evaluateNumber(expression, variables = {}) {
   }
   return n
 }
+
+/**
+ * Return the list of variable names referenced in an expression.
+ * Returns [] if the expression cannot be parsed (e.g. partially written rule).
+ * Used to pre-fill unknown variables with 0 before evaluation.
+ *
+ * @param {string} expression
+ * @returns {string[]}
+ */
+export function getExpressionVariables(expression) {
+  try {
+    return parser.parse(expression).variables()
+  } catch {
+    return []
+  }
+}
