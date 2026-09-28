@@ -10,6 +10,8 @@ import {
 import { buildNewBoxSash } from '../drawingBoard/buildTree.js'
 import { computeDerived } from '../drawingBoard/computeDerived.js'
 import { applyOperationDefaults } from '../drawingBoard/applyOperationDefaults.js'
+import { computeSashGeometry } from '../drawingBoard/sashGeometry.js'
+import { SashElevation } from '../drawingBoard/renderElevation.jsx'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -576,6 +578,7 @@ function DrawingBoard() {
   const [dirty,       setDirty]         = useState(false)
   const [saveStatus,  setSaveStatus]    = useState(null) // null | 'saving' | 'saved' | 'error'
   const [saveError,   setSaveError]     = useState(null)
+  const [viewMode,    setViewMode]      = useState('internal')
 
   // ── History ─────────────────────────────────────────────────────────────────
   const undoStack  = useRef([])
@@ -615,7 +618,8 @@ function DrawingBoard() {
   }
 
   // ── Derived values (recompute whenever tree changes) ────────────────────────
-  const derived = tree ? computeDerived(tree) : {}
+  const derived  = tree ? computeDerived(tree) : {}
+  const geometry = tree ? computeSashGeometry(tree, derived) : null
 
   // ── Guarded navigate (in-app links while dirty) ──────────────────────────────
   const guardedNavigate = useUnsavedChangesGuard(dirty, navigate)
@@ -850,9 +854,33 @@ function DrawingBoard() {
               />
             </div>
 
-            {/* Centre: Drawing placeholder */}
-            <div style={{ flex: 1, background: '#f7f6f2', overflowY: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 32, minWidth: 0 }}>
-              <DrawingPlaceholder tree={tree} derived={derived} refOptions={refOptions} />
+            {/* Centre: SVG elevation */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0, background: '#f7f6f2' }}>
+              {/* View toggle */}
+              <div style={{ padding: '6px 10px', borderBottom: '1px solid #e8e6e0', background: '#fff', display: 'flex', gap: 6, flexShrink: 0 }}>
+                {['internal', 'external'].map(m => (
+                  <button key={m} onClick={() => setViewMode(m)} style={{
+                    fontSize: 11, padding: '3px 10px', borderRadius: 6, cursor: 'pointer',
+                    border: `1px solid ${viewMode === m ? '#3d35a8' : '#d8d5cf'}`,
+                    background: viewMode === m ? '#f0eefc' : '#fff',
+                    color: viewMode === m ? '#3d35a8' : '#555',
+                    fontWeight: viewMode === m ? 600 : 400,
+                  }}>
+                    {m === 'internal' ? 'Internal' : 'External'}
+                  </button>
+                ))}
+              </div>
+              {/* SVG */}
+              <div style={{ flex: 1, overflow: 'hidden', padding: 12, display: 'flex', alignItems: 'stretch' }}>
+                <SashElevation
+                  tree={tree}
+                  geometry={geometry}
+                  refOptions={refOptions}
+                  viewMode={viewMode}
+                  selectedKey={selectedKey}
+                  onSelectKey={setSelectedKey}
+                />
+              </div>
             </div>
 
             {/* Right: Explorer + Summary */}

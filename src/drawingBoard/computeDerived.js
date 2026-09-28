@@ -10,6 +10,10 @@
 //   drawingItemPart.itemWeight   = null (formula pending)
 //   topSashPart.weight/travel    = null (formula pending)
 //   bottomSashPart.weight/travel = null (formula pending)
+//   sashPairPart.sashWidth/topSashHeight/bottomSashHeight (from computeSashGeometry)
+//   topSashPart.sashHeight / bottomSashPart.sashHeight    (from computeSashGeometry)
+
+import { computeSashGeometry } from './sashGeometry.js'
 
 // Safely convert to number; null/undefined/NaN → null
 function num(v) {
@@ -99,6 +103,18 @@ export function computeDerived(tree) {
   for (const sash of [...topSashes, ...botSashes]) {
     entry(sash.key).weight = null  // formula pending
     entry(sash.key).travel = null  // formula pending
+  }
+
+  // Sash geometry: sashWidth, sash heights (derived)
+  const geo = computeSashGeometry(tree, out)
+  if (geo) {
+    if (pair) {
+      entry(pair.key).sashWidth        = geo.sashWidth
+      entry(pair.key).topSashHeight    = geo.topSashHeight
+      entry(pair.key).bottomSashHeight = geo.bottomSashHeight
+    }
+    for (const sash of topSashes) entry(sash.key).sashHeight = geo.topSashHeight
+    for (const sash of botSashes) entry(sash.key).sashHeight = geo.bottomSashHeight
   }
 
   return out
