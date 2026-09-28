@@ -134,10 +134,13 @@ describe('computeSashGeometry', () => {
     expect(geo.bottomSashHeight).toBe(900)
   })
 
-  it('6. returns null when topRail is null', () => {
+  it('6. falls back to default 49 when topRail is null', () => {
+    // topRail null → use profile default 49; geometry should still be computed
     const tree    = makeTree({ topRail: null })
     const derived = makeDerived(330, 1700)
-    expect(computeSashGeometry(tree, derived)).toBeNull()
+    const geo     = computeSashGeometry(tree, derived)
+    expect(geo).not.toBeNull()
+    expect(geo.topSashHeight).toBe(761.5 + 49 + 40)   // topGlass + defaultTopRail + M
   })
 
   it('7. returns null when derived is {} (no internalWidth)', () => {

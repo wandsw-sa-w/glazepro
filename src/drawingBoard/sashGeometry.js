@@ -62,11 +62,9 @@ export function computeSashGeometry(tree, derived) {
   // Fixed sash height (only relevant for set_top / set_bottom)
   const fixedSashHeight = safe(pv.fixedSashHeight)   // null if not set
 
-  // Rail heights from sash nodes
-  const topRail    = safe(topSash?.values?.topHeight)
-  const bottomRail = safe(botSash?.values?.bottomHeight)
-
-  if (topRail == null || bottomRail == null) return null
+  // Rail heights from sash nodes — fall back to profile defaults when null
+  const topRail    = safe(topSash?.values?.topHeight)    ?? 49
+  const bottomRail = safe(botSash?.values?.bottomHeight) ?? 88
 
   // Core geometry
   const sashWidth = internalWidth - clearLeft - clearRight

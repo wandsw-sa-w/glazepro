@@ -96,14 +96,16 @@ describe('computeDerived — null for missing inputs', () => {
     expect(d['pair'].internalWidth).toBe(null)
   })
 
-  it('internalHeight null when cill.height is absent', () => {
+  it('internalHeight treats absent cill.height as 0', () => {
+    // cill.height null → default 0; internalHeight = frameHeight − topHeight − 0
     const d = computeDerived(makeTree({ width: 500, height: 1849, topHeight: 79 }, {}))
-    expect(d['pair'].internalHeight).toBe(null)
+    expect(d['pair'].internalHeight).toBe(1849 - 79)
   })
 
-  it('internalHeight null when frame.topHeight is absent', () => {
+  it('internalHeight treats absent frame.topHeight as 0', () => {
+    // topHeight null → default 0; internalHeight = frameHeight − 0 − cillHeight
     const d = computeDerived(makeTree({ width: 500, height: 1849 }, { height: 70 }))
-    expect(d['pair'].internalHeight).toBe(null)
+    expect(d['pair'].internalHeight).toBe(1849 - 70)
   })
 
   it('jambDifference null when leftOuterJamb is absent', () => {
@@ -147,7 +149,7 @@ describe('computeDerived — edge cases', () => {
     expect(computeDerived(null)).toEqual({})
   })
 
-  it('internalHeight null when cillPart is absent from tree', () => {
+  it('internalHeight treats missing cillPart as cillHeight=0', () => {
     const tree = {
       key: 'item', part_type: 'drawingItemPart', values: {}, children: [
         {
@@ -160,8 +162,8 @@ describe('computeDerived — edge cases', () => {
       ],
     }
     const d = computeDerived(tree)
-    expect(d['pair'].internalHeight).toBe(null)  // cill missing
-    expect(d['pair'].internalWidth).toBe(330)    // still computable
+    expect(d['pair'].internalHeight).toBe(1849 - 79)  // cill absent → treated as 0
+    expect(d['pair'].internalWidth).toBe(330)          // still computable
   })
 
   it('handles multiple topSashPart nodes', () => {

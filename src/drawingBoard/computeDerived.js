@@ -86,16 +86,17 @@ export function computeDerived(tree) {
   }
 
   // sashPairPart: internalWidth, internalHeight
+  // Optional sub-terms default to 0 so a partial frame still yields a value.
   if (pair) {
     entry(pair.key).internalWidth = sub(
       frame?.values?.width,
-      frame?.values?.leftWidth,
-      frame?.values?.rightWidth,
+      frame?.values?.leftWidth  ?? 0,
+      frame?.values?.rightWidth ?? 0,
     )
     entry(pair.key).internalHeight = sub(
       frame?.values?.height,
-      frame?.values?.topHeight,
-      cill?.values?.height,
+      frame?.values?.topHeight  ?? 0,
+      cill?.values?.height      ?? 0,
     )
   }
 
