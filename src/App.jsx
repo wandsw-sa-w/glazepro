@@ -21,6 +21,7 @@ import ManufactureLabourEditor from './pages/pricing/ManufactureLabourEditor'
 import PartsEditor             from './pages/pricing/PartsEditor'
 import DrawingBoardTest        from './drawingBoard/DrawingBoardTest.jsx'
 import DrawingBoard            from './pages/DrawingBoard.jsx'
+import PricingBenchmark        from './pages/dev/PricingBenchmark.jsx'
 import './App.css'
 
 function AppRoutes() {
@@ -52,6 +53,7 @@ function AppRoutes() {
       <Route path="/defaults"                     element={<DefaultsAndParts />} />
       <Route path="/drawing-board/:drawingId"      element={<DrawingBoard />} />
       <Route path="/dev/drawing-board-test"       element={<DrawingBoardTest />} />
+      <Route path="/dev/pricing-benchmark"        element={<PricingBenchmark />} />
     </Routes>
   )
 }

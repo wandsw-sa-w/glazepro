@@ -1,0 +1,282 @@
+# Integrate rule export for GlazePro — extracted 28 Sep 2026 from wandsworth.work (read-only).
+# Price file variables (PF30): accoya_cubic_meter=4.65, decoration_labour_hourly=42.50, douglas_fir_cubic_meter=2.05, idigbo_cubic_meter=3.50, installation_labour_hourly=40.21, meranti_cubic_meter=3.54, oak_cubic_meter=7.00, softwood_cubic_meter=1.25, special_glass=GL100045, utile=utile, utile_cubic_meter=3.54, workshop_hourly_additional=24.66
+# Labour editor variable: workshop_hourly_rate=15.00
+# Conditions use Integrate syntax: [variable], &&, ||, !, ==. Price file conditions are shown as displayed (and / not / or).
+
+### ESTIMATED LABOUR TIME (Integrate PRO > Lookup Editor) — 114 rules
+# groups: 10 Machine Shop, 20 Joinery Shop, 30 Glass Manufacture, 40 Spray Shop, 50 Delivery, 60 Finishing
+sort	group	category	loop(part scope)	label	condition	qty	minutes	markup	level	active	comment
+10	Machine Shop	Sliding Sash		Pair of Sashes	[new_sliding_sash_qty] >= 2	[new_sliding_sash_qty]	110		item	1	240 minutes to machine a pair of sashes
+10	Machine Shop			Sash Window with Fanlight	[nj_involved] && [new_sliding_sash_qty] >= 1 && [new_casement_sash_qty] >= 1 && [frame_to_be_replaced]	900	1		item	1	15 hours for a fanlight above a sash window
+15	Machine Shop	Sliding Sash		Single Sash	[new_sliding_sash_qty] == 1	[new_sliding_sash_qty]	160		item	1	160 minutes to machine a single sash
+20	Machine Shop			1st Applied glazing bar	[gb_to_be_replaced_qty] > 0 && ![is_individual_panes] && ![is_door] && ![is_casement_window] && ![is_casement_window_bay]	1	40		item	1	40 minutes for the first applied glazing bar
+25	Machine Shop			Subsequent Applied glazing bars	[gb_to_be_replaced_qty] > 1 && ![is_individual_panes] && ![is_door] && ![is_casement_window] && ![is_casement_window_bay]	[gb_to_be_replaced_qty] - 2	25		item	1	25 minutes for subsequent glazing bars
+30	Machine Shop			1st Real glazing bar [sash_muntin_to_be_replaced_qty]	[sash_muntin_to_be_replaced_qty] > 0 && [is_sw]	1	60		item	1	60 minutes for the first real dividing bar
+30	Machine Shop			Subsequent Real glazing bars	[sash_muntin_to_be_replaced_qty] >= 2 && [is_sw]	[sash_muntin_to_be_replaced_qty] - 1	60		item	1	60 minutes for subsequent real dividing bars
+40	Machine Shop	Sliding Sash	sliding_sash	Sash Swept Head	[to_be_replaced] && [is_square_top_with_arched_sightline]	1	600		item	1	600 minutes for a swept head.
+50	Machine Shop	Sliding Sash	sliding_sash	Sash Curved Top Rail	[is_curved_head_sash]	1	860		item	1	860 minutes for a curved head
+60	Machine Shop	Sliding Sash	sliding_sash	Non-Std Horn 75mm	[has_custom_horn_horn] && [horn_length_in_mm] == 75	1	30		item	1	30 minutes for a 75mm non-standard horn
+70	Machine Shop	Sliding Sash	sliding_sash	Non-Std Horn Non-75mm	[has_custom_horn_horn] && !([horn_length_in_mm] == 75)	1	90		item	1	90 minutes for a non-75mm non-standard horn
+80	Machine Shop	Sliding Sash		Box Frame	[is_sw] && [nj_involved]	[new_frame_qty] + [frame_mullion_qty]	240		item	1	240 minutes per box frame
+82	Machine Shop	Sliding Sash		Box Frame	[frame_to_be_replaced] && [new_sliding_sash_qty] >= 1 && [new_casement_sash_qty] >= 1	[new_frame_qty] + [frame_mullion_qty]	360		item	1	360 minutes per box frame
+90	Machine Shop	Sliding Sash	frame	Curved outside lining	[is_sw] && [has_curved_outer_head]	1	300		item	1	180 minutes per arched outer jamb
+100	Machine Shop	Sliding Sash	frame	Curved sash head	[is_sw] && [has_curved_inner_head]	1	300		item	1	180 minutes per arched inner jamb
+105	Machine Shop			Heritage Units Glazing Bars	[is_individual_panes]	[gb_to_be_replaced_qty]	25		item	1	25 minutes to machine each glazing bar for single or heritage units
+240	Machine Shop	Frame		Frame with Doors/Casements and Direct Glazed	([direct_glazed_unit_qty] >= 1 && [new_casement_sash_qty] >= 1) || ([direct_glazed_unit_qty] >= 1 && [new_door_leaf_qty] >= 1)	1	75		item	1	75 minutes additional machining if both direct glazed and openers
+245	Machine Shop	Frame		Frame with inward opening and outward opening	([opening_in_casement_sash_qty] + [opening_in_door_leaf_qty]) >= 1 && ([opening_out_casement_sash_qty] + [opening_out_door_leaf_qty]) >= 1	1	300		item	1	300 minutes additional if both inward and outward opening items in a frame
+500	Machine Shop		frame	Raked Frame	[is_raked] && [to_be_replaced]	1	360		item	1	3 hours for a raked frame
+1000	Machine Shop	Casement Sash	casement_sash	Machining & Joining a Casement Sash	[to_be_replaced] && ![is_item_a_door]	1	180		item	1	2.5 hours to manufacture a casement sash
+1005	Machine Shop	Casement Sash	casement_sash	Additional for Glazing Bars	[gb_to_be_replaced_qty] >= 1	1	30		item	1	0.5 hours additional for any glazing bars in a casement sash
+1010	Machine Shop	Casement Sash	casement_sash	Additional for Swept Head	[to_be_replaced] && [is_square_top_with_arched_sightline]	1	240		item	1	4 hours for a swept head casement sash
+1015	Machine Shop	Casement Sash	casement_sash	Additional for Curved Head	[to_be_replaced] && [is_curved_head_sash]	1	360		item	1	6 hours for a curved head casement sash
+1025	Machine Shop	Casement Sash		Additional for Bespoke Beads to Casement Bay	[is_all_glass_fix_bespoke_bead] && [is_casement_window_bay]	1	90		item	1	1.5 hours to machine bespoke beads for a casement bay
+1035	Machine Shop	Casement Sash		Additional for Bespoke Bars to Casement Bay	[is_all_glass_fix_bespoke_bead] && [is_casement_window_bay]	1	90		item	1	1.5 hours to machine bespoke bars for a casement window
+1040	Machine Shop	Casement Sash	casement_sash	Additional for Raked Casement Sash	[is_raked]	1	360		item	1	6 hours additional for a raked casement sash
+1100	Machine Shop	Frame	frame	Machining & Joining a Casement Frame	[to_be_replaced] && [door_leaf_qty] < 1 && ![is_sw]	1	180		item	1	2.5 hours to manufacture a casement frame
+1103	Machine Shop	Frame	frame	Extra over for direct glazed	[to_be_replaced] && [door_leaf_qty] < 1 && [casement_sash_qty] < 1 && ![is_sw]	1	180		item	1	2.5 hours additional to manufacture a direct glazed frame
+1105	Machine Shop	Frame	frame	Additional for Frame Mullion or Transom	[to_be_replaced] && ![is_sw]	[frame_mullion_qty] + [frame_transom_qty]	180		item	1	2.5 hours for each casement frame transom or mullion
+1110	Machine Shop	Frame	frame	Additional Frame Swept Head	[has_curved_inner_head] && [door_leaf_qty] < 1 && ![is_sw]	1	240		item	1	4 hours for a swept head on a casement frame
+1115	Machine Shop	Frame	frame	Additional Frame Curved Head	[has_curved_outer_head] && [door_leaf_qty] < 1 && ![is_sw]	1	240		item	1	4 hours for a swept head on a casement frame
+1120	Machine Shop	Frame		Additional for Frame in Kit Form for Casement Windows	[is_casement_window] && [is_frame_in_kit_form] && [frame_to_be_replaced]	1	240		item	1	4 hours to disassemble a casement frame
+1125	Machine Shop	Frame	frame	Additional for Frame in Kit Form for Casement Windows	[to_be_replaced] && [is_raked] && [door_leaf_qty] < 1 && ![is_sw]	1	360		item	1	6 hours for a raked casement frame
+1130	Machine Shop	Frame	frame	Additional for Frame Head Plant On	[internal_frame_head_plant_on_in_mm] >= 1 || [external_frame_head_plant_on_in_mm] >= 1	1	60		item	1	1 hour to prepare a frame head plant on
+1135	Machine Shop	Frame		Additional for Bay Poles	[is_bay_pole_required] && [is_casement_window_bay]	[new_frame_qty]	90		item	1	1.5 hours to machine each bay pole
+1140	Machine Shop	Frame		Additional for Coupled in Workshop	[is_casement_window_bay] && [is_bay_with_fully_coupled_frames]	1	480		item	1	8 hours extra for a fully coupled frame
+1200	Machine Shop	Door Leaf	door_leaf	Door Leaf	[to_be_replaced]	1	1035		item	1	17.25 hours to machine a door leaf
+1201	Machine Shop	Casement Sash	casement_sash	Sidelights in Doorsets	[to_be_replaced] && [is_item_a_door] && ![is_fanlight]	1	780		item	1	13 hours to machine a sidelight
+1202	Machine Shop	Casement Sash	casement_sash	Fanlights in Doorsets	[to_be_replaced] && [is_item_a_door] && [is_fanlight]	1	300		item	1	5 hours to machine a fanlight
+1205	Machine Shop	Door Leaf	door_leaf	Additional for Swept Head	[to_be_replaced] && [is_square_top_with_arched_sightline]	1	240		item	1	4 hours additional for swept head
+1210	Machine Shop	Door Leaf	door_leaf	Additional for Swept Head	[to_be_replaced] && [is_curved_head_sash]	1	360		item	1	6 hours additional for swept head
+1215	Machine Shop	Door Leaf	door_leaf	Additional for Glazing Bars	[gb_to_be_replaced_qty] >= 1	1	30		item	1	0.5 hours additional for any glazing bars in a door leaf
+1220	Machine Shop	Door Leaf		Additional for Bespoke Beads to Door Leaf	[is_all_glass_fix_bespoke_bead] && [door_leaf_qty] >= 1	1	90		item	1	1.5 hours to machine bespoke beads for a doorset
+1225	Machine Shop	Door Leaf		Additional for Bespoke Bars to Door Leaf	[is_all_glass_fix_bespoke_bead] && [door_leaf_qty] >= 1	1	90		item	1	1.5 hours to machine bespoke bars for a door leaf
+1230	Machine Shop	Door Leaf	door_leaf	Additional for Raked Door Leaf	[is_raked]	1	360		item	1	6 hours additional for a raked door leaf
+1235	Machine Shop	Door Leaf		Door Muntin	[new_door_leaf_qty] >= 1	[sash_muntin_to_be_replaced_qty]	60		item	1	60 minutes per door muntin
+1240	Machine Shop	Door Leaf	panel	Additional for Flat Panel	[to_be_replaced] && [is_flat_panel_internally]	1	60		item	1	1 hour per flat panel
+1245	Machine Shop	Door Leaf	panel	Additional for R&F Panel	[to_be_replaced] && [is_raised_and_fielded_panel_internally]	1	120		item	1	2 hours per R&F panel
+1250	Machine Shop	Door Leaf	panel	Additional VTG Panel	[to_be_replaced] && [is_vertical_tongue_and_groove_panel_internally]	1	180		item	1	3 hours per VTG panel
+1255	Machine Shop	Door Leaf	panel	Additional HTG Panel	[to_be_replaced] && [is_horizontal_tongue_and_groove_panel_internally]	1	180		item	1	3 hours per HTG panel
+1260	Machine Shop	Door Leaf	panel	Additional for Dual Panel	[to_be_replaced] && ![internal_panel_type] == [external_panel_type]	1	180		item	1	180 minutes per dual panel
+1300	Machine Shop	Frame	frame	Machining & Joining a Door Frame	[to_be_replaced] && [door_leaf_qty] >= 1 && ![is_sw]	1	855		item	1	14.25 hours to manufacture a door frame
+1303	Machine Shop	Frame	frame	Machining & Joining a Bifolding Frame Additional	[to_be_replaced] && [bi_fold_door_leaf_qty] >= 1 && ![is_sw]	1	600		item	1	10 additional hours to manufacture a bifolding doorset
+1305	Machine Shop	Frame	frame	Additional Frame Swept Head	[has_curved_inner_head] && [door_leaf_qty] >= 1 && ![is_sw]	1	240		item	1	4 hours for a swept head on a door frame
+1310	Machine Shop	Frame	frame	Additional Frame Curved Head	[has_curved_outer_head] && [door_leaf_qty] >= 1 && ![is_sw]	1	240		item	1	4 hours for a swept head on a door frame
+1315	Machine Shop	Frame		Additional for Frame in Kit Form for Doors	[is_frame_in_kit_form] && [frame_to_be_replaced] && [is_door]	1	240		item	1	4 hours to disassemble a door frame
+30	Joinery Shop	Sliding Sash	sliding_sash	Pair of Sashes	[to_be_replaced]	1	70		item	1	70 minutes to join a sash
+31	Joinery Shop	Sliding Sash	sliding_sash	Pair of Sashes (Single Glazed)	[to_be_replaced] && [is_single_glazed]	1	40		item	1	40 additional minutes for a single glazed sash
+35	Joinery Shop	Sliding Sash		First Glazing Bar	[gb_to_be_replaced_qty] > 0 && ![is_individual_panes] && ![is_door] && ![is_casement_window] && ![is_casement_window_bay]	1	25		item	1	25 minutes for the first glazing bar
+40	Joinery Shop	Sliding Sash		Subsequent Glazing Bar	[gb_to_be_replaced_qty] > 1 && ![is_individual_panes] && ![is_door] && ![is_casement_window] && ![is_casement_window_bay]	[gb_to_be_replaced_qty] - 1	20		item	1	20 minutes for subsequent glazing bars
+41	Joinery Shop	Sliding Sash		Additional for Cruciform	[gb_to_be_replaced_qty] > 1	[gb_cruciform_joint_to_be_replaced_qty]	15		item	0	15 minutes per cruciform
+45	Joinery Shop	Sliding Sash		First Real Glazing Bar	[sash_muntin_to_be_replaced_qty] > 0 && ![is_door]	1	90		item	1	90 minutes for first real dividing bars
+50	Joinery Shop	Sliding Sash		Subsequent Rear Glazing Bar	[sash_muntin_to_be_replaced_qty] > 1 && ![is_door]	[sash_muntin_to_be_replaced_qty] - 1	60		item	1	60 minutes for subsequent real dividing bars
+55	Joinery Shop	Sliding Sash		Heritage Units Glazing Bars	[is_individual_panes]	[gb_to_be_replaced_qty]	25		item	1	25 minutes to join each glazing bar for single or heritage units
+60	Joinery Shop	Sliding Sash	sliding_sash	Swept Head	[is_square_top_with_arched_sightline] && [to_be_replaced]	1	120		item	1	120 minutes in joinery shop for swept head
+65	Joinery Shop	Sliding Sash	sliding_sash	Curved Head	[is_curved_head_sash]	1	1680		item	1	180 minutes in joinery shop for curved head
+65	Joinery Shop	Sliding Sash	sliding_sash	Curved Head	[is_curved_head_sash]	1	3360		item	1	Curved head box frame takes around 7 days in the workshop
+70	Joinery Shop	Sliding Sash	frame	Box Frame Joining	[new_sliding_sash_qty] >= 1 && [to_be_replaced]	[frame_mullion_qty] + 1	150		item	1	150 minutes to join a box frame
+75	Joinery Shop	Sliding Sash	frame	Box Frame Joining with Swept Head	[is_sw] && [to_be_replaced] && [has_curved_inner_head]	[frame_mullion_qty] + 1	30		item	1	30 minutes additional for each curved head
+80	Joinery Shop	Sliding Sash	frame	Box Frame Joining with Swept Head	[is_sw] && [to_be_replaced] && [has_arched_outer_jamb]	[frame_mullion_qty] + 1	50		item	1	50 minutes additional for each swept head
+81	Joinery Shop	Sliding Sash		Yorkshire Sash Frame	[is_yorkshire_sash_window]	1	360		item	1	360 additional minutes for Yorkshire sash
+90	Joinery Shop	Sliding Sash	sliding_sash	Accoya Sash	[to_be_replaced] && [is_accoya_sash]	1	20		item	1	20 minutes for each accoya sash
+95	Joinery Shop	Sliding Sash	sliding_sash	Accoya Sash	[to_be_replaced] && [is_accoya_sash]	[gb_to_be_replaced_qty]	10		item	1	10 minutes for each accoya bar
+600	Joinery Shop			Sash and Casement Frame	[new_sliding_sash_qty] >= 1 && [frame_to_be_replaced] && [new_casement_sash_qty] >= 1	1	400		item	1	400 minutes for a combination window
+20	Glass Manufacture		glass_unit	Special Glass	![single_pane_thickness] == 7.7 && [is_single_pane_special] || [is_inner_pane_special] || [is_outer_pane_special]	10	1		item	1	10 minutes for special glass
+30	Glass Manufacture		glass_unit	Glazing a Sash	[to_be_replaced] && ![is_heritage_range] && ![is_bi_glass]	20	1		item	1	20 minutes per unit to be glazed
+35	Glass Manufacture		glass_unit	Glazing with Bar	[to_be_replaced]	[unit_gb_qty]	12		item	1	12 minutes per glazing bar
+10	Finishing	Sliding Sash		PoS - White Standard	[is_same_finish_internally_and_externally] && [is_sw] && [nj_involved]	1	90		item	1	90 minutes for single finish on the first pair
+11	Finishing	Sliding Sash		PoS - White Standard Subs	[is_same_finish_internally_and_externally] && [is_sw] && [nj_involved]	[new_sliding_sash_qty] - 2	20		item	1	20 minutes for single finish
+20	Finishing	Sliding Sash		PoS - Dual Special Finish	[is_sw] && ![is_same_finish_internally_and_externally]	1	135		item	1	135 minutes for a dual special finish on the first pair
+21	Finishing	Sliding Sash		PoS - Dual Special Finish Subs	[is_sw] && ![is_same_finish_internally_and_externally]	[new_sliding_sash_qty] - 2	40		item	1	30 minutes for a dual special finish per sash subs
+30	Finishing	Sliding Sash		Box - White Standard	[is_same_finish_internally_and_externally] && [is_sw] && [frame_to_be_replaced]	1	120		item	1	120 minutes for single finish per box frame
+31	Finishing	Sliding Sash		Box - White Standard Subs	[is_same_finish_internally_and_externally] && [is_sw] && [frame_to_be_replaced]	[new_frame_qty] + [frame_mullion_qty] - 1	50		item	1	50 minutes for subs box frames
+40	Finishing	Sliding Sash		Box - Dual Special Finish	[is_sw] && [frame_to_be_replaced] && ![is_same_finish_internally_and_externally]	1	270		item	1	270 minutes for a dual special finish per box frame
+41	Finishing	Sliding Sash		Box - Dual Special Finish Subs	[is_sw] && [frame_to_be_replaced] && ![is_same_finish_internally_and_externally]	([new_frame_qty] + [frame_mullion_qty]) - 1	120		item	1	120 minutes for subsequent box frames
+60	Finishing	Frame	frame	Box - Stain	[is_varnished_or_stained_internally] && ![is_varnished_or_stained_externally]	1	1200		item	1	1200 minutes for one side stain
+70	Finishing	Frame	frame	Box - Stain	[is_varnished_or_stained_internally] && [is_varnished_or_stained_externally] && [is_sw]	1	600		item	1	600 minutes for both side stain
+80	Finishing	Frame	frame	Box - Stained Cill	[is_varnished_cill] && [is_sw]	1	90		item	1	90 minutes for a stained cill
+200	Finishing	Casement Sash		Casement Sash - Single Finish	[is_same_finish_internally_and_externally] && ![is_varnished_or_stained]	[new_casement_sash_qty]	60		item	1	60 minutes per casement sash
+205	Finishing	Casement Sash		Casement Sash - Dual Finish	![is_same_finish_internally_and_externally]	[new_casement_sash_qty]	90		item	1	90 minutes per casement sash
+210	Finishing	Frame		Casement Frame - Single Finish	[is_same_finish_internally_and_externally] && ![is_sw] && ![is_door] && ![is_varnished_or_stained]	[new_frame_qty]	90		item	1	90 minutes per casement frame
+211	Finishing	Frame		Casement Frame - Single Finish	[is_same_finish_internally_and_externally] && ![is_sw] && ![is_door]	[frame_mullion_qty] + [frame_transom_qty]	60		item	1	60 minutes per casement transom or mullion
+215	Finishing	Frame		Casement or Door Frame - Dual Finish	![is_same_finish_internally_and_externally] && ![is_sw] && ![is_door]	[new_frame_qty]	180		item	1	180 minutes per casement frame
+216	Finishing	Frame		Casement or Door Frame - Dual Finish	![is_same_finish_internally_and_externally] && ![is_sw] && ![is_door]	[frame_transom_qty] + [frame_mullion_qty]	120		item	1	120 minutes per casement transom or mullion
+225	Finishing	Frame		Casement Frame - Staining External Only	[frame_to_be_replaced] && ![is_sw] && ![is_door] && [is_varnished_or_stained_externally] && ![is_varnished_or_stained_internally]	[new_frame_qty]	600		item	1	600 minutes to stain one side
+226	Finishing	Frame		Casement Frame - Staining External Only	[frame_to_be_replaced] && ![is_sw] && ![is_door] && ![is_varnished_or_stained_externally] && [is_varnished_or_stained_internally]	[new_frame_qty]	600		item	1	600 minutes to stain one side
+227	Finishing	Frame		Casement Frame - Staining Both Sides	[frame_to_be_replaced] && ![is_sw] && ![is_door] && [is_varnished_or_stained_externally] && [is_varnished_or_stained_internally]	[new_frame_qty]	600		item	1	600 minutes to stain both sides
+230	Finishing	Casement Sash		Casement Sash - Staining External Only	[is_varnished_or_stained_externally] && ![is_varnished_or_stained_internally]	[casement_sash_qty]	300		item	1	300 minutes to stain a casement sash
+231	Finishing	Casement Sash		Casement Sash - Staining External Only	![is_varnished_or_stained_externally] && [is_varnished_or_stained_internally]	[casement_sash_qty]	300		item	1	300 minutes to stain a casement sash
+232	Finishing	Casement Sash		Casement Sash - Staining Both Sides	[is_varnished_or_stained_externally] && [is_varnished_or_stained_internally]	[casement_sash_qty]	150		item	1	150 minutes to stain a casement sash
+300	Finishing	Frame		Accoya	[is_accoya_frame]	[new_frame_qty]	90		item	1	90 minutes additional per frame in accoya
+305	Finishing			Accoya	[is_accoya_sash]	[new_sash_qty]	45		item	1	45 minutes additional per sash in accoya
+310	Finishing	Frame		Utile	[is_solid_utile_hardwood_frame] && ![is_door]	[new_frame_qty]	60		item	1	60 minutes additional per frame in hardwood
+315	Finishing			Utile	[is_solid_utile_hardwood_sash] && ![is_door]	[new_sash_qty]	20		item	1	20 minutes additional per sash in hardwood
+400	Finishing		frame	Panel to Frame		[panel_in_frame_qty]	80		item	1	80 minutes per panel to frame
+500	Finishing	Frame		Door Frame - Single Finish	[is_door] && [is_same_finish_internally_and_externally] && ![is_varnished_or_stained]	[frame_qty]	180		item	1	180 minutes to paint a door frame
+501	Finishing	Frame		Door Frame - Single Finish	[is_door] && [is_same_finish_internally_and_externally] && ![is_varnished_or_stained]	[frame_mullion_qty] + [frame_transom_qty]	85		item	1	85 minutes per frame mullion or transom
+505	Finishing	Frame		Door Frame - Dual Finish	[is_door] && ![is_same_finish_internally_and_externally]	[frame_qty]	240		item	1	240 minutes to paint a door frame
+506	Finishing	Frame		Door Frame - Dual Finish	[is_door] && ![is_same_finish_internally_and_externally]	[frame_mullion_qty] + [frame_transom_qty]	45		item	1	45 minutes per frame mullion or transom
+510	Finishing	Frame		Door Frame - Stain Finish	[is_door] && [is_varnished_or_stained_externally] || [is_door] && [is_varnished_or_stained_internally]	[frame_qty]	600		item	1	180 minutes to stain a frame
+511	Finishing	Frame		Door Frame - Stain Finish	[is_door] && [is_varnished_or_stained_externally] || [is_varnished_or_stained_internally]	[frame_mullion_qty] + [frame_transom_qty]	60		item	1	45 minutes per frame mullion or transom
+520	Finishing	Frame		Door Leaf - Single Finish	[is_door] && [is_same_finish_internally_and_externally] && ![is_varnished_or_stained]	[door_leaf_qty]	90		item	1	90 minutes to paint a door leaf
+520	Finishing	Frame		Door Leaf - Dual Finish	[is_door] && ![is_same_finish_internally_and_externally]	[door_leaf_qty]	180		item	1	180 minutes to paint a door leaf
+520	Finishing	Frame		Door Leaf - Stain Finish	[is_door] && [is_varnished_or_stained]	[door_leaf_qty]	300		item	1	30 minutes to stain a door leaf
+
+### INSTALLATION LABOUR TIME (Integrate FIT > Fitting Units) — 85 rules
+# groups: 0 Additional Labour Rules, 10 Sash Windows, 20 Casements, 30 Doors, 40 Other, 50 Biglass, 60 Direct Glazed, 70 Decoration Group
+# variables: external_lining=AA03
+sort	group	category	loop(part scope)	label	condition	qty	minutes	markup	level	active	comment
+5	Sash Windows			Sash Window with Fanlight	[nj_involved] && [new_sliding_sash_qty] >= 1 && [new_casement_sash_qty] >= 1 && [frame_to_be_replaced]	300	1		item	1	5 hours for a box frame with fanlight
+10	Sash Windows			Sash Windows	[is_complete_new] && [is_installation_included] && [fixed_sliding_sash_qty] >= 0	[sliding_pair_qty]	450		item	1	7.5hrs per single box (scales up linearly)
+20	Sash Windows			New To Existing	![is_complete_new] && [is_installation_included] && [new_sash_qty] > 1	[new_sliding_sash_qty]	112.50		item	1	1.875hrs per sliding sash (3.75hrs per pair)
+21	Sash Windows			Single Sash Only	![is_complete_new] && [is_installation_included] && [new_sliding_sash_qty] == 1	[new_sliding_sash_qty]	187.50		item	1	3.125 hours for a single sash installation
+30	Sash Windows			Draught Seal	[needs_draughtsealing] && !([is_bi_glass]) && [is_installation_included] && [new_sliding_sash_qty] < [sliding_sash_qty]	[sliding_sash_qty] - [fixed_sliding_sash_qty]	120		item	1	2hrs per single sash dso
+35	Sash Windows			Venetian DSO	[is_venetian_sash_window] && ![nj_involved]	1	360		item	1	6 hours for a venetian DSO
+50	Sash Windows			Hardwood Cill Replacement	[new_cill_qty] >= 1	[new_cill_qty]	150		item	1	2.5 hours for cill replacement
+13	Casements			Base Casement Frame Replacement	[is_complete_new] && [is_casement_window] && [is_installation_included]	[new_frame_qty]	480		item	1	8hrs per casement frame
+14	Casements			Opening Casement Sash with Frame	[is_complete_new] && [is_casement_window] || [is_casement_window_bay] && [is_installation_included]	[new_opening_casement_sash_qty]	90		item	1	1.5hrs per opening casement sash
+15	Casements			Fixed Casement Sash with Frame	[is_casement_window] || [is_casement_window_bay] && [is_installation_included] && [frame_to_be_replaced]	[fixed_casement_sash_qty]	60		item	1	1hrs per fixed casement sash
+18	Casements			Casement Window Bay Frame Replacement	[is_complete_new] && [is_casement_window_bay] && [is_installation_included]	[new_frame_qty]	210		item	1	3.5hrs per casement frame
+100	Casements			1500 Height Casement Frame Replacement	[tallest_external_frame_height] > 1.8 && [is_complete_new] && [is_installation_included] && [is_casement_window]	[new_frame_qty]	60		item	1	1hrs additional per large casement frame
+101	Casements			2500 Height Casement Frame Replacement	[tallest_external_frame_height] >= 2.0 && [tallest_external_frame_height] < 3.0 && [is_complete_new] && [is_installation_included] && [is_casement_window]	[new_frame_qty]	300		item	1	5hrs additional per large casement frame
+102	Casements			3000 Height Casement Frame Replacement	[tallest_external_frame_height] > 3 && [is_complete_new] && [is_installation_included] && [is_casement_window]	[new_frame_qty]	360		item	1	6hrs additional per large casement frame
+103	Casements			1500 Height Casement Frame Replacement	[tallest_external_frame_height] > 1.8 && [is_complete_new] && [is_installation_included] && [is_casement_window_bay]	1	120		item	1	2hrs additional per large casement bay
+104	Casements			2500 Height Casement Frame Replacement	[tallest_external_frame_height] >= 2.0 && [tallest_external_frame_height] < 3.0 && [is_complete_new] && [is_installation_included] && [is_casement_window_bay]	1	360		item	1	6hrs additional per large casement bay
+105	Casements			3000 Height Casement Frame Replacement	[tallest_external_frame_height] > 3 && [is_complete_new] && [is_installation_included] && [is_casement_window_bay]	1	360		item	1	6hrs additional per large casement frame
+110	Casements			1500 Wide Casement Frame	[overall_frame_width] >= 1.5 && [is_casement_window] || [is_casement_window_bay] && [is_installation_included] && [frame_to_be_replaced]	[new_frame_qty]	60		item	1	1hrs per oversize frame
+111	Casements			2500 Wide Casement Frame	[is_casement_window] && [is_installation_included] && [frame_to_be_replaced] && [overall_frame_width] >= 2.5	[new_frame_qty]	180		item	1	3hrs per oversize frame
+0	Doors			Front Door and Frame	[is_front_door] && [is_complete_new] && [is_installation_included]	[new_frame_qty]	840		item	1	14hrs for a new front door and frame
+1	Doors			Front Door and Frame	[is_front_door] && [is_complete_new] && [is_installation_included]	[frame_mullion_qty]	120		item	1	2 hours for each additional frame mullion
+2	Doors			Front Door and Frame	[is_front_door] && [is_complete_new] && [is_installation_included]	[frame_transom_qty]	90		item	1	1.5 hours for each additional frame transom
+10	Doors			Single Door Only	![is_front_door] && [is_complete_new] && [is_installation_included] && [door_leaf_qty] == 1	[door_leaf_qty]	660		item	1	11hrs for a single door on its own
+11	Doors			French Doors	![is_front_door] && [is_complete_new] && [is_door] && [door_leaf_qty] >= 2 && [is_installation_included]	[new_french_door_pair_qty]	780		item	1	13hrs per French doorset
+14	Doors			French Doors	![is_front_door] && [is_complete_new] && [is_door] && [door_leaf_qty] >= 2 && [is_installation_included] && [new_frame_qty] > 1	[new_frame_qty] - 1	240		item	1	4 hours per winglight frame
+50	Doors			Direct Glazed Unit	[is_complete_new] && [is_door] && [is_installation_included]	[direct_glazed_unit_qty]	45		item	1	0.75hrs per direct glazed unit
+51	Doors			Opening Casement Sash	[is_complete_new] && [is_door] && [is_installation_included]	[new_opening_casement_sash_qty]	90		item	1	1.5hrs per opening fanlight
+52	Doors			Fixed Fanlight	[is_complete_new] && [is_door] && [fixed_casement_sash_qty] && [is_installation_included]	[fixed_casement_sash_qty]	120		item	1	2hrs per fixed casement sash
+60	Doors			French Doors Additional Door	[is_door] && (![is_front_door]) && [door_leaf_qty] > 2 && [is_installation_included]	[door_leaf_qty] - 2	120		item	1	2 hours for each additional door
+100	Doors			Combination Frame	[is_door] && [frame_to_be_replaced] && [door_leaf_qty] > 1 && [fixed_door_leaf_qty] > 0	1	660		item	1	
+105	Doors			Door Sash Frames	![is_front_door] && [is_complete_new] && [new_door_leaf_qty] >= 1	[new_sliding_sash_qty]	450		item	1	7.5 hours for a sash frame with door
+140	Doors			Winglight Frame	[is_door_mpls] && [door_leaf_qty] == 1 && [frame_qty] > 1	1	1		item	1	
+200	Doors			Stable Door	[new_stable_door_pair_qty] >= 1	[new_stable_door_pair_qty]	900		item	1	
+0	Other			Frame in kit form	[is_frame_in_kit_form]	[frame_qty]	300		item	1	Extra 5 hours for frame in kit form
+0	Other			Cut Back Plaster	[cut_back_plaster]	[new_frame_qty]	90		item	1	1.5hrs for cut back plaster
+0	Other			Prepared Opening	[fit_to_prepared_opening]	[fit_to_prepared_opening]	1 - 61		item	1	One hour saved for prepared openings
+10	Other			Cut Out Brick Reveal	[cut_out_brick_reveal]	[new_frame_qty]	240		item	1	4hrs for cut brick reveal
+30	Other			HOARG		[hoarg_qty]	90		item	1	1.5hrs for a HOARG
+31	Other			BIG HOARG		[big_hoarg_qty]	30		item	1	30 additional minutes for a HOARG
+40	Other			Remove and Refit Panelling	([has_panelling] || [has_shutter_boxes]) && [remove_and_refit_existing_sdg_or_panel]	[frame_qty]	900		item	1	15 hours for a fitter to remove and refit panelling and decorate
+41	Other			Remove and Refit Vertical SDG	[remove_and_refit_existing_sdg_or_panel] && [has_vertical_sliding_secondary_glazing]	[frame_qty]	75		item	1	75 minutes to remove and refit SDG
+42	Other			Remove and Refit Horizontal SDG	[remove_and_refit_existing_sdg_or_panel] && [has_horizontal_sliding_secondary_glazing]	[frame_qty]	75		item	1	75 minutes to remove and refit SDG
+43	Other			Remove and Dispose Horizontal SDG	[remove_and_dispose_existing_sdg_or_panel] && [has_horizontal_sliding_secondary_glazing]	[frame_qty]	35		item	1	35 minutes to remove and dispose SDG
+44	Other			Remove and Dispose Vertical SDG	[remove_and_dispose_existing_sdg_or_panel] && [has_vertical_sliding_secondary_glazing]	[frame_qty]	35		item	1	35 minutes to remove and dispose SDG
+45	Other			Remove and Dispose Fixed SDG	[remove_and_dispose_existing_sdg_or_panel] && [has_fixed_secondary_glazing]	[frame_qty]	35		item	1	35 minutes to remove and dispose SDG
+46	Other			Remove and Refit Fixed SDG	[remove_and_refit_existing_sdg_or_panel] && [has_fixed_secondary_glazing]	[frame_qty]	75		item	1	75 minutes to remove and refit SDG
+47	Other			Remove and Refit Shutters	[remove_and_refit_existing_sdg_or_panel] && [has_plantation_shutters]	[frame_qty]	75		item	1	75 minutes to remove and refit shutters
+60	Other			Fill Repair		[fill_repair_qty]	30		item	1	Half hour for a fill repair
+65	Other			Splice Repair		[splice_repair_qty]	90		item	1	1.5 hour for a splice repair
+70	Other			Resin Repair		[resin_repair_qty]	90		item	1	1.5 hour for a resin repair
+75	Other			Pocket Replacement		[replace_pocket_cover_qty]	90		item	1	1.5 hour for a pocket repair
+90	Other		sliding_sash	Any Sash Overweight	[weight_in_kg] > 25 && ![is_bi_glass]	1	45		item	1	For any sash weighing over 25kg, allow an additional 45 minutes
+95	Other		casement_sash	Any Sash Overweight	[weight_in_kg] > 25	1	45		item	1	For any sash weighing over 25kg, allow an additional 45 minutes
+100	Other		door_leaf	Any Door Overweight	[weight_in_kg] > 50	1	45		item	1	For any door weighing over 50kg, allow an additional 45 minutes
+105	Other		door_leaf	Any Door Overweight +	[weight_in_kg] > 75	1	240		item	1	For any door weighing over 75kg, allow an additional 240 minutes
+200	Other			Building Site Install	[is_installation_level_test_1]	1	1-61		item	1	60 minute reduction for not fitting architraves or doing any making good
+210	Other			Scaffold Tower	[is_our_mobile_tower_required]	1	180		item	1	
+220	Other			Third Floor 30 minutes	[is_floor_set_as_third_floor]	1	60		item	1	60 minutes extra for third floor
+230	Other			Fourth Floor 45 minutes	[is_floor_set_as_fourth_floor]	1	75		item	1	75 minutes extra for fourth floor
+250	Other			Linings	[has_lining]	1	180		item	1	3 hours to fit linings
+250	Other			Fifth Floor 60 Minutes	[is_floor_set_as_fifth_floor]	1	120		item	1	120 minutes extra for fourth floor
+251	Other			Windowboard	[has_deep_window_board]	1	30		item	1	30 mins additional for a window board
+252	Other		component	External Lining	[part_no] == [external_lining]	1	180		item	1	3 hours for external linings
+260	Other		frame	Raked Frames	[is_raked]	1	240		item	1	Additional 4 hours to install a raked frame
+270	Other			Fully Coupled Frames	[is_bay_with_fully_coupled_frames] && [frame_to_be_replaced]	1	240		item	1	Additional 4 hours on site for fully coupled frames
+280	Other			Fully Coupled Frames above Ground Floor	[is_bay_with_fully_coupled_frames] && ([is_floor_set_as_first_floor] || [is_floor_set_as_second_floor] || [is_floor_set_as_third_floor] || [is_floor_set_as_fourth_floor] || [is_floor_set_as_fifth_floor] || [is_floor_set_as_half_landing])	1	240		item	1	Additional 4 hours for any fully coupled frames above the ground floor
+0	Biglass		glass_unit	BiGlass Labour Base Price	[is_bi_glass] && [to_be_replaced]	240	1		item	1	4 hours for a single pane biglass
+1	Biglass			BiGlass GBs to Take Off	[is_bi_glass] && [is_installation_included]	[gb_qty]	60		item	1	60 mins for each glazing bar to be removed
+1	Direct Glazed			Direct Glazed Into Existing	[direct_glazed_unit_qty] > 0 && ![frame_to_be_replaced]	120	[direct_glazed_unit_qty]		item	1	2 hours to replace a direct glazed unit into existing frame
+2	Direct Glazed			1.75sqm Direct Glazed Into Existing	[direct_glazed_unit_qty] > 0 && ![frame_to_be_replaced] && [glass_to_be_replaced_actual_area] > 1.75	60	[direct_glazed_unit_qty]		item	1	Additional 1 hour for large double glazed unit
+3	Direct Glazed			2.5sqm Direct Glazed Into Existing	[direct_glazed_unit_qty] > 0 && ![frame_to_be_replaced] && [glass_to_be_replaced_actual_area] > 2.5	120	[direct_glazed_unit_qty]		item	1	2 hours for a large unit replacement
+10	Direct Glazed			Base Direct Glazed Unit in Frame	[frame_to_be_replaced] && [bi_fold_door_leaf_qty] >= 1 && [door_leaf_qty] >= 1 && [casement_sash_qty] >= 1	[direct_glazed_unit_qty]	120		item	1	2 hours for a standard double glazed unit in frame with other work
+11	Direct Glazed		glass_unit	1.75sqm Direct Glazed Unit in Frame	[frame_to_be_replaced] && [actual_area] > 1.75 && [is_direct_glazed_unit]	1	60		item	1	Additional 1 hour for an over 1.75sqm double glazed unit in frame
+12	Direct Glazed		glass_unit	2.5sqm Direct Glazed Unit in Frame	[frame_to_be_replaced] && [actual_area] > 2.5 && [is_direct_glazed_unit]	1	120		item	1	Additional 2 hours for a 2.5sqm double glazed unit in frame
+13	Direct Glazed		glass_unit	4 sqm Direct Glazed Unit in Frame	[frame_to_be_replaced] && [actual_area] > 4.0 && [is_direct_glazed_unit]	1	240		item	1	4 hours for a 4sqm double glazed unit in frame
+13	Direct Glazed		glass_unit	3.25 sqm Direct Glazed Unit in Frame	[frame_to_be_replaced] && [actual_area] > 3.25 && [is_direct_glazed_unit]	1	240		item	1	4 hours for a 3.25sqm double glazed unit in frame
+15	Direct Glazed			Base Direct Glazed Unit in Frame	[frame_to_be_replaced] && [bi_fold_door_leaf_qty] <= 0 && [door_leaf_qty] <= 0 && [casement_sash_qty] <= 0	[direct_glazed_unit_qty]	360		item	1	6 hours for a standard double glazed unit in frame without other work
+16	Direct Glazed		glass_unit	1.75sqm Direct Glazed Unit in Frame	[frame_to_be_replaced] && [actual_area] < 1.75 && [is_direct_glazed_unit]	1	70		item	1	70 mins for a 1.75sqm double glazed unit in frame
+50	Direct Glazed			Direct Glazed Units Glazing Bars	[direct_glazed_unit_qty] > 0	[gb_to_be_replaced_qty] / 2	45		item	1	45 minutes per glazing bar on a direct glazed window
+40	Decoration Group			Door Sash Replacement Decoration	[is_decoration_included] && [nj_involved] && [is_installation_included]	[door_leaf_qty]	120		item	1	2hrs to paint the frame around a door (moved from Doors Group)
+40	Decoration Group			Casement Sash Replacement Decoration	[is_decoration_included] && [nj_involved] && [is_installation_included]	[casement_sash_qty]	90		item	1	1.5hrs to paint the frame around a casement window (moved from Casements Group)
+40	Decoration Group			Sash Replacement Decoration	[is_decoration_included] && [nj_involved] && [is_installation_included]	[sliding_sash_qty]	90		item	1	1.5hrs to paint half a box frame only (moved from Sash Windows Group)
+41	Decoration Group			Door DSO Replacement Decoration	[is_decoration_included] && !([nj_involved])	[door_leaf_qty]	180		item	1	3hrs to paint the frame around a door (moved from Doors Group)
+41	Decoration Group			Casement DSO Decoration	[is_decoration_included] && !([nj_involved])	[casement_sash_qty]	150		item	1	2.5hrs to paint a casement window and frame (moved from Casements Group)
+41	Decoration Group			Draught Seal Decoration	[is_decoration_included] && ![nj_involved] && [is_installation_included]	[sliding_sash_qty]	200		item	1	3.33hrs to paint half a box frame and sashes (moved from Sash Windows Group)
+
+### PRICE FILE 30 (Integrate BUILD > Price File Editor) — 67 rules. Line = qty * value * markup.
+sort	group	loop(part scope)	label + comment	condition	qty	value(£)	markup
+20	extra_services	drawing poa	Drawing POA Checked for PF30		poa_cost	1	2.0
+31	extra_services		DSO SqM Rate Checked for PF30 Rough pricing differentiation for draught sealing	needs_draughtsealing and not (nj_involved)	frame_area	10	2
+250	extra_services		Fully Coupled Frame Transport £150 to allow for transporting fully coupled frames to site	is_bay_with_fully_coupled_frames	1	150	2
+1	glass_done	glass unit	Single Glazed Checked for PF30. Made the system produce a ridiculous price to show that it is an error	is_single_glazed and is not bi_glass and single_pane_cost < 250	rounded_area	single_pane_cost	1000
+9	glass_done	glass unit	BiGlass Cost Checked for PF30	is_single_glazed and is_bi_glass	rounded_area	single_pane_cost	2
+20	glass_done	glass unit	Square Glass Cost Checked for PF30. Tudor price	is_double_glazed and inner_pane_thickness > 1 and is not sash_arched	rounded_area	(inner_pane_cost + outer_pane_cost) + 1	2
+21	glass_done	glass unit	Square Glass Single Glazing Bar Checked for PF30 £9.21 for a single bar. Tudor Price	unit_gb_qty equals to 1 and glass_unit_thickness >= 24 and is not sash_arched	1	9.21	2
+22	glass_done	glass unit	Square Glass Multiple Glazing Bar Checked for PF30 £29.20 for multiple bars. Tudor price	unit_gb_qty > 1 and glass_unit_thickness >= 24 and is not sash_arched	rounded_area	29.20	2
+30	glass_done	glass unit	Shaped Glass Cost Checked for PF30. 25% cost on top of glass. Tudor price	is_double_glazed and inner_pane_thickness > 1 and is_sash_arched	rounded_area	(inner_pane_cost + outer_pane_cost) * 1.25	2
+31	glass_done	glass unit	Shaped Glass Multiple Glazing Bar Checked for PF30 £44 for multiple bars. Tudor price	unit_gb_qty >= 1 and glass_unit_thickness >= 24 and is_sash_arched	rounded_area	44	2
+50	glass_done	glass unit	All Glass Energy Surcharge Checked for PF30 Energy surcharge on glass. Tudor price	is_double_glazed and inner_pane_thickness >= 1	(rounded_area * (inner_pane_thickness + outer_pane_thickness)) * 2.5	0.17	2
+60	glass_done	glass unit	LandVac Checked for PF30	is_single_glazed and glass_unit_thickness equals to 8.3 and is not bi_glass	rounded_area	single_pane_cost	2
+0	installation_materials	ironmongery part	Ironmongery Cost part_name qty Cost of Ironmongery		(round(cost*qty , 0.1)) * 1.05	1	2
+1	installation_materials	component	Component Cost name Cost of Components		cost	length * qty	2
+5	installation_materials		Installation Consumables Checked for PF30. £30 worth of consumables per item. This covers installation materials ordered by KBR and purchased by fitters on site.	frame_to_be_replaced	30	1	2
+10	installation_materials	sliding sash	Lead Weight Checked for PF30. 15% wastage. £2.29 per KG	is_cord_hung and (to_be_replaced and is not complete_new) or is_bi_glass	(weight_in_kg) * 1.15	2.41	1.50
+15	installation_materials	sliding sash	Steel Weight Checked for PF30. £1.35 per kg for steel weights	is_cord_hung and to_be_replaced and is_complete_new	weight_in_kg	1.35	1.50
+0	manufacture		Production Time Checked for PF30		std_labour_time	workshop_hourly_additional	2
+0	labour		Labour Checked for PF30. Installation Hours @ £40 per hour cost	is_installation_included	installation_labour_time	installation_labour_hourly	2
+1	manufacture_materials		Stain £75 per frame or sash/door leaf for the cost of stain materials	is_varnished_or_stained	new_frame_qty + new_sliding_sash_qty	100	2
+2	manufacture_materials		Stained Panels £100 per frame or sash/door leaf for the cost of stain materials	is_varnished_or_stained	panel_qty	100	2
+10	manufacture_materials	sliding sash	Laminated Softwood for Sashes £4.95 per linear meter of laminated redwood. 5% wastage in quantity. 48x120 lam redwood gets two stiles, one bottom rail and two midrails.	is_solid_redwood_sash and is_bottom_sash	((gross_sash_height_in_mm + (gross_sash_width_in_mm * 1.5)) / 1000) * 1.05	4.95	2
+15	manufacture_materials	sliding sash	Laminated Softwood for Sashes £4.95 per linear meter of laminated redwood. 5% wastage in quantity. 48x120 lam redwood gets two stiles, one midrail and one top rail	is_solid_redwood_sash and is_top_sash	((gross_sash_height_in_mm + (gross_sash_width_in_mm * 1)) / 1000) * 1.05	4.95	2
+20	manufacture_materials	frame	Softwood Box Frame Linings Softwood inside and outside linings cost £1.35 per meter. 10% wastage allowed	is_sw and is_solid_redwood_frame and is not solid_spiral_jamb and to_be_replaced	((((frame_height_in_mm * 2) + frame_width_in_mm) / 1000) * 2) * 1.1 + (((full_length_frame_mullion_qty * (frame_height_in_mm / 1000)) * 2) * 1.1)	1.35	2
+25	manufacture_materials	frame	Softwood Pulley Stiles and Head Softwood pulley stiles and head cost £1.69 per meter. 10% wastage allowed	is_sw and is_solid_redwood_frame and is not solid_spiral_jamb and to_be_replaced	((((frame_height_in_mm * 2) + (frame_width_in_mm)) / 1000 ) * 1.1) + (((full_length_frame_mullion_qty * (frame_height_in_mm / 1000)) * 2) * 1.1)	1.69	2
+30	manufacture_materials	frame	Softwood Spiral Frame 150x32 timber costing £2.60. 10% wastage allowed	is_sw and is_solid_redwood_frame and is_solid_spiral_jamb and to_be_replaced	(((frame_height_in_mm * 2) + frame_width_in_mm) / 1000) * 1.1 + (((full_length_frame_mullion_qty * (frame_height_in_mm / 1000)) * 2) * 1.1)	2.60	2
+35	manufacture_materials	frame	Softwood Spiral Frame Linings 100x25 timber costing £1.35. 10% wastage allowed	is_sw and is_solid_redwood_frame and is_solid_spiral_jamb and to_be_replaced	(((frame_height_in_mm * 2) + frame_width_in_mm) / 1000) * 1.1 + ((((full_length_frame_mullion_qty * frame_height_in_mm) / 1000) * 2) * 1.1)	9	2
+40	manufacture_materials	frame	Box Frame Utile Cill Softwood pulley stiles and head cost £1.69 per meter. 10% wastage allowed	is_sw and is_solid_utile_hardwood_cill and to_be_replaced	(cill_length_in_mm * cill_profiled_height_in_mm * frame_depth_in_mm) / 1000000000	1600	2
+50	manufacture_materials		Hardwood Box Frame	is_sw and is_solid_utile_hardwood_frame and frame_to_be_replaced	(frame_excl_cill_volume) * 1.2	1.75	2
+55	manufacture_materials	sliding sash	Hardwood Sashes	is_solid_utile_hardwood_sash	volume * 1.2	1.75	2
+100	manufacture_materials	door leaf	Door Stiles & Top Rail 10% wastage. £18.70 per meter	is_solid_utile_hardwood_sash	(((gross_sash_height_in_mm * 2) + gross_sash_width_in_mm) * 1.1) / 1000	18.7	2
+105	manufacture_materials	door leaf	Door Bottom Rail 10% wastage. £17.24 per meter for 63.5mm sapele	is_solid_utile_hardwood_sash	(gross_sash_width_in_mm * 1.1) / 1000	17.24	2
+110	manufacture_materials	frame	Casement Frame Jambs & Cills 10% wastage. £17.24 per meter for 63.5mm sapele. Two jambs can be got out of one board. One cill can be got out of one board	is_solid_utile_hardwood_frame and is not sw and is not bi_fold_door_set and is not door	(((frame_height_in_mm) + frame_width_in_mm) / 1000) * 1.1	17.24	2
+115	manufacture_materials	frame	Casement Frame Head 10% wastage. £12.40 per meter for 76.2mm sapele. One head out of each board	is_solid_utile_hardwood_frame and is not sw and is not bi_fold_door_set and is not door	(frame_width_in_mm / 1000) * 1.1	12.40	2
+121	manufacture_materials		Casement Transoms & Mullions 10% wastage. £12.4 per meter for 76mm sapele	is_solid_utile_hardwood_frame and is not sw and is_casement_range	frame_muntin_to_be_replaced_length * 1.1	12.4	2
+125	manufacture_materials	frame	Frame Plant On as below	is_solid_utile_hardwood_frame	((frame_height_in_mm * left_jamb_plant_on_in_mm * frame_depth_in_mm) / 1000000000) + ((frame_height_in_mm * right_jamb_plant_on_in_mm * frame_depth_in_mm) / 1000000000)	1085 * 1.35	2
+130	manufacture_materials	frame	Frame Plant On £1,085 per cubic meter for any plant on, allowing 35% for wastage	is_solid_utile_hardwood_frame	((frame_width_in_mm * external_frame_head_plant_on_in_mm * frame_depth_in_mm) / 1000000000)	1085 * 1.35	2
+160	manufacture_materials		Softwood Casement Frame & Sashes 25% wastage. £550 cubic meter cost	is_casement_window or is_casement_window_bay	(solid_redwood_frame_excl_cill_volume) * 1.25	0.55	2
+165	manufacture_materials	casement sash	Softwood Casement Sashes 25% wastage. £550 cubic meter cost		solid_redwood_volume	0.55	2
+166	manufacture_materials		Hardwood Casement Cill 25% wastage. £1,085 cubic meter cost	is_casement_window or is_casement_window_bay	(solid_utile_hardwood_cill_volume) * 1.25	1.085	2
+225	manufacture_materials	panel	Tricoya Panel £62.95 in cost per panel for tricoya	is not varnished_or_stained	(visible_width_in_mm_old * visible_height_in_mm_old) / 1000000	(62.95 * 1.5) * 2	2
+226	manufacture_materials		Custom Paint Delivery £20 delivery fee for custom paint	is not standard_finish_internally_and_externally	1	20	2
+227	manufacture_materials	panel	Internal Bolection Moulding Standard bolection moulding is around £10 a linear meter plus a bit for delivery - https://www.wrp-timber-mouldings.co.uk/moulding-profile/176/in_profile/bolection	is_bolection_moulding_around_panel_internally	1	13.5	2
+228	manufacture_materials	panel	External Bolection Moulding Standard bolection moulding is around £10 a linear meter plus a bit for delivery - https://www.wrp-timber-mouldings.co.uk/moulding-profile/176/in_profile/bolection	is_bolection_moulding_around_panel_externally	(((visible_width_in_mm_old + 75) + (visible_height_in_mm_old + 75)) / 1000 )	13.5	2
+300	manufacture_materials	frame	Box Frame Staff Bead £9.85 per 3m length for staff bead on box frames (£3.28/lm). 15% wastage	is_sw and to_be_replaced	(width + height) * 2	3.28	2
+305	manufacture_materials	frame	Box Frame Parting Bead £5.55 per 3m length for parting bead on box frames (£1.85/lm). 15% wastage	is_sw and to_be_replaced	(width + height) * 2	1.85	2
+310	manufacture_materials	sliding sash	Glazing Bead for Sashes £3.48 per 3m length of glazing bead (£1.16/lm). 20% wastage	is not square_top_with_arched_sightline and is not curved_head_sash	((sash_sightline_width_in_mm + sash_sightline_height_in_mm) / 1000)* 2	1.39	2
+315	manufacture_materials	glass unit	Glazing Bar £5.52 per 3m length of glazing bead (LTW) (£1.84/lm). 20% wastage	is not glass_fix_bespoke_bead and is not sash_arched	internal_spacer_length	1.84	2
+320	manufacture_materials	sliding sash	Spiral Balances £25 per sash for spiral balances	is_spiral_hung and to_be_replaced	1	25	2
+325	manufacture_materials	frame	LTW General Consumables £25 per frame for consumables	casement_sash_qty >= 1 or door_leaf_qty >= 1	1	25	2
+340	manufacture_materials		Accoya Pricing £2,500m3 price	is_accoya_frame or is_accoya_sash	(frame_excl_cill_volume + cill_volume) * 2.34	2.5	2
+345	manufacture_materials	sliding sash	Accoya Sash Pricing £2,500m3 price	is_accoya_frame or is_accoya_sash	(accoya_volume) * 2.34	2.5	2
+400	manufacture_materials	allocated section part	part_name @ purchase_cost per linear m	(is_single_and_french_doors_range or is_open_in_doors_range) and contains(part_name, utile)	length_in_m	purchase_cost	2
+1	extra_profits		DSO Extra Profits £55 extra profit on a draught seal per sash	needs_draughtsealing and not (nj_involved) and is not bi_glass	sliding_sash_qty - fixed_sliding_sash_qty	1	55
+5	extra_profits		Sashes Only Painting Profits £35 extra profit on a draught seal decoration	needs_draughtsealing and not (nj_involved) and is_decoration_included	sliding_sash_qty	1	35000
+10	extra_profits		Cill Replacement Profit on cill replacement		new_cill_qty	1	200
+200	extra_profits	frame	Box Frames with Fanlights £750 Job S price for box frames with fanlights	new_sliding_sash_qty >= 1 and new_casement_sash_qty >= 1	1	750	2
+210	extra_profits		Doors and Sashes £1500 Job S price for sashes and doors	new_sliding_sash_qty >= 1 and new_door_leaf_qty >= 1	1	1500	2
+10	_quote_level_		InstallSure Up to £5,000 £34.40 for InstallSure Policy	(items_net_value * 1.2) <= 5000 and nj_item_qty >= 1	1	34.40	2
+11	_quote_level_		InstallSure Up to £10,000 £36.12 for InstallSure Policy	(items_net_value * 1.2) >= 5000.01 and (items_net_value * 1.2) <= 10000 and nj_item_qty >= 1	1	36.12	2
+12	_quote_level_		InstallSure Up to £15,000 £37.84 for InstallSure Policy	(items_net_value * 1.2) >= 10000.01 and (items_net_value * 1.2) <= 15000 and nj_item_qty >= 1	1	37.84	2
+13	_quote_level_		InstallSure Up to £20,000 £39.56 for InstallSure Policy	(items_net_value * 1.2) >= 15000.01 and (items_net_value * 1.2) <= 20000 and nj_item_qty >= 1	1	39.56	2
+14	_quote_level_		InstallSure Up to £25,000 £41.28 for InstallSure Policy	(items_net_value * 1.2) >= 20000.01 and (items_net_value * 1.2) <= 25000 and nj_item_qty >= 1	1	41.28	2
+15	_quote_level_		InstallSure Up to £30,000 £41.28 for InstallSure Policy	(items_net_value * 1.2) >= 25000.01 and (items_net_value * 1.2) <= 30000 and nj_item_qty >= 1	1	43	2
+16	_quote_level_		InstallSure Up to £40,000 £136 for InstallSure Policy	(items_net_value * 1.2) >= 30000.01 and (items_net_value * 1.2) <= 40000 and nj_item_qty >= 1	1	136	2
+17	_quote_level_		InstallSure Up to £50,000 £196 for InstallSure Policy	(items_net_value * 1.2) >= 40000.01 and (items_net_value * 1.2) <= 50000 and nj_item_qty >= 1	1	196	2
+18	_quote_level_		InstallSure Over £50,000 £350 for InstallSure Policy	(items_net_value * 1.2) >= 50000.01 and nj_item_qty >= 1	1	350	2

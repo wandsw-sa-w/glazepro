@@ -1,17 +1,18 @@
 /**
  * pricingEngine.js
- * Five-pass drawing-level and quote-level pricing engine.
+ * Three-pass (manufacture_labour → install_labour → price) pricing engine.
  *
  * ── DB schema (confirmed against migrations) ────────────────────────────────
  *
  * price_files          id, name, status
  * price_rules          id, price_file_id, rule_family, level, name,
  *                      condition, quantity, value, markup, part_code,
- *                      is_active, sort_order
+ *                      loop_target, group_name, is_active, sort_order
  *                      rule_family ∈ { 'install_labour', 'manufacture_labour',
  *                                      'parts', 'price' }
  *                      level ∈ { 'item', 'quote' }  (on price rules only)
  * price_file_parts     price_file_id, part_code, part_name, unit_cost
+ * price_file_variables price_file_id, variable_name, value
  * pricing_runs         id, drawing_id, price_file_id, status, created_at
  * drawing_rule_results id, drawing_id, price_file_id, pricing_run_id,
  *                      price_rule_id, loop_target_type, loop_index,
@@ -32,23 +33,347 @@
 
 import { computeVariables } from './computeVariables.js'
 import { evaluateCondition, evaluateNumber } from './evaluator.js'
+import { loadDrawingParts } from '../drawingBoard/api.js'
+import { computeDerived } from '../drawingBoard/computeDerived.js'
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Tree helpers (local copies, same logic as computeDerived.js) ──────────────
+
+function findFirst(node, partType) {
+  if (!node) return null
+  if (node.part_type === partType) return node
+  for (const child of (node.children ?? [])) {
+    const found = findFirst(child, partType)
+    if (found) return found
+  }
+  return null
+}
+
+function findAll(node, partType, acc = []) {
+  if (!node) return acc
+  if (node.part_type === partType) acc.push(node)
+  for (const child of (node.children ?? [])) findAll(child, partType, acc)
+  return acc
+}
+
+function findParentSash(tree, childKey) {
+  function walk(node, parent) {
+    if (!node) return null
+    if (node.key === childKey) return parent
+    for (const child of (node.children ?? [])) {
+      const found = walk(child, node)
+      if (found !== null) return found
+    }
+    return null
+  }
+  return walk(tree, null)
+}
+
+// ── Loop target helper ────────────────────────────────────────────────────────
+
+const LOOP_PART_TYPES = {
+  sliding_sash:  ['topSashPart', 'bottomSashPart'],
+  frame:         ['assemblyFramePart'],
+  glass_unit:    ['glassPart'],
+  casement_sash: ['casementSashPart'],
+  door_leaf:     ['doorLeafPart'],
+  panel:         ['panelPart'],
+}
+
+function getLoopParts(tree, loopTarget) {
+  if (!loopTarget) return [null]
+  const partTypes = LOOP_PART_TYPES[loopTarget]
+  if (!partTypes) return [null]
+  const parts = []
+  for (const pt of partTypes) {
+    parts.push(...findAll(tree, pt))
+  }
+  return parts.length > 0 ? parts : [null]
+}
+
+// ── Part-level variable computation ──────────────────────────────────────────
+
+function computePartVariables(partNode, tree, derived, baseVars) {
+  if (!partNode) return {}
+  const pt = partNode.part_type
+  const v  = partNode.values ?? {}
+
+  const isCordHung   = op => (op ?? '').toLowerCase().includes('cord')
+  const isSpiralHung = op => (op ?? '').toLowerCase().includes('spiral')
+  const isFixed      = op => { const s = (op ?? '').toLowerCase(); return s === 'fix' || s.includes('fix') }
+
+  if (pt === 'topSashPart' || pt === 'bottomSashPart') {
+    const isTop          = pt === 'topSashPart'
+    const op             = v.operation ?? ''
+    const is_complete_new = baseVars.is_complete_new ?? false
+    const to_be_replaced  = is_complete_new || v.toBeReplaced === true
+
+    // Sash geometry from pair derived
+    const pair       = findFirst(tree, 'sashPairPart')
+    const pairDerived = pair ? (derived[pair.key] ?? {}) : {}
+    const gross_sash_width_in_mm  = pairDerived.sashWidth        ?? null
+    const gross_sash_height_in_mm = isTop
+      ? (pairDerived.topSashHeight    ?? null)
+      : (pairDerived.bottomSashHeight ?? null)
+
+    const stileWidth = v.leftWidth ?? 47
+    const sash_sightline_width_in_mm = gross_sash_width_in_mm != null
+      ? gross_sash_width_in_mm - 2 * stileWidth : null
+
+    const headRail   = isTop ? (v.topHeight   ?? 49) : 0
+    const botRail    = !isTop ? (v.bottomHeight ?? 88) : 0
+    const midrail    = pair?.values?.midrailHeight ?? 40
+    const sash_sightline_height_in_mm = gross_sash_height_in_mm != null
+      ? gross_sash_height_in_mm - (isTop ? headRail : botRail) - midrail : null
+
+    return {
+      is_top_sash:    isTop,
+      is_bottom_sash: !isTop,
+      to_be_replaced,
+      is_cord_hung:    isCordHung(op),
+      is_spiral_hung:  isSpiralHung(op),
+      is_fixed_sash:   isFixed(op),
+      is_sash_arched:  v.archHead === true,
+      gross_sash_width_in_mm,
+      gross_sash_height_in_mm,
+      sash_sightline_width_in_mm,
+      sash_sightline_height_in_mm,
+      unit_gb_qty:   0,  // NEEDS-DATA: glazing bars per sash not yet captured
+    }
+  }
+
+  if (pt === 'assemblyFramePart') {
+    return {
+      to_be_replaced:    baseVars.is_complete_new ?? false,
+      width:             v.width  ?? 0,
+      height:            v.height ?? 0,
+      frame_width_in_mm: v.width  ?? 0,
+      frame_height_in_mm: v.height ?? 0,
+    }
+  }
+
+  if (pt === 'glassPart') {
+    // Glass area from sash geometry
+    const parentSash  = findParentSash(tree, partNode.key)
+    const pair        = findFirst(tree, 'sashPairPart')
+    const pairDerived = pair ? (derived[pair.key] ?? {}) : {}
+    const glassWidth  = pairDerived.sashWidth ?? 0
+
+    let glassHeight = 0
+    if (parentSash?.part_type === 'topSashPart') {
+      // topGlassHeight = topSashHeight - topRail - midrail
+      const tsh      = pairDerived.topSashHeight ?? 0
+      const topRail  = parentSash.values?.topHeight ?? 49
+      const midrail  = pair?.values?.midrailHeight ?? 40
+      glassHeight    = tsh - topRail - midrail
+    } else if (parentSash?.part_type === 'bottomSashPart') {
+      // bottomGlassHeight = bottomSashHeight - bottomRail - midrail
+      const bsh      = pairDerived.bottomSashHeight ?? 0
+      const botRail  = parentSash.values?.bottomHeight ?? 88
+      const midrail  = pair?.values?.midrailHeight ?? 40
+      glassHeight    = bsh - botRail - midrail
+    }
+
+    const actual_area  = (glassWidth > 0 && glassHeight > 0) ? (glassWidth * glassHeight) / 1e6 : 0
+    const rounded_area = Math.ceil(actual_area * 2) / 2  // round up to nearest 0.5
+    const glazingId    = v.glazingId ?? ''
+
+    return {
+      actual_area,
+      rounded_area,
+      is_single_glazed: glazingId === 'single_glazed',
+      is_double_glazed: glazingId === 'double_glazed',
+      is_triple_glazed: glazingId === 'triple_glazed',
+      glass_unit_thickness: 0,  // NEEDS-DATA: spacer-based thickness not yet mapped
+      unit_gb_qty: 0,
+    }
+  }
+
+  return {}
+}
+
+// ── Rule evaluation helpers ───────────────────────────────────────────────────
 
 /**
- * Throw a structured error that includes the rule name so that failures in
- * production are easy to trace back to the offending rule.
+ * Evaluate a labour (manufacture or install) rule line.
+ * total_minutes = evaluateNumber(quantity) × evaluateNumber(value)
  */
-function ruleError(rule, field, cause) {
-  throw new Error(
-    `Rule "${rule.name}" [${rule.id}] — error in ${field}: ${cause.message}`
+function evalRuleLine(rule, vars, partNode) {
+  const line = {
+    rule_id:       rule.id,
+    rule_family:   rule.rule_family,
+    group_name:    rule.group_name ?? null,
+    name:          rule.name,
+    loop_target:   rule.loop_target ?? null,
+    part_key:      partNode?.key       ?? null,
+    part_type:     partNode?.part_type ?? null,
+    fires:         false,
+    quantity:      0,
+    value:         0,
+    minutes:       0,
+    error:         null,
+    condition:     rule.condition,
+    quantity_expr: rule.quantity,
+    value_expr:    rule.value,
+  }
+
+  try {
+    line.fires = evaluateCondition(rule.condition || 'true', vars)
+  } catch (e) {
+    line.error = `condition: ${e.message}`
+    return line
+  }
+  if (!line.fires) return line
+
+  try {
+    line.quantity = evaluateNumber(rule.quantity || '0', vars)
+  } catch (e) {
+    line.error = `quantity: ${e.message}`
+    return line
+  }
+  try {
+    line.value   = evaluateNumber(rule.value || '0', vars)
+  } catch (e) {
+    line.error = `value: ${e.message}`
+    return line
+  }
+  line.minutes = line.quantity * line.value
+  return line
+}
+
+/**
+ * Evaluate a price rule line.
+ * line_total = quantity × value × markup
+ */
+function evalPriceRuleLine(rule, vars, partNode) {
+  const line = {
+    rule_id:     rule.id,
+    rule_family: rule.rule_family,
+    group_name:  rule.group_name ?? null,
+    name:        rule.name,
+    loop_target: rule.loop_target ?? null,
+    part_key:    partNode?.key       ?? null,
+    part_type:   partNode?.part_type ?? null,
+    fires:       false,
+    quantity:    0,
+    value:       0,
+    markup:      rule.markup ?? 1,
+    line_total:  0,
+    error:       null,
+    condition:   rule.condition,
+  }
+
+  try {
+    line.fires = evaluateCondition(rule.condition || 'true', vars)
+  } catch (e) {
+    line.error = `condition: ${e.message}`
+    return line
+  }
+  if (!line.fires) return line
+
+  try {
+    line.quantity = evaluateNumber(rule.quantity || '0', vars)
+    line.value    = evaluateNumber(rule.value    || '0', vars)
+    line.line_total = line.quantity * line.value * (rule.markup ?? 1)
+  } catch (e) {
+    line.error = `calc: ${e.message}`
+  }
+  return line
+}
+
+// ── runPricingOnTree ──────────────────────────────────────────────────────────
+
+/**
+ * Pure function — takes a pre-built tree and list of rules and returns results.
+ * Does NOT touch the database. Used directly by the benchmark page and tests.
+ *
+ * @param {Object}   tree         - Root parts tree node
+ * @param {Array}    rules        - All price_rules rows for the price file
+ * @param {Object}   pfVariables  - Price-file variables (scalars)
+ * @param {Object}   options
+ * @param {boolean}  options.testMode  - If true, include inactive rules
+ * @returns {{ manufacture_labour, install_labour, price, error? }}
+ */
+export function runPricingOnTree(tree, rules, pfVariables = {}, { testMode = false } = {}) {
+  const derived  = computeDerived(tree)
+  const itemVars = computeVariables(tree, derived, pfVariables)
+  if (!itemVars) return { error: 'computeVariables returned null', lines: [] }
+
+  // Price-file variables are available in all expressions
+  const baseVars = { ...pfVariables, ...itemVars }
+
+  const results = {
+    manufacture_labour: { total_minutes: 0, lines: [] },
+    install_labour:     { total_minutes: 0, lines: [] },
+    price:              { total: 0, lines: [] },
+  }
+
+  // ── Pass 1 — manufacture_labour ───────────────────────────────────────────
+  const mfgRules = rules.filter(
+    r => r.rule_family === 'manufacture_labour' && (testMode || r.is_active)
   )
+  let mfgMinutes = 0
+  for (const rule of mfgRules) {
+    const loopParts = getLoopParts(tree, rule.loop_target)
+    for (const partNode of loopParts) {
+      const vars = partNode
+        ? { ...baseVars, ...computePartVariables(partNode, tree, derived, baseVars) }
+        : baseVars
+      const line = evalRuleLine(rule, vars, partNode)
+      if (!line.error && line.fires) mfgMinutes += line.minutes
+      results.manufacture_labour.lines.push(line)
+    }
+  }
+  results.manufacture_labour.total_minutes = mfgMinutes
+
+  // Make std_labour_time (hours) available for subsequent passes
+  const mfgVars = { ...baseVars, std_labour_time: mfgMinutes / 60 }
+
+  // ── Pass 2 — install_labour ───────────────────────────────────────────────
+  const instRules = rules.filter(
+    r => r.rule_family === 'install_labour' && (testMode || r.is_active)
+  )
+  let instMinutes = 0
+  for (const rule of instRules) {
+    const loopParts = getLoopParts(tree, rule.loop_target)
+    for (const partNode of loopParts) {
+      const vars = partNode
+        ? { ...mfgVars, ...computePartVariables(partNode, tree, derived, mfgVars) }
+        : mfgVars
+      const line = evalRuleLine(rule, vars, partNode)
+      if (!line.error && line.fires) instMinutes += line.minutes
+      results.install_labour.lines.push(line)
+    }
+  }
+  results.install_labour.total_minutes = instMinutes
+
+  // Make installation_labour_time (hours) available for price pass
+  const priceVars = { ...mfgVars, installation_labour_time: instMinutes / 60 }
+
+  // ── Pass 3 — price rules (item-level) ─────────────────────────────────────
+  const priceRules = rules.filter(
+    r => r.rule_family === 'price' && r.level !== 'quote' && (testMode || r.is_active)
+  )
+  let totalPrice = 0
+  for (const rule of priceRules) {
+    const loopParts = getLoopParts(tree, rule.loop_target)
+    for (const partNode of loopParts) {
+      const vars = partNode
+        ? { ...priceVars, ...computePartVariables(partNode, tree, derived, priceVars) }
+        : priceVars
+      const line = evalPriceRuleLine(rule, vars, partNode)
+      if (!line.error && line.fires) totalPrice += line.line_total
+      results.price.lines.push(line)
+    }
+  }
+  results.price.total = totalPrice
+
+  return results
 }
 
 // ── priceDrawing ──────────────────────────────────────────────────────────────
 
 /**
- * Run all five passes for a single drawing and persist the results.
+ * Run all passes for a single drawing and persist the results.
  *
  * @param {string} drawingId
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
@@ -58,36 +383,11 @@ export async function priceDrawing(drawingId, supabase) {
   let pricingRunId = null
 
   try {
-    // ── 1. Fetch drawing row joined with job_items for floor_level ────────────
-    const { data: drawingRow, error: drawingErr } = await supabase
-      .from('drawings')
-      .select('*, job_items(floor_level)')
-      .eq('id', drawingId)
-      .single()
+    // ── 1. Load parts tree ────────────────────────────────────────────────────
+    const tree = await loadDrawingParts(drawingId)
+    if (!tree) throw new Error(`No drawing parts found for drawing ${drawingId}`)
 
-    if (drawingErr || !drawingRow) {
-      throw new Error(`Failed to fetch drawing ${drawingId}: ${drawingErr?.message ?? 'not found'}`)
-    }
-
-    const floorLevel = drawingRow.job_items?.floor_level ?? null
-
-    // ── 2. Fetch ironmongery items ────────────────────────────────────────────
-    const { data: ironRows, error: ironErr } = await supabase
-      .from('drawing_ironmongery')
-      .select('quantity, ironmongery_variants(cost), ironmongery_products(category)')
-      .eq('drawing_id', drawingId)
-
-    if (ironErr) {
-      throw new Error(`Failed to fetch ironmongery for drawing ${drawingId}: ${ironErr.message}`)
-    }
-
-    const ironmongeryItems = (ironRows || []).map(row => ({
-      quantity:      row.quantity ?? 0,
-      unit_cost:     row.ironmongery_variants?.cost ?? 0,
-      category_name: row.ironmongery_products?.category ?? '',
-    }))
-
-    // ── 3. Fetch published price file ─────────────────────────────────────────
+    // ── 2. Fetch published price file ─────────────────────────────────────────
     const { data: priceFile, error: pfErr } = await supabase
       .from('price_files')
       .select('id')
@@ -98,12 +398,26 @@ export async function priceDrawing(drawingId, supabase) {
       throw new Error(`No published price file found: ${pfErr?.message ?? 'not found'}`)
     }
 
-    // ── 4. Compute initial variable context ───────────────────────────────────
-    let variables = computeVariables(drawingRow, floorLevel, ironmongeryItems)
+    // ── 3. Fetch price-file variables (scalars) ────────────────────────────────
+    const { data: pfVarRows, error: pfvErr } = await supabase
+      .from('price_file_variables')
+      .select('name, value_numeric, value_text')
+      .eq('price_file_id', priceFile.id)
 
-    if (!variables) {
-      throw new Error(`computeVariables returned null for drawing ${drawingId}`)
-    }
+    if (pfvErr) throw new Error(`Failed to fetch price_file_variables: ${pfvErr.message}`)
+
+    const pfVariables = Object.fromEntries(
+      (pfVarRows || []).map(r => [r.name, r.value_numeric ?? r.value_text])
+    )
+
+    // ── 4. Fetch ALL rules in one query ────────────────────────────────────────
+    const { data: allRules, error: rulesErr } = await supabase
+      .from('price_rules')
+      .select('id, name, rule_family, level, condition, quantity, value, markup, part_code, loop_target, group_name, is_active, sort_order')
+      .eq('price_file_id', priceFile.id)
+      .order('sort_order')
+
+    if (rulesErr) throw new Error(`Failed to fetch price rules: ${rulesErr.message}`)
 
     // ── 5. Create pricing_runs row ────────────────────────────────────────────
     const { data: pricingRun, error: runErr } = await supabase
@@ -123,221 +437,145 @@ export async function priceDrawing(drawingId, supabase) {
 
     pricingRunId = pricingRun.id
 
-    // ── 6. Pass 0a — install_labour ───────────────────────────────────────────
-    const { data: installRules, error: irErr } = await supabase
-      .from('price_rules')
-      .select('id, name, condition, quantity')
-      .eq('price_file_id', priceFile.id)
-      .eq('rule_family', 'install_labour')
-      .eq('is_active', true)
-      .order('sort_order')
+    // ── 6. Run pricing engine ─────────────────────────────────────────────────
+    const engineResults = runPricingOnTree(tree, allRules, pfVariables)
 
-    if (irErr) throw new Error(`Failed to fetch install_labour rules: ${irErr.message}`)
+    if (engineResults.error) {
+      throw new Error(engineResults.error)
+    }
 
-    let totalInstallMinutes = 0
-    const installResultRows = []
+    // ── 7. Collect variables snapshot from the engine run ─────────────────────
+    const derived  = computeDerived(tree)
+    const variables = computeVariables(tree, derived, pfVariables) ?? {}
+    variables.std_labour_time          = engineResults.manufacture_labour.total_minutes / 60
+    variables.installation_labour_time = engineResults.install_labour.total_minutes / 60
+    variables.total_manufacture_minutes = engineResults.manufacture_labour.total_minutes
+    variables.total_install_minutes     = engineResults.install_labour.total_minutes
 
-    for (const rule of (installRules || [])) {
-      let fires
-      try { fires = evaluateCondition(rule.condition, variables) }
-      catch (e) { ruleError(rule, 'condition', e) }
-
-      if (!fires) continue
-
-      let minutes
-      try { minutes = evaluateNumber(rule.quantity, variables) }
-      catch (e) { ruleError(rule, 'quantity', e) }
-
-      totalInstallMinutes += minutes
-      installResultRows.push({
+    // ── 8. Write manufacture_labour results ────────────────────────────────────
+    const mfgResultRows = engineResults.manufacture_labour.lines
+      .filter(l => l.fires && !l.error)
+      .map(l => ({
         drawing_id:       drawingId,
         price_file_id:    priceFile.id,
         pricing_run_id:   pricingRunId,
-        price_rule_id:    rule.id,
-        loop_target_type: null,
+        price_rule_id:    l.rule_id,
+        loop_target_type: l.loop_target,
         loop_index:       null,
-        cost:             minutes,
+        cost:             l.minutes,
         sales:            null,
         markup_applied:   null,
-      })
-    }
-
-    variables.total_install_minutes = totalInstallMinutes
-
-    if (installResultRows.length > 0) {
-      const { error: ir0aErr } = await supabase
-        .from('drawing_rule_results')
-        .insert(installResultRows)
-      if (ir0aErr) throw new Error(`Failed to write Pass 0a results: ${ir0aErr.message}`)
-    }
-
-    // ── 7. Pass 0b — manufacture_labour ──────────────────────────────────────
-    const { data: mfgRules, error: mrErr } = await supabase
-      .from('price_rules')
-      .select('id, name, condition, quantity')
-      .eq('price_file_id', priceFile.id)
-      .eq('rule_family', 'manufacture_labour')
-      .eq('is_active', true)
-      .order('sort_order')
-
-    if (mrErr) throw new Error(`Failed to fetch manufacture_labour rules: ${mrErr.message}`)
-
-    let totalMfgMinutes = 0
-    const mfgResultRows = []
-
-    for (const rule of (mfgRules || [])) {
-      let fires
-      try { fires = evaluateCondition(rule.condition, variables) }
-      catch (e) { ruleError(rule, 'condition', e) }
-
-      if (!fires) continue
-
-      let minutes
-      try { minutes = evaluateNumber(rule.quantity, variables) }
-      catch (e) { ruleError(rule, 'quantity', e) }
-
-      totalMfgMinutes += minutes
-      mfgResultRows.push({
-        drawing_id:       drawingId,
-        price_file_id:    priceFile.id,
-        pricing_run_id:   pricingRunId,
-        price_rule_id:    rule.id,
-        loop_target_type: null,
-        loop_index:       null,
-        cost:             minutes,
-        sales:            null,
-        markup_applied:   null,
-      })
-    }
-
-    variables.total_manufacture_minutes = totalMfgMinutes
+      }))
 
     if (mfgResultRows.length > 0) {
-      const { error: ir0bErr } = await supabase
+      const { error: mfgInsErr } = await supabase
         .from('drawing_rule_results')
         .insert(mfgResultRows)
-      if (ir0bErr) throw new Error(`Failed to write Pass 0b results: ${ir0bErr.message}`)
+      if (mfgInsErr) throw new Error(`Failed to write manufacture_labour results: ${mfgInsErr.message}`)
     }
 
-    // ── 8. Pass 0c — parts ────────────────────────────────────────────────────
-    const { data: partsRules, error: prErr } = await supabase
-      .from('price_rules')
-      .select('id, name, condition, quantity, part_code')
-      .eq('price_file_id', priceFile.id)
-      .eq('rule_family', 'parts')
-      .eq('is_active', true)
-      .order('sort_order')
-
-    if (prErr) throw new Error(`Failed to fetch parts rules: ${prErr.message}`)
-
-    const { data: pfParts, error: pfPartsErr } = await supabase
-      .from('price_file_parts')
-      .select('part_code, part_name, unit_cost')
-      .eq('price_file_id', priceFile.id)
-
-    if (pfPartsErr) throw new Error(`Failed to fetch price_file_parts: ${pfPartsErr.message}`)
-
-    const partsMap = Object.fromEntries((pfParts || []).map(p => [p.part_code, p]))
-
-    let totalPartsCost = 0
-    const allocatedPartsRows = []
-
-    for (const rule of (partsRules || [])) {
-      let fires
-      try { fires = evaluateCondition(rule.condition, variables) }
-      catch (e) { ruleError(rule, 'condition', e) }
-
-      if (!fires) continue
-
-      let qty
-      try { qty = evaluateNumber(rule.quantity, variables) }
-      catch (e) { ruleError(rule, 'quantity', e) }
-
-      const part = partsMap[rule.part_code]
-      if (!part) throw new Error(`Part not found in price file snapshot: ${rule.part_code}`)
-
-      const unitCost  = part.unit_cost
-      const totalCost = qty * unitCost
-      totalPartsCost += totalCost
-
-      allocatedPartsRows.push({
-        drawing_id:     drawingId,
-        price_file_id:  priceFile.id,
-        pricing_run_id: pricingRunId,
-        price_rule_id:  rule.id,
-        part_code:      part.part_code,
-        part_name:      part.part_name,
-        unit_cost:      part.unit_cost,
-        quantity:       qty,
-        total_cost:     totalCost,
-      })
-    }
-
-    variables.total_parts_cost = totalPartsCost
-
-    if (allocatedPartsRows.length > 0) {
-      const { error: ir0cErr } = await supabase
-        .from('drawing_allocated_parts')
-        .insert(allocatedPartsRows)
-      if (ir0cErr) throw new Error(`Failed to write Pass 0c allocated parts: ${ir0cErr.message}`)
-    }
-
-    // ── 9. Pass 1 — price item-level rules ───────────────────────────────────
-    const { data: priceRules, error: price1Err } = await supabase
-      .from('price_rules')
-      .select('id, name, condition, quantity, value, markup')
-      .eq('price_file_id', priceFile.id)
-      .eq('rule_family', 'price')
-      .eq('level', 'item')
-      .eq('is_active', true)
-      .order('sort_order')
-
-    if (price1Err) throw new Error(`Failed to fetch price rules: ${price1Err.message}`)
-
-    let calculatedPrice = 0
-    const priceResultRows = []
-
-    for (const rule of (priceRules || [])) {
-      let fires
-      try { fires = evaluateCondition(rule.condition, variables) }
-      catch (e) { ruleError(rule, 'condition', e) }
-
-      if (!fires) continue
-
-      let quantityResult, valueResult
-      try { quantityResult = evaluateNumber(rule.quantity, variables) }
-      catch (e) { ruleError(rule, 'quantity', e) }
-
-      try { valueResult = evaluateNumber(rule.value, variables) }
-      catch (e) { ruleError(rule, 'value', e) }
-
-      const cost   = quantityResult * valueResult
-      const markup = rule.markup ?? 1
-      const sales  = cost * markup
-
-      calculatedPrice += sales
-
-      priceResultRows.push({
+    // ── 9. Write install_labour results ───────────────────────────────────────
+    const instResultRows = engineResults.install_labour.lines
+      .filter(l => l.fires && !l.error)
+      .map(l => ({
         drawing_id:       drawingId,
         price_file_id:    priceFile.id,
         pricing_run_id:   pricingRunId,
-        price_rule_id:    rule.id,
-        loop_target_type: null,
+        price_rule_id:    l.rule_id,
+        loop_target_type: l.loop_target,
         loop_index:       null,
-        cost,
-        sales,
-        markup_applied:   markup,
-      })
+        cost:             l.minutes,
+        sales:            null,
+        markup_applied:   null,
+      }))
+
+    if (instResultRows.length > 0) {
+      const { error: instInsErr } = await supabase
+        .from('drawing_rule_results')
+        .insert(instResultRows)
+      if (instInsErr) throw new Error(`Failed to write install_labour results: ${instInsErr.message}`)
     }
+
+    // ── 10. Handle parts rules (pass 0c) ──────────────────────────────────────
+    const partsRules = (allRules || []).filter(r => r.rule_family === 'parts' && r.is_active)
+
+    if (partsRules.length > 0) {
+      const { data: pfParts, error: pfPartsErr } = await supabase
+        .from('price_file_parts')
+        .select('part_code, part_name, unit_cost')
+        .eq('price_file_id', priceFile.id)
+
+      if (pfPartsErr) throw new Error(`Failed to fetch price_file_parts: ${pfPartsErr.message}`)
+
+      const partsMap = Object.fromEntries((pfParts || []).map(p => [p.part_code, p]))
+      const allVarsForParts = { ...pfVariables, ...variables }
+
+      let totalPartsCost   = 0
+      const allocatedRows  = []
+
+      for (const rule of partsRules) {
+        let fires
+        try { fires = evaluateCondition(rule.condition || 'true', allVarsForParts) }
+        catch (e) { console.warn(`[priceDrawing] parts rule "${rule.name}" condition error:`, e.message); continue }
+        if (!fires) continue
+
+        let qty
+        try { qty = evaluateNumber(rule.quantity || '0', allVarsForParts) }
+        catch (e) { console.warn(`[priceDrawing] parts rule "${rule.name}" quantity error:`, e.message); continue }
+
+        const part = partsMap[rule.part_code]
+        if (!part) { console.warn(`[priceDrawing] part not found: ${rule.part_code}`); continue }
+
+        const totalCost = qty * part.unit_cost
+        totalPartsCost += totalCost
+
+        allocatedRows.push({
+          drawing_id:     drawingId,
+          price_file_id:  priceFile.id,
+          pricing_run_id: pricingRunId,
+          price_rule_id:  rule.id,
+          part_code:      part.part_code,
+          part_name:      part.part_name,
+          unit_cost:      part.unit_cost,
+          quantity:       qty,
+          total_cost:     totalCost,
+        })
+      }
+
+      variables.total_parts_cost = totalPartsCost
+
+      if (allocatedRows.length > 0) {
+        const { error: partsInsErr } = await supabase
+          .from('drawing_allocated_parts')
+          .insert(allocatedRows)
+        if (partsInsErr) throw new Error(`Failed to write allocated parts: ${partsInsErr.message}`)
+      }
+    }
+
+    // ── 11. Write price results ────────────────────────────────────────────────
+    let calculatedPrice = engineResults.price.total
+    const priceResultRows = engineResults.price.lines
+      .filter(l => l.fires && !l.error)
+      .map(l => ({
+        drawing_id:       drawingId,
+        price_file_id:    priceFile.id,
+        pricing_run_id:   pricingRunId,
+        price_rule_id:    l.rule_id,
+        loop_target_type: l.loop_target,
+        loop_index:       null,
+        cost:             l.quantity * l.value,
+        sales:            l.line_total,
+        markup_applied:   l.markup,
+      }))
 
     if (priceResultRows.length > 0) {
-      const { error: ir1Err } = await supabase
+      const { error: priceInsErr } = await supabase
         .from('drawing_rule_results')
         .insert(priceResultRows)
-      if (ir1Err) throw new Error(`Failed to write Pass 1 results: ${ir1Err.message}`)
+      if (priceInsErr) throw new Error(`Failed to write price results: ${priceInsErr.message}`)
     }
 
-    // ── 10. Write calculated_price to drawings ────────────────────────────────
+    // ── 12. Write calculated_price to drawings ────────────────────────────────
     const { error: calcErr } = await supabase
       .from('drawings')
       .update({ calculated_price: calculatedPrice })
@@ -345,7 +583,7 @@ export async function priceDrawing(drawingId, supabase) {
 
     if (calcErr) throw new Error(`Failed to update drawings.calculated_price: ${calcErr.message}`)
 
-    // ── 11. Write full variable snapshot ─────────────────────────────────────
+    // ── 13. Write full variable snapshot ──────────────────────────────────────
     const { error: varErr } = await supabase
       .from('drawing_pricing_variables')
       .insert({
@@ -357,13 +595,12 @@ export async function priceDrawing(drawingId, supabase) {
 
     if (varErr) throw new Error(`Failed to write drawing_pricing_variables: ${varErr.message}`)
 
-    // ── 12. Mark pricing_run complete ─────────────────────────────────────────
+    // ── 14. Mark pricing_run complete ─────────────────────────────────────────
     await supabase
       .from('pricing_runs')
       .update({ status: 'complete' })
       .eq('id', pricingRunId)
 
-    // ── 13. Return ────────────────────────────────────────────────────────────
     return { success: true, calculatedPrice, pricingRunId }
 
   } catch (err) {
@@ -453,28 +690,30 @@ export async function priceQuote(quoteId, supabase) {
     if (qrulesErr) throw new Error(`Failed to fetch quote rules: ${qrulesErr.message}`)
 
     const quoteVariables     = { quote_total: quoteTotal }
-    const drawingPriceDeltas = {}   // drawing_id → accumulated sales share
+    const drawingPriceDeltas = {}
 
     // ── 6. Evaluate each rule, write quote_rule_results, then apportion ───────
     for (const rule of (quoteRules || [])) {
       let fires
-      try { fires = evaluateCondition(rule.condition, quoteVariables) }
-      catch (e) { ruleError(rule, 'condition', e) }
+      try { fires = evaluateCondition(rule.condition || 'true', quoteVariables) }
+      catch (e) {
+        console.warn(`[priceQuote] rule "${rule.name}" condition error:`, e.message)
+        continue
+      }
 
       if (!fires) continue
 
       let quantityResult, valueResult
-      try { quantityResult = evaluateNumber(rule.quantity, quoteVariables) }
-      catch (e) { ruleError(rule, 'quantity', e) }
+      try { quantityResult = evaluateNumber(rule.quantity || '0', quoteVariables) }
+      catch (e) { throw new Error(`Rule "${rule.name}" quantity error: ${e.message}`) }
 
-      try { valueResult = evaluateNumber(rule.value, quoteVariables) }
-      catch (e) { ruleError(rule, 'value', e) }
+      try { valueResult = evaluateNumber(rule.value || '0', quoteVariables) }
+      catch (e) { throw new Error(`Rule "${rule.name}" value error: ${e.message}`) }
 
       const cost      = quantityResult * valueResult
       const markup    = rule.markup ?? 1
       const ruleSales = cost * markup
 
-      // Insert one at a time to capture the returned id for apportionment
       const { data: qrResult, error: qrInsErr } = await supabase
         .from('quote_rule_results')
         .insert({
@@ -494,8 +733,6 @@ export async function priceQuote(quoteId, supabase) {
       }
 
       const quoteRuleResultId = qrResult.id
-
-      // ── 7. Apportion both cost and sales value-weighted across drawings ────
       const apportionmentRows = []
 
       for (const drawing of drawings) {
@@ -515,7 +752,6 @@ export async function priceQuote(quoteId, supabase) {
           (drawingPriceDeltas[drawing.drawing_id] ?? 0) + salesShare
       }
 
-      // ── 8. Write quote_item_apportionment rows for this rule ─────────────
       if (apportionmentRows.length > 0) {
         const { error: apErr } = await supabase
           .from('quote_item_apportionment')
@@ -524,7 +760,7 @@ export async function priceQuote(quoteId, supabase) {
       }
     }
 
-    // ── 9. Update each drawing's calculated_price with its apportioned share ──
+    // ── 7. Update each drawing's calculated_price with its apportioned share ──
     await Promise.all(
       Object.entries(drawingPriceDeltas).map(async ([dId, delta]) => {
         const original = drawings.find(d => d.drawing_id === dId)?.calculated_price ?? 0
@@ -538,13 +774,12 @@ export async function priceQuote(quoteId, supabase) {
       })
     )
 
-    // ── 10. Mark quote_pricing_run complete ───────────────────────────────────
+    // ── 8. Mark quote_pricing_run complete ────────────────────────────────────
     await supabase
       .from('quote_pricing_runs')
       .update({ status: 'complete' })
       .eq('id', quotePricingRunId)
 
-    // ── 11. Return ────────────────────────────────────────────────────────────
     return { success: true }
 
   } catch (err) {
