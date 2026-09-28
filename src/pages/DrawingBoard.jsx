@@ -1,8 +1,7 @@
 import { Component, useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
-import { useAuth } from '../context/AuthContext'
-import { useUnmatchedCount } from '../hooks/useUnmatchedCount'
+import { Layout } from '../components/Layout'
 import {
   loadFieldDefinitions, loadProfile, loadProfileValues,
   loadReferenceOptions, loadContainment, loadDrawingParts, saveDrawingParts,
@@ -519,48 +518,11 @@ class DrawingBoardErrorBoundary extends Component {
   }
 }
 
-// ── Sidebar nav (matches other pages) ────────────────────────────────────────
-
-function Sidebar({ navigate, unmatchedCount, user, signOut }) {
-  return (
-    <div style={{ width: 215, background: '#fff', borderRight: '1px solid #e8e6e0', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-      <div style={{ padding: 16, borderBottom: '1px solid #e8e6e0' }}>
-        <div style={{ fontSize: 16, fontWeight: 600 }}>GlazePro</div>
-        <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>Window management</div>
-      </div>
-      <div style={{ padding: '14px 14px 4px', fontSize: 10, color: '#aaa', letterSpacing: '.07em', textTransform: 'uppercase' }}>Workflow</div>
-      {[
-        ['Leads',            '/leads'],
-        ['Scheduling',       '/calendar'],
-        ['Tasks',            '/tasks'],
-        ['Unmatched emails', '/unmatched-emails'],
-      ].map(([label, path]) => (
-        <div key={label} onClick={() => navigate(path)} style={{ padding: '8px 11px', fontSize: 13, borderRadius: 8, margin: '1px 7px', color: '#555', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span>{label}</span>
-          {label === 'Unmatched emails' && unmatchedCount > 0 && (
-            <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 999, background: '#fceaea', color: '#8b2020', fontWeight: 600 }}>{unmatchedCount}</span>
-          )}
-        </div>
-      ))}
-      <div style={{ padding: '14px 14px 4px', fontSize: 10, color: '#aaa', letterSpacing: '.07em', textTransform: 'uppercase' }}>Catalogue</div>
-      {[['Ironmongery', '/ironmongery'], ['Pricing', '/pricing'], ['Reference Data', '/reference-data'], ['Defaults & Parts', '/defaults']].map(([label, path]) => (
-        <div key={label} onClick={() => navigate(path)} style={{ padding: '8px 11px', fontSize: 13, borderRadius: 8, margin: '1px 7px', color: '#555', cursor: 'pointer' }}>{label}</div>
-      ))}
-      <div style={{ marginTop: 'auto', padding: 13, borderTop: '1px solid #e8e6e0' }}>
-        <div style={{ fontSize: 11, color: '#555', fontWeight: 500, marginBottom: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.email}</div>
-        <button onClick={signOut} style={{ fontSize: 12, padding: '6px 14px', border: '1px solid #d8d5cf', borderRadius: 7, background: '#fff', cursor: 'pointer', color: '#555', width: '100%' }}>Sign out</button>
-      </div>
-    </div>
-  )
-}
-
 // ── Main component ────────────────────────────────────────────────────────────
 
 function DrawingBoard() {
   const { drawingId } = useParams()
   const navigate      = useNavigate()
-  const { user, signOut } = useAuth()
-  const unmatchedCount = useUnmatchedCount()
 
   // ── Data & loading ──────────────────────────────────────────────────────────
   const [drawingMeta, setDrawingMeta]   = useState(null)  // { drawing_number, window_type, job_item_id }
@@ -768,153 +730,142 @@ function DrawingBoard() {
     ? `Drawing ${drawingMeta.drawing_number ?? drawingId}${drawingMeta.window_type ? ` — ${drawingMeta.window_type}` : ''}`
     : `Drawing ${drawingId}`
 
-  return (
-    <div style={{ display: 'flex', height: '100vh', width: '100%', fontFamily: 'inherit', background: '#f5f4f0' }}>
-
-      {/* ── Sidebar nav ──────────────────────────────────────────────────────── */}
-      <Sidebar navigate={guardedNavigate} unmatchedCount={unmatchedCount} user={user} signOut={signOut} />
-
-      {/* ── Editor area ──────────────────────────────────────────────────────── */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
-
-        {/* Top bar */}
-        <div style={{ height: 48, background: '#fff', borderBottom: '1px solid #e8e6e0', display: 'flex', alignItems: 'center', padding: '0 16px', gap: 12, flexShrink: 0 }}>
-          <button onClick={() => guardedNavigate(-1)} style={{ fontSize: 12, padding: '5px 10px', border: '1px solid #d8d5cf', borderRadius: 7, background: '#fff', cursor: 'pointer', color: '#555' }}>
-            ← Back
-          </button>
-          <div style={{ flex: 1, fontSize: 14, fontWeight: 600, color: '#1a1a1a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {loading ? 'Loading…' : topBarTitle}
-          </div>
-
-          {/* Unsaved indicator */}
-          {dirty && saveStatus !== 'saving' && (
-            <span style={{ fontSize: 11, color: '#92400e', background: '#fffbeb', border: '1px solid #fcd34d', padding: '2px 9px', borderRadius: 999, flexShrink: 0 }}>
-              Unsaved changes
-            </span>
-          )}
-          {saveStatus === 'saved' && (
-            <span style={{ fontSize: 11, color: '#15803d', background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '2px 9px', borderRadius: 999, flexShrink: 0 }}>
-              Saved
-            </span>
-          )}
-          {saveStatus === 'error' && (
-            <span style={{ fontSize: 11, color: '#b91c1c', flexShrink: 0 }}>Save failed</span>
-          )}
-
-          <button onClick={undo} disabled={!undoStack.current.length} title="Undo (Ctrl+Z)" style={{ fontSize: 12, padding: '5px 10px', border: '1px solid #d8d5cf', borderRadius: 7, background: '#fff', cursor: undoStack.current.length ? 'pointer' : 'default', color: undoStack.current.length ? '#555' : '#ccc' }}>
-            ↩ Undo
-          </button>
-          <button onClick={redo} disabled={!redoStack.current.length} title="Redo (Ctrl+Y)" style={{ fontSize: 12, padding: '5px 10px', border: '1px solid #d8d5cf', borderRadius: 7, background: '#fff', cursor: redoStack.current.length ? 'pointer' : 'default', color: redoStack.current.length ? '#555' : '#ccc' }}>
-            Redo ↪
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={!dirty || saveStatus === 'saving' || loading}
-            style={{
-              fontSize: 12, padding: '5px 14px', border: 'none', borderRadius: 7, fontWeight: 600,
-              background: !dirty || saveStatus === 'saving' || loading ? '#c4c0e8' : '#3d35a8',
-              color: '#fff', cursor: !dirty || saveStatus === 'saving' || loading ? 'default' : 'pointer',
-            }}
-          >
-            {saveStatus === 'saving' ? 'Saving…' : 'Save'}
-          </button>
-        </div>
-
-        {/* Save error banner */}
-        {saveStatus === 'error' && saveError && (
-          <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 0, padding: '8px 16px', fontSize: 12, color: '#b91c1c', flexShrink: 0 }}>
-            {saveError}
-          </div>
-        )}
-
-        {/* Loading overlay */}
-        {loading && (
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#aaa', fontSize: 13 }}>
-            Loading drawing…
-          </div>
-        )}
-
-        {/* Three-panel layout */}
-        {!loading && tree && (
-          <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-
-            {/* Left: Property editor */}
-            <div style={{ width: 280, borderRight: '1px solid #e8e6e0', background: '#fff', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-              <PropertyEditor
-                node={selectedNode}
-                fieldDefs={fieldDefs}
-                derived={derived}
-                refOptions={refOptions}
-                onChangeField={handleChangeField}
-                onPrev={handlePrev}
-                onNext={handleNext}
-                prevDisabled={prevDisabled}
-                nextDisabled={nextDisabled}
-                hiddenFields={hiddenFields}
-              />
-            </div>
-
-            {/* Centre: SVG elevation */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0, background: '#f7f6f2' }}>
-              {/* View toggle */}
-              <div style={{ padding: '6px 10px', borderBottom: '1px solid #e8e6e0', background: '#fff', display: 'flex', gap: 6, flexShrink: 0 }}>
-                {['internal', 'external'].map(m => (
-                  <button key={m} onClick={() => setViewMode(m)} style={{
-                    fontSize: 11, padding: '3px 10px', borderRadius: 6, cursor: 'pointer',
-                    border: `1px solid ${viewMode === m ? '#3d35a8' : '#d8d5cf'}`,
-                    background: viewMode === m ? '#f0eefc' : '#fff',
-                    color: viewMode === m ? '#3d35a8' : '#555',
-                    fontWeight: viewMode === m ? 600 : 400,
-                  }}>
-                    {m === 'internal' ? 'Internal' : 'External'}
-                  </button>
-                ))}
-              </div>
-              {/* SVG */}
-              <div style={{ flex: 1, overflow: 'hidden', padding: 12, display: 'flex', alignItems: 'stretch' }}>
-                <SashElevation
-                  tree={tree}
-                  geometry={geometry}
-                  refOptions={refOptions}
-                  viewMode={viewMode}
-                  selectedKey={selectedKey}
-                  onSelectKey={setSelectedKey}
-                />
-              </div>
-            </div>
-
-            {/* Right: Explorer + Summary */}
-            <div style={{ width: 248, borderLeft: '1px solid #e8e6e0', background: '#fff', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-              {/* Explorer header */}
-              <div style={{ padding: '12px 14px 8px', borderBottom: '1px solid #e8e6e0', flexShrink: 0 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: '.06em' }}>
-                  Parts
-                </div>
-              </div>
-              {/* Explorer tree */}
-              <div style={{ flex: 1, overflowY: 'auto' }}>
-                <ExplorerNode
-                  node={tree}
-                  selectedKey={selectedKey}
-                  onSelect={setSelectedKey}
-                />
-              </div>
-              {/* Summary */}
-              <Summary
-                tree={tree}
-                fieldDefs={fieldDefs}
-                derived={derived}
-                refOptions={refOptions}
-                onSelectKey={setSelectedKey}
-                drawingMeta={drawingMeta}
-                hiddenFields={hiddenFields}
-              />
-            </div>
-
-          </div>
-        )}
+  // Drawing sub-bar: back, title, dirty indicator, undo/redo, save
+  const drawingSubBar = (
+    <div style={{ height: 40, background: '#fff', borderBottom: '1px solid #e8e6e0', display: 'flex', alignItems: 'center', padding: '0 14px', gap: 8, flexShrink: 0 }}>
+      <button onClick={() => guardedNavigate(-1)} style={{ fontSize: 12, padding: '4px 10px', border: '1px solid #d8d5cf', borderRadius: 7, background: '#fff', cursor: 'pointer', color: '#555', fontFamily: 'inherit' }}>
+        ← Back
+      </button>
+      <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: '#1a1a1a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {loading ? 'Loading…' : topBarTitle}
       </div>
+      {dirty && saveStatus !== 'saving' && (
+        <span style={{ fontSize: 11, color: '#92400e', background: '#fffbeb', border: '1px solid #fcd34d', padding: '2px 9px', borderRadius: 999, flexShrink: 0 }}>
+          Unsaved
+        </span>
+      )}
+      {saveStatus === 'saved' && (
+        <span style={{ fontSize: 11, color: '#15803d', background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '2px 9px', borderRadius: 999, flexShrink: 0 }}>
+          Saved
+        </span>
+      )}
+      <button onClick={undo} disabled={!undoStack.current.length} title="Undo (Ctrl+Z)" style={{ fontSize: 12, padding: '4px 9px', border: '1px solid #d8d5cf', borderRadius: 7, background: '#fff', cursor: undoStack.current.length ? 'pointer' : 'default', color: undoStack.current.length ? '#555' : '#ccc', fontFamily: 'inherit' }}>
+        ↩ Undo
+      </button>
+      <button onClick={redo} disabled={!redoStack.current.length} title="Redo (Ctrl+Y)" style={{ fontSize: 12, padding: '4px 9px', border: '1px solid #d8d5cf', borderRadius: 7, background: '#fff', cursor: redoStack.current.length ? 'pointer' : 'default', color: redoStack.current.length ? '#555' : '#ccc', fontFamily: 'inherit' }}>
+        Redo ↪
+      </button>
+      <button
+        onClick={handleSave}
+        disabled={!dirty || saveStatus === 'saving' || loading}
+        style={{
+          fontSize: 12, padding: '4px 13px', border: 'none', borderRadius: 7, fontWeight: 600,
+          background: !dirty || saveStatus === 'saving' || loading ? '#c4c0e8' : '#3d35a8',
+          color: '#fff', cursor: !dirty || saveStatus === 'saving' || loading ? 'default' : 'pointer',
+          fontFamily: 'inherit',
+        }}
+      >
+        {saveStatus === 'saving' ? 'Saving…' : 'Save'}
+      </button>
     </div>
+  )
+
+  return (
+    <Layout hideSidebar subMenu={drawingSubBar}>
+      {/* Save error banner */}
+      {saveStatus === 'error' && saveError && (
+        <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', padding: '8px 16px', fontSize: 12, color: '#b91c1c', flexShrink: 0 }}>
+          {saveError}
+        </div>
+      )}
+
+      {/* Loading overlay */}
+      {loading && (
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#aaa', fontSize: 13 }}>
+          Loading drawing…
+        </div>
+      )}
+
+      {/* Three-panel layout */}
+      {!loading && tree && (
+        <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+
+          {/* Left: Property editor */}
+          <div style={{ width: 280, borderRight: '1px solid #e8e6e0', background: '#fff', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+            <PropertyEditor
+              node={selectedNode}
+              fieldDefs={fieldDefs}
+              derived={derived}
+              refOptions={refOptions}
+              onChangeField={handleChangeField}
+              onPrev={handlePrev}
+              onNext={handleNext}
+              prevDisabled={prevDisabled}
+              nextDisabled={nextDisabled}
+              hiddenFields={hiddenFields}
+            />
+          </div>
+
+          {/* Centre: SVG elevation */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0, background: '#f7f6f2' }}>
+            {/* View toggle */}
+            <div style={{ padding: '6px 10px', borderBottom: '1px solid #e8e6e0', background: '#fff', display: 'flex', gap: 6, flexShrink: 0 }}>
+              {['internal', 'external'].map(m => (
+                <button key={m} onClick={() => setViewMode(m)} style={{
+                  fontSize: 11, padding: '3px 10px', borderRadius: 6, cursor: 'pointer',
+                  border: `1px solid ${viewMode === m ? '#3d35a8' : '#d8d5cf'}`,
+                  background: viewMode === m ? '#f0eefc' : '#fff',
+                  color: viewMode === m ? '#3d35a8' : '#555',
+                  fontWeight: viewMode === m ? 600 : 400,
+                }}>
+                  {m === 'internal' ? 'Internal' : 'External'}
+                </button>
+              ))}
+            </div>
+            {/* SVG */}
+            <div style={{ flex: 1, overflow: 'hidden', padding: 12, display: 'flex', alignItems: 'stretch' }}>
+              <SashElevation
+                tree={tree}
+                geometry={geometry}
+                refOptions={refOptions}
+                viewMode={viewMode}
+                selectedKey={selectedKey}
+                onSelectKey={setSelectedKey}
+              />
+            </div>
+          </div>
+
+          {/* Right: Explorer + Summary */}
+          <div style={{ width: 248, borderLeft: '1px solid #e8e6e0', background: '#fff', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+            {/* Explorer header */}
+            <div style={{ padding: '12px 14px 8px', borderBottom: '1px solid #e8e6e0', flexShrink: 0 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: '.06em' }}>
+                Parts
+              </div>
+            </div>
+            {/* Explorer tree */}
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              <ExplorerNode
+                node={tree}
+                selectedKey={selectedKey}
+                onSelect={setSelectedKey}
+              />
+            </div>
+            {/* Summary */}
+            <Summary
+              tree={tree}
+              fieldDefs={fieldDefs}
+              derived={derived}
+              refOptions={refOptions}
+              onSelectKey={setSelectedKey}
+              drawingMeta={drawingMeta}
+              hiddenFields={hiddenFields}
+            />
+          </div>
+
+        </div>
+      )}
+    </Layout>
   )
 }
 

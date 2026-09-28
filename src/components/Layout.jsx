@@ -383,16 +383,16 @@ export function LeadsSubNav({ onAddNew, onSearch, activeView }) {
 
 // ── Main Layout wrapper ────────────────────────────────────────────────────────
 
-export function Layout({ children, subMenu }) {
+export function Layout({ children, subMenu, hideSidebar }) {
   const [showSearch, setShowSearch] = useState(false)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: 'inherit' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100%', fontFamily: 'inherit' }}>
       {showSearch && <SearchOverlay onClose={() => setShowSearch(false)} />}
       <TopBar onSearch={() => setShowSearch(true)} />
       {subMenu}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        <Sidebar />
+        {!hideSidebar && <Sidebar />}
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
           {children}
         </div>

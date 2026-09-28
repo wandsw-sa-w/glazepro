@@ -49,10 +49,10 @@ function HDim({ x1, x2, y, label, dfs, tk, prefix = '' }) {
   )
 }
 
-function VDim({ x, y1, y2, label, dfs, tk, prefix = '' }) {
+function VDim({ x, y1, y2, label, dfs, tk, prefix = '', labelY }) {
   if (label == null) return null
   const text = prefix + fmtDim(label)
-  const my   = (y1 + y2) / 2
+  const my   = labelY ?? (y1 + y2) / 2
   return (
     <g stroke="#666" strokeWidth={0.7} fill="none">
       <line x1={x - tk} y1={y1} x2={x + tk} y2={y1} />
@@ -140,9 +140,23 @@ export function SashElevation({ tree, geometry, refOptions, viewMode = 'internal
   const B1 = fH + dfs * 1.5
   const B2 = fH + dfs * 4.0
   const B3 = fH + dfs * 6.5
-  // ViewBox — large enough for all dim lines + label text (~6 chars × 0.55*dfs each)
+  // ViewBox — top padding so drawing doesn't touch panel edge; extra right/bottom for dim lines
+  const topPad = dfs * 2.5
   const VW = fW + dfs * 16
-  const VH = fH + dfs * 10
+  const VH = fH + dfs * 10 + topPad
+
+  // R3/R4 label Y — ensure they're at least 1.6*dfs apart so they never overlap
+  const r3cyBase = OY + iH / 2
+  const r4cyBase = fH / 2
+  const minLabelSep = dfs * 1.6
+  const rawDiff = r4cyBase - r3cyBase
+  let r3LabelY = r3cyBase
+  let r4LabelY = r4cyBase
+  if (Math.abs(rawDiff) < minLabelSep) {
+    const mid = (r3cyBase + r4cyBase) / 2
+    r3LabelY = mid - minLabelSep / 2
+    r4LabelY = mid + minLabelSep / 2
+  }
 
   // ── Coordinates ─────────────────────────────────────────────────────────────
   const OX  = leftWidth
@@ -206,7 +220,7 @@ export function SashElevation({ tree, geometry, refOptions, viewMode = 'internal
 
   return (
     <svg
-      viewBox={`0 0 ${VW} ${VH}`}
+      viewBox={`0 ${-topPad} ${VW} ${VH}`}
       width="100%" height="100%"
       preserveAspectRatio="xMidYMid meet"
       style={{ display: 'block' }}
@@ -306,9 +320,9 @@ export function SashElevation({ tree, geometry, refOptions, viewMode = 'internal
       {/* R2: bottom sash height */}
       <VDim x={R2} y1={by}  y2={by + bottomSashHeight}  label={bottomSashHeight} dfs={dfs} tk={tk} />
       {/* R3: F internal height */}
-      <VDim x={R3} y1={OY}  y2={OY + iH}               label={iH}               dfs={dfs} tk={tk} prefix="F " />
+      <VDim x={R3} y1={OY}  y2={OY + iH}               label={iH}               dfs={dfs} tk={tk} prefix="F " labelY={r3LabelY} />
       {/* R4: F frame height */}
-      <VDim x={R4} y1={0}   y2={fH}                    label={fH}               dfs={dfs} tk={tk} prefix="F " />
+      <VDim x={R4} y1={0}   y2={fH}                    label={fH}               dfs={dfs} tk={tk} prefix="F " labelY={r4LabelY} />
 
       {/* ── Bottom dimension lines (3 rows) ─────────────────────────────────── */}
       {/* B1: sash width */}

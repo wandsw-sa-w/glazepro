@@ -61,6 +61,11 @@ const LEAD_TAG_COLOURS = {
 }
 
 const PRIORITY_DOT = { High: '#e24b4a', Medium: '#ef9f27', Low: '#639922' }
+const OTHER = '__other__'
+
+// Sentinel value used in filter arrays to represent leads whose value is not in the reference list
+
+function normStr(v) { return (v ?? '').toString().trim().toLowerCase() }
 
 const WINDOW_TYPES = ['Sash windows', 'Casement windows', 'Timber doors', 'Fixed lights']
 const SECTORS = ['Residential', 'Commercial', 'Heritage', 'Landlord', 'Developer']
@@ -196,32 +201,39 @@ function FilterPanel({ dateLeads, pending, setPending, onApply, onReset }) {
     }).length]))
   }
   function srcCounts() {
-    return Object.fromEntries(SOURCES.map(s => [s, dateLeads.filter(l => l.source === s).length]))
+    return Object.fromEntries(SOURCES.map(s => [s, dateLeads.filter(l => normStr(l.source) === normStr(s)).length]))
   }
   function stsCounts() {
-    return Object.fromEntries(STAGES.map(s => [s, dateLeads.filter(l => l.stage === s).length]))
+    return Object.fromEntries(STAGES.map(s => [s, dateLeads.filter(l => normStr(l.stage) === normStr(s)).length]))
+  }
+  function otherSrcCount() {
+    return dateLeads.filter(l => !SOURCES.some(s => normStr(s) === normStr(l.source))).length
+  }
+  function otherStsCount() {
+    return dateLeads.filter(l => !STAGES.some(s => normStr(s) === normStr(l.stage))).length
   }
 
   const tc = tagCounts(), sc = srcCounts(), stc = stsCounts()
+  const osc = otherSrcCount(), ost = otherStsCount()
 
-  function toggleItem(key, list, setFn) {
+  function toggleItem(key) {
     return item => setPending(p => ({
       ...p,
       [key]: p[key].includes(item) ? p[key].filter(x => x !== item) : [...p[key], item],
     }))
   }
 
-  function CheckCol({ title, items, counts, selected, onToggle }) {
-    const allSelected = items.every(i => selected.includes(i))
+  function CheckCol({ title, filterKey, items, counts, otherCount, selected, onToggle }) {
+    const allItems = otherCount > 0 ? [...items, OTHER] : items
     return (
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 8 }}>
           {title}
         </div>
         <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-          <button onClick={() => setPending(p => ({ ...p, [title.toLowerCase()]: items }))} style={{ fontSize: 11, border: 'none', background: 'none', cursor: 'pointer', color: ACCENT, padding: 0, fontFamily: 'inherit' }}>All</button>
+          <button onClick={() => setPending(p => ({ ...p, [filterKey]: allItems }))} style={{ fontSize: 11, border: 'none', background: 'none', cursor: 'pointer', color: ACCENT, padding: 0, fontFamily: 'inherit' }}>All</button>
           <span style={{ color: '#ddd' }}>|</span>
-          <button onClick={() => setPending(p => ({ ...p, [title.toLowerCase()]: [] }))} style={{ fontSize: 11, border: 'none', background: 'none', cursor: 'pointer', color: '#888', padding: 0, fontFamily: 'inherit' }}>None</button>
+          <button onClick={() => setPending(p => ({ ...p, [filterKey]: [] }))} style={{ fontSize: 11, border: 'none', background: 'none', cursor: 'pointer', color: '#888', padding: 0, fontFamily: 'inherit' }}>None</button>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           {items.map(item => (
@@ -236,6 +248,18 @@ function FilterPanel({ dateLeads, pending, setPending, onApply, onReset }) {
               <span style={{ fontSize: 11, color: '#aaa', minWidth: 20, textAlign: 'right' }}>{counts[item] || 0}</span>
             </label>
           ))}
+          {otherCount > 0 && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer', fontSize: 12, color: '#7a4a08' }}>
+              <input
+                type="checkbox"
+                checked={selected.includes(OTHER)}
+                onChange={() => onToggle(OTHER)}
+                style={{ accentColor: '#ef9f27', cursor: 'pointer', flexShrink: 0 }}
+              />
+              <span style={{ flex: 1 }}>⚠ Other / not in list</span>
+              <span style={{ fontSize: 11, color: '#aaa', minWidth: 20, textAlign: 'right' }}>{otherCount}</span>
+            </label>
+          )}
         </div>
       </div>
     )
@@ -246,24 +270,30 @@ function FilterPanel({ dateLeads, pending, setPending, onApply, onReset }) {
       <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap' }}>
         <CheckCol
           title="Tags"
+          filterKey="tags"
           items={LEAD_TAGS}
           counts={tc}
+          otherCount={0}
           selected={tags}
-          onToggle={toggleItem('tags', tags)}
+          onToggle={toggleItem('tags')}
         />
         <CheckCol
           title="Sources"
+          filterKey="sources"
           items={SOURCES}
           counts={sc}
+          otherCount={osc}
           selected={sources}
-          onToggle={toggleItem('sources', sources)}
+          onToggle={toggleItem('sources')}
         />
         <CheckCol
           title="Statuses"
+          filterKey="statuses"
           items={STAGES}
           counts={stc}
+          otherCount={ost}
           selected={statuses}
-          onToggle={toggleItem('statuses', statuses)}
+          onToggle={toggleItem('statuses')}
         />
       </div>
       <div style={{ display: 'flex', gap: 8, marginTop: 16, paddingTop: 14, borderTop: '1px solid #f0eeea' }}>
@@ -373,10 +403,12 @@ export default function Leads() {
   // Filter panel open/closed (default open)
   const [filterOpen, setFilterOpen] = useState(true)
 
-  // Pending (panel draft) vs applied filter state
+  // Pending (panel draft) vs applied filter state.
+  // Start all-ticked: sources/statuses include OTHER so even unmapped-value leads show.
   const emptyFilters = { tags: [], sources: [], statuses: [] }
-  const [pendingFilters, setPendingFilters] = useState(emptyFilters)
-  const [appliedFilters, setAppliedFilters] = useState(emptyFilters)
+  const allFilters = { tags: [], sources: [...SOURCES, OTHER], statuses: [...STAGES, OTHER] }
+  const [pendingFilters, setPendingFilters] = useState(allFilters)
+  const [appliedFilters, setAppliedFilters] = useState(allFilters)
 
   // Sort
   const [sort, setSort] = useState({ col: 'created_at', dir: 'desc' })
@@ -429,14 +461,35 @@ export default function Leads() {
   const tableLeads = useMemo(() => {
     let result = [...dateFilteredLeads]
     const { tags, sources, statuses } = appliedFilters
+
     if (tags.length > 0) {
       result = result.filter(l => {
         const lt = l.lead_tags ? l.lead_tags.split(',').map(t => t.trim()).filter(Boolean) : []
         return tags.some(tag => lt.includes(tag))
       })
     }
-    if (sources.length > 0) result = result.filter(l => sources.includes(l.source))
-    if (statuses.length > 0) result = result.filter(l => statuses.includes(l.stage))
+
+    // Sources — always filter; normalise comparison; OTHER sentinel matches unmapped values
+    {
+      const knownSelected = sources.filter(s => s !== OTHER)
+      const otherSelected = sources.includes(OTHER)
+      result = result.filter(l => {
+        const isKnown = SOURCES.some(s => normStr(s) === normStr(l.source))
+        if (isKnown) return knownSelected.some(s => normStr(s) === normStr(l.source))
+        return otherSelected
+      })
+    }
+
+    // Statuses — always filter; normalise comparison; OTHER sentinel matches unmapped values
+    {
+      const knownSelected = statuses.filter(s => s !== OTHER)
+      const otherSelected = statuses.includes(OTHER)
+      result = result.filter(l => {
+        const isKnown = STAGES.some(s => normStr(s) === normStr(l.stage))
+        if (isKnown) return knownSelected.some(s => normStr(s) === normStr(l.stage))
+        return otherSelected
+      })
+    }
 
     // Sort
     result.sort((a, b) => {
@@ -632,7 +685,7 @@ export default function Leads() {
                 pending={pendingFilters}
                 setPending={p => { setPendingFilters(p); setPage(0) }}
                 onApply={() => { setAppliedFilters(pendingFilters); setPage(0) }}
-                onReset={() => { setPendingFilters(emptyFilters); setAppliedFilters(emptyFilters); setPage(0) }}
+                onReset={() => { setPendingFilters(allFilters); setAppliedFilters(allFilters); setPage(0) }}
               />
             )}
 
@@ -673,6 +726,7 @@ export default function Leads() {
                     const latestQuote = (lead.quotes || [])
                       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0]
                     const isEven = idx % 2 === 0
+                    const hasUnmapped = !SOURCES.some(s => normStr(s) === normStr(lead.source)) || !STAGES.some(s => normStr(s) === normStr(lead.stage))
                     return (
                       <tr
                         key={lead.id}
@@ -682,7 +736,10 @@ export default function Leads() {
                         onMouseLeave={e => { e.currentTarget.style.background = isEven ? '#fff' : '#faf9f8' }}
                       >
                         <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0', fontWeight: 700, color: ACCENT }}>
-                          {lead.lead_number}
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                            {lead.lead_number}
+                            {hasUnmapped && <span title="Has values not in reference lists" style={{ fontSize: 11, color: '#ef9f27' }}>⚠</span>}
+                          </span>
                         </td>
                         <td style={{ padding: '9px 12px', borderBottom: '1px solid #f5f4f0', fontWeight: 500 }}>
                           {contact ? [contact.title, contact.first_name, contact.last_name].filter(Boolean).join(' ') : '—'}

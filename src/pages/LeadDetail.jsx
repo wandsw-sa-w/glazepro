@@ -794,8 +794,6 @@ export default function LeadDetail() {
           const c = LEAD_TAG_COLOURS[tag] || { bg: '#f0eefc', color: '#3d35a8' }
           return <span key={tag} style={{ fontSize: 11, padding: '2px 9px', borderRadius: 999, fontWeight: 500, background: c.bg, color: c.color }}>{tag}</span>
         })}
-        {lead.listed_building && <span style={{ fontSize: 11, padding: '2px 9px', borderRadius: 999, fontWeight: 500, background: '#faeeda', color: '#7a4a08' }}>Listed</span>}
-        {lead.conservation_area && <span style={{ fontSize: 11, padding: '2px 9px', borderRadius: 999, fontWeight: 500, background: '#fceaea', color: '#8b2020' }}>Conservation area</span>}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
           {saving && <span style={{ fontSize: 12, color: '#aaa' }}>Saving…</span>}
           <button style={{ fontSize: 12, padding: '6px 14px', border: 'none', borderRadius: 8, background: '#3d35a8', color: '#fff', cursor: 'pointer', fontWeight: 600, fontFamily: 'inherit' }}>Convert to quote →</button>
