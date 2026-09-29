@@ -193,7 +193,8 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
       sash_sightline_height_in_mm,
       unit_gb_qty:   0,  // NEEDS-DATA: glazing bars per sash not yet captured
       // Sash weight variables (outer-frame-geometry based)
-      weight_in_kg:            weightData.weight_in_kg,
+      // weight_in_kg rounded to 1 dp before rule evaluation (Integrate behaviour)
+      weight_in_kg:            Math.round(weightData.weight_in_kg * 10) / 10,
       weight_in_lb:            weightData.weight_in_lb,
       weight_incl_panel_in_kg: weightData.weight_incl_panel_in_kg,
       weight_incl_panel_in_lb: weightData.weight_incl_panel_in_lb,
@@ -268,8 +269,9 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
     const barsHigh = v.barsHigh ?? 0
     const unit_gb_qty = barsWide + barsHigh
 
-    // internal_spacer_length: total run of glazing bar material in this unit (metres)
-    const internal_spacer_length = (barsWide * glassHeight + barsHigh * glassWidth) / 1000
+    // internal_spacer_length: total run of glazing bar material in this unit (metres).
+    // Ceiled to 0.1 m precision to match Integrate's behaviour (ceil(mm/100)/10).
+    const internal_spacer_length = Math.ceil((barsWide * glassHeight + barsHigh * glassWidth) / 100) / 10
 
     // Glass costs — look up from parts catalogue using part codes; fall back to fixture values
     const innerEntry  = glassCatalogue[v.internalGlassPartNo] ?? null

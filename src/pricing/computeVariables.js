@@ -255,6 +255,9 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
     const is_cill_colour_match_gloss     = cillFinish === 'colour_match_gloss'
     const is_cill_custom                 = cillFinish === 'custom'
 
+    // ironmongery_finish: metal finish code for ironmongery selection (default PB)
+    const ironmongery_finish = paintNode?.values?.ironmongeryFinish ?? 'PB'
+
     const is_painted         = internalFinish !== 'clean_white' || externalFinish !== 'clean_white'
     const is_colour_match    = is_internal_colour_match_satin || is_internal_colour_match_gloss ||
                                is_external_colour_match_satin || is_external_colour_match_gloss
@@ -538,6 +541,7 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
       is_painted, is_colour_match,
       is_same_finish_internally_and_externally,
       is_standard_finish_internally_and_externally,
+      ironmongery_finish,
 
       // Group 10 — Glazing
       is_double_glazed, is_single_glazed, is_triple_glazed,

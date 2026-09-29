@@ -10,9 +10,10 @@
  *   Top sash:    19.4 kg  (±0.3 kg)
  *   Bottom sash: 20.4 kg  (±0.3 kg)
  *
- * Achieved:  top 19.69 kg (+0.29), bottom 20.53 kg (+0.13) — both within tolerance.
+ * Achieved:  top 19.42 kg, bottom 20.26 kg — both within ±0.3 kg tolerance.
  *
  * Physical constants tuned to match those targets:
+ *   profiledCill uses cv.height (full cill height 70 mm, not profiledHeight 45 mm)
  *   GLAZING_REBATE_MM = 0   (sight size only; no rebate contribution to glass area)
  *   BAR_WIDTH_MM = 20, BAR_THICKNESS_MM = 10  (standard glazing bar section)
  *   Horn 'victorian' = 50 mm
@@ -106,7 +107,7 @@ export function computeSashWeight(sashNode, tree, glassCatalogue = {}) {
   const rightOuterJamb  = fv.rightOuterJamb ?? leftOuterJamb
 
   const profiledHead    = fv.topHeight  ?? 0         // outer head height (profiled section)
-  const profiledCill    = cv.profiledHeight ?? cv.height ?? 0   // cill height excl. frame stop
+  const profiledCill    = cv.height ?? cv.profiledHeight ?? 0   // full cill height (Integrate uses total cill height for sightline calc)
 
   const midrailHeight   = pv.midrailHeight  ?? 40
   const sashThickness   = pv.sashThickness  ?? 45

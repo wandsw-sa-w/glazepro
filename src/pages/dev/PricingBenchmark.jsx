@@ -79,10 +79,11 @@ const FIXTURE_TREE = {
       key: 'paint1',
       part_type: 'paintAndIronmongeryPart',
       values: {
-        internalFinish: 'clean_white',
-        externalFinish: 'clean_white',
-        cillFinish:     'clean_white',
+        internalFinish:    'clean_white',
+        externalFinish:    'clean_white',
+        cillFinish:        'clean_white',
         cutOutBrickReveal: false,
+        ironmongeryFinish: 'ABs',  // Antique Brass — selects HKKS1075AB claw fastener
       },
       children: [],
     },
@@ -148,8 +149,8 @@ const FIXTURE_TREE = {
               part_type: 'topSashPart',
               values: {
                 topHeight:    49,
-                leftWidth:    47,
-                rightWidth:   47,
+                leftWidth:    50.75,  // gross stile incl. sash lip (47 + 3.75 mm lip)
+                rightWidth:   50.75,
                 operation:    'cord_hung',
                 toBeReplaced: null,
                 archHead:     false,
@@ -178,8 +179,8 @@ const FIXTURE_TREE = {
               part_type: 'bottomSashPart',
               values: {
                 bottomHeight: 88,
-                leftWidth:    47,
-                rightWidth:   47,
+                leftWidth:    50.75,  // gross stile incl. sash lip (47 + 3.75 mm lip)
+                rightWidth:   50.75,
                 operation:    'cord_hung',
                 toBeReplaced: null,
                 archHead:     false,

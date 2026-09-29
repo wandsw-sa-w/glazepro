@@ -206,9 +206,17 @@ export function defaultIronmonger(tree, variables, rules, glassCatalogue = {}) {
         continue
       }
 
+      // Override the rule's default finish with the item's ironmongery_finish unless
+      // the rule's finish is a fixed non-metal code (e.g. 'Wht' for trickle vents).
+      const FIXED_FINISHES = ['Wht', 'PN']
+      const itemFinish = baseVars.ironmongery_finish
+      const finish_code = (itemFinish && !FIXED_FINISHES.includes(rule.finish_code))
+        ? itemFinish
+        : rule.finish_code
+
       lines.push({
         product_short_name: rule.product_short_name,
-        finish_code:        rule.finish_code,
+        finish_code,
         qty,
         rule_id:       rule.id   ?? null,
         scope_part_id: partNode?.key ?? null,

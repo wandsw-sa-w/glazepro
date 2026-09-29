@@ -133,15 +133,15 @@ describe('computeSashWeight — geometry fields', () => {
 
   it('top sash gross_sash_height_in_mm includes victorian horn (50 mm)', () => {
     const r = computeSashWeight(TOP_NODE, FIXTURE_TREE, GLASS_CATALOGUE)
-    // sightlineHeight = (1775 - 79 - 45 - 40) / 2 = 805.5
-    // top = 805.5 + 49 + 40 + 50 = 944.5
-    expect(r.gross_sash_height_in_mm).toBeCloseTo(944.5, 1)
+    // sightlineHeight = (1775 - 79 - 70 - 40) / 2 = 793  (profiledCill = cv.height = 70)
+    // top = 793 + 49 + 40 + 50 = 932
+    expect(r.gross_sash_height_in_mm).toBeCloseTo(932, 1)
   })
 
   it('bottom sash gross_sash_height_in_mm has no horn', () => {
     const r = computeSashWeight(BOT_NODE, FIXTURE_TREE, GLASS_CATALOGUE)
-    // 805.5 + 88 + 40 + 0 = 933.5
-    expect(r.gross_sash_height_in_mm).toBeCloseTo(933.5, 1)
+    // 793 + 88 + 40 + 0 = 921
+    expect(r.gross_sash_height_in_mm).toBeCloseTo(921, 1)
   })
 
   it('sash_thickness comes from sashPairPart.values.sashThickness', () => {
