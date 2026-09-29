@@ -147,9 +147,9 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
           for (const v of (vars || [])) totalMinutes += Number(v.variables?.total_install_minutes) || 0
           setInstallHours(totalMinutes / 60)
 
-          const { data: ruleResults } = await supabase.from('drawing_rule_results').select('pricing_run_id, drawing_id, total_cost').in('pricing_run_id', runIds)
+          const { data: ruleResults } = await supabase.from('drawing_rule_results').select('pricing_run_id, drawing_id, cost').in('pricing_run_id', runIds)
           const costMap = {}
-          for (const r of (ruleResults || [])) costMap[r.drawing_id] = (costMap[r.drawing_id] || 0) + (Number(r.total_cost) || 0)
+          for (const r of (ruleResults || [])) costMap[r.drawing_id] = (costMap[r.drawing_id] || 0) + (Number(r.cost) || 0)
           setCostByDrawing(costMap)
         }
 
@@ -468,49 +468,49 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
         </div>
       </div>
 
+      {/* ── Financial Schedule — visible always; Cost column hidden in On-Site Mode ── */}
+      <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 10, marginBottom: 16, padding: 16 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Financial Schedule</div>
+        <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse', marginBottom: 14 }}>
+          <thead>
+            <tr style={{ color: '#888', textAlign: 'left' }}>
+              <th style={{ padding: '6px 8px' }}>Item</th>
+              <th style={{ padding: '6px 8px' }}>Location</th>
+              {!onSiteMode && <th style={{ padding: '6px 8px', textAlign: 'right' }}>Cost</th>}
+              <th style={{ padding: '6px 8px', textAlign: 'right' }}>Net Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {jobItems.filter(i => selections[i.id]).map((item, idx) => {
+              const itemTotals = totals?.items?.[idx]
+              return (
+                <tr key={item.id} style={{ borderTop: '1px solid #f0eeea' }}>
+                  <td style={{ padding: '6px 8px' }}>Item {item.item_number}</td>
+                  <td style={{ padding: '6px 8px', color: '#888' }}>{[item.floor_level, item.elevation, item.room_name].filter(Boolean).join(' · ') || '—'}</td>
+                  {!onSiteMode && <td style={{ padding: '6px 8px', textAlign: 'right', color: '#888' }}>{fmt(costByDrawing[selections[item.id]] ?? null)}</td>}
+                  <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 600 }}>{itemTotals?.poa ? 'POA' : fmt(itemTotals?.netAfterQuoteDiscount)}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+        {totals ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxWidth: 340, marginLeft: 'auto', fontSize: 12 }}>
+            <Row label="Sub Total Before Discount" value={fmt(totals.subtotalBeforeDiscount)} />
+            {quote.discount_pct > 0 && <Row label={`${quote.discount_pct}% Discount`} value={`−${fmt(totals.discountAmount)}`} dim />}
+            <Row label="Sub Total After Discount" value={fmt(totals.subtotalAfterDiscount)} />
+            {Object.entries(totals.vatByRate || {}).map(([rate, amt]) => <Row key={rate} label={`VAT @ ${rate}%`} value={fmt(amt)} dim />)}
+            {!onSiteMode && <Row label="TOTAL (cost)" value={fmt(totalCost)} dim />}
+            <Row label="Total Order Value incl. VAT" value={fmt(totals.totalInclVat)} bold />
+            <Row label="Deposit With Order" value={fmt(totals.stages?.deposit)} dim />
+            <Row label="Interim" value={fmt(totals.stages?.interim)} dim />
+            <Row label="Balance on Completion" value={fmt(totals.stages?.balance)} dim />
+          </div>
+        ) : <div style={{ color: '#aaa', fontSize: 12 }}>No priced items yet</div>}
+      </div>
+
       {!onSiteMode && (
         <>
-          {/* ── Financial Schedule ── */}
-          <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 10, marginBottom: 16, padding: 16 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Financial Schedule</div>
-            <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse', marginBottom: 14 }}>
-              <thead>
-                <tr style={{ color: '#888', textAlign: 'left' }}>
-                  <th style={{ padding: '6px 8px' }}>Item</th>
-                  <th style={{ padding: '6px 8px' }}>Location</th>
-                  <th style={{ padding: '6px 8px', textAlign: 'right' }}>Cost</th>
-                  <th style={{ padding: '6px 8px', textAlign: 'right' }}>Net Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {jobItems.filter(i => selections[i.id]).map((item, idx) => {
-                  const itemTotals = totals?.items?.[idx]
-                  return (
-                    <tr key={item.id} style={{ borderTop: '1px solid #f0eeea' }}>
-                      <td style={{ padding: '6px 8px' }}>Item {item.item_number}</td>
-                      <td style={{ padding: '6px 8px', color: '#888' }}>{[item.floor_level, item.elevation, item.room_name].filter(Boolean).join(' · ') || '—'}</td>
-                      <td style={{ padding: '6px 8px', textAlign: 'right', color: '#888' }}>{fmt(costByDrawing[selections[item.id]] ?? null)}</td>
-                      <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 600 }}>{itemTotals?.poa ? 'POA' : fmt(itemTotals?.netAfterQuoteDiscount)}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-            {totals ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxWidth: 340, marginLeft: 'auto', fontSize: 12 }}>
-                <Row label="Sub Total Before Discount" value={fmt(totals.subtotalBeforeDiscount)} />
-                {quote.discount_pct > 0 && <Row label={`${quote.discount_pct}% Discount`} value={`−${fmt(totals.discountAmount)}`} dim />}
-                <Row label="Sub Total After Discount" value={fmt(totals.subtotalAfterDiscount)} />
-                {Object.entries(totals.vatByRate || {}).map(([rate, amt]) => <Row key={rate} label={`VAT @ ${rate}%`} value={fmt(amt)} dim />)}
-                <Row label="TOTAL (cost)" value={fmt(totalCost)} dim />
-                <Row label="Total Order Value incl. VAT" value={fmt(totals.totalInclVat)} bold />
-                <Row label="Deposit With Order" value={fmt(totals.stages?.deposit)} dim />
-                <Row label="Interim" value={fmt(totals.stages?.interim)} dim />
-                <Row label="Balance on Completion" value={fmt(totals.stages?.balance)} dim />
-              </div>
-            ) : <div style={{ color: '#aaa', fontSize: 12 }}>No priced items yet</div>}
-          </div>
-
           {/* ── Quote Details + Payment box ── */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
             <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 10, padding: 16 }}>
