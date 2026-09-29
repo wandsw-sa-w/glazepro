@@ -31,6 +31,37 @@ function positiveOrNull(v) {
   return n
 }
 
+// Given a frame's mullion children (unsorted) and the frame's interior width,
+// return an array of { x, width } for each opening, left to right.
+// This is the single source for opening layout — renderElevation.jsx and
+// computeDerived.js (bar positions) both call this so an opening's on-screen
+// width and its glazing-bar spacing can never drift apart.
+export function computeOpeningLayout(mullions, iW) {
+  function offsetOrZero(m) {
+    const x = Number(m?.values?.offset)
+    return isFinite(x) && x > 0 ? x : 0
+  }
+  const sorted = [...(mullions ?? [])].sort((a, b) => offsetOrZero(a) - offsetOrZero(b))
+  const edges  = [0, ...sorted.map(offsetOrZero), safe(iW) ?? 0]
+  const result = []
+  for (let i = 0; i < edges.length - 1; i++) {
+    result.push({ x: edges[i], width: edges[i + 1] - edges[i] })
+  }
+  return result
+}
+
+// Glass sightline width for a sash of the given width, minus its stile width
+// on each side. Mirrors renderElevation.jsx's glW calculation exactly
+// (stileWidth falls back to 47mm when absent, zero, or negative — same rule
+// renderElevation.jsx's `n()` helper applies).
+export function computeGlassWidth(sashWidth, stileWidth) {
+  const sw = safe(sashWidth)
+  if (sw == null) return null
+  const stRaw = Number(stileWidth)
+  const st = isFinite(stRaw) && stRaw > 0 ? stRaw : 47
+  return Math.max(sw - 2 * st, 0)
+}
+
 export function computeSashGeometry(tree, derived) {
   derived = derived ?? {}
 

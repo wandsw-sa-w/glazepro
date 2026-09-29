@@ -12,6 +12,7 @@
 // All coordinates are in mm (the SVG coordinate space).
 
 import React from 'react'
+import { computeOpeningLayout, computeGlassWidth } from './sashGeometry.js'
 
 // ── Tree helpers ──────────────────────────────────────────────────────────────
 
@@ -114,20 +115,6 @@ const C = {
   selected:     '#dc2626',
   label:        '#1a1a1a',
   opening:      '#eef4f8',
-}
-
-// ── Opening layout ────────────────────────────────────────────────────────────
-
-// Given a list of mullions (sorted by offset) and the total interior width,
-// return array of { x, width } for each opening (left-to-right).
-function openingLayout(mullions, iW) {
-  const sorted = [...mullions].sort((a, b) => (a.values?.offset ?? 0) - (b.values?.offset ?? 0))
-  const edges  = [0, ...sorted.map(m => n(m.values?.offset ?? 0, 0)), iW]
-  const result = []
-  for (let i = 0; i < edges.length - 1; i++) {
-    result.push({ x: edges[i], width: edges[i + 1] - edges[i] })
-  }
-  return result
 }
 
 // ── Glazing bars ──────────────────────────────────────────────────────────────
@@ -259,7 +246,7 @@ export function SashElevation({
   const topRail   = n(topSash?.values?.topHeight,    49)
   const botRail   = n(botSash?.values?.bottomHeight, 88)
   const stileW    = n(topSash?.values?.stileWidth,   47)
-  const glW       = Math.max(sashWidth - 2 * stileW, 0)
+  const glW       = computeGlassWidth(sashWidth, stileW) ?? 0
 
   // ── SVG sizing ──────────────────────────────────────────────────────────────
   const dfs    = Math.max(Math.min(fW * 0.06, fH * 0.02), 10)
@@ -289,7 +276,7 @@ export function SashElevation({
   }
 
   // ── Opening layout (for single-opening this is just [{x:0, width:iW}]) ──────
-  const openings = openingLayout(frameMullions, iW)
+  const openings = computeOpeningLayout(frameMullions, iW)
 
   // ── Mirror (external view flips horizontally) ───────────────────────────────
   const mir = viewMode === 'external'
@@ -579,7 +566,7 @@ export function SashElevation({
           const tR  = n(tSash?.values?.topHeight,    49)
           const bR  = n(bSash?.values?.bottomHeight, 88)
           const st  = n(tSash?.values?.stileWidth,   47)
-          const gW  = Math.max(sW - 2 * st, 0)
+          const gW  = computeGlassWidth(sW, st) ?? 0
           const tGH = pairIdx === 0 ? topGlassHeight    : Math.max(topSashHeight    - tR - M, 0)
           const bGH = pairIdx === 0 ? bottomGlassHeight : Math.max(bottomSashHeight - M  - bR, 0)
 

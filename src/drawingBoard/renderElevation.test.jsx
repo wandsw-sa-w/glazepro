@@ -6,6 +6,8 @@ import { describe, it, expect } from 'vitest'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { SashElevation } from './renderElevation.jsx'
+import { computeDerived } from './computeDerived.js'
+import { computeSashGeometry } from './sashGeometry.js'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -293,6 +295,73 @@ describe('SashElevation — glazing bars', () => {
     // Glazing bars are rendered as <rect> elements — just verify no crash + no NaN
     expect(html).toContain('<svg')
     expect(html).not.toContain('NaN')
+  })
+
+})
+
+// ── Tests — Step J fixes #2: bars evenly spaced on the true glass sightline ───
+// Full end-to-end path: tree -> computeDerived -> computeSashGeometry -> SashElevation,
+// exactly as DrawingBoard.jsx wires it up. Box sash 1100x1600, jambs 79/79, stile 47
+// -> glassW = 848mm (942 sashWidth - 2*47), NOT ~1006mm (the old frame-width approximation).
+
+function makeRealBoxSashWithBars(vCount) {
+  return {
+    key: 'item1', part_type: 'drawingItemPart', values: {}, children: [{
+      key: 'frame1', part_type: 'assemblyFramePart',
+      values: { width: 1100, height: 1600, leftWidth: 79, rightWidth: 79, topHeight: 79 },
+      children: [
+        { key: 'cill1', part_type: 'cillPart', values: { height: 70 }, children: [] },
+        {
+          key: 'pair1', part_type: 'sashPairPart', values: {}, children: [
+            {
+              key: 'top1', part_type: 'topSashPart', values: { topHeight: 49, stileWidth: 47 }, children: [
+                {
+                  key: 'tglass1', part_type: 'glassPart', values: {}, children: Array.from({ length: vCount }, (_, i) => ({
+                    key: `vbar${i}`, part_type: 'verticalGlazingBarPart', values: {}, children: [],
+                  })),
+                },
+              ],
+            },
+            { key: 'bot1', part_type: 'bottomSashPart', values: { bottomHeight: 88 }, children: [] },
+          ],
+        },
+      ],
+    }],
+  }
+}
+
+// Extract x= attributes of rendered bar rects (fill #c8a870), in document order.
+function extractBarX(html) {
+  const matches = [...html.matchAll(/<rect x="([\d.]+)"[^>]*fill="#c8a870"/g)]
+  return matches.map(m => parseFloat(m[1]))
+}
+
+describe('SashElevation — glazing bars use the true glass sightline (Step J fixes #2)', () => {
+
+  it('2 bars on a real box sash render with equal pane widths, not the old frame-width approximation', () => {
+    const tree     = makeRealBoxSashWithBars(2)
+    const derived  = computeDerived(tree)
+    const geometry = computeSashGeometry(tree, derived)
+    const html     = render({ tree, derived, geometry, refOptions: {} })
+
+    const xs = extractBarX(html)
+    expect(xs).toHaveLength(2)
+
+    const thickness = 8 // GlazingBars' visual bar thickness
+    const stile = 47
+    const glassX0 = 79 + stile // OX (leftWidth) + stile
+    const glassW  = 848
+
+    const centres = xs.map(x => x + thickness / 2 - glassX0)
+    const gap0 = centres[0] - 0
+    const gap1 = centres[1] - centres[0]
+    const gap2 = glassW - centres[1]
+
+    expect(Math.abs(gap0 - gap1)).toBeLessThan(0.5)
+    expect(Math.abs(gap1 - gap2)).toBeLessThan(0.5)
+    // Sanity check against the previously-reported bug: the old ~1006mm
+    // frame-width approximation would have put the second bar past 670mm.
+    expect(centres[1]).toBeLessThan(600)
   })
 
 })

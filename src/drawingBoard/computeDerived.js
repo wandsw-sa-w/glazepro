@@ -19,7 +19,7 @@
 //   sashPairPart.sashWidth/topSashHeight/bottomSashHeight (from computeSashGeometry)
 //   topSashPart.sashHeight / bottomSashPart.sashHeight    (from computeSashGeometry)
 
-import { computeSashGeometry } from './sashGeometry.js'
+import { computeSashGeometry, computeOpeningLayout, computeGlassWidth } from './sashGeometry.js'
 
 // Safely convert to number; null/undefined/NaN → null
 function num(v) {
@@ -222,34 +222,62 @@ export function computeDerived(tree) {
       const ag = archGeometry(gw, h, pH)
       if (ag) entry(g.key).archRadius = ag.archRadius
     }
+  }
 
-    // Bar positions: for each child glazing bar with offset === 0,
-    // assign evenly-spaced positions once we know the glass sightline dimensions.
-    // (Full geometry is not always available here; these are best-effort positions
-    //  that the SVG renderer can override with precise computed dimensions.)
-    const vBars = (g.children ?? []).filter(c => c.part_type === 'verticalGlazingBarPart')
-    const hBars = (g.children ?? []).filter(c => c.part_type === 'horizontalGlazingBarPart')
+  // Glazing bar positions — computed on the same glass sightline rectangle
+  // renderElevation.jsx actually draws, per sash pair, so a bar's derived
+  // position always agrees with what's on screen. Previously this used
+  // frame.width as a stand-in for glass width, which skips the frame's jamb
+  // widths, mechanical clearances and sash stile widths (~180mm too wide on
+  // a typical box sash) and horizontal bars used the whole top sash height
+  // instead of the glass opening within it.
+  {
+    const framePairs     = findAll(tree, 'sashPairPart')
+    const frameMullions  = (frame?.children ?? []).filter(c => c.part_type === 'mullionPart')
+    const barsInteriorW  = sub(frame?.values?.width, frame?.values?.leftWidth ?? 0, frame?.values?.rightWidth ?? 0)
+    const openings       = computeOpeningLayout(frameMullions, barsInteriorW ?? 0)
 
-    if (vBars.length > 0) {
-      const fv  = frame?.values ?? {}
-      const stile = num((findFirst(tree, 'topSashPart') ?? findFirst(tree, 'bottomSashPart'))?.values?.leftWidth) ?? 47
-      const glassW = num(fv.width) != null ? num(fv.width) - 2 * stile : null
-      const autoPos = vBars.every(b => !(b.values?.offset > 0))
-      if (autoPos && glassW != null) {
-        const positions = evenBarPositions(glassW, vBars.length)
-        vBars.forEach((b, i) => { entry(b.key).position = positions[i] ?? null })
-      }
+    function sashWidthForPairIndex(idx) {
+      if (idx === 0) return geo?.sashWidth ?? null
+      return openings[idx]?.width ?? null
     }
 
-    if (hBars.length > 0) {
-      const pairDer  = out[pair?.key] ?? {}
-      const glassH   = (pairDer.topSashHeight ?? null)  // use top sash height as glass height approximation
-      const autoPos  = hBars.every(b => !(b.values?.offset > 0))
-      if (autoPos && glassH != null) {
-        const positions = evenBarPositions(glassH, hBars.length)
-        hBars.forEach((b, i) => { entry(b.key).position = positions[i] ?? null })
+    framePairs.forEach((p, pairIdx) => {
+      const tSashOfPair = findFirst(p, 'topSashPart')
+      const stileW      = num(tSashOfPair?.values?.stileWidth)
+      const sashW       = sashWidthForPairIndex(pairIdx)
+      const glassW      = sashW != null ? computeGlassWidth(sashW, stileW) : null
+
+      const sashesOfPair = [
+        [findFirst(p, 'topSashPart'),    geo?.topGlassHeight    ?? null],
+        [findFirst(p, 'bottomSashPart'), geo?.bottomGlassHeight ?? null],
+      ]
+
+      for (const [sash, glassH] of sashesOfPair) {
+        if (!sash) continue
+        const glass = (sash.children ?? []).find(c => c.part_type === 'glassPart')
+        if (!glass) continue
+
+        const vBars = (glass.children ?? []).filter(c => c.part_type === 'verticalGlazingBarPart')
+        const hBars = (glass.children ?? []).filter(c => c.part_type === 'horizontalGlazingBarPart')
+
+        if (vBars.length > 0 && glassW != null) {
+          const autoPos = vBars.every(b => !(b.values?.offset > 0))
+          if (autoPos) {
+            const positions = evenBarPositions(glassW, vBars.length)
+            vBars.forEach((b, i) => { entry(b.key).position = positions[i] ?? null })
+          }
+        }
+
+        if (hBars.length > 0 && glassH != null) {
+          const autoPos = hBars.every(b => !(b.values?.offset > 0))
+          if (autoPos) {
+            const positions = evenBarPositions(glassH, hBars.length)
+            hBars.forEach((b, i) => { entry(b.key).position = positions[i] ?? null })
+          }
+        }
       }
-    }
+    })
   }
 
   return out

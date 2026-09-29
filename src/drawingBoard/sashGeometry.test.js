@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeSashGeometry } from './sashGeometry.js'
+import { computeSashGeometry, computeOpeningLayout, computeGlassWidth } from './sashGeometry.js'
 
 // ── Test helpers ──────────────────────────────────────────────────────────────
 
@@ -165,4 +165,61 @@ describe('computeSashGeometry', () => {
     }
   })
 
+})
+
+
+// ── computeOpeningLayout — Step J fixes #2/#4 ─────────────────────────────────
+
+describe('computeOpeningLayout', () => {
+  it('no mullions -> a single opening spanning the full interior width', () => {
+    expect(computeOpeningLayout([], 842)).toEqual([{ x: 0, width: 842 }])
+  })
+
+  it('one mullion -> two openings split at the mullion offset', () => {
+    const mullions = [{ values: { offset: 421 } }]
+    expect(computeOpeningLayout(mullions, 842)).toEqual([
+      { x: 0, width: 421 },
+      { x: 421, width: 421 },
+    ])
+  })
+
+  it('two mullions, unsorted input -> three openings sorted left to right', () => {
+    const mullions = [{ values: { offset: 600 } }, { values: { offset: 300 } }]
+    expect(computeOpeningLayout(mullions, 900)).toEqual([
+      { x: 0, width: 300 },
+      { x: 300, width: 300 },
+      { x: 600, width: 300 },
+    ])
+  })
+
+  it('treats a non-positive or missing offset as 0 rather than crashing', () => {
+    const mullions = [{ values: {} }, { values: { offset: -5 } }]
+    expect(() => computeOpeningLayout(mullions, 500)).not.toThrow()
+  })
+})
+
+
+// ── computeGlassWidth — Step J fixes #2 ───────────────────────────────────────
+
+describe('computeGlassWidth', () => {
+  it('subtracts the stile width from each side', () => {
+    expect(computeGlassWidth(942, 47)).toBe(942 - 2 * 47)
+  })
+
+  it('falls back to 47mm stile when stileWidth is absent', () => {
+    expect(computeGlassWidth(942, undefined)).toBe(942 - 2 * 47)
+  })
+
+  it('falls back to 47mm stile when stileWidth is zero or negative', () => {
+    expect(computeGlassWidth(942, 0)).toBe(942 - 2 * 47)
+    expect(computeGlassWidth(942, -10)).toBe(942 - 2 * 47)
+  })
+
+  it('never goes negative', () => {
+    expect(computeGlassWidth(50, 47)).toBe(0)
+  })
+
+  it('returns null when sashWidth is missing', () => {
+    expect(computeGlassWidth(null, 47)).toBeNull()
+  })
 })
