@@ -29,6 +29,10 @@ const PART_LABELS = {
   glassPart:               'Glazing',
   containerPart:           'Container',
   visionPanelGlassPart:    'Vision Panel Glazing',
+  mullionPart:             'Mullion',
+  transomPart:             'Transom',
+  verticalGlazingBarPart:  'Vertical GB',
+  horizontalGlazingBarPart:'Horizontal GB',
 }
 
 const OPERATION_FIELDS = new Set([

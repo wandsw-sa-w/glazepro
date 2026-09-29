@@ -56,8 +56,8 @@ export function computeSashGeometry(tree, derived) {
   // Meeting rail height (default 40)
   const M = safe(pv.midrailHeight) ?? 40
 
-  // Sash split mode (default 'half_half')
-  const sashSplit = pv.sashSplit ?? 'half_half'
+  // Sash split mode (default 'half_half') — accept both Integrate name (sashSplitId) and legacy name
+  const sashSplit = pv.sashSplitId ?? pv.sashSplit ?? 'half_half'
 
   // Fixed sash height (only relevant for set_top / set_bottom)
   const fixedSashHeight = safe(pv.fixedSashHeight)   // null if not set
