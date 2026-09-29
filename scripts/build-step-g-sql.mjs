@@ -605,7 +605,7 @@ CREATE INDEX IF NOT EXISTS ironmongery_variant_parts_variant_id_idx
 -- STEP 4: Seed reference_options for ironmongery_finish
 -- ---------------------------------------------------------------------------
 
-INSERT INTO reference_options (category_code, code, label, sort_order, is_active)
+INSERT INTO reference_options (category, code, label, sort_order, is_active)
 VALUES
   ('ironmongery_finish', 'PB',  'Polished Brass',          10,  true),
   ('ironmongery_finish', 'PC',  'Polished Chrome',          20,  true),
@@ -621,7 +621,7 @@ VALUES
   ('ironmongery_finish', 'SB',  'Satin Brass',              120, true),
   ('ironmongery_finish', 'TB',  'Tudor/Tarnished Brass',    130, true),
   ('ironmongery_finish', 'Br',  'Bronze',                   140, true)
-ON CONFLICT (category_code, code) DO NOTHING;
+ON CONFLICT (category, code) DO NOTHING;
 
 -- ---------------------------------------------------------------------------
 -- STEP 5: Match existing ironmongery_products rows to Integrate short_names
