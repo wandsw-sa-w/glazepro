@@ -621,7 +621,7 @@ VALUES
   ('ironmongery_finish', 'SB',  'Satin Brass',              120, true),
   ('ironmongery_finish', 'TB',  'Tudor/Tarnished Brass',    130, true),
   ('ironmongery_finish', 'Br',  'Bronze',                   140, true)
-ON CONFLICT (category, code) DO NOTHING;
+ON CONFLICT DO NOTHING;
 
 -- ---------------------------------------------------------------------------
 -- STEP 5: Match existing ironmongery_products rows to Integrate short_names
