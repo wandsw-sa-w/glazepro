@@ -658,6 +658,177 @@ function Summary({ tree, fieldDefs, derived, refOptions, onSelectKey, drawingMet
   )
 }
 
+// ── GridPickerDialog ──────────────────────────────────────────────────────────
+// A 1-15 × 1-15 cell grid where the user hovers/clicks to choose N columns × M rows.
+// For mullion/transom: N cols × M rows → (N-1) vertical dividers + (M-1) horizontal dividers.
+// For glazing bars: the same, but children of a glassPart.
+
+function GridPickerDialog({ title, applyLabel = 'Apply', onApply, onClose, maxCols = 15, maxRows = 15, initialCols = 1, initialRows = 1 }) {
+  const [hover, setHover] = useState({ cols: initialCols, rows: initialRows })
+
+  const cellSize = 22
+  const gap      = 2
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      onClick={onClose}>
+      <div style={{ background: '#fff', border: '1px solid #d8d5cf', borderRadius: 10, padding: 20, boxShadow: '0 8px 32px rgba(0,0,0,.18)', minWidth: 340 }}
+        onClick={e => e.stopPropagation()}>
+        <div style={{ fontWeight: 700, fontSize: 14, color: '#1a1a1a', marginBottom: 12 }}>{title}</div>
+
+        {/* Grid */}
+        <div style={{ display: 'inline-grid', gap, gridTemplateColumns: `repeat(${maxCols}, ${cellSize}px)`, cursor: 'pointer', userSelect: 'none', marginBottom: 10 }}>
+          {Array.from({ length: maxRows }, (_, r) =>
+            Array.from({ length: maxCols }, (_, c) => {
+              const col = c + 1, row = r + 1
+              const active = col <= hover.cols && row <= hover.rows
+              return (
+                <div
+                  key={`${r}-${c}`}
+                  style={{ width: cellSize, height: cellSize, borderRadius: 3, background: active ? '#3d35a8' : '#e8e6e0', transition: 'background .08s' }}
+                  onMouseEnter={() => setHover({ cols: col, rows: row })}
+                  onClick={() => onApply(hover.cols, hover.rows)}
+                />
+              )
+            })
+          )}
+        </div>
+
+        <div style={{ fontSize: 12, color: '#555', marginBottom: 12 }}>
+          {hover.cols} × {hover.rows} — {hover.cols - 1} mullion{hover.cols - 1 !== 1 ? 's' : ''} + {hover.rows - 1} transom{hover.rows - 1 !== 1 ? 's' : ''}
+        </div>
+
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={() => onApply(hover.cols, hover.rows)}
+            style={{ flex: 1, fontSize: 12, padding: '6px 0', border: 'none', borderRadius: 7, background: '#3d35a8', color: '#fff', cursor: 'pointer', fontWeight: 600, fontFamily: 'inherit' }}
+          >{applyLabel}</button>
+          <button
+            onClick={onClose}
+            style={{ flex: 1, fontSize: 12, padding: '6px 0', border: '1px solid #d8d5cf', borderRadius: 7, background: '#fff', color: '#555', cursor: 'pointer', fontFamily: 'inherit' }}
+          >Cancel</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function BarGridPickerDialog({ title, onApply, onClose }) {
+  const [hover, setHover] = useState({ cols: 1, rows: 1 })
+  const maxCols = 15, maxRows = 15
+  const cellSize = 22, gap = 2
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      onClick={onClose}>
+      <div style={{ background: '#fff', border: '1px solid #d8d5cf', borderRadius: 10, padding: 20, boxShadow: '0 8px 32px rgba(0,0,0,.18)', minWidth: 340 }}
+        onClick={e => e.stopPropagation()}>
+        <div style={{ fontWeight: 700, fontSize: 14, color: '#1a1a1a', marginBottom: 12 }}>{title}</div>
+
+        <div style={{ display: 'inline-grid', gap, gridTemplateColumns: `repeat(${maxCols}, ${cellSize}px)`, cursor: 'pointer', userSelect: 'none', marginBottom: 10 }}>
+          {Array.from({ length: maxRows }, (_, r) =>
+            Array.from({ length: maxCols }, (_, c) => {
+              const col = c + 1, row = r + 1
+              const active = col <= hover.cols && row <= hover.rows
+              return (
+                <div
+                  key={`${r}-${c}`}
+                  style={{ width: cellSize, height: cellSize, borderRadius: 3, background: active ? '#0369a1' : '#e8e6e0', transition: 'background .08s' }}
+                  onMouseEnter={() => setHover({ cols: col, rows: row })}
+                  onClick={() => onApply(hover.cols, hover.rows)}
+                />
+              )
+            })
+          )}
+        </div>
+
+        <div style={{ fontSize: 12, color: '#555', marginBottom: 12 }}>
+          {hover.cols} × {hover.rows} — {hover.cols - 1} vertical bar{hover.cols - 1 !== 1 ? 's' : ''} + {hover.rows - 1} horizontal bar{hover.rows - 1 !== 1 ? 's' : ''}
+        </div>
+
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={() => onApply(hover.cols, hover.rows)}
+            style={{ flex: 1, fontSize: 12, padding: '6px 0', border: 'none', borderRadius: 7, background: '#0369a1', color: '#fff', cursor: 'pointer', fontWeight: 600, fontFamily: 'inherit' }}
+          >Apply</button>
+          <button
+            onClick={onClose}
+            style={{ flex: 1, fontSize: 12, padding: '6px 0', border: '1px solid #d8d5cf', borderRadius: 7, background: '#fff', color: '#555', cursor: 'pointer', fontFamily: 'inherit' }}
+          >Cancel</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Tree manipulation for dividers / bars ─────────────────────────────────────
+
+function makeKey(prefix) {
+  return prefix + '_' + Math.random().toString(36).slice(2, 9)
+}
+
+// Replace all mullionPart/transomPart children of frameNode with new ones.
+// cols × rows → (cols-1) mullions + (rows-1) transoms, evenly spaced.
+function applyDividers(tree, frameKey, cols, rows, iW, iH) {
+  function process(node) {
+    if (node.key !== frameKey) {
+      return { ...node, children: (node.children ?? []).map(process) }
+    }
+    // Remove existing mullions/transoms; keep everything else
+    const others = (node.children ?? []).filter(
+      c => c.part_type !== 'mullionPart' && c.part_type !== 'transomPart'
+    )
+    const mullions = Array.from({ length: cols - 1 }, (_, i) => ({
+      key:       makeKey('mull'),
+      part_type: 'mullionPart',
+      values:    { offset: Math.round(iW * (i + 1) / cols), thicknessInFrame: 40 },
+      children:  [],
+    }))
+    const transoms = Array.from({ length: rows - 1 }, (_, i) => ({
+      key:       makeKey('trans'),
+      part_type: 'transomPart',
+      values:    { offset: Math.round(iH * (i + 1) / rows), thicknessInFrame: 40 },
+      children:  [],
+    }))
+    return { ...node, children: [...mullions, ...transoms, ...others] }
+  }
+  return process(tree)
+}
+
+// Replace all bar children of a glassPart with new evenly-spaced bars.
+// cols × rows → (cols-1) vertical bars + (rows-1) horizontal bars.
+function applyBars(tree, glassKey, cols, rows) {
+  function process(node) {
+    if (node.key !== glassKey) {
+      return { ...node, children: (node.children ?? []).map(process) }
+    }
+    const others = (node.children ?? []).filter(
+      c => c.part_type !== 'verticalGlazingBarPart' && c.part_type !== 'horizontalGlazingBarPart'
+    )
+    const vBars = Array.from({ length: cols - 1 }, () => ({
+      key: makeKey('vbar'), part_type: 'verticalGlazingBarPart',
+      values: { offset: 0, thickness: 20, nib: 4, tail: 4, tailLinkType: 1 }, children: [],
+    }))
+    const hBars = Array.from({ length: rows - 1 }, () => ({
+      key: makeKey('hbar'), part_type: 'horizontalGlazingBarPart',
+      values: { offset: 0, thickness: 20, nib: 4, tail: 4, tailLinkType: 1 }, children: [],
+    }))
+    return { ...node, children: [...vBars, ...hBars, ...others] }
+  }
+  return process(tree)
+}
+
+// Remove a node by key (and its descendants) from the tree.
+function removeNode(tree, key) {
+  if (!tree) return tree
+  return {
+    ...tree,
+    children: (tree.children ?? [])
+      .filter(c => c.key !== key)
+      .map(c => removeNode(c, key)),
+  }
+}
+
 // ── Unsaved-changes navigation guard ─────────────────────────────────────────
 // useBlocker requires a data router; BrowserRouter doesn't support it.
 // Instead we wrap navigate so any in-app navigation while dirty asks first.
@@ -718,6 +889,19 @@ function DrawingBoard() {
   const [saveStatus,  setSaveStatus]    = useState(null) // null | 'saving' | 'saved' | 'error'
   const [saveError,   setSaveError]     = useState(null)
   const [viewMode,    setViewMode]      = useState('internal')
+  const [settings,    setSettings]      = useState({
+    showOverallSL:    true,
+    showIndividualSL: true,
+    showGlazingRebate:false,
+    showTextOnDwg:    true,
+    showGlassLabels:  true,
+    showActiveRulers: false,
+    showSashCentricDims: false,
+  })
+
+  // ── Dialog state ─────────────────────────────────────────────────────────────
+  const [dividerDialog, setDividerDialog] = useState(false)
+  const [barDialog,     setBarDialog]     = useState(false)
 
   // ── Ironmongery data (lazy-loaded when paintAndIronmongeryPart is selected) ──
   const [ironmongeryRules,    setIronmongeryRules]    = useState(null)
@@ -921,6 +1105,48 @@ function DrawingBoard() {
     if (!nextDisabled) setSelectedKey(siblingsOfType[siblingIdx + 1].key)
   }
 
+  // ── Dividers / bars / remove handlers ────────────────────────────────────────
+
+  function handleApplyDividers(cols, rows) {
+    if (!tree) return
+    const frame = findFirst(tree, 'assemblyFramePart')
+    if (!frame) return
+    const pair = findFirst(tree, 'sashPairPart')
+    const pairD = pair ? (derived[pair.key] ?? {}) : {}
+    const fv = frame.values ?? {}
+    const cillH = findFirst(tree, 'cillPart')?.values?.height ?? 0
+    const iW = (pairD.internalWidth  ?? ((fv.width  ?? 0) - (fv.leftWidth  ?? 0) - (fv.rightWidth  ?? 0)))
+    const iH = (pairD.internalHeight ?? ((fv.height ?? 0) - (fv.topHeight  ?? 0) - cillH))
+    const newTree = applyDividers(tree, frame.key, cols, rows, iW, iH)
+    commit(newTree)
+    setDividerDialog(false)
+  }
+
+  function handleApplyBars(cols, rows) {
+    if (!tree) return
+    const glassNode = findNodeByKey(tree, selectedKey)
+    if (!glassNode || glassNode.part_type !== 'glassPart') return
+    const newTree = applyBars(tree, selectedKey, cols, rows)
+    commit(newTree)
+    setBarDialog(false)
+  }
+
+  function handleRemove() {
+    if (!tree || !selectedKey) return
+    const node = findNodeByKey(tree, selectedKey)
+    if (!node) return
+    const removable = ['mullionPart', 'transomPart', 'verticalGlazingBarPart', 'horizontalGlazingBarPart']
+    if (!removable.includes(node.part_type)) return
+    const newTree = removeNode(tree, selectedKey)
+    setSelectedKey(null)
+    commit(newTree)
+  }
+
+  // Determine what the selected node is so the toolbar can show relevant buttons
+  const selType     = selectedNode?.part_type ?? null
+  const canRemove   = ['mullionPart', 'transomPart', 'verticalGlazingBarPart', 'horizontalGlazingBarPart'].includes(selType)
+  const canAddBars  = selType === 'glassPart'
+
   // ── Render ────────────────────────────────────────────────────────────────────
   if (loadError) {
     return (
@@ -1019,8 +1245,9 @@ function DrawingBoard() {
 
           {/* Centre: SVG elevation */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0, background: '#f7f6f2' }}>
-            {/* View toggle */}
-            <div style={{ padding: '6px 10px', borderBottom: '1px solid #e8e6e0', background: '#fff', display: 'flex', gap: 6, flexShrink: 0 }}>
+            {/* Toolbar */}
+            <div style={{ padding: '5px 10px', borderBottom: '1px solid #e8e6e0', background: '#fff', display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap', alignItems: 'center' }}>
+              {/* View mode */}
               {['internal', 'external'].map(m => (
                 <button key={m} onClick={() => setViewMode(m)} style={{
                   fontSize: 11, padding: '3px 10px', borderRadius: 6, cursor: 'pointer',
@@ -1032,16 +1259,80 @@ function DrawingBoard() {
                   {m === 'internal' ? 'Internal' : 'External'}
                 </button>
               ))}
+
+              <div style={{ width: 1, height: 20, background: '#e8e6e0', flexShrink: 0, margin: '0 2px' }} />
+
+              {/* Transom / Mullion */}
+              <button
+                onClick={() => setDividerDialog(true)}
+                style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, cursor: 'pointer', border: '1px solid #d8d5cf', background: '#fff', color: '#555' }}
+              >
+                Transom / Mullion…
+              </button>
+
+              {/* Glazing bar (only when a glassPart is selected) */}
+              <button
+                onClick={() => setBarDialog(true)}
+                disabled={!canAddBars}
+                title={canAddBars ? 'Add glazing bars to selected glass' : 'Select a Glazing part first'}
+                style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, cursor: canAddBars ? 'pointer' : 'default', border: `1px solid ${canAddBars ? '#0369a1' : '#d8d5cf'}`, background: canAddBars ? '#e0f2fe' : '#f7f6f2', color: canAddBars ? '#0369a1' : '#aaa' }}
+              >
+                Glazing bar…
+              </button>
+
+              {/* Remove */}
+              <button
+                onClick={handleRemove}
+                disabled={!canRemove}
+                title={canRemove ? `Remove ${PART_LABELS[selType] ?? selType}` : 'Select a mullion, transom or bar to remove'}
+                style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, cursor: canRemove ? 'pointer' : 'default', border: `1px solid ${canRemove ? '#fca5a5' : '#d8d5cf'}`, background: canRemove ? '#fef2f2' : '#f7f6f2', color: canRemove ? '#b91c1c' : '#aaa' }}
+              >
+                Remove
+              </button>
+
+              {/* Copy frame stub */}
+              <button
+                disabled
+                title="Copy frame (multi-frame items — coming soon)"
+                style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, cursor: 'default', border: '1px solid #d8d5cf', background: '#f7f6f2', color: '#aaa' }}
+              >
+                Copy frame
+              </button>
+
+              <div style={{ flex: 1 }} />
+
+              {/* Settings toggles */}
+              {[
+                { key: 'showOverallSL',    label: 'Overall S/L' },
+                { key: 'showIndividualSL', label: 'Indiv. S/L' },
+                { key: 'showGlassLabels',  label: 'Glass labels' },
+              ].map(({ key: sk, label }) => (
+                <button
+                  key={sk}
+                  onClick={() => setSettings(s => ({ ...s, [sk]: !s[sk] }))}
+                  style={{
+                    fontSize: 10, padding: '2px 8px', borderRadius: 6, cursor: 'pointer',
+                    border: `1px solid ${settings[sk] ? '#3d35a8' : '#d8d5cf'}`,
+                    background: settings[sk] ? '#f0eefc' : '#fff',
+                    color: settings[sk] ? '#3d35a8' : '#aaa',
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
+
             {/* SVG */}
             <div style={{ flex: 1, overflow: 'hidden', padding: 12, display: 'flex', alignItems: 'stretch' }}>
               <SashElevation
                 tree={tree}
+                derived={derived}
                 geometry={geometry}
                 refOptions={refOptions}
                 viewMode={viewMode}
                 selectedKey={selectedKey}
                 onSelectKey={setSelectedKey}
+                settings={settings}
               />
             </div>
           </div>
@@ -1076,6 +1367,26 @@ function DrawingBoard() {
 
         </div>
       )}
+
+      {/* Transom / Mullion grid picker dialog */}
+      {dividerDialog && (
+        <GridPickerDialog
+          title="Transom / Mullion — choose grid"
+          applyLabel="Apply to frame"
+          onApply={handleApplyDividers}
+          onClose={() => setDividerDialog(false)}
+        />
+      )}
+
+      {/* Glazing bar grid picker dialog */}
+      {barDialog && (
+        <BarGridPickerDialog
+          title="Glazing bars — choose grid"
+          onApply={handleApplyBars}
+          onClose={() => setBarDialog(false)}
+        />
+      )}
+
     </Layout>
   )
 }
