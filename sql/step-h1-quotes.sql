@@ -83,7 +83,7 @@ ON CONFLICT DO NOTHING;
 --    These appear in the Price panel of the DrawingBoard tree editor.
 -- ============================================================
 
-INSERT INTO field_definitions
+INSERT INTO default_field_definitions
   (field_key, part_type, property_name, label, data_type, reference_category, unit, role, sort_order, is_active)
 VALUES
   ('pricePart.poa',             'pricePart', 'poa',             'POA (Price on Application)',    'boolean',   NULL,       NULL, 'input', 10, true),
