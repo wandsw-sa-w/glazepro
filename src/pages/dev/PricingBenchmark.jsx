@@ -24,16 +24,16 @@ const FIXTURE_GLASS_CATALOGUE = {
 // Timber parts: cost per mm (£/m ÷ 1000). Nominal each: cost per unit (measure=1).
 // Steel/lead: not priced via component loop — priced by sliding_sash weight rules.
 const FIXTURE_PART_COST_MAP = {
-  TP68: 2.85 / 1000,   // Ogee Architrave 20x70 MDF £2.85/m
-  TP74: 4.50 / 1000,   // Chamfered Architrave 20x70 MDF £4.50/m
-  TT69: 2.59 / 1000,   // Pencil Round Architrave 20x70 MDF £2.59/m
-  TP61: 2.76 / 1000,   // Nosing 25x50 Redwood £2.76/m
-  TP01: 2.59 / 1000,   // Small staff bead 20x15 Redwood £2.59/m
-  TP02: 2.95 / 1000,   // Large staff bead 25x15 Redwood £2.95/m
-  TP03: 2.22 / 1000,   // Standard parting bead 8x25 Redwood £2.22/m
-  AA01: 50.00,          // Internal Linings MDF (nominal each)
-  AA02: 30.00,          // Windowboard MDF (nominal each)
-  AA03: 75.00,          // External Linings Utile (nominal each)
+  TP68: 2.85,   // Ogee Architrave 20x70 MDF £2.85/m
+  TP74: 4.50,   // Chamfered Architrave 20x70 MDF £4.50/m
+  TT69: 2.59,   // Pencil Round Architrave 20x70 MDF £2.59/m
+  TP61: 2.76,   // Nosing 25x50 Redwood £2.76/m
+  TP01: 2.59,   // Small staff bead 20x15 Redwood £2.59/m
+  TP02: 2.95,   // Large staff bead 25x15 Redwood £2.95/m
+  TP03: 2.22,   // Standard parting bead 8x25 Redwood £2.22/m
+  AA01: 50.00,  // Internal Linings MDF (nominal each)
+  AA02: 30.00,  // Windowboard MDF (nominal each)
+  AA03: 75.00,  // External Linings Utile (nominal each)
 }
 
 // ── Integrate targets for L34046 Item 7 ──────────────────────────────────────

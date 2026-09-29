@@ -135,23 +135,45 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
     const is_complete_new = baseVars.is_complete_new ?? false
     const to_be_replaced  = is_complete_new || v.toBeReplaced === true
 
-    // Sash geometry from pair derived (inner-opening geometry — used by manufacture_materials rules)
-    const pair       = findFirst(tree, 'sashPairPart')
-    const pairDerived = pair ? (derived[pair.key] ?? {}) : {}
-    const gross_sash_width_in_mm  = pairDerived.sashWidth        ?? null
-    const gross_sash_height_in_mm = isTop
-      ? (pairDerived.topSashHeight    ?? null)
-      : (pairDerived.bottomSashHeight ?? null)
+    const pair        = findFirst(tree, 'sashPairPart')
+
+    // Gross sash geometry — Integrate convention: frame.width/height are the internal
+    // frame dimensions (= gross sash size). Horn is added to gross_sash_height_in_mm.
+    const frameNode   = findFirst(tree, 'assemblyFramePart')
+    const fv          = frameNode?.values ?? {}
+    const frameWidth  = fv.width  ?? fv.outerWidth  ?? null
+    const frameHeight = fv.height ?? fv.outerHeight ?? null
+
+    const topSashNode = findFirst(tree, 'topSashPart')
+    const botSashNode = findFirst(tree, 'bottomSashPart')
+    const topRailH    = topSashNode?.values?.topHeight    ?? 49
+    const botRailH    = botSashNode?.values?.bottomHeight ?? 88
+    const midrailH    = pair?.values?.midrailHeight ?? 40
+
+    const hornKey    = isTop
+      ? (pair?.values?.topHornTypeShortName    ?? 'none').toLowerCase()
+      : (pair?.values?.bottomHornTypeShortName ?? 'none').toLowerCase()
+    const HORN_MM    = { victorian: 70, none: 0 }
+    const hornLength = HORN_MM[hornKey] ?? 0
+
+    // Sightline height: glass light height, equal for both sashes in half_half split.
+    // = (frame.height − topRail − bottomRail − midrail) / 2
+    const sightlineH = frameHeight != null
+      ? (frameHeight - topRailH - botRailH - midrailH) / 2 : null
+
+    // Gross sash height = sightline + this-sash rail + midrail + horn
+    const railHeight = isTop ? topRailH : botRailH
+    const gross_sash_height_in_mm = sightlineH != null
+      ? sightlineH + railHeight + midrailH + hornLength : null
+
+    // Gross sash width = frame.width (Integrate: gross sash width = internal frame width)
+    const gross_sash_width_in_mm = frameWidth
 
     const stileWidth = v.leftWidth ?? 47
-    const sash_sightline_width_in_mm = gross_sash_width_in_mm != null
-      ? gross_sash_width_in_mm - 2 * stileWidth : null
-
-    const headRail   = isTop ? (v.topHeight   ?? 49) : 0
-    const botRail    = !isTop ? (v.bottomHeight ?? 88) : 0
-    const midrail    = pair?.values?.midrailHeight ?? 40
-    const sash_sightline_height_in_mm = gross_sash_height_in_mm != null
-      ? gross_sash_height_in_mm - (isTop ? headRail : botRail) - midrail : null
+    const sash_sightline_width_in_mm = frameWidth != null
+      ? frameWidth - 2 * stileWidth : null
+    // Sightline height is the same for both sashes (half_half split)
+    const sash_sightline_height_in_mm = sightlineH
 
     // Sash weight (uses outer-frame geometry for accurate physical weight)
     const weightData = computeSashWeight(partNode, tree, glassCatalogue)
@@ -201,7 +223,7 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
       height:                  outerH / 1000,   // metres (OUTER)
       frame_width_in_mm:       outerW,          // mm (OUTER)
       frame_height_in_mm:      outerH,          // mm (OUTER)
-      frame_depth_in_mm:       v.frameDepth ?? 0,
+      frame_depth_in_mm:       cv.depth ?? v.frameDepth ?? 0,
       cill_profiled_height_in_mm,
       cill_length_in_mm,
     }
@@ -211,21 +233,22 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
     // Glass area from sash geometry
     const parentSash  = findParentSash(tree, partNode.key)
     const pair        = findFirst(tree, 'sashPairPart')
-    const pairDerived = pair ? (derived[pair.key] ?? {}) : {}
-    const glassWidth  = pairDerived.sashWidth ?? 0
 
-    let glassHeight = 0
-    if (parentSash?.part_type === 'topSashPart') {
-      const tsh      = pairDerived.topSashHeight ?? 0
-      const topRail  = parentSash.values?.topHeight ?? 49
-      const midrail  = pair?.values?.midrailHeight ?? 40
-      glassHeight    = tsh - topRail - midrail
-    } else if (parentSash?.part_type === 'bottomSashPart') {
-      const bsh      = pairDerived.bottomSashHeight ?? 0
-      const botRail  = parentSash.values?.bottomHeight ?? 88
-      const midrail  = pair?.values?.midrailHeight ?? 40
-      glassHeight    = bsh - botRail - midrail
-    }
+    // Glass unit dimensions from frame geometry (Integrate convention).
+    // glassWidth  = frame.width − 2 × stileWidth
+    // glassHeight = (frame.height − topRail − bottomRail − midrail) / 2  (half_half split)
+    const glassFrameNode = findFirst(tree, 'assemblyFramePart')
+    const gfv            = glassFrameNode?.values ?? {}
+    const glassTopSash   = findFirst(tree, 'topSashPart')
+    const glassBotSash   = findFirst(tree, 'bottomSashPart')
+    const gTopRailH      = glassTopSash?.values?.topHeight    ?? 49
+    const gBotRailH      = glassBotSash?.values?.bottomHeight ?? 88
+    const gMidrailH      = pair?.values?.midrailHeight        ?? 40
+    const gStileWidth    = parentSash?.values?.leftWidth      ?? 47
+    const glassWidth     = (gfv.width ?? 0) - 2 * gStileWidth
+    const gFrameH        = gfv.height ?? 0
+    const glassHeight    = gFrameH > 0
+      ? (gFrameH - gTopRailH - gBotRailH - gMidrailH) / 2 : 0
 
     // actual_area: m² rounded to 2dp (Integrate definition)
     const actual_area  = (glassWidth > 0 && glassHeight > 0)
