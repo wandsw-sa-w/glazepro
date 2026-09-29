@@ -4,6 +4,7 @@ import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { Layout, LeadsSubNav } from '../components/Layout'
 import { priceDrawing, priceQuote } from '../pricing/pricingEngine.js'
+import { drawingCardLabel, drawingPickerLabel, drawingNetPrice } from '../quotes/drawingPrice.js'
 import { computeQuoteTotals } from '../quotes/quoteTotals.js'
 import { validatePublish, nextQuoteNumber } from '../quotes/publishValidation.js'
 import { computePopulatePatch } from '../quotes/populateQuote.js'
@@ -422,6 +423,26 @@ export default function QuoteMatrixPage() {
     setPricing(prev => ({ ...prev, [quoteId]: { ...prev[quoteId], progress: 'Running quote-level pass…' } }))
     const qRes = await priceQuote(quoteId, supabase, { priceFileId })
     if (!qRes.success) errors.push(`Quote-level pass: ${qRes.error}`)
+
+    // Refresh calculated_price from DB — priceQuote may have updated it
+    // with apportioned quote-level amounts (e.g. InstallSure)
+    const quotedDrawingIds = jobItems
+      .map(item => selections[`${quoteId}_${item.id}`])
+      .filter(Boolean)
+    if (quotedDrawingIds.length > 0) {
+      const { data: refreshed } = await supabase
+        .from('drawings')
+        .select('id, calculated_price')
+        .in('id', quotedDrawingIds)
+      if (refreshed) {
+        const priceMap = Object.fromEntries(refreshed.map(d => [String(d.id), d.calculated_price]))
+        setDrawings(prev => prev.map(d => String(d.id) in priceMap
+          ? { ...d, calculated_price: priceMap[String(d.id)] }
+          : d,
+        ))
+      }
+    }
+
     setPricing(prev => ({ ...prev, [quoteId]: { busy: false, error: errors.length ? errors.join('; ') : null, progress: null } }))
   }
 
@@ -431,7 +452,7 @@ export default function QuoteMatrixPage() {
       const dwg = dwgId ? drawings.find(d => d.id === dwgId) : null
       if (!dwg) return null
       return {
-        calculated: parseFloat(dwg.calculated_price) || 0,
+        calculated: drawingNetPrice(dwg) ?? 0,
         priceOverride: dwg.price_override ?? null,
         itemDiscountPct: dwg.item_discount_pct ?? 0,
         vatRate: dwg.vat_rate ?? 20,
@@ -682,9 +703,7 @@ export default function QuoteMatrixPage() {
                         <div style={{ flex: 1, display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4 }}>
                           {itemDwgs.map(dwg => {
                             const stale = isStale(dwg.id)
-                            const showPrice = dwg.poa ? 'POA' : dwg.calculated_price != null ? fmt(dwg.calculated_price) : '—'
-                            const runPf = priceFiles.find(p => p.id === latestRuns[dwg.id]?.price_file_id)
-                            const pfName = runPf?.name || defaultPriceFile?.name || '—'
+                            const cardLabel = drawingCardLabel(dwg, priceFiles, latestRuns)
                             const desc = [dwg.window_type, dwg.material_frame, dwg.finish_internal].filter(Boolean).join(' · ')
                             return (
                               <div key={dwg.id} style={{ width: 190, flexShrink: 0, border: '1px solid #e0def0', borderRadius: 10, overflow: 'hidden', opacity: dwg.deleted_at ? 0.5 : 1 }}>
@@ -703,7 +722,7 @@ export default function QuoteMatrixPage() {
                                 <DrawingThumb drawingId={dwg.id} />
                                 <div style={{ padding: '6px 10px', fontSize: 10, color: '#888', borderTop: '1px solid #f0eef8', minHeight: 14 }}>{desc || '—'}</div>
                                 <div style={{ padding: '6px 10px', borderTop: '1px solid #f0eef8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
-                                  <span style={{ fontSize: 11, fontWeight: 600, color: '#333' }}>{pfName} {showPrice} Qty 1</span>
+                                  <span style={{ fontSize: 11, fontWeight: 600, color: '#333' }}>{cardLabel}</span>
                                   {stale && <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 999, background: '#fffbeb', color: '#b45309', fontWeight: 700, border: '1px solid #fcd34d' }}>needs pricing</span>}
                                 </div>
                               </div>
@@ -763,7 +782,7 @@ export default function QuoteMatrixPage() {
                         const dwgId = panelDraft[`${q.id}_${item.id}`]
                         const dwg = dwgId ? drawings.find(d => d.id === dwgId) : null
                         if (!dwg) return null
-                        return { calculated: parseFloat(dwg.calculated_price) || 0, priceOverride: dwg.price_override ?? null, itemDiscountPct: dwg.item_discount_pct ?? 0, vatRate: dwg.vat_rate ?? 20, poa: dwg.poa ?? false }
+                        return { calculated: drawingNetPrice(dwg) ?? 0, priceOverride: dwg.price_override ?? null, itemDiscountPct: dwg.item_discount_pct ?? 0, vatRate: dwg.vat_rate ?? 20, poa: dwg.poa ?? false }
                       }).filter(Boolean)
                       return items.length > 0 ? computeQuoteTotals({ discountPct: q.discount_pct, depositPct: q.deposit_pct, interimPct: q.interim_pct }, items) : null
                     })()
@@ -791,11 +810,11 @@ export default function QuoteMatrixPage() {
                                 <span style={{ fontSize: 10, color: '#888', width: 46, flexShrink: 0 }}>Item {item.item_number}</span>
                                 <select value={val} onChange={e => setPanelSelection(q.id, item.id, e.target.value)} style={{ fontSize: 10, flex: 1, padding: '4px 6px', border: '1px solid #d8d5cf', borderRadius: 5 }}>
                                   <option value="">Not included</option>
-                                  {itemDwgs.map(dwg => {
-                                    const price = dwg.poa ? 'POA' : dwg.calculated_price != null ? fmt(dwg.calculated_price) : '—'
-                                    const runPf = priceFiles.find(p => p.id === latestRuns[dwg.id]?.price_file_id)
-                                    return <option key={dwg.id} value={dwg.id}>{runPf?.name || defaultPriceFile?.name || 'PF'} {price} Qty 1</option>
-                                  })}
+                                  {itemDwgs.map(dwg => (
+                                    <option key={dwg.id} value={dwg.id}>
+                                      {drawingPickerLabel(dwg, dwg.drawing_number, priceFiles, latestRuns)}
+                                    </option>
+                                  ))}
                                 </select>
                               </div>
                             )
