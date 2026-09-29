@@ -240,3 +240,47 @@ describe('error handling', () => {
       .toThrow()
   })
 })
+
+// ── round( → round_to( pre-processor: Integrate decimal-places semantics ──────
+
+describe('evaluateNumber — round( pre-processor (PF30 exact expressions)', () => {
+  // Integrate treats the second arg as number of decimal places (floored).
+  // round(x, 0.1) → floor(0.1) = 0 dp → nearest integer.
+
+  it('exact PF30 expression: (round(cost*qty , 0.1)) * 1.05 — claw fastener AB', () => {
+    // cost=35.30, qty=1 → round_to(35.30, 0.1) = 35 → 35 × 1.05 = 36.75
+    expect(evaluateNumber('(round(cost*qty , 0.1)) * 1.05', { cost: 35.30, qty: 1 }))
+      .toBeCloseTo(36.75, 5)
+  })
+
+  it('exact PF30 expression: (round(cost*qty , 0.1)) * 1.05 — trickle vent', () => {
+    // cost=3.25, qty=1 → round_to(3.25, 0.1) = 3 → 3 × 1.05 = 3.15
+    expect(evaluateNumber('(round(cost*qty , 0.1)) * 1.05', { cost: 3.25, qty: 1 }))
+      .toBeCloseTo(3.15, 5)
+  })
+
+  it('round with 0.1 second arg rounds to nearest integer (floor(0.1) = 0 dp)', () => {
+    expect(evaluateNumber('round(35.7, 0.1)', {})).toBe(36)
+    expect(evaluateNumber('round(35.4, 0.1)', {})).toBe(35)
+  })
+
+  it('round with integer second arg rounds to that many decimal places', () => {
+    expect(evaluateNumber('round(3.456, 2)', {})).toBeCloseTo(3.46, 10)
+  })
+})
+
+// ── length → part_length pre-processor ───────────────────────────────────────
+
+describe('evaluateNumber — length → part_length pre-processor (PF30 exact expression)', () => {
+  it('exact PF30 expression: length * qty with length variable provided', () => {
+    // length is a reserved word in expr-eval; the preprocessor rewrites it to part_length.
+    // evaluate() auto-aliases part_length = length so the variable resolves correctly.
+    expect(evaluateNumber('length * qty', { length: 1.9, qty: 2 }))
+      .toBeCloseTo(3.8, 10)
+  })
+
+  it('length variable in condition expression', () => {
+    expect(evaluateCondition('length > 0', { length: 1.5 })).toBe(true)
+    expect(evaluateCondition('length > 0', { length: 0 })).toBe(false)
+  })
+})

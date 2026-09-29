@@ -313,3 +313,75 @@ describe('allocateParts — height boundary test', () => {
     expect(Array.isArray(result)).toBe(true)
   })
 })
+
+// ── sash_height_in_mm reaches sash scope (DB rule format) ────────────────────
+//
+// The actual part_allocation_rules rows in the DB use sash_height_in_mm (not
+// gross_sash_height_in_mm). This suite verifies that the allocator exposes the
+// correctly-named variable so steel rules fire instead of the lead fallback.
+
+const STEEL_RULES_DB_FORMAT = [
+  // 21 lb  (19.05 ≤ kg < 19.96) — top sash with L34046 Item 7 dimensions
+  {
+    id: 'r170db', sort_order: 170, group_name: 'sash_weights', loop_target: 'sliding_sash',
+    label: '21lb steel',
+    condition: 'to_be_replaced and is_cord_hung and weight_in_kg >= 19.05 and weight_in_kg < 19.96 and sash_height_in_mm > 630',
+    qty_expr: '2', part_code: 'RLZ1927', measure_expr: '9.5', is_active: true,
+  },
+  {
+    id: 'r171db', sort_order: 171, group_name: 'sash_weights', loop_target: 'sliding_sash',
+    label: '21lb fallback',
+    condition: 'to_be_replaced and is_cord_hung and weight_in_kg >= 19.05 and weight_in_kg < 19.96 and sash_height_in_mm <= 630',
+    qty_expr: '2', part_code: 'LW100005', measure_expr: 'weight_in_kg / 2', is_active: true,
+  },
+  // 22 lb  (19.96 ≤ kg < 20.87) — bottom sash with L34046 Item 7 dimensions
+  {
+    id: 'r175db', sort_order: 175, group_name: 'sash_weights', loop_target: 'sliding_sash',
+    label: '22lb steel',
+    condition: 'to_be_replaced and is_cord_hung and weight_in_kg >= 19.96 and weight_in_kg < 20.87 and sash_height_in_mm > 660',
+    qty_expr: '2', part_code: 'RLZ1928', measure_expr: '10', is_active: true,
+  },
+  {
+    id: 'r176db', sort_order: 176, group_name: 'sash_weights', loop_target: 'sliding_sash',
+    label: '22lb fallback',
+    condition: 'to_be_replaced and is_cord_hung and weight_in_kg >= 19.96 and weight_in_kg < 20.87 and sash_height_in_mm <= 660',
+    qty_expr: '2', part_code: 'LW100005', measure_expr: 'weight_in_kg / 2', is_active: true,
+  },
+]
+
+describe('allocateParts — sash_height_in_mm reaches sash scope (DB rule format)', () => {
+  it('top sash allocates RLZ1927 (21lb) using sash_height_in_mm > 630 (not gross_sash_height_in_mm)', () => {
+    const result = allocateParts(FIXTURE_TREE, BASE_VARS, STEEL_RULES_DB_FORMAT, GLASS_CATALOGUE)
+    const topAlloc = result.filter(a => a.part_code === 'RLZ1927' && a.scope_part_type === 'topSashPart')
+    expect(topAlloc).toHaveLength(1)
+    expect(topAlloc[0].qty).toBe(2)
+  })
+
+  it('bottom sash allocates RLZ1928 (22lb) using sash_height_in_mm > 660', () => {
+    const result = allocateParts(FIXTURE_TREE, BASE_VARS, STEEL_RULES_DB_FORMAT, GLASS_CATALOGUE)
+    const botAlloc = result.filter(a => a.part_code === 'RLZ1928' && a.scope_part_type === 'bottomSashPart')
+    expect(botAlloc).toHaveLength(1)
+    expect(botAlloc[0].qty).toBe(2)
+  })
+
+  it('does not fall back to lead (LW100005) for either sash when height is above threshold', () => {
+    const result = allocateParts(FIXTURE_TREE, BASE_VARS, STEEL_RULES_DB_FORMAT, GLASS_CATALOGUE)
+    const lead = result.filter(a => a.part_code === 'LW100005')
+    expect(lead).toHaveLength(0)
+  })
+
+  it('excludes rules with rule_family != part_allocator (default_ironmongery leak check)', () => {
+    const mixedRules = [
+      ...STEEL_RULES_DB_FORMAT,
+      {
+        id: 'iron1', sort_order: 1, group_name: 'ironmongery', loop_target: null,
+        label: 'Box Frame', rule_family: 'default_ironmongery',
+        condition: 'true', qty_expr: '0.5', part_code: '', measure_expr: null, is_active: true,
+      },
+    ]
+    const result = allocateParts(FIXTURE_TREE, BASE_VARS, mixedRules, GLASS_CATALOGUE)
+    // The ironmongery rule (no part_code, wrong family) must not appear
+    const leaked = result.filter(a => a.rule_id === 'iron1')
+    expect(leaked).toHaveLength(0)
+  })
+})

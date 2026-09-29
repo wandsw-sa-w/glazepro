@@ -565,7 +565,8 @@ export default function PricingBenchmark() {
         try {
           const { data: allocRules, error: allocErr } = await supabase
             .from('part_allocation_rules')
-            .select('id, sort_order, group_name, loop_target, label, condition, qty_expr, part_code, measure_expr, is_active')
+            .select('id, rule_family, sort_order, group_name, loop_target, label, condition, qty_expr, part_code, measure_expr, is_active')
+            .eq('rule_family', 'part_allocator')
             .order('sort_order')
           if (allocErr) throw allocErr
           partAllocationRules = allocRules || []

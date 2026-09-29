@@ -100,6 +100,9 @@ function computePartVarsForAllocator(partNode, tree, derived, baseVars, glassCat
       ? (pairDerived.topSashHeight    ?? weightData.gross_sash_height_in_mm)
       : (pairDerived.bottomSashHeight ?? weightData.gross_sash_height_in_mm)
 
+    // Round weight to 1 dp to match Integrate's internal rounding before band tests.
+    const weight_in_kg = Math.round(weightData.weight_in_kg * 10) / 10
+
     return {
       is_top_sash:              isTop,
       is_bottom_sash:           !isTop,
@@ -108,9 +111,10 @@ function computePartVarsForAllocator(partNode, tree, derived, baseVars, glassCat
       is_chain_hung:            op.includes('chain'),
       is_spiral_hung:           op.includes('spiral'),
       is_fixed_sash:            op === 'fix' || op.includes('fix'),
-      gross_sash_height_in_mm,                // inner-geometry height (for band threshold tests)
-      // Weight vars from outer-geometry calculation
-      weight_in_kg:             weightData.weight_in_kg,
+      gross_sash_height_in_mm,                // inner-geometry height (kept for back-compat)
+      sash_height_in_mm:        gross_sash_height_in_mm,  // DB rule variable name alias
+      // Weight vars (weight_in_kg rounded to 1 dp; others unrounded)
+      weight_in_kg,
       weight_in_lb:             weightData.weight_in_lb,
       weight_incl_panel_in_kg:  weightData.weight_incl_panel_in_kg,
       weight_incl_panel_in_lb:  weightData.weight_incl_panel_in_lb,
@@ -180,7 +184,13 @@ export function allocateParts(tree, variables, rules, glassCatalogue = {}, inclu
   const baseVars  = { ...variables }
   const allocated = []
 
-  const activeRules = includeInactive ? rules : rules.filter(r => r.is_active !== false)
+  // Only process part_allocator rules. If rule_family is set to something else
+  // (e.g. 'default_ironmongery') the rule is for a different subsystem and must
+  // be excluded regardless of includeInactive.
+  const activeRules = rules.filter(r => {
+    if (r.rule_family != null && r.rule_family !== 'part_allocator') return false
+    return includeInactive || r.is_active !== false
+  })
 
   for (const rule of activeRules) {
     const loopParts = getLoopParts(tree, rule.loop_target ?? null)

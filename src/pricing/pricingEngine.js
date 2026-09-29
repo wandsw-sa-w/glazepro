@@ -534,10 +534,14 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
     if (rule.loop_target === 'component') {
       for (const allocPart of componentParts) {
         const unitCost = partCostMap[allocPart.part_code] ?? 0
+        // Component measure is in mm. PF30 price rules use `length * qty` where
+        // length is metres rounded UP to the next 0.1 m (Integrate convention).
+        // e.g. 1875 mm → ceil(1875/100)/10 = 1.9 m; 1355 mm → 1.4 m.
+        const lengthMetres = Math.ceil(allocPart.measure / 100) / 10
         const compVars = {
           ...priceVars,
           cost:      unitCost,
-          length:    allocPart.measure,
+          length:    lengthMetres,
           qty:       allocPart.qty,
           part_no:   allocPart.part_code,
           part_name: allocPart.label,

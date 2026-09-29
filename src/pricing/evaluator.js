@@ -13,12 +13,35 @@ parser.functions.round_up_to_nearest = function(x, n) {
   return Math.ceil(x / n) * n
 }
 
-// round(x, n) — round x to the nearest multiple of n.
-// Used in ironmongery pricing (e.g. round(25.20, 0.1) = 25.2).
-// When n is omitted (or 0), rounds to the nearest integer.
-parser.functions.round = function(x, n) {
-  if (!n) return Math.round(x)
-  return Math.round(x / n) * n
+// round_to(x, n) — round x to floor(n) decimal places.
+// Integrate's round() treats the second argument as a number of decimal places (floored),
+// so round(cost*qty, 0.1) rounds to floor(0.1) = 0 dp (nearest integer).
+// Called as round_to() directly, or via the round( → round_to( preprocessor below.
+// Examples:
+//   round_to(35.30, 0.1) → floor(0.1)=0 dp → Math.round(35.30) = 35
+//   round_to(3.25,  0.1) → 0 dp → 3
+//   round_to(x, 2)       → 2 dp → Math.round(x * 100) / 100
+parser.functions.round_to = function(x, n) {
+  const dp = Math.floor(n ?? 0)
+  const factor = Math.pow(10, dp)
+  return Math.round(x * factor) / factor
+}
+
+// ── Expression pre-processor ──────────────────────────────────────────────────
+//
+// expr-eval reserves `round` as a unary operator and `length` as a built-in,
+// so PF30 rules that contain these tokens must be rewritten before parsing.
+//
+//   round(  → round_to(   (word-boundary before 'round', guards against 'around(')
+//   \blength\b → part_length  (whole-word; does not affect 'length_mm' etc.)
+//
+// The rewrite is applied to the expression string. Callers that supply a
+// `length` variable also get an automatic `part_length` alias in evaluate().
+
+function preprocessExpression(expr) {
+  return expr
+    .replace(/\bround\(/g, 'round_to(')
+    .replace(/\blength\b/g, 'part_length')
 }
 
 /**
@@ -32,8 +55,14 @@ parser.functions.round = function(x, n) {
  * @returns {*}
  */
 export function evaluate(expression, variables = {}) {
+  const expr = preprocessExpression(expression)
+  // Auto-alias: if the caller passes `length`, also supply `part_length`
+  // so that the rewritten expression can resolve it.
+  const vars = 'length' in variables
+    ? { ...variables, part_length: variables.length }
+    : variables
   try {
-    return parser.evaluate(expression, variables)
+    return parser.evaluate(expr, vars)
   } catch (err) {
     throw new Error(`Evaluator error in "${expression}": ${err.message}`)
   }
@@ -82,13 +111,15 @@ export function evaluateNumber(expression, variables = {}) {
  * Return the list of variable names referenced in an expression.
  * Returns [] if the expression cannot be parsed (e.g. partially written rule).
  * Used to pre-fill unknown variables with 0 before evaluation.
+ * Applies the same preprocessor as evaluate() so that rewritten names
+ * (e.g. part_length) are reported instead of the originals.
  *
  * @param {string} expression
  * @returns {string[]}
  */
 export function getExpressionVariables(expression) {
   try {
-    return parser.parse(expression).variables()
+    return parser.parse(preprocessExpression(expression)).variables()
   } catch {
     return []
   }
