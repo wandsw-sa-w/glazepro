@@ -71,6 +71,7 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
   const [leadHistory, setLeadHistory] = useState([])
   const [costByDrawing, setCostByDrawing] = useState({})
   const [installHours, setInstallHours] = useState(null)
+  const [quoteItemCounts, setQuoteItemCounts] = useState({}) // quoteId → count
 
   const [showDeleted, setShowDeleted] = useState(false)
   const [onSiteMode, setOnSiteMode] = useState(false)
@@ -110,6 +111,15 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
 
     const { data: pfs } = await supabase.from('price_files').select('id, name, status, is_current').order('created_at', { ascending: false })
     setPriceFiles(pfs || [])
+
+    // Load item counts for all quotes (used by chip labels)
+    const allQuoteIds = (qts || []).map(q => q.id)
+    if (allQuoteIds.length > 0) {
+      const { data: allQds } = await supabase.from('quote_drawings').select('quote_id').in('quote_id', allQuoteIds)
+      const counts = {}
+      for (const row of (allQds || [])) counts[row.quote_id] = (counts[row.quote_id] || 0) + 1
+      setQuoteItemCounts(counts)
+    }
 
     if (q?.status === 'Open') {
       const { data: items } = await supabase.from('job_items').select('*').eq('lead_id', leadId).order('sort_order', { ascending: true, nullsFirst: false }).order('item_number')
@@ -240,6 +250,28 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
   const poaCount = jobItems.filter(i => { const d = drawings.find(d => d.id === selections[i.id]); return d?.poa }).length
   const totalCost = jobItems.reduce((sum, item) => sum + (costByDrawing[selections[item.id]] || 0), 0)
 
+  function fmtCompact(n) {
+    if (n == null) return '—'
+    if (n >= 1000) return `£${(n / 1000).toFixed(1)}K`
+    return `£${Number(n).toFixed(0)}`
+  }
+
+  function chipLabel(q) {
+    const pf    = priceFiles.find(p => p.id === q.price_file_id)
+    const pfStr = pf?.name || '—'
+    const n     = quoteItemCounts[q.id] ?? 0
+    const items = `${n} item${n === 1 ? '' : 's'}`
+    const num   = q.quote_number.replace(/^Q(\d+)$/, '$1')
+    const label = num !== q.quote_number ? `Quote ${num}` : q.quote_number
+    let totalStr = '—'
+    if (q.snapshot?.totals?.total_incl_vat != null) {
+      totalStr = fmtCompact(q.snapshot.totals.total_incl_vat)
+    } else if (q.id === quote?.id && totals?.totalInclVat != null) {
+      totalStr = fmtCompact(totals.totalInclVat)
+    }
+    return `${label} [${items}] ${pfStr} ${totalStr}`
+  }
+
   // ── Grid cell edit ──────────────────────────────────────────────────────────
 
   async function editCell(item, column, newValue) {
@@ -327,6 +359,7 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
     const { error } = await supabase.from('quotes').update({ status: 'Published', published_at: publishedAt, published_by: user?.id ?? null, valid_until: validUntil, snapshot }).eq('id', quote.id)
     setPublishing(false)
     if (error) { setPublishError(`Publish failed: ${error.message}`); return }
+    try { await supabase.from('lead_history').insert({ lead_id: leadId, user_id: user?.id ?? null, user_email: user?.email ?? null, event: 'Quote published', new_value: `${lead?.lead_number} / ${quote.quote_number}`, created_at: new Date().toISOString() }) } catch { /* ignore */ }
     load()
   }
 
@@ -341,13 +374,17 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
     if (error || !newQuote) return
     const rows = jobItems.map(item => { const dwgId = selections[item.id]; return dwgId ? { quote_id: newQuote.id, job_item_id: item.id, drawing_id: dwgId } : null }).filter(Boolean)
     if (rows.length > 0) await supabase.from('quote_drawings').insert(rows)
+    try { await supabase.from('lead_history').insert({ lead_id: leadId, user_id: user?.id ?? null, user_email: user?.email ?? null, event: 'Quote copied', old_value: `${lead?.lead_number} / ${quote.quote_number}`, new_value: `${lead?.lead_number} / ${nextNum}`, created_at: new Date().toISOString() }) } catch { /* ignore */ }
     navigate(`/leads/${leadId}/quotes/${newQuote.id}`)
   }
 
   async function doAccept() {
     const acceptedAt = new Date().toISOString()
     const { error } = await supabase.from('quotes').update({ status: 'Accepted', accepted_at: acceptedAt }).eq('id', quote.id)
-    if (!error) setQuote(prev => ({ ...prev, status: 'Accepted', accepted_at: acceptedAt }))
+    if (!error) {
+      setQuote(prev => ({ ...prev, status: 'Accepted', accepted_at: acceptedAt }))
+      try { await supabase.from('lead_history').insert({ lead_id: leadId, user_id: user?.id ?? null, user_email: user?.email ?? null, event: 'Quote accepted', new_value: `${lead?.lead_number} / ${quote.quote_number}`, created_at: new Date().toISOString() }) } catch { /* ignore */ }
+    }
   }
 
   const mergeFields = {
@@ -366,14 +403,14 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
             {quotes.filter(q => q.status === 'Open').map(q => (
               <button key={q.id} onClick={() => navigate(`/leads/${leadId}/quotes/${q.id}`)} style={chipStyle(q.id === quote.id, false)}>
-                {q.quote_number}
+                {chipLabel(q)}
               </button>
             ))}
           </div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {quotes.filter(q => q.status !== 'Open').map(q => (
               <button key={q.id} onClick={() => navigate(`/leads/${leadId}/quotes/${q.id}`)} style={chipStyle(q.id === quote.id, true)}>
-                🔒 {q.quote_number}
+                🔒 {chipLabel(q)}
               </button>
             ))}
           </div>
