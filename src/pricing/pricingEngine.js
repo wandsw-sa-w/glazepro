@@ -37,6 +37,7 @@ import { loadDrawingParts } from '../drawingBoard/api.js'
 import { computeDerived } from '../drawingBoard/computeDerived.js'
 import { computeSashWeight } from './sashWeight.js'
 import { allocateParts } from './partAllocator.js'
+import { treeHash } from './treeHash.js'
 
 // ── Tree helpers (local copies, same logic as computeDerived.js) ──────────────
 
@@ -623,9 +624,10 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
  *
  * @param {string} drawingId
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {{ priceFileId?: string }} [options]
  * @returns {Promise<{ success: boolean, calculatedPrice?: number, pricingRunId?: string, error?: string }>}
  */
-export async function priceDrawing(drawingId, supabase) {
+export async function priceDrawing(drawingId, supabase, { priceFileId } = {}) {
   let pricingRunId = null
 
   try {
@@ -633,16 +635,23 @@ export async function priceDrawing(drawingId, supabase) {
     const tree = await loadDrawingParts(drawingId)
     if (!tree) throw new Error(`No drawing parts found for drawing ${drawingId}`)
 
-    // ── 2. Fetch published price file ─────────────────────────────────────────
-    const { data: priceFile, error: pfErr } = await supabase
-      .from('price_files')
-      .select('id')
-      .eq('status', 'published')
-      .single()
-
-    if (pfErr || !priceFile) {
-      throw new Error(`No published price file found: ${pfErr?.message ?? 'not found'}`)
+    // ── 2. Resolve price file ─────────────────────────────────────────────────
+    // Use the provided priceFileId if given; otherwise the current (is_current = true);
+    // finally fall back to the published (status = 'published').
+    let resolvedPriceFileId = priceFileId
+    if (!resolvedPriceFileId) {
+      const { data: pfCurrent } = await supabase
+        .from('price_files').select('id').eq('is_current', true).maybeSingle()
+      resolvedPriceFileId = pfCurrent?.id
     }
+    if (!resolvedPriceFileId) {
+      const { data: pfPublished } = await supabase
+        .from('price_files').select('id').eq('status', 'published').maybeSingle()
+      resolvedPriceFileId = pfPublished?.id
+    }
+    if (!resolvedPriceFileId) throw new Error('No price file found (is_current or published)')
+
+    const priceFile = { id: resolvedPriceFileId }
 
     // ── 3. Fetch price-file variables (scalars) ────────────────────────────────
     const { data: pfVarRows, error: pfvErr } = await supabase
@@ -666,12 +675,15 @@ export async function priceDrawing(drawingId, supabase) {
     if (rulesErr) throw new Error(`Failed to fetch price rules: ${rulesErr.message}`)
 
     // ── 5. Create pricing_runs row ────────────────────────────────────────────
+    const currentTreeHash = treeHash(tree)
+
     const { data: pricingRun, error: runErr } = await supabase
       .from('pricing_runs')
       .insert({
         drawing_id:    drawingId,
         price_file_id: priceFile.id,
         status:        'in_progress',
+        tree_hash:     currentTreeHash,
         created_at:    new Date().toISOString(),
       })
       .select('id')
@@ -872,9 +884,10 @@ export async function priceDrawing(drawingId, supabase) {
  *
  * @param {string} quoteId
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {{ priceFileId?: string }} [options]
  * @returns {Promise<{ success: boolean, error?: string }>}
  */
-export async function priceQuote(quoteId, supabase) {
+export async function priceQuote(quoteId, supabase, { priceFileId } = {}) {
   let quotePricingRunId = null
 
   try {
@@ -894,16 +907,21 @@ export async function priceQuote(quoteId, supabase) {
     // ── 2. Sum quote_total ────────────────────────────────────────────────────
     const quoteTotal = drawings.reduce((sum, d) => sum + d.calculated_price, 0)
 
-    // ── 3. Fetch published price file ─────────────────────────────────────────
-    const { data: priceFile, error: pfErr } = await supabase
-      .from('price_files')
-      .select('id')
-      .eq('status', 'published')
-      .single()
-
-    if (pfErr || !priceFile) {
-      throw new Error(`No published price file found: ${pfErr?.message ?? 'not found'}`)
+    // ── 3. Resolve price file ─────────────────────────────────────────────────
+    let resolvedPriceFileId = priceFileId
+    if (!resolvedPriceFileId) {
+      const { data: pfCurrent } = await supabase
+        .from('price_files').select('id').eq('is_current', true).maybeSingle()
+      resolvedPriceFileId = pfCurrent?.id
     }
+    if (!resolvedPriceFileId) {
+      const { data: pfPublished } = await supabase
+        .from('price_files').select('id').eq('status', 'published').maybeSingle()
+      resolvedPriceFileId = pfPublished?.id
+    }
+    if (!resolvedPriceFileId) throw new Error('No price file found (is_current or published)')
+
+    const priceFile = { id: resolvedPriceFileId }
 
     // ── 4. Create quote_pricing_runs row ──────────────────────────────────────
     const { data: qRun, error: qrErr } = await supabase

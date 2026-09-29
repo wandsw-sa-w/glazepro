@@ -59,6 +59,11 @@ const DEFAULT_SPEC = {
   notes_hs:                        '',
   staff_bead_type:                 'Small',  // local only
   cad_required:                    false,    // local only
+  // Pricing controls (saved to drawings columns)
+  poa:                             false,
+  price_override:                  '',
+  item_discount_pct:               '',
+  vat_rate:                        20,
 }
 
 // ── DB ↔ spec conversion ──────────────────────────────────────────────────────
@@ -113,6 +118,10 @@ function dbToSpec(drawing) {
     notes_hs:                      drawing.notes_hs                      || '',
     staff_bead_type:               DEFAULT_SPEC.staff_bead_type,
     cad_required:                  DEFAULT_SPEC.cad_required,
+    poa:               drawing.poa               ?? false,
+    price_override:    drawing.price_override    != null ? String(drawing.price_override) : '',
+    item_discount_pct: drawing.item_discount_pct != null ? String(drawing.item_discount_pct) : '',
+    vat_rate:          drawing.vat_rate          ?? 20,
   }
 }
 
@@ -156,6 +165,10 @@ function specToDb(spec) {
     notes_quote:                   spec.notes_quote,
     notes_installation:            spec.notes_installation,
     notes_hs:                      spec.notes_hs,
+    poa:               spec.poa,
+    price_override:    spec.price_override !== '' ? parseFloat(spec.price_override) || null : null,
+    item_discount_pct: spec.item_discount_pct !== '' ? parseFloat(spec.item_discount_pct) || null : null,
+    vat_rate:          Number(spec.vat_rate) || 20,
     updated_at:                    new Date().toISOString(),
   }
 }
@@ -866,6 +879,49 @@ function DrawingBoard({ drawing }) {
           <Field label="H&S / Access notes">
             <textarea value={spec.notes_hs} onChange={e => update('notes_hs', e.target.value)} rows={2} style={{ ...SI, resize: 'vertical' }} />
           </Field>
+        </Section>
+
+        <Section title="Price" defaultOpen={false}>
+          <div style={{ marginBottom: 10 }}>
+            <Tog value={spec.poa} onChange={v => update('poa', v)} label="POA (Price on Application)" />
+          </div>
+          {!spec.poa && (
+            <>
+              <Field label="Price Override (net £)">
+                <input
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  value={spec.price_override}
+                  onChange={e => update('price_override', e.target.value)}
+                  placeholder="Leave blank to use calculated price"
+                  style={SI}
+                />
+              </Field>
+              <Field label="Item Discount %">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={0.5}
+                    value={spec.item_discount_pct}
+                    onChange={e => update('item_discount_pct', e.target.value)}
+                    placeholder="0"
+                    style={{ ...SI, width: 72 }}
+                  />
+                  <span style={{ fontSize: 12, color: '#888' }}>%</span>
+                </div>
+              </Field>
+              <Field label="VAT Rate">
+                <select value={spec.vat_rate} onChange={e => update('vat_rate', Number(e.target.value))} style={SI}>
+                  <option value={20}>Standard (20%)</option>
+                  <option value={5}>Reduced (5%)</option>
+                  <option value={0}>Zero (0%)</option>
+                </select>
+              </Field>
+            </>
+          )}
         </Section>
 
         <Section title="Advanced" defaultOpen={false}>

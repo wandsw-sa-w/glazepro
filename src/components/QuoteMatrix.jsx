@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import QuoteDrawer from './QuoteDrawer'
+import { priceDrawing, priceQuote } from '../pricing/pricingEngine.js'
+import { computeQuoteTotals } from '../quotes/quoteTotals.js'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -11,8 +13,15 @@ const STATUS_STYLE = {
   Accepted:  { bg: '#e1f5ee', color: '#0a5a3c' },
 }
 
-const ITEM_COL_W = 250
-const QUOTE_COL_W = 200
+const ITEM_COL_W  = 250
+const QUOTE_COL_W = 220
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function fmt(n) {
+  if (n == null) return '—'
+  return `£${Number(n).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
 
 // ── Main component ────────────────────────────────────────────────────────────
 
@@ -23,9 +32,12 @@ export default function QuoteMatrix({ leadId, leadNumber, onClose }) {
   const [jobItems,   setJobItems]   = useState([])
   const [drawings,   setDrawings]   = useState([])
   const [quotes,     setQuotes]     = useState([])
-  const [selections, setSelections] = useState({}) // `${quoteId}_${jobItemId}` → drawingId
+  const [selections, setSelections] = useState({})   // `${quoteId}_${jobItemId}` → drawingId
+  const [priceFiles, setPriceFiles] = useState([])   // all price_files rows
+  const [latestRuns, setLatestRuns] = useState({})   // drawingId → {price_file_id, tree_hash, status}
   const [loading,    setLoading]    = useState(true)
   const [creating,   setCreating]   = useState(false)
+  const [pricing,    setPricing]    = useState({})   // quoteId → { busy, error, progress }
 
   // Sidebar
   const [focusedQuoteId,  setFocusedQuoteId]  = useState(null)
@@ -34,8 +46,8 @@ export default function QuoteMatrix({ leadId, leadNumber, onClose }) {
   const sidebarSaveRef = useRef(null)
 
   // Drawing drawer
-  const [selectedDrawingId,  setSelectedDrawingId]  = useState(null)
-  const [selectedJobItemId,  setSelectedJobItemId]  = useState(null)
+  const [selectedDrawingId, setSelectedDrawingId] = useState(null)
+  const [selectedJobItemId, setSelectedJobItemId] = useState(null)
 
   useEffect(() => { load() }, [leadId])
 
@@ -51,31 +63,58 @@ export default function QuoteMatrix({ leadId, leadNumber, onClose }) {
     let dwgs = []
     if (itemIds.length > 0) {
       const { data } = await supabase
-        .from('drawings').select('*').in('job_item_id', itemIds).order('drawing_number')
+        .from('drawings')
+        .select('id, job_item_id, drawing_number, calculated_price, window_type, poa, price_override, item_discount_pct, vat_rate')
+        .in('job_item_id', itemIds)
+        .order('drawing_number')
       dwgs = data || []
     }
 
     const { data: qts } = await supabase
-      .from('quotes').select('*').eq('lead_id', leadId).order('created_at')
+      .from('quotes')
+      .select('id, quote_number, status, lead_id, salesperson_id, valid_until, created_at, price_file_id, discount_pct, deposit_pct, interim_pct, valid_days')
+      .eq('lead_id', leadId)
+      .order('created_at')
 
-    // Quote-drawing selections — requires UNIQUE (quote_id, job_item_id) on quote_drawings
+    const { data: pfs } = await supabase
+      .from('price_files')
+      .select('id, name, status, is_current')
+      .order('created_at', { ascending: false })
+
+    // Quote-drawing selections
     const quoteIds = (qts || []).map(q => q.id)
     const qdMap = {}
     if (quoteIds.length > 0) {
-      const { data: qds, error: qdErr } = await supabase
+      const { data: qds } = await supabase
         .from('quote_drawings')
         .select('quote_id, job_item_id, drawing_id')
         .in('quote_id', quoteIds)
-      if (qdErr) console.error('Failed to load quote_drawings:', qdErr)
-      else for (const qd of (qds || [])) {
+      for (const qd of (qds || [])) {
         qdMap[`${qd.quote_id}_${qd.job_item_id}`] = qd.drawing_id
+      }
+    }
+
+    // Latest completed pricing_run per drawing
+    const drawingIds = (dwgs || []).map(d => d.id)
+    const runsMap = {}
+    if (drawingIds.length > 0) {
+      const { data: runs } = await supabase
+        .from('pricing_runs')
+        .select('drawing_id, price_file_id, tree_hash, status, created_at')
+        .in('drawing_id', drawingIds)
+        .eq('status', 'complete')
+        .order('created_at', { ascending: false })
+      for (const run of (runs || [])) {
+        if (!runsMap[run.drawing_id]) runsMap[run.drawing_id] = run
       }
     }
 
     setJobItems(items || [])
     setDrawings(dwgs)
     setQuotes(qts || [])
+    setPriceFiles(pfs || [])
     setSelections(qdMap)
+    setLatestRuns(runsMap)
 
     const first = (qts || [])[0]
     if (first) focusQuote(first)
@@ -83,9 +122,22 @@ export default function QuoteMatrix({ leadId, leadNumber, onClose }) {
     setLoading(false)
   }
 
+  // ── Staleness ───────────────────────────────────────────────────────────────
+
+  function isStale(quoteId, drawingId) {
+    const q = quotes.find(q => q.id === quoteId)
+    const run = latestRuns[drawingId]
+    if (!run) return true                               // never priced
+    if (q?.price_file_id && run.price_file_id !== q.price_file_id) return true  // different price file
+    return false
+  }
+
   // ── Cell selection ──────────────────────────────────────────────────────────
 
   async function handleCellChange(quoteId, jobItemId, drawingId) {
+    const q = quotes.find(q => q.id === quoteId)
+    if (q?.status !== 'Open') return
+
     const key = `${quoteId}_${jobItemId}`
     if (!drawingId) {
       const { error } = await supabase
@@ -107,11 +159,23 @@ export default function QuoteMatrix({ leadId, leadNumber, onClose }) {
   async function createQuote() {
     setCreating(true)
     const nextNum = quotes.length + 1
-    const validUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    const currentPf = priceFiles.find(p => p.is_current) || priceFiles.find(p => p.status === 'published')
     const { data: newQuote, error } = await supabase
       .from('quotes')
-      .insert({ lead_id: leadId, quote_number: `Q${nextNum}`, status: 'Open', salesperson_id: user?.id ?? null, valid_until: validUntil, created_at: new Date().toISOString() })
-      .select().single()
+      .insert({
+        lead_id:        leadId,
+        quote_number:   `Q${nextNum}`,
+        status:         'Open',
+        salesperson_id: user?.id ?? null,
+        valid_days:     30,
+        discount_pct:   0,
+        deposit_pct:    40,
+        interim_pct:    50,
+        price_file_id:  currentPf?.id ?? null,
+        created_at:     new Date().toISOString(),
+      })
+      .select('id, quote_number, status, lead_id, salesperson_id, valid_until, created_at, price_file_id, discount_pct, deposit_pct, interim_pct, valid_days')
+      .single()
     if (!error && newQuote) {
       setQuotes(prev => [...prev, newQuote])
       focusQuote(newQuote)
@@ -119,16 +183,47 @@ export default function QuoteMatrix({ leadId, leadNumber, onClose }) {
     setCreating(false)
   }
 
-  async function publishQuote(quoteId) {
-    const { error } = await supabase.from('quotes').update({ status: 'Published' }).eq('id', quoteId)
-    if (!error) setQuotes(prev => prev.map(q => q.id === quoteId ? { ...q, status: 'Published' } : q))
-  }
+  async function doPriceQuote(quoteId) {
+    const q = quotes.find(q => q.id === quoteId)
+    if (!q) return
+    const priceFileId = q.price_file_id || undefined
 
-  function getQuoteTotal(quoteId) {
-    return jobItems.reduce((sum, item) => {
-      const dwg = drawings.find(d => d.id === selections[`${quoteId}_${item.id}`])
-      return sum + (parseFloat(dwg?.calculated_price) || 0)
-    }, 0)
+    // Collect stale drawings for this quote
+    const staleDrawingIds = jobItems
+      .map(item => selections[`${quoteId}_${item.id}`])
+      .filter(Boolean)
+      .filter(dwgId => isStale(quoteId, dwgId))
+
+    setPricing(prev => ({ ...prev, [quoteId]: { busy: true, error: null, progress: `Pricing ${staleDrawingIds.length} drawing(s)…` } }))
+
+    const errors = []
+
+    for (const drawingId of staleDrawingIds) {
+      const res = await priceDrawing(drawingId, supabase, { priceFileId })
+      if (!res.success) {
+        errors.push(`Drawing ${drawingId}: ${res.error}`)
+      } else {
+        // Update local drawings state with new calculated_price
+        setDrawings(prev => prev.map(d =>
+          d.id === drawingId ? { ...d, calculated_price: res.calculatedPrice } : d
+        ))
+        // Mark run as fresh
+        setLatestRuns(prev => ({
+          ...prev,
+          [drawingId]: { price_file_id: priceFileId || null, tree_hash: null, status: 'complete', created_at: new Date().toISOString() },
+        }))
+      }
+    }
+
+    // Run quote-level pass
+    if (staleDrawingIds.length > 0 || errors.length === 0) {
+      setPricing(prev => ({ ...prev, [quoteId]: { ...prev[quoteId], progress: 'Running quote-level pass…' } }))
+      const qRes = await priceQuote(quoteId, supabase, { priceFileId })
+      if (!qRes.success) errors.push(`Quote-level pass: ${qRes.error}`)
+    }
+
+    const errorMsg = errors.length > 0 ? errors.join('; ') : null
+    setPricing(prev => ({ ...prev, [quoteId]: { busy: false, error: errorMsg, progress: null } }))
   }
 
   // ── Sidebar ─────────────────────────────────────────────────────────────────
@@ -136,13 +231,14 @@ export default function QuoteMatrix({ leadId, leadNumber, onClose }) {
   function focusQuote(q) {
     setFocusedQuoteId(q.id)
     setSidebarDraft({
-      discount:    q.discount    ?? '',
-      notes:       q.notes       ?? '',
-      valid_until: q.valid_until ?? '',
+      price_file_id: q.price_file_id ?? '',
+      discount_pct:  q.discount_pct  ?? 0,
+      deposit_pct:   q.deposit_pct   ?? 40,
+      interim_pct:   q.interim_pct   ?? 50,
+      valid_days:    q.valid_days     ?? 30,
     })
   }
 
-  // Fetch salesperson name whenever the focused quote changes
   useEffect(() => {
     const q = quotes.find(q => q.id === focusedQuoteId)
     if (!q?.salesperson_id) { setSalespersonName(''); return }
@@ -157,11 +253,6 @@ export default function QuoteMatrix({ leadId, leadNumber, onClose }) {
     return () => { cancelled = true }
   }, [focusedQuoteId, quotes])
 
-  function openDrawing(jobItemId, drawingId) {
-    setSelectedJobItemId(jobItemId)
-    setSelectedDrawingId(drawingId)
-  }
-
   function updateSidebarField(field, value) {
     const fqId = focusedQuoteId
     setSidebarDraft(prev => {
@@ -169,12 +260,53 @@ export default function QuoteMatrix({ leadId, leadNumber, onClose }) {
       if (sidebarSaveRef.current) clearTimeout(sidebarSaveRef.current)
       sidebarSaveRef.current = setTimeout(async () => {
         if (!fqId) return
-        const { error } = await supabase.from('quotes').update({ [field]: value || null }).eq('id', fqId)
+        const q = quotes.find(q => q.id === fqId)
+        if (q?.status !== 'Open') return
+        const dbVal = (field === 'discount_pct' || field === 'deposit_pct' || field === 'interim_pct' || field === 'valid_days')
+          ? (parseFloat(value) || 0)
+          : (value || null)
+        const { error } = await supabase.from('quotes').update({ [field]: dbVal }).eq('id', fqId)
         if (error) console.error('Failed to save quote field:', error)
-        else setQuotes(qs => qs.map(q => q.id === fqId ? { ...q, [field]: value } : q))
+        else setQuotes(qs => qs.map(q => q.id === fqId ? { ...q, [field]: dbVal } : q))
       }, 600)
       return next
     })
+  }
+
+  // ── Totals for sidebar ──────────────────────────────────────────────────────
+
+  function getItemsForTotals(quoteId) {
+    const q = quotes.find(q => q.id === quoteId)
+    return jobItems.map(item => {
+      const dwgId = selections[`${quoteId}_${item.id}`]
+      const dwg = dwgId ? drawings.find(d => d.id === dwgId) : null
+      if (!dwg) return null
+      return {
+        calculated:      parseFloat(dwg.calculated_price) || 0,
+        priceOverride:   dwg.price_override ?? null,
+        itemDiscountPct: dwg.item_discount_pct ?? 0,
+        vatRate:         dwg.vat_rate ?? 20,
+        poa:             dwg.poa ?? false,
+      }
+    }).filter(Boolean)
+  }
+
+  function getSidebarTotals(quoteId) {
+    const q = quotes.find(q => q.id === quoteId)
+    if (!q) return null
+    const items = getItemsForTotals(quoteId)
+    if (items.length === 0) return null
+    const draft = sidebarDraft ?? {}
+    return computeQuoteTotals({
+      discountPct: parseFloat(draft.discount_pct) || 0,
+      depositPct:  parseFloat(draft.deposit_pct)  || 40,
+      interimPct:  parseFloat(draft.interim_pct)  || 50,
+    }, items)
+  }
+
+  function openDrawing(jobItemId, drawingId) {
+    setSelectedJobItemId(jobItemId)
+    setSelectedDrawingId(drawingId)
   }
 
   const focusedQuote = quotes.find(q => q.id === focusedQuoteId) ?? null
@@ -251,7 +383,6 @@ export default function QuoteMatrix({ leadId, leadNumber, onClose }) {
                 {/* ── Table head ── */}
                 <thead>
                   <tr>
-                    {/* Item column header */}
                     <th style={{
                       position: 'sticky', left: 0, zIndex: 3,
                       width: ITEM_COL_W, minWidth: ITEM_COL_W,
@@ -264,9 +395,9 @@ export default function QuoteMatrix({ leadId, leadNumber, onClose }) {
                       Item
                     </th>
 
-                    {/* Quote column headers */}
                     {quotes.map(q => {
                       const isFocused = q.id === focusedQuoteId
+                      const pricingState = pricing[q.id]
                       return (
                         <th
                           key={q.id}
@@ -283,10 +414,9 @@ export default function QuoteMatrix({ leadId, leadNumber, onClose }) {
                         >
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                             <span style={{ color: '#fff', fontSize: 14, fontWeight: 700 }}>{q.quote_number}</span>
-                            {/* Pencil icon */}
                             <span style={{ fontSize: 12, opacity: 0.55, color: '#fff' }}>✎</span>
                           </div>
-                          <div style={{ marginTop: 5 }}>
+                          <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                             <span style={{
                               fontSize: 10, padding: '2px 8px', borderRadius: 999, fontWeight: 600,
                               background: 'rgba(255,255,255,0.18)', color: '#fff',
@@ -294,12 +424,17 @@ export default function QuoteMatrix({ leadId, leadNumber, onClose }) {
                             }}>
                               {q.status}
                             </span>
+                            {q.status === 'Published' && <span title="Locked" style={{ fontSize: 13 }}>🔒</span>}
                           </div>
+                          {pricingState?.progress && (
+                            <div style={{ marginTop: 4, fontSize: 9, color: 'rgba(255,255,255,0.7)', fontStyle: 'italic' }}>
+                              {pricingState.progress}
+                            </div>
+                          )}
                         </th>
                       )
                     })}
 
-                    {/* Placeholder when no quotes */}
                     {quotes.length === 0 && (
                       <th style={{
                         padding: '12px 16px', background: '#3d35a8',
@@ -320,7 +455,6 @@ export default function QuoteMatrix({ leadId, leadNumber, onClose }) {
                     const rowBg = rowIdx % 2 === 0 ? '#fff' : '#f8f8fc'
                     return (
                       <tr key={item.id}>
-
                         {/* Item info cell */}
                         <td style={{
                           position: 'sticky', left: 0, zIndex: 1, background: rowBg,
@@ -348,7 +482,6 @@ export default function QuoteMatrix({ leadId, leadNumber, onClose }) {
                               <div style={{ fontSize: 11, color: '#888', marginBottom: 5 }}>
                                 {[item.floor_level, item.elevation].filter(Boolean).join(' · ') || 'No location set'}
                               </div>
-                              {/* Drawing badges — clickable to open drawer */}
                               {itemDrawings.length > 0 && (
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                                   {itemDrawings.slice(0, 4).map(dwg => (
@@ -381,39 +514,66 @@ export default function QuoteMatrix({ leadId, leadNumber, onClose }) {
                           const key = `${q.id}_${item.id}`
                           const selectedId = selections[key] || ''
                           const hasSelection = Boolean(selectedId)
+                          const isLocked = q.status !== 'Open'
+                          const dwg = hasSelection ? drawings.find(d => d.id === selectedId) : null
+                          const stale = hasSelection && isStale(q.id, selectedId)
+                          const showPrice = dwg?.poa ? 'POA' : dwg?.calculated_price != null ? fmt(dwg.calculated_price) : null
+
                           return (
                             <td key={q.id} style={{
                               padding: '10px 12px',
                               background: rowBg,
                               borderBottom: '1px solid #ecebf5',
                               borderLeft: '1px solid #e0def0',
-                              verticalAlign: 'middle', textAlign: 'center',
+                              verticalAlign: 'top', textAlign: 'center',
                             }}>
                               {itemDrawings.length === 0 ? (
                                 <span style={{ fontSize: 11, color: '#ccc', fontStyle: 'italic' }}>No drawings</span>
                               ) : (
-                                <select
-                                  value={selectedId}
-                                  onChange={e => handleCellChange(q.id, item.id, e.target.value || null)}
-                                  style={{
-                                    width: '100%', padding: '6px 8px', fontSize: 11,
-                                    border: '1px solid',
-                                    borderColor: hasSelection ? '#a09be8' : '#dddaf0',
-                                    borderRadius: 6, outline: 'none',
-                                    background: hasSelection ? '#f0eefc' : '#fff',
-                                    color: hasSelection ? '#3d35a8' : '#aaa',
-                                    fontStyle: hasSelection ? 'normal' : 'italic',
-                                    cursor: 'pointer',
-                                  }}
-                                >
-                                  <option value="">Not included</option>
-                                  {itemDrawings.map(dwg => (
-                                    <option key={dwg.id} value={dwg.id} style={{ fontStyle: 'normal', color: '#222' }}>
-                                      {`Drawing ${item.item_number}.${dwg.drawing_number}`}
-                                      {dwg.window_type ? ` — ${dwg.window_type}` : ''}
-                                    </option>
-                                  ))}
-                                </select>
+                                <>
+                                  {isLocked ? (
+                                    <div style={{ fontSize: 12, color: '#555', fontWeight: 600 }}>
+                                      {showPrice || '—'}
+                                    </div>
+                                  ) : (
+                                    <select
+                                      value={selectedId}
+                                      onChange={e => handleCellChange(q.id, item.id, e.target.value || null)}
+                                      style={{
+                                        width: '100%', padding: '6px 8px', fontSize: 11,
+                                        border: '1px solid',
+                                        borderColor: hasSelection ? '#a09be8' : '#dddaf0',
+                                        borderRadius: 6, outline: 'none',
+                                        background: hasSelection ? '#f0eefc' : '#fff',
+                                        color: hasSelection ? '#3d35a8' : '#aaa',
+                                        fontStyle: hasSelection ? 'normal' : 'italic',
+                                        cursor: 'pointer',
+                                      }}
+                                    >
+                                      <option value="">Not included</option>
+                                      {itemDrawings.map(dwg => (
+                                        <option key={dwg.id} value={dwg.id} style={{ fontStyle: 'normal', color: '#222' }}>
+                                          {`Drawing ${item.item_number}.${dwg.drawing_number}`}
+                                          {dwg.window_type ? ` — ${dwg.window_type}` : ''}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  )}
+                                  {hasSelection && (
+                                    <div style={{ marginTop: 5, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, flexWrap: 'wrap' }}>
+                                      {dwg?.poa ? (
+                                        <span style={{ fontSize: 10, padding: '1px 7px', borderRadius: 999, background: '#fef3c7', color: '#92400e', fontWeight: 600, border: '1px solid #fcd34d' }}>POA</span>
+                                      ) : showPrice ? (
+                                        <span style={{ fontSize: 11, fontWeight: 600, color: '#1a5a1a' }}>{showPrice}</span>
+                                      ) : null}
+                                      {stale && (
+                                        <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 999, background: '#fffbeb', color: '#b45309', fontWeight: 700, border: '1px solid #fcd34d', whiteSpace: 'nowrap' }}>
+                                          needs pricing
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                </>
                               )}
                             </td>
                           )
@@ -426,8 +586,6 @@ export default function QuoteMatrix({ leadId, leadNumber, onClose }) {
                 {/* ── Footer ── */}
                 {quotes.length > 0 && (
                   <tfoot>
-
-                    {/* Totals row */}
                     <tr>
                       <td style={{
                         position: 'sticky', left: 0, zIndex: 1,
@@ -438,27 +596,23 @@ export default function QuoteMatrix({ leadId, leadNumber, onClose }) {
                         fontSize: 11, fontWeight: 700, color: '#3d35a8',
                         textTransform: 'uppercase', letterSpacing: '.06em',
                       }}>
-                        Total (excl. VAT)
+                        Total excl. VAT
                       </td>
                       {quotes.map(q => {
-                        const total = getQuoteTotal(q.id)
+                        const totals = getSidebarTotals(q.id)
                         return (
                           <td key={q.id} style={{
                             padding: '10px 14px', background: '#f0eefc',
                             borderTop: '2px solid #dcd9f5', borderLeft: '1px solid #e0def0',
-                            textAlign: 'center', fontWeight: 700, fontSize: 15,
-                            color: total > 0 ? '#1a5a1a' : '#c0bcec',
+                            textAlign: 'center', fontWeight: 700, fontSize: 14,
+                            color: totals ? '#1a5a1a' : '#c0bcec',
                           }}>
-                            {total > 0
-                              ? `£${total.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                              : '—'
-                            }
+                            {totals ? fmt(totals.subtotalBeforeDiscount) : '—'}
                           </td>
                         )
                       })}
                     </tr>
 
-                    {/* Actions row */}
                     <tr>
                       <td style={{
                         position: 'sticky', left: 0, zIndex: 1,
@@ -467,41 +621,58 @@ export default function QuoteMatrix({ leadId, leadNumber, onClose }) {
                         borderBottom: '1px solid #dcd9f5',
                         padding: '8px 16px',
                       }} />
-                      {quotes.map(q => (
-                        <td key={q.id} style={{
-                          padding: '8px 12px', background: '#f0eefc',
-                          borderLeft: '1px solid #e0def0',
-                          borderBottom: '1px solid #dcd9f5',
-                          textAlign: 'center',
-                        }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'center' }}>
-                            {q.status === 'Open' && (
+                      {quotes.map(q => {
+                        const pricingState = pricing[q.id]
+                        const isLocked = q.status !== 'Open'
+                        const hasStaleCells = jobItems.some(item => {
+                          const dwgId = selections[`${q.id}_${item.id}`]
+                          return dwgId && isStale(q.id, dwgId)
+                        })
+
+                        return (
+                          <td key={q.id} style={{
+                            padding: '8px 12px', background: '#f0eefc',
+                            borderLeft: '1px solid #e0def0',
+                            borderBottom: '1px solid #dcd9f5',
+                            textAlign: 'center',
+                          }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'center' }}>
+                              {!isLocked && (
+                                <button
+                                  onClick={() => doPriceQuote(q.id)}
+                                  disabled={pricingState?.busy}
+                                  style={{
+                                    fontSize: 11, padding: '5px 0', width: 140,
+                                    border: 'none', borderRadius: 6,
+                                    background: pricingState?.busy ? '#c0bcec' : hasStaleCells ? '#b45309' : '#3d35a8',
+                                    color: '#fff',
+                                    cursor: pricingState?.busy ? 'not-allowed' : 'pointer',
+                                    fontWeight: 600, letterSpacing: '.02em',
+                                  }}
+                                >
+                                  {pricingState?.busy ? 'Pricing…' : hasStaleCells ? '⚠ Price quote' : 'Price quote'}
+                                </button>
+                              )}
+                              {pricingState?.error && (
+                                <div style={{ fontSize: 10, color: '#c00', maxWidth: 140, wordBreak: 'break-word' }}>
+                                  {pricingState.error}
+                                </div>
+                              )}
                               <button
-                                onClick={() => publishQuote(q.id)}
+                                onClick={() => alert('Quote PDF coming soon')}
                                 style={{
-                                  fontSize: 11, padding: '5px 0', width: 130,
-                                  border: 'none', borderRadius: 6,
-                                  background: '#3d35a8', color: '#fff',
-                                  cursor: 'pointer', fontWeight: 600, letterSpacing: '.02em',
+                                  fontSize: 11, padding: '5px 0', width: 140,
+                                  border: '1px solid #dcd9f5', borderRadius: 6,
+                                  background: '#fff', color: '#aaa',
+                                  cursor: 'not-allowed', fontWeight: 500,
                                 }}
                               >
-                                Publish
+                                PDF (coming soon)
                               </button>
-                            )}
-                            <button
-                              onClick={() => alert('Quote PDF coming soon')}
-                              style={{
-                                fontSize: 11, padding: '5px 0', width: 130,
-                                border: '1px solid #dcd9f5', borderRadius: 6,
-                                background: '#fff', color: '#aaa',
-                                cursor: 'not-allowed', fontWeight: 500,
-                              }}
-                            >
-                              PDF (coming soon)
-                            </button>
-                          </div>
-                        </td>
-                      ))}
+                            </div>
+                          </td>
+                        )
+                      })}
                     </tr>
                   </tfoot>
                 )}
@@ -511,7 +682,7 @@ export default function QuoteMatrix({ leadId, leadNumber, onClose }) {
 
           {/* ── Right Sidebar ── */}
           <div style={{
-            width: 300, flexShrink: 0, borderLeft: '1px solid #e0def0',
+            width: 320, flexShrink: 0, borderLeft: '1px solid #e0def0',
             background: '#fff', overflowY: 'auto', padding: 20,
             display: 'flex', flexDirection: 'column', gap: 0,
           }}>
@@ -525,7 +696,7 @@ export default function QuoteMatrix({ leadId, leadNumber, onClose }) {
                 <div style={{ marginBottom: 20 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
                     <div style={{ fontSize: 22, fontWeight: 800, color: '#1a1a2e', letterSpacing: '-.01em' }}>
-                      {focusedQuote.quote_number}
+                      {leadNumber && `${leadNumber} / `}{focusedQuote.quote_number}
                     </div>
                     <span style={{
                       fontSize: 11, padding: '3px 10px', borderRadius: 999, fontWeight: 600,
@@ -534,82 +705,134 @@ export default function QuoteMatrix({ leadId, leadNumber, onClose }) {
                     }}>
                       {focusedQuote.status}
                     </span>
+                    {focusedQuote.status !== 'Open' && <span style={{ fontSize: 16 }}>🔒</span>}
                   </div>
                   <div style={{ fontSize: 12, color: '#aaa' }}>
                     Created {new Date(focusedQuote.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                   </div>
                   {salespersonName && (
-                    <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
-                      {salespersonName}
-                    </div>
+                    <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>{salespersonName}</div>
                   )}
                 </div>
 
-                <div style={{ borderTop: '1px solid #f0eef8', paddingTop: 18, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {/* Settings (Open quotes only) */}
+                {focusedQuote.status === 'Open' && (
+                  <div style={{ borderTop: '1px solid #f0eef8', paddingTop: 18, display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-                  {/* Valid until */}
-                  <SidebarField label="Valid Until">
-                    <input
-                      type="date"
-                      value={sidebarDraft?.valid_until || ''}
-                      onChange={e => updateSidebarField('valid_until', e.target.value)}
-                      style={sidebarInputStyle}
-                    />
-                  </SidebarField>
+                    {/* Price file */}
+                    <SidebarField label="Price File">
+                      <select
+                        value={sidebarDraft?.price_file_id || ''}
+                        onChange={e => updateSidebarField('price_file_id', e.target.value || null)}
+                        style={sidebarInputStyle}
+                      >
+                        <option value="">— None selected —</option>
+                        {priceFiles.map(pf => (
+                          <option key={pf.id} value={pf.id}>
+                            {pf.name}{pf.is_current ? ' ★' : pf.status === 'published' ? ' ✓' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </SidebarField>
 
-                  {/* Discount */}
-                  <SidebarField label="Discount">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <input
-                        type="number"
-                        min={0} max={100} step={0.5}
-                        value={sidebarDraft?.discount || ''}
-                        onChange={e => updateSidebarField('discount', e.target.value)}
-                        placeholder="0"
-                        style={{ ...sidebarInputStyle, width: 72 }}
-                      />
-                      <span style={{ fontSize: 13, color: '#888' }}>%</span>
-                    </div>
-                  </SidebarField>
+                    {/* Quote discount */}
+                    <SidebarField label="Quote Discount">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <input
+                          type="number" min={0} max={100} step={0.5}
+                          value={sidebarDraft?.discount_pct ?? ''}
+                          onChange={e => updateSidebarField('discount_pct', e.target.value)}
+                          placeholder="0"
+                          style={{ ...sidebarInputStyle, width: 72 }}
+                        />
+                        <span style={{ fontSize: 13, color: '#888' }}>%</span>
+                      </div>
+                    </SidebarField>
 
-                  {/* Notes */}
-                  <SidebarField label="Notes">
-                    <textarea
-                      value={sidebarDraft?.notes || ''}
-                      onChange={e => updateSidebarField('notes', e.target.value)}
-                      rows={5}
-                      placeholder="Add quote notes…"
-                      style={{ ...sidebarInputStyle, resize: 'vertical', lineHeight: 1.5 }}
-                    />
-                  </SidebarField>
-
-                </div>
-
-                {/* Quote total summary */}
-                <div style={{ marginTop: 'auto', paddingTop: 20, borderTop: '1px solid #f0eef8' }}>
-                  {(() => {
-                    const total = getQuoteTotal(focusedQuote.id)
-                    const discount = parseFloat(sidebarDraft?.discount) || 0
-                    const discounted = total * (1 - discount / 100)
-                    const vat = discounted * 0.2
-                    return (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        <SummaryLine label="Subtotal" value={total > 0 ? `£${total.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'} />
-                        {discount > 0 && (
-                          <SummaryLine label={`Discount (${discount}%)`} value={`−£${(total - discounted).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} dim />
-                        )}
-                        <SummaryLine label="VAT (20%)" value={total > 0 ? `£${vat.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'} dim />
-                        <div style={{ borderTop: '1px solid #ede9fc', paddingTop: 8, marginTop: 2 }}>
-                          <SummaryLine
-                            label="Total (incl. VAT)"
-                            value={total > 0 ? `£${(discounted + vat).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
-                            bold
-                          />
+                    {/* Payment stages */}
+                    <SidebarField label="Payment Stages">
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                        {[
+                          { key: 'deposit_pct',  label: 'Deposit' },
+                          { key: 'interim_pct',  label: 'Interim' },
+                        ].map(({ key, label }) => (
+                          <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                            <span style={{ fontSize: 10, color: '#aaa' }}>{label}</span>
+                            <input
+                              type="number" min={0} max={100} step={1}
+                              value={sidebarDraft?.[key] ?? ''}
+                              onChange={e => updateSidebarField(key, e.target.value)}
+                              style={{ ...sidebarInputStyle, width: 48, padding: '4px 6px', fontSize: 11 }}
+                            />
+                            <span style={{ fontSize: 10, color: '#aaa' }}>%</span>
+                          </div>
+                        ))}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                          <span style={{ fontSize: 10, color: '#aaa' }}>Balance</span>
+                          <span style={{ fontSize: 11, color: '#888', minWidth: 34, textAlign: 'right' }}>
+                            {Math.max(0, 100 - (parseFloat(sidebarDraft?.deposit_pct) || 40) - (parseFloat(sidebarDraft?.interim_pct) || 50))}%
+                          </span>
                         </div>
                       </div>
-                    )
-                  })()}
-                </div>
+                    </SidebarField>
+
+                    {/* Valid for */}
+                    <SidebarField label="Valid For">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <input
+                          type="number" min={1} step={1}
+                          value={sidebarDraft?.valid_days ?? 30}
+                          onChange={e => updateSidebarField('valid_days', e.target.value)}
+                          style={{ ...sidebarInputStyle, width: 60 }}
+                        />
+                        <span style={{ fontSize: 12, color: '#888' }}>days</span>
+                      </div>
+                    </SidebarField>
+
+                  </div>
+                )}
+
+                {/* Totals block */}
+                {(() => {
+                  const totals = getSidebarTotals(focusedQuote.id)
+                  if (!totals) return (
+                    <div style={{ marginTop: 20, fontSize: 12, color: '#ccc', textAlign: 'center', fontStyle: 'italic' }}>
+                      Select drawings to see totals
+                    </div>
+                  )
+
+                  const vatEntries = Object.entries(totals.vatByRate)
+                  const discountPct = parseFloat(sidebarDraft?.discount_pct) || 0
+                  const { deposit, interim, balance } = totals.stages
+
+                  return (
+                    <div style={{ marginTop: 20, borderTop: '2px solid #ede9fc', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 5 }}>
+                      <TotalsLine label="Sub Total Before Discount" value={fmt(totals.subtotalBeforeDiscount)} />
+                      {discountPct > 0 && (
+                        <TotalsLine label={`${discountPct}% Discount`} value={`−${fmt(totals.discountAmount)}`} dim />
+                      )}
+                      {discountPct > 0 && (
+                        <TotalsLine label="Sub Total After Discount" value={fmt(totals.subtotalAfterDiscount)} />
+                      )}
+                      {vatEntries.map(([rate, amount]) => (
+                        <TotalsLine key={rate} label={rate === '0' ? 'VAT (0%)' : `VAT @ ${rate}%`} value={fmt(amount)} dim />
+                      ))}
+                      <div style={{ borderTop: '1px solid #ede9fc', paddingTop: 8, marginTop: 4 }}>
+                        <TotalsLine label="Total Order Value incl. VAT" value={fmt(totals.totalInclVat)} bold />
+                      </div>
+                      <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 3, borderTop: '1px solid #f5f3ff', paddingTop: 8 }}>
+                        <TotalsLine label="Deposit With Order" value={fmt(deposit)} dim />
+                        <TotalsLine label="Interim" value={fmt(interim)} dim />
+                        <TotalsLine label="Balance on Completion" value={fmt(balance)} dim />
+                      </div>
+                      {totals.poaItems.length > 0 && (
+                        <div style={{ marginTop: 6, fontSize: 10, color: '#b45309', fontStyle: 'italic' }}>
+                          {totals.poaItems.length} POA item{totals.poaItems.length > 1 ? 's' : ''} excluded from totals
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
               </>
             )}
           </div>
@@ -618,13 +841,18 @@ export default function QuoteMatrix({ leadId, leadNumber, onClose }) {
       </div>
     </div>
 
-    {/* Drawing drawer — opens on top of the matrix (zIndex 1100) */}
+    {/* Drawing drawer */}
     {selectedDrawingId && (
       <QuoteDrawer
         drawingId={selectedDrawingId}
         jobItemId={selectedJobItemId}
         leadNumber={leadNumber}
-        onClose={() => { setSelectedDrawingId(null); setSelectedJobItemId(null) }}
+        onClose={() => {
+          setSelectedDrawingId(null)
+          setSelectedJobItemId(null)
+          // Reload drawings in case pricing controls changed
+          load()
+        }}
       />
     )}
     </>
@@ -651,11 +879,11 @@ function SidebarField({ label, children }) {
   )
 }
 
-function SummaryLine({ label, value, dim, bold }) {
+function TotalsLine({ label, value, dim, bold }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-      <span style={{ fontSize: 12, color: dim ? '#aaa' : '#666' }}>{label}</span>
-      <span style={{ fontSize: bold ? 14 : 12, fontWeight: bold ? 700 : 500, color: bold ? '#1a1a2e' : dim ? '#aaa' : '#444' }}>
+      <span style={{ fontSize: bold ? 12 : 11, color: dim ? '#aaa' : '#555' }}>{label}</span>
+      <span style={{ fontSize: bold ? 14 : 12, fontWeight: bold ? 700 : 500, color: bold ? '#1a1a2e' : dim ? '#aaa' : '#333' }}>
         {value}
       </span>
     </div>
