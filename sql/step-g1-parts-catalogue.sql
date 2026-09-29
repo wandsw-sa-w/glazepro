@@ -147,15 +147,38 @@ ON CONFLICT (part_code) DO UPDATE SET
   updated_at   = EXCLUDED.updated_at;
 
 -- ---------------------------------------------------------------------------
--- 4. Sash Weight parts upsert (6 rows)
---    Timber parts upsert (3 rows)
+-- 4. Sash Weight parts upsert (29 rows)
+--    Timber parts upsert (12 rows)
 --    Source: docs/integrate-part-allocator.txt "Referenced parts"
 -- ---------------------------------------------------------------------------
 
--- Sash Weight + Timber parts — 9 rows
+-- Sash Weight + Timber parts — 41 rows
 INSERT INTO parts_catalogue
   (part_code, part_name, category, unit, thickness_mm, unit_cost, is_active, special, stocked, properties, updated_at)
 VALUES
+  ('LW100005','40mm Lead Weight (square, hole)','Sash Weight','each',null,34.91,true,false,false,'{}',now()),
+  ('LW100010','32mm Lead Weight','Sash Weight','each',null,15.26,true,false,false,'{}',now()),
+  ('RLZ2092','7lb Steel Sash Weight','Sash Weight','each',null,5.95,true,false,false,'{}',now()),
+  ('RLZ2093','8lb Sash Weight','Sash Weight','each',null,6.8,true,false,false,'{}',now()),
+  ('RLZ1915','9lb Sash Weight','Sash Weight','each',null,7.65,true,false,false,'{}',now()),
+  ('RLZ1916','10lb Sash Weight','Sash Weight','each',null,8.5,true,false,false,'{}',now()),
+  ('RLZ1917','11lb Sash Weight','Sash Weight','each',null,9.35,true,false,false,'{}',now()),
+  ('RLZ1918','12lb Sash Weight','Sash Weight','each',null,10.2,true,false,false,'{}',now()),
+  ('RLZ1919','13lb Sash Weight','Sash Weight','each',null,11.05,true,false,false,'{}',now()),
+  ('RLZ1920','14lb Sash Weight','Sash Weight','each',null,11.9,true,false,false,'{}',now()),
+  ('RLZ1921','15lb Sash Weight','Sash Weight','each',null,12.75,true,false,false,'{}',now()),
+  ('RLZ1922','16lb Sash Weight','Sash Weight','each',null,13.6,true,false,false,'{}',now()),
+  ('RLZ1923','17lb Sash Weight','Sash Weight','each',null,14.5,true,false,false,'{}',now()),
+  ('RLZ1924','18lb Sash Weight','Sash Weight','each',null,15.3,true,false,false,'{}',now()),
+  ('RLZ1925','19lb Sash Weight','Sash Weight','each',null,16.15,true,false,false,'{}',now()),
+  ('RLZ1926','20lb Sash Weight','Sash Weight','each',null,17,true,false,false,'{}',now()),
+  ('RLZ1927','21lb Sash Weight','Sash Weight','each',null,17.85,true,false,false,'{}',now()),
+  ('RLZ1928','22lb Sash Weight','Sash Weight','each',null,18.7,true,false,false,'{}',now()),
+  ('RLZ1929','23lb Sash Weight','Sash Weight','each',null,19.55,true,false,false,'{}',now()),
+  ('RLZ1930','24lb Sash Weight','Sash Weight','each',null,20.4,true,false,false,'{}',now()),
+  ('RLZ2810','25lb Sash Weight','Sash Weight','each',null,21.25,true,false,false,'{}',now()),
+  ('RLZ2094','26lb Sash Weight','Sash Weight','each',null,22.1,true,false,false,'{}',now()),
+  ('RLZ1941','30lb Sash Weight','Sash Weight','each',null,25.5,true,false,false,'{}',now()),
   ('SW100010','3.17kg (7lb) Sash Weight','Sash Weight','each',null,6.73,true,false,false,'{}',now()),
   ('SW100005','4.53kg (10lb) Sash Weight','Sash Weight','each',null,10.7,true,false,false,'{}',now()),
   ('SW100015','6.8kg (15lb) Sash Weight','Sash Weight','each',null,16.04,true,false,false,'{}',now()),
@@ -164,7 +187,16 @@ VALUES
   ('SW100030','13.61kg (30lb) Sash Weight','Sash Weight','each',null,26.75,true,false,false,'{}',now()),
   ('AA01','Internal Linings MDF','Timber','each',null,50,true,false,false,'{}',now()),
   ('AA02','Windowboard MDF','Timber','each',null,30,true,false,false,'{}',now()),
-  ('AA03','External Linings Utile','Timber','each',null,75,true,false,false,'{}',now())
+  ('AA03','External Linings Utile','Timber','each',null,75,true,false,false,'{}',now()),
+  ('TP01','Small staff bead 20x15 Redwood','Timber','m',null,2.59,true,false,false,'{}',now()),
+  ('TP02','Large staff bead 25x15 Redwood','Timber','m',null,2.95,true,false,false,'{}',now()),
+  ('TP03','Standard parting bead 8x25 Redwood','Timber','m',null,2.22,true,false,false,'{}',now()),
+  ('TP61','Nosing 25x50 Redwood','Timber','m',null,2.76,true,false,false,'{}',now()),
+  ('TP65','225mm Window Board Redwood','Timber','m',null,18,true,false,false,'{}',now()),
+  ('TP66','225mm Window Board MDF','Timber','m',null,14,true,false,false,'{}',now()),
+  ('TP68','Ogee Architrave 20x70 MDF','Timber','m',null,2.85,true,false,false,'{}',now()),
+  ('TP74','Chamfered Architrave 20x70 MDF','Timber','m',null,4.5,true,false,false,'{}',now()),
+  ('TT69','Pencil Round Architrave 20x70 MDF','Timber','m',null,2.59,true,false,false,'{}',now())
 ON CONFLICT (part_code) DO UPDATE SET
   part_name    = EXCLUDED.part_name,
   category     = EXCLUDED.category,

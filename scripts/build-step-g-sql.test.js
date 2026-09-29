@@ -17,16 +17,30 @@ describe('build-step-g-sql — source file counts', () => {
     expect(parts).toHaveLength(75)
   })
 
-  it('sash weights = 6', () => {
+  it('sash weights = 29 (2 LW lead + 21 RLZ steel + 6 SW cast)', () => {
     const parts = parseWeightsAndTimber(ROOT)
     const weights = parts.filter(p => p.category === 'Sash Weight')
-    expect(weights).toHaveLength(6)
+    expect(weights).toHaveLength(29)
   })
 
-  it('timber parts = 3', () => {
+  it('timber parts = 12 (3 AA each + 9 TP/TT per-metre)', () => {
     const parts = parseWeightsAndTimber(ROOT)
     const timber = parts.filter(p => p.category === 'Timber')
-    expect(timber).toHaveLength(3)
+    expect(timber).toHaveLength(12)
+  })
+
+  it('TP/TT timber parts have unit m', () => {
+    const parts = parseWeightsAndTimber(ROOT)
+    const perMetre = parts.filter(p => /^(TP|TT)/.test(p.part_code))
+    expect(perMetre.length).toBeGreaterThan(0)
+    perMetre.forEach(p => expect(p.unit).toBe('m'))
+  })
+
+  it('AA timber parts have unit each', () => {
+    const parts = parseWeightsAndTimber(ROOT)
+    const aa = parts.filter(p => /^AA/.test(p.part_code))
+    expect(aa.length).toBe(3)
+    aa.forEach(p => expect(p.unit).toBe('each'))
   })
 
   it('ironmongery parts = 1058', () => {

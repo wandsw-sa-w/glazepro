@@ -69,61 +69,77 @@ export function parseGlass(root = DEFAULT_ROOT) {
 // ─── 2. Sash weights + timber ─────────────────────────────────────────────────
 
 /**
- * Parse the "Referenced parts" section of docs/integrate-part-allocator.txt.
- * Returns sash-weight and timber rows for parts_catalogue.
+ * Parse the full "## Referenced parts" section of docs/integrate-part-allocator.txt.
+ *
+ * Sash Weight category (LW*, RLZ*, SW*) — unit 'each'
+ *   LW100005/10  lead weights
+ *   RLZ2092–1941 21 steel weights
+ *   SW100005–30  6 traditional cast weights
+ *
+ * Timber category (AA*, TP*, TT*) — unit 'each' for AA, 'm' for TP/TT
+ *   AA01–03  nominal lining / board allowances
+ *   TP01–74  per-metre timber lengths
+ *   TT69     per-metre MDF architrave
+ *
+ * Expected: 29 Sash Weight + 12 Timber = 41 rows
  */
 export function parseWeightsAndTimber(root = DEFAULT_ROOT) {
   const src = readFileSync(join(root, 'docs/integrate-part-allocator.txt'), 'utf8')
   const parts = []
-  let inWeights = false
-  let inTimber  = false
+
+  // Generic item regex: CODE  description  £price  (optional trailing comment ignored)
+  const ITEM_RE = /^([A-Z]{2,}\d+)\s+(.+?)\s+£([\d.]+)/
+
+  let mode = null  // 'weight' | 'timber'
 
   for (const line of src.split('\n')) {
-    if (line.includes('Sash Weight (WT):')) { inWeights = true; inTimber = false; continue }
-    if (line.includes('Timber (TB)'))       { inTimber = true; inWeights = false; continue }
+    if (line.includes('Sash Weight (WT):'))  { mode = 'weight'; continue }
+    if (line.includes('Timber (TB)'))        { mode = 'timber'; continue }
+    // Stop at next ## section or the "All timber parts" note
+    if ((line.startsWith('##') || line.startsWith('All timber')) && mode) { mode = null; continue }
+    if (!mode) continue
 
-    if (inWeights && /SW\d+/.test(line)) {
-      // e.g. "SW100010 3.17kg (7lb) £6.73 | SW100005 4.53kg (10lb) £10.70 | ..."
-      for (const item of line.split('|').map(s => s.trim()).filter(Boolean)) {
-        const m = item.match(/^(SW\d+)\s+([\d.]+kg[^£]*?)\s*£([\d.]+)/)
-        if (m) {
-          parts.push({
-            part_code:    m[1],
-            part_name:    `${m[2].trim()} Sash Weight`,
-            category:     'Sash Weight',
-            unit:         'each',
-            thickness_mm: null,
-            unit_cost:    Number(m[3]),
-            is_active:    true,
-            special:      false,
-            stocked:      false,
-            properties:   '{}',
-          })
-        }
-      }
-      inWeights = false
-    }
+    for (const item of line.split('|').map(s => s.trim()).filter(Boolean)) {
+      const m = item.match(ITEM_RE)
+      if (!m) continue
 
-    if (inTimber && /AA\d+/.test(line)) {
-      // e.g. "AA01 Internal Linings MDF £50.00 each (nominal) | ..."
-      for (const item of line.split('|').map(s => s.trim()).filter(Boolean)) {
-        const m = item.match(/^(AA\d+)\s+(.+?)\s+£([\d.]+)/)
-        if (m) {
-          parts.push({
-            part_code:    m[1],
-            part_name:    m[2].trim(),
-            category:     'Timber',
-            unit:         'each',
-            thickness_mm: null,
-            unit_cost:    Number(m[3]),
-            is_active:    true,
-            special:      false,
-            stocked:      false,
-            properties:   '{}',
-          })
-        }
+      const code = m[1]
+      const rawDesc = m[2].trim()
+      const cost = Number(m[3])
+
+      if (mode === 'weight') {
+        // Append "Sash Weight" unless the description already contains "Weight"
+        const name = /weight/i.test(rawDesc) ? rawDesc : `${rawDesc} Sash Weight`
+        parts.push({
+          part_code:    code,
+          part_name:    name,
+          category:     'Sash Weight',
+          unit:         'each',
+          thickness_mm: null,
+          unit_cost:    cost,
+          is_active:    true,
+          special:      false,
+          stocked:      false,
+          properties:   '{}',
+        })
+      } else {
+        // Timber: TP/TT are priced per metre; AA are nominal each items
+        const unit = /^(TP|TT)/.test(code) ? 'm' : 'each'
+        // Strip trailing "each (nominal)" annotation from AA descriptions
+        const name = rawDesc.replace(/\s+each\s*\(.*?\)\s*$/i, '').trim()
+        parts.push({
+          part_code:    code,
+          part_name:    name,
+          category:     'Timber',
+          unit,
+          thickness_mm: null,
+          unit_cost:    cost,
+          is_active:    true,
+          special:      false,
+          stocked:      false,
+          properties:   '{}',
+        })
       }
-      inTimber = false
     }
   }
 
@@ -800,8 +816,8 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const counts = buildAll()
   console.log('\nCounts:')
   console.log(`  Glass parts       : ${counts.glass}   (expected 75)`)
-  console.log(`  Sash weights      : ${counts.weights}   (expected 6)`)
-  console.log(`  Timber parts      : ${counts.timber}   (expected 3)`)
+  console.log(`  Sash weights      : ${counts.weights}  (expected 29)`)
+  console.log(`  Timber parts      : ${counts.timber}  (expected 12)`)
   console.log(`  Ironmongery parts : ${counts.ironmongery}  (expected 1058)`)
   console.log(`  Products          : ${counts.products} (expected 437)`)
   console.log(`  Finish kits       : ${counts.variants} (expected ~1083)`)
@@ -810,6 +826,8 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
 
   const mismatches = [
     counts.glass !== 75          && `glass: got ${counts.glass}, want 75`,
+    counts.weights !== 29        && `sash weights: got ${counts.weights}, want 29`,
+    counts.timber !== 12         && `timber: got ${counts.timber}, want 12`,
     counts.ironmongery !== 1058  && `ironmongery parts: got ${counts.ironmongery}, want 1058`,
     counts.products !== 437      && `products: got ${counts.products}, want 437`,
     counts.variantParts !== 1116 && `kit lines: got ${counts.variantParts}, want 1116`,
