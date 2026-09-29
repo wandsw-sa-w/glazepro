@@ -11,6 +11,7 @@ import { computeDerived } from '../drawingBoard/computeDerived.js'
 import { applyOperationDefaults } from '../drawingBoard/applyOperationDefaults.js'
 import { computeSashGeometry } from '../drawingBoard/sashGeometry.js'
 import { SashElevation } from '../drawingBoard/renderElevation.jsx'
+import { applyDividers, applyBars } from '../drawingBoard/gridActions.js'
 import { defaultIronmonger } from '../pricing/defaultIronmongery.js'
 import { computeVariables } from '../pricing/computeVariables.js'
 
@@ -761,62 +762,6 @@ function BarGridPickerDialog({ title, onApply, onClose }) {
   )
 }
 
-// ── Tree manipulation for dividers / bars ─────────────────────────────────────
-
-function makeKey(prefix) {
-  return prefix + '_' + Math.random().toString(36).slice(2, 9)
-}
-
-// Replace all mullionPart/transomPart children of frameNode with new ones.
-// cols × rows → (cols-1) mullions + (rows-1) transoms, evenly spaced.
-function applyDividers(tree, frameKey, cols, rows, iW, iH) {
-  function process(node) {
-    if (node.key !== frameKey) {
-      return { ...node, children: (node.children ?? []).map(process) }
-    }
-    // Remove existing mullions/transoms; keep everything else
-    const others = (node.children ?? []).filter(
-      c => c.part_type !== 'mullionPart' && c.part_type !== 'transomPart'
-    )
-    const mullions = Array.from({ length: cols - 1 }, (_, i) => ({
-      key:       makeKey('mull'),
-      part_type: 'mullionPart',
-      values:    { offset: Math.round(iW * (i + 1) / cols), thicknessInFrame: 40 },
-      children:  [],
-    }))
-    const transoms = Array.from({ length: rows - 1 }, (_, i) => ({
-      key:       makeKey('trans'),
-      part_type: 'transomPart',
-      values:    { offset: Math.round(iH * (i + 1) / rows), thicknessInFrame: 40 },
-      children:  [],
-    }))
-    return { ...node, children: [...mullions, ...transoms, ...others] }
-  }
-  return process(tree)
-}
-
-// Replace all bar children of a glassPart with new evenly-spaced bars.
-// cols × rows → (cols-1) vertical bars + (rows-1) horizontal bars.
-function applyBars(tree, glassKey, cols, rows) {
-  function process(node) {
-    if (node.key !== glassKey) {
-      return { ...node, children: (node.children ?? []).map(process) }
-    }
-    const others = (node.children ?? []).filter(
-      c => c.part_type !== 'verticalGlazingBarPart' && c.part_type !== 'horizontalGlazingBarPart'
-    )
-    const vBars = Array.from({ length: cols - 1 }, () => ({
-      key: makeKey('vbar'), part_type: 'verticalGlazingBarPart',
-      values: { offset: 0, thickness: 20, nib: 4, tail: 4, tailLinkType: 1 }, children: [],
-    }))
-    const hBars = Array.from({ length: rows - 1 }, () => ({
-      key: makeKey('hbar'), part_type: 'horizontalGlazingBarPart',
-      values: { offset: 0, thickness: 20, nib: 4, tail: 4, tailLinkType: 1 }, children: [],
-    }))
-    return { ...node, children: [...vBars, ...hBars, ...others] }
-  }
-  return process(tree)
-}
 
 // Remove a node by key (and its descendants) from the tree.
 function removeNode(tree, key) {
@@ -1111,6 +1056,15 @@ function DrawingBoard() {
     if (!tree) return
     const frame = findFirst(tree, 'assemblyFramePart')
     if (!frame) return
+
+    const currentCols = findAll(tree, 'mullionPart').length + 1
+    const currentRows = findAll(tree, 'transomPart').length + 1
+    const shrinkingToSingle = cols === 1 && rows === 1 && (currentCols > 1 || currentRows > 1)
+    if (shrinkingToSingle) {
+      const ok = window.confirm('Going back to 1 x 1 removes the dividers and the extra openings. Continue?')
+      if (!ok) return
+    }
+
     const pair = findFirst(tree, 'sashPairPart')
     const pairD = pair ? (derived[pair.key] ?? {}) : {}
     const fv = frame.values ?? {}

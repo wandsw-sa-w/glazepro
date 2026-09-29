@@ -682,7 +682,13 @@ export function SashElevation({
         <>
           <VDim x={R3} y1={OY}  y2={OY + iH}  label={iH}   dfs={dfs} tk={tk} prefix="F " labelY={r3LabelY} />
           <VDim x={R4} y1={0}   y2={fH}        label={fH}   dfs={dfs} tk={tk} prefix="F " labelY={r4LabelY} />
-          <HDim x1={sx0} x2={sx0 + sashWidth}  y={B1} label={sashWidth} dfs={dfs} tk={tk} />
+          {openings.length > 1 ? (
+            openings.map((op, i) => (
+              <HDim key={`op-${i}`} x1={OX + op.x} x2={OX + op.x + op.width} y={B1} label={op.width} dfs={dfs} tk={tk} />
+            ))
+          ) : (
+            <HDim x1={sx0} x2={sx0 + sashWidth}  y={B1} label={sashWidth} dfs={dfs} tk={tk} />
+          )}
           <HDim x1={OX}  x2={OX + iW}           y={B2} label={iW}        dfs={dfs} tk={tk} prefix="F " />
           <HDim x1={0}   x2={fW}                y={B3} label={fW}        dfs={dfs} tk={tk} prefix="F " />
         </>
