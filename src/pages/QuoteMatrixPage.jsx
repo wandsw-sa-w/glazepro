@@ -1,11 +1,11 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { Layout, LeadsSubNav } from '../components/Layout'
 import { priceDrawing, priceQuote } from '../pricing/pricingEngine.js'
 import { computeQuoteTotals } from '../quotes/quoteTotals.js'
-import { validatePublish, isLocked, nextQuoteNumber } from '../quotes/publishValidation.js'
+import { validatePublish, nextQuoteNumber } from '../quotes/publishValidation.js'
 import { computePopulatePatch } from '../quotes/populateQuote.js'
 import { loadDrawingParts, saveDrawingParts } from '../drawingBoard/api.js'
 import { computeDerived } from '../drawingBoard/computeDerived.js'
@@ -241,7 +241,7 @@ export default function QuoteMatrixPage() {
   }
 
   async function duplicateDrawing(dwg, targetJobItemId, nextDrawingNumber) {
-    const { id, created_at, updated_at, ...rest } = dwg
+    const { id: _id, created_at: _created_at, updated_at: _updated_at, ...rest } = dwg
     const { data: newDwg, error } = await supabase
       .from('drawings')
       .insert({ ...rest, job_item_id: targetJobItemId, drawing_number: nextDrawingNumber, sort_order: nextDrawingNumber, deleted_at: null, created_at: new Date().toISOString() })
@@ -459,14 +459,17 @@ export default function QuoteMatrixPage() {
       if (!ok) return
     }
     const totals = getQuoteTotals(q)
-    const selectedItems = jobItems.map(item => {
+    const selectedItems = (await Promise.all(jobItems.map(async item => {
       const dwgId = selections[`${q.id}_${item.id}`]
       if (!dwgId) return null
       const dwg = drawings.find(d => d.id === dwgId)
       const itemTotals = totals?.items?.[jobItems.indexOf(item)]
+      let partsTree = null
+      try { partsTree = await loadDrawingParts(dwgId) } catch { /* leave null — grid shows "—" for this item */ }
       return {
         job_item: { id: item.id, item_number: item.item_number, floor_level: item.floor_level, elevation: item.elevation, room_name: item.room_name },
         drawing: { id: dwg?.id, drawing_number: dwg?.drawing_number, window_type: dwg?.window_type },
+        parts_tree: partsTree,
         calculated_price: dwg?.calculated_price ?? null,
         net: itemTotals?.net ?? null,
         net_after_quote_discount: itemTotals?.netAfterQuoteDiscount ?? null,
@@ -474,7 +477,7 @@ export default function QuoteMatrixPage() {
         vat_rate: dwg?.vat_rate ?? 20,
         poa: dwg?.poa ?? false,
       }
-    }).filter(Boolean)
+    }))).filter(Boolean)
 
     const publishedAt = new Date().toISOString()
     const validUntil = q.valid_days ? new Date(Date.now() + q.valid_days * 24 * 60 * 60 * 1000).toISOString().split('T')[0] : null
@@ -528,13 +531,6 @@ export default function QuoteMatrixPage() {
     try {
       await supabase.from('lead_history').insert({ lead_id: leadId, user_id: user?.id ?? null, user_email: user?.email ?? null, event: 'Quote copied', old_value: `${lead?.lead_number} / ${q.quote_number}`, new_value: `${lead?.lead_number} / ${newNum}`, created_at: new Date().toISOString() })
     } catch { /* ignore */ }
-  }
-
-  async function doAcceptQuote(quoteId) {
-    const acceptedAt = new Date().toISOString()
-    const { error } = await supabase.from('quotes').update({ status: 'Accepted', accepted_at: acceptedAt }).eq('id', quoteId)
-    if (error) return
-    setQuotes(prev => prev.map(q => q.id === quoteId ? { ...q, status: 'Accepted', accepted_at: acceptedAt } : q))
   }
 
   // ── Floating quote picker panel ──────────────────────────────────────────────
