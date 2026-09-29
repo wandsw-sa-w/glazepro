@@ -21,6 +21,7 @@ import ManufactureLabourEditor from './pages/pricing/ManufactureLabourEditor'
 import PartsEditor             from './pages/pricing/PartsEditor'
 import DrawingBoardTest        from './drawingBoard/DrawingBoardTest.jsx'
 import DrawingBoard            from './pages/DrawingBoard.jsx'
+import QuoteMatrixPage         from './pages/QuoteMatrixPage.jsx'
 import PricingBenchmark        from './pages/dev/PricingBenchmark.jsx'
 import './App.css'
 
@@ -37,6 +38,8 @@ function AppRoutes() {
       <Route path="/" element={<Home />} />
       <Route path="/leads" element={<Leads />} />
       <Route path="/leads/:id" element={<LeadDetail />} />
+      <Route path="/leads/:id/quotes" element={<QuoteMatrixPage />} />
+      <Route path="/leads/:id/quotes/:quoteId" element={<QuoteMatrixPage />} />
       <Route path="/calendar" element={<Calendar />} />
       <Route path="/tasks" element={<Tasks />} />
       <Route path="/unmatched-emails" element={<UnmatchedEmails />} />
