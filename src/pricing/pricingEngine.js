@@ -409,6 +409,10 @@ function evalPriceRuleLine(rule, vars, partNode) {
  * @param {Object}   options.glassCatalogue    - { partCode: { cost_per_m2, thickness_mm } }
  * @param {Array}    options.partAllocationRules - Rows from part_allocation_rules (for component loop)
  * @param {Object}   options.partCostMap        - { partCode: costPerUnitOfMeasure } fixture map
+ * @param {Array}    options.ironmongeryLines   - Pre-computed default ironmongery lines
+ *                                               [{ product_short_name, finish_code, qty }]
+ * @param {Object}   options.ironmongeryCatalogue - Variant kit expansion map:
+ *                   { 'short_name:finish_code': { cost: kitCost, parts: [{ part_code, part_name, qty, unit_cost }] } }
  * @returns {{ manufacture_labour, install_labour, price, allocated_parts?, error? }}
  */
 export function runPricingOnTree(tree, rules, pfVariables = {}, {
@@ -416,6 +420,8 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
   glassCatalogue = {},
   partAllocationRules = [],
   partCostMap = {},
+  ironmongeryLines = [],
+  ironmongeryCatalogue = {},
 } = {}) {
   const derived  = computeDerived(tree)
   const itemVars = computeVariables(tree, derived, pfVariables)
@@ -543,6 +549,57 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
       }
       continue
     }
+
+    // Ironmongery loop: expand each ironmongery line to its variant kit lines.
+    // Variables: cost (part unit_cost), qty (effective = kit_line.qty × iron_line.qty),
+    //            part_name (part description), part_no (part_code).
+    // If the variant has no kit lines (unknown cost), use the kit cost directly (qty=1).
+    // loop_target may be stored as 'ironmongery_part' or 'ironmongery part' (rules export uses spaces).
+    if (rule.loop_target === 'ironmongery_part' || rule.loop_target === 'ironmongery part') {
+      for (const ironLine of ironmongeryLines) {
+        const variantKey  = `${ironLine.product_short_name}:${ironLine.finish_code}`
+        const variant     = ironmongeryCatalogue[variantKey] ?? null
+        const kitParts    = variant?.parts ?? []
+
+        if (kitParts.length === 0) {
+          // No kit line data — use the kit cost as a single lump line
+          const kitCost = variant?.cost ?? 0
+          const ironVars = {
+            ...priceVars,
+            cost:      kitCost,
+            qty:       ironLine.qty,
+            part_name: ironLine.product_short_name,
+            part_no:   '',
+          }
+          const line = evalPriceRuleLine(rule, ironVars, null)
+          line.alloc_iron_short_name = ironLine.product_short_name
+          line.alloc_iron_finish     = ironLine.finish_code
+          line.alloc_iron_kit_cost   = kitCost
+          if (!line.error && line.fires) totalPrice += line.line_total
+          results.price.lines.push(line)
+        } else {
+          for (const kitLine of kitParts) {
+            const effectiveQty = (kitLine.qty ?? 1) * (ironLine.qty ?? 1)
+            const partUnitCost = kitLine.unit_cost ?? 0
+            const ironVars = {
+              ...priceVars,
+              cost:      partUnitCost,
+              qty:       effectiveQty,
+              part_name: kitLine.part_name ?? kitLine.part_code,
+              part_no:   kitLine.part_code,
+            }
+            const line = evalPriceRuleLine(rule, ironVars, null)
+            line.alloc_iron_short_name = ironLine.product_short_name
+            line.alloc_iron_finish     = ironLine.finish_code
+            line.alloc_iron_part_code  = kitLine.part_code
+            if (!line.error && line.fires) totalPrice += line.line_total
+            results.price.lines.push(line)
+          }
+        }
+      }
+      continue
+    }
+
     // Normal tree-based loop
     const loopParts = getLoopParts(tree, rule.loop_target)
     for (const partNode of loopParts) {

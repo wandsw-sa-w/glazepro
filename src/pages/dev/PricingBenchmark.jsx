@@ -11,6 +11,8 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../supabase.js'
 import { runPricingOnTree } from '../../pricing/pricingEngine.js'
 import { computeDerived } from '../../drawingBoard/computeDerived.js'
+import { defaultIronmonger } from '../../pricing/defaultIronmongery.js'
+import { computeVariables } from '../../pricing/computeVariables.js'
 
 // ── Fixture glass catalogue (fallback when parts_catalogue query fails) ───────
 const FIXTURE_GLASS_CATALOGUE = {
@@ -485,6 +487,7 @@ export default function PricingBenchmark() {
   const [state, setState] = useState({
     status: 'idle', results: null, pfName: null, ruleCount: 0,
     error: null, catalogueWarning: null, allocRulesWarning: null,
+    ironmongeryWarning: null, ironmongeryLines: [],
   })
 
   useEffect(() => {
@@ -541,11 +544,11 @@ export default function PricingBenchmark() {
         try {
           const { data: catalogueRows, error: catErr } = await supabase
             .from('parts_catalogue')
-            .select('code, cost_per_m2, thickness_mm')
+            .select('part_code, unit_cost, thickness_mm')
             .eq('category', 'Glass')
           if (catErr) throw catErr
           const built = Object.fromEntries(
-            (catalogueRows || []).map(r => [r.code, { cost_per_m2: r.cost_per_m2, thickness_mm: r.thickness_mm }])
+            (catalogueRows || []).map(r => [r.part_code, { cost_per_m2: r.unit_cost, thickness_mm: r.thickness_mm }])
           )
           if (Object.keys(built).length === 0) {
             catalogueWarning = 'parts_catalogue returned no glass rows — using fixture fallback costs'
@@ -570,12 +573,68 @@ export default function PricingBenchmark() {
           allocRulesWarning = `part_allocation_rules query failed (${err.message}) — run sql/step-f2-part-allocator.sql first`
         }
 
+        // Load default ironmongery rules + variant catalogue (G5)
+        let ironmongeryLines = []
+        let ironmongeryCatalogue = {}
+        let ironmongeryWarning = null
+        try {
+          const [{ data: ironRules }, { data: ironVariants }, { data: ironKitLines }] = await Promise.all([
+            supabase
+              .from('part_allocation_rules')
+              .select('id, sort_order, group_name, loop_target, label, condition, qty_expr, product_short_name, finish_code, is_active')
+              .eq('rule_family', 'default_ironmongery')
+              .order('sort_order'),
+            supabase
+              .from('ironmongery_variants')
+              .select('id, finish_code, cost, ironmongery_products!inner(short_name)')
+              .eq('ironmongery_products.is_active', true),
+            supabase
+              .from('ironmongery_variant_parts')
+              .select('variant_id, part_code, quantity, parts_catalogue(part_name, unit_cost)'),
+          ])
+
+          // Build kit-line map: variant_id → [{ part_code, part_name, qty, unit_cost }]
+          const kitLinesByVariant = {}
+          for (const kl of (ironKitLines ?? [])) {
+            if (!kitLinesByVariant[kl.variant_id]) kitLinesByVariant[kl.variant_id] = []
+            kitLinesByVariant[kl.variant_id].push({
+              part_code: kl.part_code,
+              part_name: kl.parts_catalogue?.part_name ?? kl.part_code,
+              qty:       kl.quantity ?? 1,
+              unit_cost: kl.parts_catalogue?.unit_cost ?? null,
+            })
+          }
+
+          // Build catalogue map: 'short_name:finish_code' → { cost, parts }
+          for (const v of (ironVariants ?? [])) {
+            const shortName = v.ironmongery_products?.short_name
+            if (!shortName) continue
+            const key = `${shortName}:${v.finish_code}`
+            ironmongeryCatalogue[key] = {
+              cost:  v.cost ?? 0,
+              parts: kitLinesByVariant[v.id] ?? [],
+            }
+          }
+
+          if (ironRules && ironRules.length > 0) {
+            const derived  = computeDerived(FIXTURE_TREE)
+            const itemVars = computeVariables(FIXTURE_TREE, derived, pfVariables) ?? {}
+            ironmongeryLines = defaultIronmonger(FIXTURE_TREE, { ...pfVariables, ...itemVars }, ironRules)
+          } else {
+            ironmongeryWarning = 'part_allocation_rules has no default_ironmongery rows — run sql/step-g3-default-ironmongery.sql first'
+          }
+        } catch (err) {
+          ironmongeryWarning = `Ironmongery data failed (${err.message}) — G5 section will be empty`
+        }
+
         // Run the engine in testMode (includes inactive rules for full visibility)
         const results = runPricingOnTree(FIXTURE_TREE, rules || [], pfVariables, {
           testMode: true,
           glassCatalogue,
           partAllocationRules,
           partCostMap: FIXTURE_PART_COST_MAP,
+          ironmongeryLines,
+          ironmongeryCatalogue,
         })
 
         if (cancelled) return
@@ -587,6 +646,8 @@ export default function PricingBenchmark() {
           error:     null,
           catalogueWarning,
           allocRulesWarning,
+          ironmongeryWarning,
+          ironmongeryLines,
         })
       } catch (err) {
         if (!cancelled) setState({ status: 'error', results: null, pfName: null, ruleCount: 0, error: err.message })
@@ -612,7 +673,7 @@ export default function PricingBenchmark() {
     )
   }
 
-  const { results, pfName, ruleCount, catalogueWarning, allocRulesWarning } = state
+  const { results, pfName, ruleCount, catalogueWarning, allocRulesWarning, ironmongeryWarning, ironmongeryLines } = state
   const mfgMin  = results.manufacture_labour.total_minutes
   const instMin = results.install_labour.total_minutes
   const price   = results.price.total
@@ -643,6 +704,11 @@ export default function PricingBenchmark() {
       {allocRulesWarning && (
         <div style={{ background: '#fffbe6', border: '1px solid #e6c800', padding: '8px 12px', marginBottom: '10px', borderRadius: '3px' }}>
           ⚠ {allocRulesWarning}
+        </div>
+      )}
+      {ironmongeryWarning && (
+        <div style={{ background: '#fffbe6', border: '1px solid #e6c800', padding: '8px 12px', marginBottom: '10px', borderRadius: '3px' }}>
+          ⚠ {ironmongeryWarning}
         </div>
       )}
 
@@ -834,7 +900,7 @@ export default function PricingBenchmark() {
                       {ok ? '✓ matches target' : `Gap £${fmt(gap)} — ironmongery kit not yet built`}
                     </span>
                   </td>
-                  <td style={S.td} style={{ color: '#555' }}>target £{fmt(instTarget)}</td>
+                  <td style={{ ...S.td, color: '#555' }}>target £{fmt(instTarget)}</td>
                 </tr>
               </tbody>
             </table>
@@ -848,10 +914,80 @@ export default function PricingBenchmark() {
         )
       })()}
 
+      {/* G5 — Default Ironmongery lines + pricing */}
+      <h2 style={S.h2}>
+        Default Ironmongery (G5) — {(ironmongeryLines ?? []).length} product line(s)
+      </h2>
+      {(ironmongeryLines ?? []).length === 0 ? (
+        <p style={{ color: '#888', fontSize: '12px' }}>
+          No ironmongery lines — run sql/step-g3-default-ironmongery.sql to seed the rules.
+        </p>
+      ) : (
+        <>
+          <table style={{ ...S.table, width: 'auto', minWidth: '600px', marginBottom: '10px' }}>
+            <thead>
+              <tr>
+                <th style={S.th}>Product (short_name)</th>
+                <th style={S.th}>Finish</th>
+                <th style={S.th}>Qty</th>
+                <th style={S.th}>Source</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(ironmongeryLines ?? []).map((l, i) => (
+                <tr key={i} style={S.fired}>
+                  <td style={S.td}><strong>{l.product_short_name}</strong></td>
+                  <td style={S.td}>{l.finish_code ?? '(item finish)'}</td>
+                  <td style={S.td}>{fmt(l.qty, 2)}</td>
+                  <td style={S.td}>{l.source ?? 'default'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {(() => {
+            const ironLines = results.price.lines.filter(l => l.alloc_iron_short_name && l.fires && !l.error)
+            if (ironLines.length === 0) return (
+              <p style={{ color: '#a60', fontSize: '12px' }}>
+                No ironmongery price lines fired — check that the price file has an
+                <code> ironmongery_part</code> rule and that ironmongery catalogue data is loaded (sql/step-g2).
+              </p>
+            )
+            const ironTotal = ironLines.reduce((s, l) => s + l.line_total, 0)
+            return (
+              <table style={{ ...S.table, width: 'auto', minWidth: '600px' }}>
+                <thead>
+                  <tr>
+                    <th style={S.th}>Product</th>
+                    <th style={S.th}>Part</th>
+                    <th style={S.th}>Cost × Qty</th>
+                    <th style={S.th}>Rounded</th>
+                    <th style={S.th}>Line total (×markup)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ironLines.map((l, i) => (
+                    <tr key={i} style={S.fired}>
+                      <td style={S.td}>{l.alloc_iron_short_name}</td>
+                      <td style={S.td}>{l.alloc_iron_part_code ?? '(kit lump)'}</td>
+                      <td style={S.td}>{fmt(l.quantity / 1.05, 2)}</td>
+                      <td style={S.td}>£{fmt(l.quantity, 2)}</td>
+                      <td style={S.td}><strong>£{fmt(l.line_total)}</strong></td>
+                    </tr>
+                  ))}
+                  <tr style={{ fontWeight: 'bold', background: '#f0f0f0' }}>
+                    <td style={S.td} colSpan={4}>Ironmongery total (cost×markup)</td>
+                    <td style={S.td}>£{fmt(ironTotal)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            )
+          })()}
+        </>
+      )}
+
       {/* Items left for next step */}
       <h2 style={S.h2}>Not Yet Built (Next Step)</h2>
       <ul style={{ fontFamily: 'monospace', fontSize: '12px', color: '#888' }}>
-        <li>Ironmongery Cost (needs ironmongery part in drawing — closes the ~£39.60 gap)</li>
         <li>Sash weight display on drawing board (F1 show-on-board)</li>
       </ul>
 

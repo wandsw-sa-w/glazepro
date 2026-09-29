@@ -13,6 +13,14 @@ parser.functions.round_up_to_nearest = function(x, n) {
   return Math.ceil(x / n) * n
 }
 
+// round(x, n) — round x to the nearest multiple of n.
+// Used in ironmongery pricing (e.g. round(25.20, 0.1) = 25.2).
+// When n is omitted (or 0), rounds to the nearest integer.
+parser.functions.round = function(x, n) {
+  if (!n) return Math.round(x)
+  return Math.round(x / n) * n
+}
+
 /**
  * Evaluate an expression string against a variable context.
  * Returns the raw result — number, boolean, or string.

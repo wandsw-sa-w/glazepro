@@ -11,6 +11,8 @@ import { computeDerived } from '../drawingBoard/computeDerived.js'
 import { applyOperationDefaults } from '../drawingBoard/applyOperationDefaults.js'
 import { computeSashGeometry } from '../drawingBoard/sashGeometry.js'
 import { SashElevation } from '../drawingBoard/renderElevation.jsx'
+import { defaultIronmonger } from '../pricing/defaultIronmongery.js'
+import { computeVariables } from '../pricing/computeVariables.js'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -268,9 +270,163 @@ function PropertyField({ field, value, derivedValue, onChange, refOptions, requi
   )
 }
 
+// ── IronmongeryPanel ──────────────────────────────────────────────────────────
+
+function IronmongeryPanel({ node, tree, derived, refOptions, onChangeField, ironmongeryRules, ironmongeryProducts }) {
+  const lines      = node.values?.ironmongeryLines  ?? []
+  const finish     = node.values?.ironmongeryFinish ?? 'PB'
+  const finishOpts = refOptions?.['ironmongery_finish'] ?? []
+
+  // Product name lookup: short_name → display name
+  const productNameMap = {}
+  for (const p of (ironmongeryProducts ?? [])) productNameMap[p.short_name] = p.name
+
+  // Compute item variables for defaultIronmonger (no pf variables needed for boolean flags)
+  function computeBaseVars() {
+    try { return computeVariables(tree, derived, {}) ?? {} }
+    catch { return {} }
+  }
+
+  // Auto-apply defaults when lines are empty and data is loaded
+  const appliedRef = useRef(false)
+  useEffect(() => {
+    if (!appliedRef.current && lines.length === 0 && ironmongeryRules && ironmongeryRules.length > 0) {
+      appliedRef.current = true
+      doApplyDefaults()
+    }
+  }, [ironmongeryRules])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  function doApplyDefaults() {
+    const vars = computeBaseVars()
+    const defaultLines = defaultIronmonger(tree, vars, ironmongeryRules ?? [])
+    const manualLines  = lines.filter(l => l.source === 'manual')
+    const newLines = [
+      ...defaultLines.map(l => ({ ...l, source: 'default' })),
+      ...manualLines,
+    ]
+    onChangeField(node.key, 'ironmongeryLines', newLines, 'paintAndIronmongeryPart.ironmongeryLines')
+  }
+
+  function handleQtyChange(idx, val) {
+    const parsed = parseFloat(val)
+    if (!Number.isFinite(parsed) || parsed <= 0) return
+    const newLines = lines.map((l, i) => i === idx ? { ...l, qty: parsed } : l)
+    onChangeField(node.key, 'ironmongeryLines', newLines, 'paintAndIronmongeryPart.ironmongeryLines')
+  }
+
+  function handleFinishOverride(idx, val) {
+    const newLines = lines.map((l, i) => i === idx ? { ...l, finish_code: val || null } : l)
+    onChangeField(node.key, 'ironmongeryLines', newLines, 'paintAndIronmongeryPart.ironmongeryLines')
+  }
+
+  function handleRemove(idx) {
+    const newLines = lines.filter((_, i) => i !== idx)
+    onChangeField(node.key, 'ironmongeryLines', newLines, 'paintAndIronmongeryPart.ironmongeryLines')
+  }
+
+  function handleAddManual() {
+    const newLines = [...lines, { product_short_name: '', finish_code: null, qty: 1, source: 'manual', rule_id: null, scope_part_id: null }]
+    onChangeField(node.key, 'ironmongeryLines', newLines, 'paintAndIronmongeryPart.ironmongeryLines')
+  }
+
+  const cellStyle = { fontSize: 11, padding: '4px 6px', borderBottom: '1px solid #f0ede6' }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {/* Finish selector */}
+      <div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: '#555', marginBottom: 4 }}>Ironmongery Finish</div>
+        <select
+          value={finish}
+          onChange={e => onChangeField(node.key, 'ironmongeryFinish', e.target.value, 'paintAndIronmongeryPart.ironmongeryFinish')}
+          style={{ ...SI, fontSize: 12 }}
+        >
+          {finishOpts.length === 0 && <option value={finish}>{finish}</option>}
+          {finishOpts.map(o => <option key={o.code} value={o.code}>{o.label} ({o.code})</option>)}
+        </select>
+      </div>
+
+      {/* Lines table */}
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#555' }}>Ironmongery Lines</div>
+          <button
+            onClick={doApplyDefaults}
+            style={{ fontSize: 10, padding: '3px 8px', border: '1px solid #3d35a8', borderRadius: 5, background: '#f0eefc', color: '#3d35a8', cursor: 'pointer' }}
+          >
+            Apply Defaults
+          </button>
+        </div>
+        {lines.length === 0 ? (
+          <div style={{ fontSize: 11, color: '#aaa', fontStyle: 'italic' }}>
+            {ironmongeryRules ? 'No lines — click Apply Defaults' : 'Loading…'}
+          </div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+            <thead>
+              <tr style={{ background: '#f7f6f2' }}>
+                <th style={{ ...cellStyle, textAlign: 'left', fontWeight: 600 }}>Product</th>
+                <th style={{ ...cellStyle, textAlign: 'left', fontWeight: 600 }}>Finish</th>
+                <th style={{ ...cellStyle, textAlign: 'right', fontWeight: 600, width: 40 }}>Qty</th>
+                <th style={{ ...cellStyle, width: 20 }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {lines.map((line, idx) => (
+                <tr key={idx} style={{ background: idx % 2 === 0 ? '#fff' : '#fafaf8' }}>
+                  <td style={cellStyle}>
+                    <span title={line.product_short_name} style={{ color: line.source === 'manual' ? '#92400e' : 'inherit' }}>
+                      {productNameMap[line.product_short_name] ?? line.product_short_name}
+                    </span>
+                  </td>
+                  <td style={{ ...cellStyle, minWidth: 60 }}>
+                    <select
+                      value={line.finish_code ?? ''}
+                      onChange={e => handleFinishOverride(idx, e.target.value)}
+                      style={{ fontSize: 10, padding: '2px 4px', border: '1px solid #d8d5cf', borderRadius: 4, background: '#fff' }}
+                    >
+                      <option value="">Item finish</option>
+                      {finishOpts.map(o => <option key={o.code} value={o.code}>{o.code}</option>)}
+                    </select>
+                  </td>
+                  <td style={{ ...cellStyle, textAlign: 'right' }}>
+                    <input
+                      type="number"
+                      value={line.qty}
+                      min="0.1"
+                      step="0.5"
+                      onChange={e => handleQtyChange(idx, e.target.value)}
+                      style={{ width: 40, fontSize: 11, padding: '2px 4px', border: '1px solid #d8d5cf', borderRadius: 4, textAlign: 'right' }}
+                    />
+                  </td>
+                  <td style={cellStyle}>
+                    <button
+                      onClick={() => handleRemove(idx)}
+                      title="Remove"
+                      style={{ fontSize: 10, padding: '1px 5px', border: '1px solid #fca5a5', borderRadius: 4, background: '#fef2f2', color: '#b91c1c', cursor: 'pointer' }}
+                    >
+                      ×
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        <button
+          onClick={handleAddManual}
+          style={{ marginTop: 6, fontSize: 10, padding: '3px 8px', border: '1px solid #d8d5cf', borderRadius: 5, background: '#fff', color: '#555', cursor: 'pointer', width: '100%' }}
+        >
+          + Add manual line
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── PropertyEditor ────────────────────────────────────────────────────────────
 
-function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, onPrev, onNext, prevDisabled, nextDisabled, hiddenFields }) {
+function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, onPrev, onNext, prevDisabled, nextDisabled, hiddenFields, tree, ironmongeryRules, ironmongeryProducts }) {
   if (!node) {
     return (
       <div style={{ padding: 16, color: '#aaa', fontSize: 12, textAlign: 'center', paddingTop: 48 }}>
@@ -303,7 +459,24 @@ function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, o
 
       {/* Fields */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px' }}>
-        {fields.length === 0 && (
+        {/* Ironmongery panel for paintAndIronmongeryPart */}
+        {node.part_type === 'paintAndIronmongeryPart' && (
+          <IronmongeryPanel
+            node={node}
+            tree={tree}
+            derived={derived}
+            refOptions={refOptions}
+            onChangeField={onChangeField}
+            ironmongeryRules={ironmongeryRules}
+            ironmongeryProducts={ironmongeryProducts}
+          />
+        )}
+        {node.part_type === 'paintAndIronmongeryPart' && fields.length > 0 && (
+          <div style={{ borderTop: '1px solid #e8e6e0', marginTop: 12, paddingTop: 12 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#555', marginBottom: 8 }}>Other Fields</div>
+          </div>
+        )}
+        {fields.length === 0 && node.part_type !== 'paintAndIronmongeryPart' && (
           <div style={{ fontSize: 12, color: '#aaa' }}>No editable fields for this part type.</div>
         )}
         {fields.map(field => (
@@ -542,6 +715,10 @@ function DrawingBoard() {
   const [saveError,   setSaveError]     = useState(null)
   const [viewMode,    setViewMode]      = useState('internal')
 
+  // ── Ironmongery data (lazy-loaded when paintAndIronmongeryPart is selected) ──
+  const [ironmongeryRules,    setIronmongeryRules]    = useState(null)
+  const [ironmongeryProducts, setIronmongeryProducts] = useState(null)
+
   // ── History ─────────────────────────────────────────────────────────────────
   const undoStack  = useRef([])
   const redoStack  = useRef([])
@@ -582,6 +759,34 @@ function DrawingBoard() {
   // ── Derived values (recompute whenever tree changes) ────────────────────────
   const derived  = tree ? computeDerived(tree) : {}
   const geometry = tree ? computeSashGeometry(tree, derived) : null
+
+  // ── Lazy-load ironmongery data when paintAndIronmongeryPart is first selected ─
+  const selectedNode = selectedKey ? findNodeByKey(tree, selectedKey) : null
+  useEffect(() => {
+    if (selectedNode?.part_type !== 'paintAndIronmongeryPart') return
+    if (ironmongeryRules !== null) return  // already loaded
+    async function loadIronmongery() {
+      try {
+        const [{ data: rules }, { data: products }] = await Promise.all([
+          supabase
+            .from('part_allocation_rules')
+            .select('id, sort_order, group_name, loop_target, label, condition, qty_expr, product_short_name, finish_code, is_active')
+            .eq('rule_family', 'default_ironmongery')
+            .order('sort_order'),
+          supabase
+            .from('ironmongery_products')
+            .select('short_name, name')
+            .eq('is_active', true),
+        ])
+        setIronmongeryRules(rules ?? [])
+        setIronmongeryProducts(products ?? [])
+      } catch {
+        setIronmongeryRules([])
+        setIronmongeryProducts([])
+      }
+    }
+    loadIronmongery()
+  }, [selectedNode?.part_type, ironmongeryRules])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Guarded navigate (in-app links while dirty) ──────────────────────────────
   const guardedNavigate = useUnsavedChangesGuard(dirty, navigate)
@@ -700,7 +905,6 @@ function DrawingBoard() {
   }, [tree, profileValues, refOptions])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Selection / prev-next ─────────────────────────────────────────────────────
-  const selectedNode = selectedKey ? findNodeByKey(tree, selectedKey) : null
   const siblingsOfType = selectedNode ? findAll(tree, selectedNode.part_type) : []
   const siblingIdx = siblingsOfType.findIndex(n => n.key === selectedKey)
   const prevDisabled = siblingIdx <= 0
@@ -803,6 +1007,9 @@ function DrawingBoard() {
               prevDisabled={prevDisabled}
               nextDisabled={nextDisabled}
               hiddenFields={hiddenFields}
+              tree={tree}
+              ironmongeryRules={ironmongeryRules}
+              ironmongeryProducts={ironmongeryProducts}
             />
           </div>
 
