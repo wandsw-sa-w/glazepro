@@ -168,6 +168,78 @@ describe('SashElevation — arched head', () => {
     expect(html).toContain('Arch')
   })
 
+  // ── Step J fixes #3: concentric arcs (frame outer / frame-inner / glass) ────
+  // Integrate's L31115 reference for this exact frame (1100 x 1600, arch 150,
+  // jambs 79, sash top rail 49) shows three radius labels: R 955.3 (glass
+  // top), R 1004.3 (frame inner / sash outer), R 1083.3 F (frame outer).
+
+  it('renders all three concentric radius labels matching the Integrate reference', () => {
+    const tree = makeArchTree(150)
+    const geo  = makeGeometry({ sashWidth: 942, topSashHeight: 755, bottomSashHeight: 756, topGlassHeight: 657, bottomGlassHeight: 628 })
+    const html = render({ tree, geometry: geo, refOptions: {} })
+    expect(html).toContain('R 1083.3 F') // frame outer: archR(1100, 150)
+    expect(html).toContain('R 1004.3')   // frame inner / sash outer: 1083.3 - 79 (topHeight)
+    expect(html).toContain('R 955.3')    // glass top: 1004.3 - 49 (sash top rail)
+  })
+
+  it('draws the frame as one continuous arched silhouette, not a rectangle with a thin arc on top', () => {
+    const tree = makeArchTree(150)
+    const geo  = makeGeometry({ sashWidth: 942, topSashHeight: 755, bottomSashHeight: 756, topGlassHeight: 657, bottomGlassHeight: 628 })
+    const html = render({ tree, geometry: geo, refOptions: {} })
+    // Outer border, head band, interior opening, sash head band and glass
+    // top are each their own arc — five 'A' commands, not one decorative arc.
+    const arcCount = (html.match(/ A /g) || []).length
+    expect(arcCount).toBeGreaterThanOrEqual(5)
+  })
+
+  it('the top sash glass is drawn as a curved <path>, not a square <rect>', () => {
+    const tree = makeArchTree(150)
+    const geo  = makeGeometry({ sashWidth: 942, topSashHeight: 755, bottomSashHeight: 756, topGlassHeight: 657, bottomGlassHeight: 628 })
+    const html = render({ tree, geometry: geo, refOptions: {} })
+    // fill for glass is #d0eaf5 — assert at least one <path> uses it (the
+    // arched top-glass shape), not only <rect> elements.
+    expect(html).toMatch(/<path[^>]*fill="#d0eaf5"/)
+  })
+
+  it('a vertical bar in the arched glass is clipped to the curved top, not the full flat glass height', () => {
+    const tree = {
+      key: 'item1', part_type: 'drawingItemPart', values: {}, children: [{
+        key: 'frame1', part_type: 'assemblyFramePart',
+        values: { width: 1100, height: 1600, leftWidth: 79, rightWidth: 79, topHeight: 79, archHead: true, archHeight: 150 },
+        children: [
+          { key: 'cill1', part_type: 'cillPart', values: { height: 70 }, children: [] },
+          {
+            key: 'pair1', part_type: 'sashPairPart', values: { midrailHeight: 40 }, children: [
+              {
+                key: 'top1', part_type: 'topSashPart', values: { topHeight: 49, stileWidth: 47 }, children: [
+                  { key: 'tglass1', part_type: 'glassPart', values: {}, children: [
+                    { key: 'bar1', part_type: 'verticalGlazingBarPart', values: {}, children: [] },
+                    { key: 'bar2', part_type: 'verticalGlazingBarPart', values: {}, children: [] },
+                  ] },
+                ],
+              },
+              { key: 'bot1', part_type: 'bottomSashPart', values: { bottomHeight: 88 }, children: [] },
+            ],
+          },
+        ],
+      }],
+    }
+    const geo = makeGeometry({ sashWidth: 942, topSashHeight: 755, bottomSashHeight: 756, topGlassHeight: 657, bottomGlassHeight: 628 })
+    const html = render({ tree, geometry: geo, refOptions: {} })
+    expect(html).toContain('<svg')
+    expect(html).not.toContain('NaN')
+
+    // Bar rects (fill #c8a870): each bar's clipped height should be shorter
+    // than the full flat glass height (657) since its top is cut by the
+    // curved glass boundary instead of running the full rectangle height.
+    const heights = [...html.matchAll(/<rect x="[\d.]+" y="[\d.-]+" width="8" height="([\d.]+)"/g)].map(m => parseFloat(m[1]))
+    expect(heights.length).toBe(2)
+    for (const h of heights) expect(h).toBeLessThan(657)
+    // The two bars sit at symmetric positions either side of the arch's
+    // centreline, so their clipped heights should match each other.
+    expect(Math.abs(heights[0] - heights[1])).toBeLessThan(0.01)
+  })
+
 })
 
 // ── Tests — double box sash with mullion ──────────────────────────────────────

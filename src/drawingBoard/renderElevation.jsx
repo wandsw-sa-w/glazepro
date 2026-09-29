@@ -56,13 +56,16 @@ function archR(w, h) {
   return (w * w / 4 + h * h) / (2 * h)
 }
 
-// SVG arc path string from (x1,y1) to (x2,y2) using given radius, curving upward.
-// `upward` = the arc bows toward smaller y (toward the screen top).
-function arcPath(x1, y1, x2, y2, R, upward = true) {
-  if (!R) return `L ${x2} ${y2}`
-  const sweep = upward ? 0 : 1     // 0=ccw goes upward when moving left→right
-  const large = 0                   // always minor arc for shallow window arches
-  return `A ${R} ${R} 0 ${large} ${sweep} ${x2} ${y2}`
+// Given a circle (radius R, centre cx,cy) and a horizontal position x, return
+// the y-coordinate of the circle's upper arc at that x (i.e. the smaller of
+// the two solutions — the crown of a shallow window arch, not the bottom of
+// the circle). Returns null when x is outside the circle's horizontal span.
+function archYAt(cx, cy, R, x) {
+  if (!R) return null
+  const dx = x - cx
+  const disc = R * R - dx * dx
+  if (disc < 0) return null
+  return cy - Math.sqrt(disc)
 }
 
 // ── Dimension line sub-components ─────────────────────────────────────────────
@@ -119,7 +122,7 @@ const C = {
 
 // ── Glazing bars ──────────────────────────────────────────────────────────────
 
-function GlazingBars({ glassNode, derived, gx, gy, glassW, glassH, selectedKey, onSelectKey, ss }) {
+function GlazingBars({ glassNode, derived, gx, gy, glassW, glassH, selectedKey, onSelectKey, ss, archTop }) {
   if (!glassNode) return null
   const vBars = childrenOfType(glassNode, 'verticalGlazingBarPart')
   const hBars = childrenOfType(glassNode, 'horizontalGlazingBarPart')
@@ -147,8 +150,13 @@ function GlazingBars({ glassNode, derived, gx, gy, glassW, glassH, selectedKey, 
       {vBars.map((bar, i) => {
         const cx = barPos(bar, i, vBars.length, glassW)
         const x  = gx + cx - thickness / 2
-        // Partial bars: offset2>0 means bar ends at offset2 instead of full height
-        const y1 = gy + (bar.values?.offset2 > 0 && bar.values?.offset > 0 ? bar.values.offset : 0)
+        const isPartial = bar.values?.offset2 > 0 && bar.values?.offset > 0
+        // Partial bars: offset2>0 means bar ends at offset2 instead of full height.
+        // Otherwise, for an arched glass top the bar stops at the curved
+        // boundary at its own x (clipped to the arch) instead of the flat gy.
+        const y1 = isPartial
+          ? gy + bar.values.offset
+          : (archTop?.(x + thickness / 2) ?? gy)
         const y2 = gy + (bar.values?.offset2 > 0 ? bar.values.offset2 : glassH)
         const style = bar.key === selectedKey ? { stroke: C.selected, strokeWidth: 2 } : { stroke: C.barStroke, strokeWidth: 0.7 }
         return (
@@ -230,10 +238,23 @@ export function SashElevation({
   const iH  = fH - topHeight - cillH
 
   // ── Arch parameters ──────────────────────────────────────────────────────────
-  const hasArch   = fv.archHead === true
-  const archH     = hasArch ? n(fv.archHeight, 0) : 0
-  // Arch radius for interior opening (chord = iW, sagitta = archH)
-  const archRad   = hasArch && archH > 0 ? archR(iW, archH) : null
+  // Integrate draws the frame head, the inner (spring-line) edge, the sash
+  // head and the glass top as CONCENTRIC arcs, sharing one centre point:
+  // each inner radius is the outer one minus that layer's material thickness
+  // (frame head section, then sash top rail). Confirmed against the L31115
+  // reference (1100 x 1600, arch 150): R 1083.3 (frame outer) - 79 (frame
+  // head/topHeight) = R 1004.3 (frame inner / sash outer); 1004.3 - 49
+  // (sash top rail) = R 955.3 (glass top) — matches Integrate's three
+  // radius labels exactly.
+  const hasArch      = fv.archHead === true
+  const archH        = hasArch ? n(fv.archHeight, 0) : 0
+  const archRadOuter = hasArch && archH > 0 ? archR(fW, archH) : null
+  // Shared centre: crown of the outer arc sits at (fW/2, 0); the centre is
+  // directly below it by the outer radius.
+  const archCX = fW / 2
+  const archCY = archRadOuter ?? 0
+  const archRadFrameInner = archRadOuter != null ? archRadOuter - topHeight : null
+  const archAt = (R, x) => archYAt(archCX, archCY, R, x)
 
   // ── Geometry ────────────────────────────────────────────────────────────────
   const { sashWidth, topSashHeight, bottomSashHeight, topGlassHeight, bottomGlassHeight } = geometry
@@ -247,6 +268,11 @@ export function SashElevation({
   const botRail   = n(botSash?.values?.bottomHeight, 88)
   const stileW    = n(topSash?.values?.stileWidth,   47)
   const glW       = computeGlassWidth(sashWidth, stileW) ?? 0
+
+  // Sash head / glass top radii — only meaningful for an arched frame's
+  // first opening (see drawSashPair's `arch` param).
+  const archRadSashOuter = archRadFrameInner
+  const archRadGlassTop  = archRadSashOuter != null ? archRadSashOuter - topRail : null
 
   // ── SVG sizing ──────────────────────────────────────────────────────────────
   const dfs    = Math.max(Math.min(fW * 0.06, fH * 0.02), 10)
@@ -291,51 +317,57 @@ export function SashElevation({
   function sg(key) { return key === selectedKey ? { stroke: C.selected, strokeWidth: 2.5 } : { stroke: C.glassStroke, strokeWidth: 1 } }
 
   // ── Arch path helpers ────────────────────────────────────────────────────────
+  // Only used for the first (or only) opening — see the arch-scoping note by
+  // the sash pairs map() below.
 
-  // Arch path for interior opening background:
-  // The arch crown is at (OX + opX + opW/2, OY) and spring line at y = OY + archH.
-  // opX, opW = opening x offset and width within the interior.
-  function interiorOpeningPath(opX, opW, useArch = false, ah = 0, R = null) {
+  // Interior opening background, bounded above by the frame-inner concentric
+  // arc (spring points where it meets the vertical jamb faces at x0/x1).
+  function interiorOpeningPath(opX, opW) {
     const x0 = OX + opX
     const x1 = OX + opX + opW
-    const yTop    = OY
-    const ySpring = OY + ah
 
-    if (!useArch || !R) {
-      // Rectangular opening
-      return `M ${x0} ${yTop} L ${x1} ${yTop} L ${x1} ${OY + iH} L ${x0} ${OY + iH} Z`
+    if (!hasArch || !archRadFrameInner) {
+      return `M ${x0} ${OY} L ${x1} ${OY} L ${x1} ${OY + iH} L ${x0} ${OY + iH} Z`
     }
-    // Arched opening: from left spring, arc UP to right spring (crown is above spring line)
+    const y0 = archAt(archRadFrameInner, x0)
+    const y1 = archAt(archRadFrameInner, x1)
+    if (y0 == null || y1 == null) {
+      return `M ${x0} ${OY} L ${x1} ${OY} L ${x1} ${OY + iH} L ${x0} ${OY + iH} Z`
+    }
     return (
-      `M ${x0} ${ySpring}` +
-      ` A ${R} ${R} 0 0 1 ${x1} ${ySpring}` +   // arc from left spring to right spring (going over crown)
+      `M ${x0} ${y0}` +
+      ` A ${archRadFrameInner} ${archRadFrameInner} 0 0 1 ${x1} ${y1}` +
       ` L ${x1} ${OY + iH}` +
       ` L ${x0} ${OY + iH}` +
       ` Z`
     )
   }
 
-  // Arch path for the frame head (timber):
-  // Rectangular outer edge with arched lower boundary.
-  function headTimberPath(useArch = false, ah = 0, R = null) {
-    if (!useArch || !R || ah <= 0) {
-      // Flat head (or no arch) — rendered as a rectangle
-      return null
-    }
-    const ySpring = OY + ah
-    // Path: outer rectangle top, down to spring line on each side, arc (inner edge of head) back
+  // Frame head timber band: outer silhouette arc (archRadOuter, spanning the
+  // full frame width) on top, frame-inner arc (archRadFrameInner, spanning
+  // the jamb faces) on the bottom, both sharing the arch's centre point —
+  // i.e. a proper concentric arched head, not a rectangle with a thin arc
+  // stroked on top of it.
+  function headTimberPath() {
+    if (!hasArch || !archRadOuter || !archRadFrameInner || archH <= 0) return null
+    const yOuterL = archAt(archRadOuter, 0)
+    const yOuterR = archAt(archRadOuter, fW)
+    const yInnerL = archAt(archRadFrameInner, OX)
+    const yInnerR = archAt(archRadFrameInner, fW - rightWidth)
+    if ([yOuterL, yOuterR, yInnerL, yInnerR].some(v => v == null)) return null
     return (
-      `M 0 0` +
-      ` L ${fW} 0` +
-      ` L ${fW} ${ySpring}` +
-      ` A ${R} ${R} 0 0 0 ${OX} ${ySpring}` +  // arc from right to left, going UP (sweep=0 = ccw)
-      ` L 0 ${ySpring}` +
+      `M 0 ${yOuterL}` +
+      ` A ${archRadOuter} ${archRadOuter} 0 0 1 ${fW} ${yOuterR}` +
+      ` L ${fW - rightWidth} ${yInnerR}` +
+      ` A ${archRadFrameInner} ${archRadFrameInner} 0 0 0 ${OX} ${yInnerL}` +
+      ` L 0 ${yOuterL}` +
       ` Z`
     )
   }
 
   // ── Single-pair sash drawing (draws one sash pair in its opening) ────────────
   // sx = absolute x of sash left edge (within frame), ty = top sash y
+  // arch (only for the first/only opening on an arched frame) = { archRadSashOuter, archRadGlassTop, archAt }
   function drawSashPair({
     sx, ty, sW, sSash,
     topSashNode, botSashNode,
@@ -344,6 +376,7 @@ export function SashElevation({
     tRail, bRail, mid, stile, glW: glassW,
     pairIdx,
     by,
+    arch,
   }) {
     if (!topSashNode && !botSashNode) return null
 
@@ -356,6 +389,34 @@ export function SashElevation({
     const glassCX   = sx + stile + glassW / 2
     const glassCY_t = ty + tRail + topGlassH / 2
     const glassCY_b = by + mid  + botGlassH / 2
+
+    // Arched top sash: outer stiles start where they meet the sash's own
+    // outer arc, the head rail is a curved band between the sash-outer and
+    // glass-top arcs (same construction as the frame's head band), and the
+    // glass top edge follows the glass-top arc instead of a flat rail line.
+    const sashSpringL  = arch ? arch.archAt(arch.archRadSashOuter, sx) : null
+    const sashSpringR  = arch ? arch.archAt(arch.archRadSashOuter, sx + sW) : null
+    const glassSpringL = arch ? arch.archAt(arch.archRadGlassTop, gx) : null
+    const glassSpringR = arch ? arch.archAt(arch.archRadGlassTop, gx + glassW) : null
+    const archOk = arch && [sashSpringL, sashSpringR, glassSpringL, glassSpringR].every(v => v != null)
+
+    const glassBottomY = ty + tRail + topGlassH
+    const topHeadPath = archOk
+      ? `M ${sx} ${sashSpringL}` +
+        ` A ${arch.archRadSashOuter} ${arch.archRadSashOuter} 0 0 1 ${sx + sW} ${sashSpringR}` +
+        ` L ${gx + glassW} ${glassSpringR}` +
+        ` A ${arch.archRadGlassTop} ${arch.archRadGlassTop} 0 0 0 ${gx} ${glassSpringL}` +
+        ` L ${sx} ${sashSpringL}` +
+        ` Z`
+      : null
+    const topGlassPath = archOk
+      ? `M ${gx} ${glassSpringL}` +
+        ` A ${arch.archRadGlassTop} ${arch.archRadGlassTop} 0 0 1 ${gx + glassW} ${glassSpringR}` +
+        ` L ${gx + glassW} ${glassBottomY}` +
+        ` L ${gx} ${glassBottomY}` +
+        ` Z`
+      : null
+    const archTopAt = archOk ? (x => arch.archAt(arch.archRadGlassTop, x)) : null
 
     return (
       <g key={sSash?.key ?? `pair-${pairIdx}`}>
@@ -377,18 +438,37 @@ export function SashElevation({
 
         {/* Top sash (in front) */}
         <g style={{ cursor: 'pointer' }} onClick={() => onSelectKey?.(topSashNode?.key)}>
-          <rect x={sx}              y={ty}  width={stile} height={topSashHeight} fill={C.timber} {...ss(topSashNode?.key)} />
-          <rect x={sx + sW - stile} y={ty}  width={stile} height={topSashHeight} fill={C.timber} {...ss(topSashNode?.key)} />
-          <rect x={gx}              y={ty}  width={glassW} height={tRail} fill={C.timber} {...ss(topSashNode?.key)} />
-          <rect x={gx}              y={ty + tRail + topGlassH} width={glassW} height={mid} fill={C.timber} {...ss(topSashNode?.key)} />
-          <rect x={gx} y={ty + tRail} width={glassW} height={topGlassH}
-            fill={C.glass} {...sg(topGlassNode?.key)}
-            style={{ cursor: 'pointer' }}
-            onClick={e => { e.stopPropagation(); onSelectKey?.(topGlassNode?.key) }}
-          />
+          {archOk ? (
+            <>
+              <rect x={sx}              y={sashSpringL} width={stile} height={ty + topSashHeight - sashSpringL} fill={C.timber} {...ss(topSashNode?.key)} />
+              <rect x={sx + sW - stile} y={sashSpringR} width={stile} height={ty + topSashHeight - sashSpringR} fill={C.timber} {...ss(topSashNode?.key)} />
+              <path d={topHeadPath} fill={C.timber} {...ss(topSashNode?.key)}
+                style={{ cursor: 'pointer' }}
+                onClick={() => onSelectKey?.(topSashNode?.key)}
+              />
+              <rect x={gx}              y={ty + tRail + topGlassH} width={glassW} height={mid} fill={C.timber} {...ss(topSashNode?.key)} />
+              <path d={topGlassPath}
+                fill={C.glass} {...sg(topGlassNode?.key)}
+                style={{ cursor: 'pointer' }}
+                onClick={e => { e.stopPropagation(); onSelectKey?.(topGlassNode?.key) }}
+              />
+            </>
+          ) : (
+            <>
+              <rect x={sx}              y={ty}  width={stile} height={topSashHeight} fill={C.timber} {...ss(topSashNode?.key)} />
+              <rect x={sx + sW - stile} y={ty}  width={stile} height={topSashHeight} fill={C.timber} {...ss(topSashNode?.key)} />
+              <rect x={gx}              y={ty}  width={glassW} height={tRail} fill={C.timber} {...ss(topSashNode?.key)} />
+              <rect x={gx}              y={ty + tRail + topGlassH} width={glassW} height={mid} fill={C.timber} {...ss(topSashNode?.key)} />
+              <rect x={gx} y={ty + tRail} width={glassW} height={topGlassH}
+                fill={C.glass} {...sg(topGlassNode?.key)}
+                style={{ cursor: 'pointer' }}
+                onClick={e => { e.stopPropagation(); onSelectKey?.(topGlassNode?.key) }}
+              />
+            </>
+          )}
           <GlazingBars glassNode={topGlassNode} derived={derived}
             gx={gx} gy={ty + tRail} glassW={glassW} glassH={topGlassH}
-            selectedKey={selectedKey} onSelectKey={onSelectKey} ss={ss} />
+            selectedKey={selectedKey} onSelectKey={onSelectKey} ss={ss} archTop={archTopAt} />
         </g>
 
         {/* Labels */}
@@ -463,7 +543,7 @@ export function SashElevation({
   }
 
   // ── Head path (may be arched) ─────────────────────────────────────────────────
-  const headPath = headTimberPath(hasArch, archH, archRad)
+  const headPath = headTimberPath()
 
   return (
     <svg
@@ -480,7 +560,7 @@ export function SashElevation({
         {!hasArch ? (
           <rect x={OX} y={OY} width={iW} height={iH} fill={C.opening} stroke="none" />
         ) : (
-          <path d={interiorOpeningPath(0, iW, true, archH, archRad)} fill={C.opening} stroke="none" />
+          <path d={interiorOpeningPath(0, iW)} fill={C.opening} stroke="none" />
         )}
 
         {/* ── Frame head ────────────────────────────────────────────────────── */}
@@ -529,10 +609,10 @@ export function SashElevation({
         )}
 
         {/* ── Frame outer border ────────────────────────────────────────────── */}
-        {hasArch && archRad ? (
+        {hasArch && archRadOuter ? (
           // Arched outer frame border
           <path
-            d={`M 0 ${archH} A ${archR(fW, archH)} ${archR(fW, archH)} 0 0 1 ${fW} ${archH} L ${fW} ${fH} L 0 ${fH} Z`}
+            d={`M 0 ${archH} A ${archRadOuter} ${archRadOuter} 0 0 1 ${fW} ${archH} L ${fW} ${fH} L 0 ${fH} Z`}
             fill="none" stroke={C.timberStroke} strokeWidth={1.2}
           />
         ) : (
@@ -570,6 +650,13 @@ export function SashElevation({
           const tGH = pairIdx === 0 ? topGlassHeight    : Math.max(topSashHeight    - tR - M, 0)
           const bGH = pairIdx === 0 ? bottomGlassHeight : Math.max(bottomSashHeight - M  - bR, 0)
 
+          // Arch only applies to the first/only opening — a mullion-divided
+          // arched frame isn't modelled (out of scope; other openings
+          // render flat rather than crash).
+          const archForPair = (pairIdx === 0 && hasArch && archRadSashOuter && archRadGlassTop)
+            ? { archRadSashOuter, archRadGlassTop, archAt }
+            : null
+
           return drawSashPair({
             sx, ty, sW, sSash: p,
             topSashNode: tSash, botSashNode: bSash,
@@ -578,6 +665,7 @@ export function SashElevation({
             tRail: tR, bRail: bR, mid: M, stile: st, glW: gW,
             pairIdx,
             by,
+            arch: archForPair,
           })
         })}
 
@@ -603,6 +691,15 @@ export function SashElevation({
       {/* Arch height dimension (shown when arch head enabled) */}
       {hasArch && archH > 0 && showOverallSL && (
         <VDim x={R1} y1={OY} y2={OY + archH} label={archH} dfs={dfs} tk={tk} prefix="Arch " />
+      )}
+
+      {/* Arch radius labels — outer frame / frame-inner / glass-top, per Integrate */}
+      {hasArch && archH > 0 && showOverallSL && (
+        <g fontFamily="inherit" fill="#666" fontSize={dfs * 0.85}>
+          {archRadGlassTop  != null && <text x={R1} y={dfs * 1.2}>{`R ${fmtDim(archRadGlassTop)}`}</text>}
+          {archRadFrameInner != null && <text x={R1} y={dfs * 2.6}>{`R ${fmtDim(archRadFrameInner)}`}</text>}
+          {archRadOuter     != null && <text x={R1} y={dfs * 4.0}>{`R ${fmtDim(archRadOuter)} F`}</text>}
+        </g>
       )}
 
     </svg>
