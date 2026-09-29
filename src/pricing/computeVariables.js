@@ -67,6 +67,8 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
     const allSashPairs     = findAll(tree, 'sashPairPart')
     const allFrames        = findAll(tree, 'assemblyFramePart')
     const allGlassParts    = findAll(tree, 'glassPart')
+    const allMullions      = findAll(tree, 'mullionPart')
+    const allTransoms      = findAll(tree, 'transomPart')
 
     // ── GROUP 1 — Item type detection ─────────────────────────────────────────
     const hasSashPair      = !!pair
@@ -208,6 +210,30 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
     const is_raked                         = frame?.values?.rakeFrame === true
     const is_sash_arched                   = allTopSashes.some(s => s.values?.archHead === true) ||
                                              allBotSashes.some(s => s.values?.archHead === true)
+    const is_curved_head_sash              = allTopSashes.some(s => s.values?.curvedSashHead === true) ||
+                                             allBotSashes.some(s => s.values?.curvedSashHead === true)
+    const has_curved_inner_head            = frame?.values?.curvedFrameHead === true || is_curved_head_sash
+    const has_curved_outer_head            = frame?.values?.curvedFrameHead === true
+    const has_arched_outer_jamb            = frame?.values?.archedOuterJamb === true
+    const is_square_top_with_arched_sightline = allGlassParts.some(
+      g => g.values?.isSquareTopWithArchedSightline === true)
+
+    // Horn lengths and custom horn flag
+    const topHornLen      = pair?.values?.topHornLength    ?? 0
+    const botHornLen      = pair?.values?.bottomHornLength ?? 0
+    const horn_length_in_mm = Math.max(Number(topHornLen) || 0, Number(botHornLen) || 0)
+    const has_custom_horn_horn =
+      (pair?.values?.topHornTypeShortName    ?? '').toLowerCase() === 'custom' ||
+      (pair?.values?.bottomHornTypeShortName ?? '').toLowerCase() === 'custom'
+
+    // Multi-frame sash variants
+    // Only count mullions that are direct children of assemblyFramePart
+    const frameLevelMullions  = allMullions.filter(m => findParent(tree, m.key)?.part_type === 'assemblyFramePart')
+    const hasHollowMullion    = frameLevelMullions.some(m => m.values?.isHollowMullion === true)
+    const is_double_box_sash_window  = allSashPairs.length === 2 && frameLevelMullions.length === 1
+    const is_triple_box_sash_window  = allSashPairs.length >= 3 && frameLevelMullions.length >= 2 && !hasHollowMullion
+    const is_venetian_sash_window    = allSashPairs.length >= 3 && hasHollowMullion
+
     const cut_back_plaster                 = false  // NEEDS-DATA: notesPart.cutBackPlaster not yet mapped
     const has_trickle_vent                 = false  // NEEDS-DATA: not yet in parts tree
     const is_doc_l                         = false  // NEEDS-DATA
@@ -220,12 +246,31 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
     const is_individual_panes = is_individually_glazed
 
     // gb_to_be_replaced_qty: total applied glazing bars being replaced.
-    // Each glassPart stores barsWide (vertical dividers) and barsHigh (horizontal dividers).
+    // Prefers actual verticalGlazingBarPart/horizontalGlazingBarPart children when present;
+    // falls back to legacy barsWide/barsHigh counts for trees not yet migrated.
     // A bar is included if its parent sash is being replaced (complete_new or toBeReplaced=true).
     const gb_to_be_replaced_qty = allGlassParts.reduce((sum, g) => {
       const parentSash = findParent(tree, g.key)
       const included   = is_complete_new || parentSash?.values?.toBeReplaced === true
-      return sum + (included ? (g.values?.barsWide ?? 0) + (g.values?.barsHigh ?? 0) : 0)
+      if (!included) return sum
+      const vBars = (g.children ?? []).filter(c => c.part_type === 'verticalGlazingBarPart').length
+      const hBars = (g.children ?? []).filter(c => c.part_type === 'horizontalGlazingBarPart').length
+      const hasActualBars = vBars > 0 || hBars > 0
+      return sum + (hasActualBars ? vBars + hBars : (g.values?.barsWide ?? 0) + (g.values?.barsHigh ?? 0))
+    }, 0)
+
+    // gb_cruciform_joint_to_be_replaced_qty: crossings where a vertical and horizontal bar meet.
+    // cruciform joints = vBars × hBars per glass unit.
+    const gb_cruciform_joint_to_be_replaced_qty = allGlassParts.reduce((sum, g) => {
+      const parentSash = findParent(tree, g.key)
+      const included   = is_complete_new || parentSash?.values?.toBeReplaced === true
+      if (!included) return sum
+      const vBars = (g.children ?? []).filter(c => c.part_type === 'verticalGlazingBarPart').length
+      const hBars = (g.children ?? []).filter(c => c.part_type === 'horizontalGlazingBarPart').length
+      const hasActualBars = vBars > 0 || hBars > 0
+      const bW = hasActualBars ? vBars : (g.values?.barsWide ?? 0)
+      const bH = hasActualBars ? hBars : (g.values?.barsHigh ?? 0)
+      return sum + bW * bH
     }, 0)
 
     // ── GROUP 9 — Finish flags ────────────────────────────────────────────────
@@ -270,22 +315,41 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
     const is_single_glazed = allGlassParts.some(g => g.values?.glazingId === 'single_glazed')
     const is_triple_glazed = allGlassParts.some(g => g.values?.glazingId === 'triple_glazed')
 
-    // Glazing bar counts — read barsWide + barsHigh from each glassPart per sash.
+    // Helper: resolve bar counts for a glassPart — prefer actual bar parts, fall back to barsWide/barsHigh
+    function glassBarCounts(g) {
+      const vBars = (g.children ?? []).filter(c => c.part_type === 'verticalGlazingBarPart').length
+      const hBars = (g.children ?? []).filter(c => c.part_type === 'horizontalGlazingBarPart').length
+      const hasActual = vBars > 0 || hBars > 0
+      return {
+        bW: hasActual ? vBars : (g.values?.barsWide ?? 0),
+        bH: hasActual ? hBars : (g.values?.barsHigh ?? 0),
+      }
+    }
+
+    // Glazing bar counts — prefer actual bar parts; fall back to barsWide + barsHigh
     const top_sash_glazing_bar_count = allTopSashes.reduce((s, sash) =>
-      s + (sash.children ?? []).filter(c => c.part_type === 'glassPart').reduce((cs, g) =>
-        cs + (g.values?.barsWide ?? 0) + (g.values?.barsHigh ?? 0), 0), 0)
+      s + (sash.children ?? []).filter(c => c.part_type === 'glassPart').reduce((cs, g) => {
+        const { bW, bH } = glassBarCounts(g)
+        return cs + bW + bH
+      }, 0), 0)
     const bottom_sash_glazing_bar_count = allBotSashes.reduce((s, sash) =>
-      s + (sash.children ?? []).filter(c => c.part_type === 'glassPart').reduce((cs, g) =>
-        cs + (g.values?.barsWide ?? 0) + (g.values?.barsHigh ?? 0), 0), 0)
+      s + (sash.children ?? []).filter(c => c.part_type === 'glassPart').reduce((cs, g) => {
+        const { bW, bH } = glassBarCounts(g)
+        return cs + bW + bH
+      }, 0), 0)
     const total_glazing_bar_count = top_sash_glazing_bar_count + bottom_sash_glazing_bar_count
     const has_glazing_bars        = total_glazing_bar_count > 0
     // Pane count: (barsWide+1) × (barsHigh+1) per glass part, summed per sash
     const top_sash_pane_count = allTopSashes.reduce((s, sash) =>
-      s + (sash.children ?? []).filter(c => c.part_type === 'glassPart').reduce((cs, g) =>
-        cs + ((g.values?.barsWide ?? 0) + 1) * ((g.values?.barsHigh ?? 0) + 1), 0), 0) || 1
+      s + (sash.children ?? []).filter(c => c.part_type === 'glassPart').reduce((cs, g) => {
+        const { bW, bH } = glassBarCounts(g)
+        return cs + (bW + 1) * (bH + 1)
+      }, 0), 0) || 1
     const bottom_sash_pane_count = allBotSashes.reduce((s, sash) =>
-      s + (sash.children ?? []).filter(c => c.part_type === 'glassPart').reduce((cs, g) =>
-        cs + ((g.values?.barsWide ?? 0) + 1) * ((g.values?.barsHigh ?? 0) + 1), 0), 0) || 1
+      s + (sash.children ?? []).filter(c => c.part_type === 'glassPart').reduce((cs, g) => {
+        const { bW, bH } = glassBarCounts(g)
+        return cs + (bW + 1) * (bH + 1)
+      }, 0), 0) || 1
     const total_pane_count = top_sash_pane_count + bottom_sash_pane_count
 
     // ── GROUP 11 — Counts ─────────────────────────────────────────────────────
@@ -310,14 +374,18 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
     // complete-new job (complete_new includes the cill implicitly via frame_to_be_replaced).
     // A cill-only replacement sets cillPart.toBeReplaced = true on a non-complete_new job.
     const new_cill_qty          = !is_complete_new && cill?.values?.toBeReplaced === true ? 1 : 0
-    const frame_mullion_qty     = 0  // simple single-frame box sash
-    const frame_transom_qty     = 0
+
+    // Mullion / transom counts from actual parts in the tree
+    const frame_mullion_qty     = allMullions.length
+    const frame_transom_qty     = allTransoms.length
+    // Full-length mullions: those without a non-zero offset2 (offset2>0 means partial/stub)
+    const full_length_frame_mullion_qty = allMullions.filter(m => !(m.values?.offset2 > 0)).length
+
     const new_casement_sash_qty = 0
     const new_door_leaf_qty     = 0
     const door_leaf_qty         = 0
     const casement_sash_qty     = 0
     const direct_glazed_unit_qty    = 0
-    const full_length_frame_mullion_qty = 0
     const panel_qty             = 0
 
     // ── GROUP 12 — Frame geometry (mm) ────────────────────────────────────────
@@ -524,10 +592,15 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
       is_bay_with_fully_coupled_frames, is_frame_in_kit_form, is_bay_pole_required,
       is_decoration_included, is_installation_included,
       is_raked, is_sash_arched,
+      is_curved_head_sash, has_curved_inner_head, has_curved_outer_head,
+      has_arched_outer_jamb, is_square_top_with_arched_sightline,
+      horn_length_in_mm, has_custom_horn_horn,
+      is_double_box_sash_window, is_triple_box_sash_window, is_venetian_sash_window,
       cut_back_plaster, cut_out_brick_reveal,
       has_trickle_vent, is_doc_l,
       is_casement_window_bay, is_varnished_or_stained,
-      gb_to_be_replaced_qty, sash_muntin_to_be_replaced_qty,
+      gb_to_be_replaced_qty, gb_cruciform_joint_to_be_replaced_qty,
+      sash_muntin_to_be_replaced_qty,
       is_individual_panes, is_individually_glazed,
 
       // Group 9 — Finish flags

@@ -264,9 +264,13 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
     // to_be_replaced
     const to_be_replaced = (baseVars.is_complete_new === true) || (parentSash?.values?.toBeReplaced === true)
 
-    // Glazing bars: barsWide = vertical dividers, barsHigh = horizontal dividers
-    const barsWide = v.barsWide ?? 0
-    const barsHigh = v.barsHigh ?? 0
+    // Glazing bars: prefer actual verticalGlazingBarPart/horizontalGlazingBarPart children
+    // when present; fall back to legacy barsWide/barsHigh counts for unmigrated trees.
+    const vBarParts = (partNode.children ?? []).filter(c => c.part_type === 'verticalGlazingBarPart')
+    const hBarParts = (partNode.children ?? []).filter(c => c.part_type === 'horizontalGlazingBarPart')
+    const hasActualBars = vBarParts.length > 0 || hBarParts.length > 0
+    const barsWide = hasActualBars ? vBarParts.length : (v.barsWide ?? 0)
+    const barsHigh = hasActualBars ? hBarParts.length : (v.barsHigh ?? 0)
     const unit_gb_qty = barsWide + barsHigh
 
     // internal_spacer_length: total run of glazing bar material in this unit (metres).
