@@ -38,7 +38,7 @@ ALTER TABLE pricing_runs
 -- ============================================================
 
 ALTER TABLE quotes
-  ADD COLUMN IF NOT EXISTS price_file_id    bigint        REFERENCES price_files(id),
+  ADD COLUMN IF NOT EXISTS price_file_id    uuid          REFERENCES price_files(id),
   ADD COLUMN IF NOT EXISTS discount_pct     numeric       NOT NULL DEFAULT 0,
   ADD COLUMN IF NOT EXISTS deposit_pct      numeric       NOT NULL DEFAULT 40,
   ADD COLUMN IF NOT EXISTS interim_pct      numeric       NOT NULL DEFAULT 50,
@@ -48,7 +48,7 @@ ALTER TABLE quotes
   ADD COLUMN IF NOT EXISTS published_by     uuid,
   ADD COLUMN IF NOT EXISTS snapshot         jsonb,
   ADD COLUMN IF NOT EXISTS pdf_path         text,
-  ADD COLUMN IF NOT EXISTS copied_from_quote_id bigint,
+  ADD COLUMN IF NOT EXISTS copied_from_quote_id uuid,
   ADD COLUMN IF NOT EXISTS accepted_at      timestamptz;
 
 -- ============================================================
