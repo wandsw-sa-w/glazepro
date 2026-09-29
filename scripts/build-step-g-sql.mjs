@@ -151,10 +151,15 @@ export function parseWeightsAndTimber(root = DEFAULT_ROOT) {
 /**
  * Parse the "## PARTS" section of docs/integrate-ironmongery.txt.
  * Returns 1 row per part code.
+ *
+ * unit_cost: derived from kit data where the part is the sole component (qty=1)
+ * in a single-part kit — the kit cost becomes the part unit_cost.
+ * Parts that appear only in multi-component kits get unit_cost=0 and
+ * properties.cost_unknown=true.  (parts_catalogue.unit_cost is NOT NULL.)
  */
 export function parseIronmongeryParts(root = DEFAULT_ROOT) {
   const src = readFileSync(join(root, 'docs/integrate-ironmongery.txt'), 'utf8')
-  const parts = []
+  const rawParts = []
   let inParts = false
 
   for (const line of src.split('\n')) {
@@ -166,23 +171,78 @@ export function parseIronmongeryParts(root = DEFAULT_ROOT) {
     const cols = line.split(' | ').map(s => s.trim())
     if (cols.length < 2) continue
 
-    const part_code  = cols[0]
-    const part_name  = cols[1]
-    const image_file = (cols[2] || '').replace(/\s+/g, '')
-    const properties = image_file ? JSON.stringify({ image_file }) : '{}'
+    rawParts.push({
+      part_code:  cols[0],
+      part_name:  cols[1],
+      image_file: (cols[2] || '').replace(/\s+/g, ''),
+    })
+  }
 
-    parts.push({
+  // Build cost lookup: for each part that is the sole component (qty=1) in a
+  // kit, record the kit costs.  Parts with consistent sole-kit costs get that
+  // cost; others get unit_cost=0 with cost_unknown flag.
+  const { variants, variantParts } = parseProducts(root)
+
+  // Map (short_name|finish_code) → kit cost
+  const variantCostMap = new Map(
+    variants.map(v => [`${v.short_name}|${v.finish_code}`, v.cost])
+  )
+
+  // Group variant_parts by (short_name|finish_code) → [{ part_code, quantity }]
+  const kitPartsMap = new Map()
+  for (const vp of variantParts) {
+    const key = `${vp.short_name}|${vp.finish_code}`
+    if (!kitPartsMap.has(key)) kitPartsMap.set(key, [])
+    kitPartsMap.get(key).push(vp)
+  }
+
+  // For each kit that has exactly one part line with qty=1, map part_code → cost
+  const derivedCosts = new Map()   // part_code → Set of costs
+  for (const [key, kitParts] of kitPartsMap) {
+    if (kitParts.length === 1 && kitParts[0].quantity === 1) {
+      const code = kitParts[0].part_code
+      const cost = variantCostMap.get(key)
+      if (cost != null) {
+        if (!derivedCosts.has(code)) derivedCosts.set(code, new Set())
+        derivedCosts.get(code).add(Math.round(cost * 100))  // pence, for dedup
+      }
+    }
+  }
+
+  let costUnknownCount = 0
+  const parts = rawParts.map(({ part_code, part_name, image_file }) => {
+    const costSet = derivedCosts.get(part_code)
+    // Use derived cost only when all sole-kit appearances agree on the price
+    let unit_cost = 0
+    let cost_unknown = true
+    if (costSet && costSet.size === 1) {
+      unit_cost    = [...costSet][0] / 100
+      cost_unknown = false
+    } else {
+      costUnknownCount++
+    }
+
+    const baseProps = image_file ? { image_file } : {}
+    const properties = cost_unknown
+      ? JSON.stringify({ ...baseProps, cost_unknown: true })
+      : (image_file ? JSON.stringify(baseProps) : '{}')
+
+    return {
       part_code,
       part_name,
       category:     'Ironmongery',
       unit:         'each',
       thickness_mm: null,
-      unit_cost:    null,
+      unit_cost,
       is_active:    true,
       special:      false,
       stocked:      false,
       properties,
-    })
+    }
+  })
+
+  if (process.env.VERBOSE) {
+    console.log(`  Ironmongery parts: ${parts.length} total, ${parts.length - costUnknownCount} with derived cost, ${costUnknownCount} cost_unknown`)
   }
 
   return parts
