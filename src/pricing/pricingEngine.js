@@ -945,8 +945,45 @@ export async function priceQuote(quoteId, supabase, { priceFileId } = {}) {
       calculated_price: parseFloat(row.drawings?.calculated_price ?? 0) || 0,
     }))
 
-    // ── 2. Sum quote_total ────────────────────────────────────────────────────
+    // ── 2. Sum quote_total / items_net_value ─────────────────────────────────
     const quoteTotal = drawings.reduce((sum, d) => sum + d.calculated_price, 0)
+    // items_net_value = sum of included items' net sales, ex VAT, before
+    // quote-level rules and before the quote discount — equals quoteTotal here.
+    const items_net_value = quoteTotal
+
+    // ── 2b. Resolve nj_item_qty (count of new-joinery drawings) ──────────────
+    // Types of work counted as new joinery — Nathan to confirm.
+    const NJ_TYPES_OF_WORK = ['complete_new', 'new_pair_of_sashes']
+
+    let nj_item_qty = 0
+    {
+      const drawingIds = drawings.map(d => d.drawing_id)
+      if (drawingIds.length > 0) {
+        const { data: runRows } = await supabase
+          .from('pricing_runs')
+          .select('id, drawing_id')
+          .in('drawing_id', drawingIds)
+          .eq('status', 'complete')
+          .order('created_at', { ascending: false })
+
+        const latestRunId = {}
+        for (const r of (runRows || [])) {
+          if (!latestRunId[r.drawing_id]) latestRunId[r.drawing_id] = r.id
+        }
+        const runIds = Object.values(latestRunId)
+
+        if (runIds.length > 0) {
+          const { data: varRows } = await supabase
+            .from('drawing_pricing_variables')
+            .select('drawing_id, variables')
+            .in('pricing_run_id', runIds)
+
+          for (const v of (varRows || [])) {
+            if (NJ_TYPES_OF_WORK.includes(v.variables?.typeOfWork)) nj_item_qty++
+          }
+        }
+      }
+    }
 
     // ── 3. Resolve price file ─────────────────────────────────────────────────
     let resolvedPriceFileId = priceFileId
@@ -994,7 +1031,7 @@ export async function priceQuote(quoteId, supabase, { priceFileId } = {}) {
 
     if (qrulesErr) throw new Error(`Failed to fetch quote rules: ${qrulesErr.message}`)
 
-    const quoteVariables     = { quote_total: quoteTotal }
+    const quoteVariables     = { quote_total: quoteTotal, items_net_value, nj_item_qty }
     const drawingPriceDeltas = {}
 
     // ── 6. Evaluate each rule, write quote_rule_results, then apportion ───────
