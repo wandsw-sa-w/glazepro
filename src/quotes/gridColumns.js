@@ -5,16 +5,22 @@
  * by drawingBoard/api.js#loadDrawingParts): find the first part of `partType`
  * in the tree and read/write `property` on its `values` object.
  *
- * Columns whose backing field doesn't exist in the schema yet are included
- * with `partType`/`property` left null — readColumnValue returns null for
- * these and the grid renders "—", per the K3 brief ("skip any property that
- * doesn't exist yet"). Columns sourced from the `drawings` row itself
- * (source: 'drawing') or from quote/profile context (source: 'context') are
- * read/written outside the tree — see QuoteOverview.jsx.
+ * Columns with a `compute(tree)` function are read-only derived columns;
+ * readColumnValue calls compute() when no partType/property is set.
+ *
+ * Columns that require data beyond the tree (source: 'context') are
+ * read outside the tree — see QuoteOverview.jsx.
+ *
+ * Columns for features not yet implemented (sash_weight, item_weight,
+ * item_type, product_range, glazing_bar, surround, sash_travel) are left with
+ * partType/property null so the grid renders "—".
  */
 
-// ── Tree helpers (pure — duplicated from DrawingBoard.jsx's own findFirst/
-// updateNodeValues so this module has no dependency on the editor) ──────────
+import { computeSashGeometry } from '../drawingBoard/sashGeometry.js'
+import { computeDerived }       from '../drawingBoard/computeDerived.js'
+
+// ── Tree helpers (pure — duplicated from DrawingBoard.jsx so this module
+// has no dependency on the editor) ──────────────────────────────────────────
 
 function findFirstPart(node, partType) {
   if (!node) return null
@@ -34,79 +40,99 @@ function updateFirstPartValues(node, partType, patch) {
 
 /**
  * Read a column's value out of a drawing's parts tree.
+ * Falls back to column.compute(tree) for derived columns.
  * @param {object|null} tree
- * @param {{partType?: string|null, property?: string|null}} column
- * @returns {*} the raw value, or null if the part/property/tree is absent
+ * @param {{partType?: string|null, property?: string|null, compute?: function}} column
+ * @returns {*} the raw value, or null if absent
  */
 export function readColumnValue(tree, column) {
-  if (!tree || !column?.partType || !column?.property) return null
-  const part = findFirstPart(tree, column.partType)
-  if (!part) return null
-  const raw = part.values?.[column.property]
-  return raw === undefined ? null : raw
+  if (!tree) return null
+  if (column?.partType && column?.property) {
+    const part = findFirstPart(tree, column.partType)
+    if (!part) return null
+    const raw = part.values?.[column.property]
+    return raw === undefined ? null : raw
+  }
+  if (typeof column?.compute === 'function') {
+    try { return column.compute(tree) ?? null } catch { return null }
+  }
+  return null
 }
 
 /**
  * Write a new value for a column into a drawing's parts tree.
- * Returns a new tree (immutable update); the caller is responsible for
- * persisting it (saveDrawingParts) and re-pricing.
+ * Returns a new tree (immutable update); caller persists via saveDrawingParts.
  * @param {object|null} tree
  * @param {{partType?: string|null, property?: string|null}} column
  * @param {*} newValue
- * @returns {object|null} the updated tree, or the original tree unchanged
- *   if the column has no partType/property or the tree is absent.
+ * @returns {object|null}
  */
 export function writeColumnValue(tree, column, newValue) {
   if (!tree || !column?.partType || !column?.property) return tree
   return updateFirstPartValues(tree, column.partType, { [column.property]: newValue })
 }
 
+// ── Derived-value helpers ────────────────────────────────────────────────────
+
+function computeSashWidth(tree) {
+  const derived = computeDerived(tree)
+  const geo     = computeSashGeometry(tree, derived)
+  return geo?.sashWidth ?? null
+}
+
+function computeTopSashHeight(tree) {
+  const derived = computeDerived(tree)
+  const geo     = computeSashGeometry(tree, derived)
+  return geo?.topSashHeight ?? null
+}
+
 // ── Column config ────────────────────────────────────────────────────────────
 // type: 'reference' | 'number' | 'text' | 'boolean' | 'display'
-// source: 'tree' (default) | 'drawing' | 'context'
+// source: 'tree' (default) | 'context'
+// referenceCategory: matches reference_categories.code in the DB
 
 export const GRID_COLUMNS = [
-  { key: 'price_file',      label: 'Price File',              source: 'context', editable: false, type: 'display' },
-  { key: 'item_type',       label: 'Item Type',                partType: null,                    property: null,                editable: false, type: 'display' },
-  { key: 'type_of_work',    label: 'Type of Work',             partType: 'drawingItemPart',        property: 'typeOfWork',        editable: true,  type: 'reference', referenceCategory: 'type_of_work' },
-  { key: 'supply_option',   label: 'Supply Option',            partType: 'drawingItemPart',        property: 'supplyOption',      editable: false, type: 'display' },
-  { key: 'product_range',   label: 'Product Range',            source: 'context', editable: false, type: 'display' },
-  { key: 'sash_material',   label: 'Sash Material',            partType: 'drawingItemPart',        property: 'sashMaterialId',    editable: true,  type: 'reference' },
-  { key: 'frame_material',  label: 'Frame Material',           partType: 'drawingItemPart',        property: 'frameMaterialId',   editable: true,  type: 'reference' },
-  { key: 'cill_material',   label: 'Cill Material',             partType: 'cillPart',               property: 'cillMaterialId',    editable: true,  type: 'reference' },
-  { key: 'staff_bead',      label: 'Staff Bead',                partType: 'drawingItemPart',        property: 'staffBeadTypeId',   editable: true,  type: 'reference', referenceCategory: 'staff_bead_type' },
-  { key: 'sash_travel',     label: 'Sash Travel (%)',           partType: null,                    property: null,                editable: false, type: 'display' },
-  { key: 'sash_weight',     label: 'Sash Weight',               partType: null,                    property: null,                editable: false, type: 'display' },
-  { key: 'item_weight',     label: 'Item Weight',               partType: null,                    property: null,                editable: false, type: 'display' },
-  { key: 'sash_width',      label: 'Sash Width',                partType: 'sashPairPart',           property: 'sashWidth',         editable: false, type: 'number', unit: 'mm' },
-  { key: 'sash_height',     label: 'Sash Height',               partType: 'topSashPart',            property: 'sashHeight',        editable: false, type: 'number', unit: 'mm' },
-  { key: 'sash_thickness',  label: 'Sash Thickness',            partType: null,                    property: null,                editable: false, type: 'display' },
-  { key: 'top_horn',        label: 'Top Sash Horn',             partType: 'topSashPart',            property: 'horn',              editable: true,  type: 'text' },
-  { key: 'bottom_horn',     label: 'Bottom Sash Horn',          partType: 'bottomSashPart',         property: 'horn',              editable: true,  type: 'text' },
-  { key: 'glazing_bar',     label: 'Glazing Bar',               partType: null,                    property: null,                editable: false, type: 'display' },
-  { key: 'single_glass',    label: 'Single Glass',              partType: 'glassPart',              property: 'singleGlassPartNo', editable: true,  type: 'text' },
-  { key: 'inner_glass',     label: 'Inner Glass',               partType: 'glassPart',              property: 'internalGlassPartNo', editable: true, type: 'text' },
-  { key: 'outer_glass',     label: 'Outer Glass',               partType: 'glassPart',              property: 'externalGlassPartNo', editable: true, type: 'text' },
-  { key: 'spacer_colour',   label: 'Spacer Colour',              partType: 'glassPart',              property: 'spacerColourId',    editable: true,  type: 'reference' },
-  { key: 'gas_fill',        label: 'Gas Fill',                  partType: 'glassPart',              property: 'gasFillId',         editable: true,  type: 'reference', referenceCategory: 'gas_fill' },
-  { key: 'ironmongery',     label: 'Ironmongery',               partType: 'paintAndIronmongeryPart', property: 'ironmongeryFinishId', editable: false, type: 'display' },
-  { key: 'surround',        label: 'Surround',                  partType: null,                    property: null,                editable: false, type: 'display' },
-  { key: 'internal_finish', label: 'Internal Finish',           partType: null,                    property: null,                editable: false, type: 'display' },
-  { key: 'external_finish', label: 'External Finish',           partType: null,                    property: null,                editable: false, type: 'display' },
-  { key: 'cill_finish',     label: 'Cill Finish',               partType: null,                    property: null,                editable: false, type: 'display' },
-  { key: 'poa',             label: 'POA',                       partType: 'pricePart',              property: 'poa',               editable: true,  type: 'boolean' },
-  { key: 'install_method',  label: 'Installation Method',       partType: 'notesPart',              property: 'installationMethod', editable: true, type: 'reference', referenceCategory: 'installation_method' },
-  { key: 'fire_egress',     label: 'Fire Egress',               partType: 'notesPart',              property: 'fireEgress',        editable: true,  type: 'reference', referenceCategory: 'fire_egress' },
-  { key: 'internal_hazard', label: 'Internal Hazard',            partType: 'notesPart',              property: 'internalHazard',    editable: true,  type: 'reference', referenceCategory: 'internal_hazard' },
-  { key: 'internal_access', label: 'Internal Access',           partType: null,                    property: null,                editable: false, type: 'display' },
-  { key: 'landing_access',  label: 'Landing Access',            partType: 'notesPart',              property: 'landingAccess',     editable: true,  type: 'reference', referenceCategory: 'landing_access' },
-  { key: 'external_access', label: 'External Access',           partType: 'notesPart',              property: 'externalAccessId',  editable: true,  type: 'reference' },
-  { key: 'hazard_below',    label: 'Hazard Below',              partType: null,                    property: null,                editable: false, type: 'display' },
-  { key: 'cable_alarm',     label: 'Cable/Alarm',               partType: null,                    property: null,                editable: false, type: 'display' },
-  { key: 'dormer_issue',    label: 'Dormer Issue',              partType: null,                    property: null,                editable: false, type: 'display' },
-  { key: 'cut_back_plaster',label: 'Cut Back Plaster',           partType: 'notesPart',              property: 'cutBackPlaster',    editable: true,  type: 'boolean' },
-  { key: 'cut_back_reveal', label: 'Cut Back Reveal',           partType: 'notesPart',              property: 'cutBackReveal',     editable: true,  type: 'boolean' },
-  { key: 'quote_notes',     label: 'Quote Notes',               source: 'drawing', field: 'notes_quote',       editable: true, type: 'text' },
-  { key: 'installation_notes', label: 'Installation Notes',     source: 'drawing', field: 'notes_installation', editable: true, type: 'text' },
-  { key: 'notes_production', label: 'Notes for Production',     partType: null,                    property: null,                editable: false, type: 'display' },
+  { key: 'price_file',      label: 'Price File',           source: 'context', editable: false, type: 'display' },
+  { key: 'item_type',       label: 'Item Type',            partType: null,                     property: null,                  editable: false, type: 'display' },
+  { key: 'type_of_work',    label: 'Type of Work',         partType: 'drawingItemPart',         property: 'typeOfWork',          editable: true,  type: 'reference', referenceCategory: 'type_of_work' },
+  { key: 'supply_option',   label: 'Supply Option',        partType: 'drawingItemPart',         property: 'supplyOption',        editable: true,  type: 'reference', referenceCategory: 'supply_option' },
+  { key: 'product_range',   label: 'Product Range',        source: 'context', editable: false, type: 'display' },
+  { key: 'sash_material',   label: 'Sash Material',        partType: 'drawingItemPart',         property: 'sashMaterialId',      editable: true,  type: 'reference', referenceCategory: 'sash_material' },
+  { key: 'frame_material',  label: 'Frame Material',       partType: 'drawingItemPart',         property: 'frameMaterialId',     editable: true,  type: 'reference', referenceCategory: 'frame_material' },
+  { key: 'cill_material',   label: 'Cill Material',        partType: 'cillPart',                property: 'cillMaterialId',      editable: true,  type: 'reference', referenceCategory: 'cill_material' },
+  { key: 'staff_bead',      label: 'Staff Bead',           partType: 'drawingItemPart',         property: 'staffBeadTypeId',     editable: true,  type: 'reference', referenceCategory: 'staff_bead_type' },
+  { key: 'sash_travel',     label: 'Sash Travel (%)',      partType: null,                     property: null,                  editable: false, type: 'display' },
+  { key: 'sash_weight',     label: 'Sash Weight',          partType: null,                     property: null,                  editable: false, type: 'display' },
+  { key: 'item_weight',     label: 'Item Weight',          partType: null,                     property: null,                  editable: false, type: 'display' },
+  { key: 'sash_width',      label: 'Sash Width',           editable: false, type: 'number', unit: 'mm', compute: computeSashWidth },
+  { key: 'sash_height',     label: 'Sash Height',          editable: false, type: 'number', unit: 'mm', compute: computeTopSashHeight },
+  { key: 'sash_thickness',  label: 'Sash Thickness',       partType: 'sashPairPart',            property: 'sashThickness',       editable: false, type: 'number', unit: 'mm' },
+  { key: 'top_horn',        label: 'Top Sash Horn',        partType: 'sashPairPart',            property: 'topHornTypeShortName', editable: true, type: 'reference', referenceCategory: 'horn_type' },
+  { key: 'bottom_horn',     label: 'Bottom Sash Horn',     partType: 'sashPairPart',            property: 'bottomHornTypeShortName', editable: true, type: 'reference', referenceCategory: 'horn_type' },
+  { key: 'glazing_bar',     label: 'Glazing Bar',          partType: null,                     property: null,                  editable: false, type: 'display' },
+  { key: 'single_glass',    label: 'Single Glass',         partType: 'glassPart',               property: 'singleGlassPartNo',   editable: true,  type: 'text' },
+  { key: 'inner_glass',     label: 'Inner Glass',          partType: 'glassPart',               property: 'internalGlassPartNo', editable: true,  type: 'text' },
+  { key: 'outer_glass',     label: 'Outer Glass',          partType: 'glassPart',               property: 'externalGlassPartNo', editable: true,  type: 'text' },
+  { key: 'spacer_colour',   label: 'Spacer Colour',        partType: 'glassPart',               property: 'spacerColourId',      editable: true,  type: 'reference', referenceCategory: 'glazing_spacer_colour' },
+  { key: 'gas_fill',        label: 'Gas Fill',             partType: 'glassPart',               property: 'gasFillId',           editable: true,  type: 'reference', referenceCategory: 'gas_fill' },
+  { key: 'ironmongery',     label: 'Ironmongery',          partType: 'paintAndIronmongeryPart', property: 'ironmongeryFinish',   editable: true,  type: 'reference', referenceCategory: 'ironmongery_finish' },
+  { key: 'surround',        label: 'Surround',             partType: null,                     property: null,                  editable: false, type: 'display' },
+  { key: 'internal_finish', label: 'Internal Finish',      partType: 'paintAndIronmongeryPart', property: 'internalFinish',      editable: true,  type: 'reference', referenceCategory: 'paint_finish' },
+  { key: 'external_finish', label: 'External Finish',      partType: 'paintAndIronmongeryPart', property: 'externalFinish',      editable: true,  type: 'reference', referenceCategory: 'paint_finish' },
+  { key: 'cill_finish',     label: 'Cill Finish',          partType: 'paintAndIronmongeryPart', property: 'cillFinish',          editable: true,  type: 'reference', referenceCategory: 'paint_finish' },
+  { key: 'poa',             label: 'POA',                  partType: 'pricePart',               property: 'poa',                 editable: true,  type: 'boolean' },
+  { key: 'install_method',  label: 'Installation Method',  partType: 'notesPart',               property: 'installationMethod',  editable: true,  type: 'reference', referenceCategory: 'installation_method' },
+  { key: 'fire_egress',     label: 'Fire Egress',          partType: 'notesPart',               property: 'fireEgress',          editable: true,  type: 'reference', referenceCategory: 'fire_egress' },
+  { key: 'internal_hazard', label: 'Internal Hazard',      partType: 'notesPart',               property: 'internalHazard',      editable: true,  type: 'reference', referenceCategory: 'internal_hazard' },
+  { key: 'internal_access', label: 'Internal Access',      partType: 'notesPart',               property: 'internalAccess',      editable: true,  type: 'reference', referenceCategory: 'access_internal' },
+  { key: 'landing_access',  label: 'Landing Access',       partType: 'notesPart',               property: 'landingAccess',       editable: true,  type: 'reference', referenceCategory: 'landing_access' },
+  { key: 'external_access', label: 'External Access',      partType: 'notesPart',               property: 'externalAccessId',    editable: true,  type: 'reference', referenceCategory: 'access_external' },
+  { key: 'hazard_below',    label: 'Hazard Below',         partType: 'notesPart',               property: 'hazardBelow',         editable: true,  type: 'reference', referenceCategory: 'access_hazard_below' },
+  { key: 'cable_alarm',     label: 'Cable/Alarm',          partType: 'notesPart',               property: 'cableAlarm',          editable: true,  type: 'reference', referenceCategory: 'access_cable_alarm' },
+  { key: 'dormer_issue',    label: 'Dormer Issue',         partType: 'notesPart',               property: 'dormerIssue',         editable: true,  type: 'reference', referenceCategory: 'access_dormer' },
+  { key: 'cut_back_plaster',label: 'Cut Back Plaster',     partType: 'notesPart',               property: 'cutBackPlaster',      editable: true,  type: 'boolean' },
+  { key: 'cut_back_reveal', label: 'Cut Back Reveal',      partType: 'notesPart',               property: 'cutBackReveal',       editable: true,  type: 'boolean' },
+  { key: 'quote_notes',     label: 'Quote Notes',          partType: 'notesPart',               property: 'quoteNotes',          editable: true,  type: 'text' },
+  { key: 'installation_notes', label: 'Installation Notes', partType: 'notesPart',              property: 'installationNotes',   editable: true,  type: 'text' },
+  { key: 'notes_production', label: 'Notes for Production', partType: 'notesPart',              property: 'productionNotes',     editable: true,  type: 'text' },
 ]
