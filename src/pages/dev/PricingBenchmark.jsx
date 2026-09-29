@@ -2,7 +2,7 @@
  * PricingBenchmark.jsx
  * Developer benchmark page at /dev/pricing-benchmark.
  *
- * Loads the "Integrate PF30 (Draft Import)" price file and its rules, runs
+ * Loads the current price file (is_current = true, fallback name = 'PF30') and its rules, runs
  * runPricingOnTree against a fixture tree matching L34046 Item 7, and displays
  * a breakdown table with comparison against known Integrate targets.
  */
@@ -497,29 +497,28 @@ export default function PricingBenchmark() {
     async function run() {
       setState(s => ({ ...s, status: 'loading' }))
       try {
-        // Find the price file
-        const { data: pfRows, error: pfErr } = await supabase
+        // Find the current price file (is_current = true), falling back to name = 'PF30'
+        const { data: currentRows, error: pfErr } = await supabase
           .from('price_files')
           .select('id, name')
-          .ilike('name', '%Integrate PF30%')
+          .eq('is_current', true)
           .limit(1)
 
         if (pfErr) throw new Error(`price_files query: ${pfErr.message}`)
 
-        let priceFile = pfRows?.[0] ?? null
+        let priceFile = currentRows?.[0] ?? null
 
-        // Fall back to the published price file if the named one isn't found
         if (!priceFile) {
-          const { data: pubRows, error: pubErr } = await supabase
+          const { data: namedRows, error: namedErr } = await supabase
             .from('price_files')
             .select('id, name')
-            .eq('status', 'published')
+            .eq('name', 'PF30')
             .limit(1)
-          if (pubErr) throw new Error(`price_files (published) query: ${pubErr.message}`)
-          priceFile = pubRows?.[0] ?? null
+          if (namedErr) throw new Error(`price_files (PF30) query: ${namedErr.message}`)
+          priceFile = namedRows?.[0] ?? null
         }
 
-        if (!priceFile) throw new Error('No price file found (tried "Integrate PF30" and published).')
+        if (!priceFile) throw new Error('No price file found (no is_current file and no file named "PF30").')
 
         // Load price-file variables
         const { data: pfVarRows, error: pfvErr } = await supabase
