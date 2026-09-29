@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import QuoteDrawer from './QuoteDrawer'
 import { priceDrawing, priceQuote } from '../pricing/pricingEngine.js'
 import { computeQuoteTotals } from '../quotes/quoteTotals.js'
+import { validatePublish, isLocked, nextQuoteNumber } from '../quotes/publishValidation.js'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -224,6 +225,208 @@ export default function QuoteMatrix({ leadId, leadNumber, onClose }) {
 
     const errorMsg = errors.length > 0 ? errors.join('; ') : null
     setPricing(prev => ({ ...prev, [quoteId]: { busy: false, error: errorMsg, progress: null } }))
+  }
+
+  // ── Publish ─────────────────────────────────────────────────────────────────
+
+  async function doPublishQuote(quoteId) {
+    const q = quotes.find(q => q.id === quoteId)
+    if (!q || q.status !== 'Open') return
+
+    const validation = validatePublish(q, jobItems, drawings, selections, latestRuns)
+    if (!validation.ok) {
+      // Stale drawings — show error via pricing state
+      setPricing(prev => ({
+        ...prev,
+        [quoteId]: { busy: false, error: validation.reason, progress: null },
+      }))
+      return
+    }
+
+    if (validation.poaItemIndices.length > 0) {
+      const ok = window.confirm(
+        `This quote contains ${validation.poaItemIndices.length} POA item(s). ` +
+        `These will be excluded from the financial total.\n\nPublish anyway?`
+      )
+      if (!ok) return
+    }
+
+    // Build snapshot
+    const totals = getSidebarTotals(quoteId)
+    const selectedItems = jobItems.map(item => {
+      const dwgId = selections[`${quoteId}_${item.id}`]
+      if (!dwgId) return null
+      const dwg = drawings.find(d => d.id === dwgId)
+      const itemTotals = totals?.items?.[jobItems.indexOf(item)]
+      return {
+        job_item:  { id: item.id, item_number: item.item_number, floor_level: item.floor_level, elevation: item.elevation, room_name: item.room_name },
+        drawing:   { id: dwg?.id, drawing_number: dwg?.drawing_number, window_type: dwg?.window_type },
+        calculated_price:           dwg?.calculated_price ?? null,
+        net:                        itemTotals?.net ?? null,
+        net_after_quote_discount:   itemTotals?.netAfterQuoteDiscount ?? null,
+        vat:                        itemTotals?.vat ?? null,
+        vat_rate:                   dwg?.vat_rate ?? 20,
+        poa:                        dwg?.poa ?? false,
+      }
+    }).filter(Boolean)
+
+    const publishedAt = new Date().toISOString()
+    const validUntil = q.valid_days
+      ? new Date(Date.now() + q.valid_days * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      : null
+
+    const snapshot = {
+      published_at:    publishedAt,
+      lead_number:     leadNumber,
+      quote_number:    q.quote_number,
+      quote_settings: {
+        discount_pct: q.discount_pct,
+        deposit_pct:  q.deposit_pct,
+        interim_pct:  q.interim_pct,
+        valid_days:   q.valid_days,
+        price_file_id: q.price_file_id,
+      },
+      totals: totals ? {
+        subtotal_before_discount: totals.subtotalBeforeDiscount,
+        discount_amount:          totals.discountAmount,
+        subtotal_after_discount:  totals.subtotalAfterDiscount,
+        vat_by_rate:              totals.vatByRate,
+        total_vat:                totals.totalVat,
+        total_incl_vat:           totals.totalInclVat,
+        stages:                   totals.stages,
+      } : null,
+      items: selectedItems,
+    }
+
+    const { error } = await supabase.from('quotes').update({
+      status:       'Published',
+      published_at: publishedAt,
+      published_by: user?.id ?? null,
+      valid_until:  validUntil,
+      snapshot,
+    }).eq('id', quoteId)
+
+    if (error) {
+      setPricing(prev => ({ ...prev, [quoteId]: { busy: false, error: `Publish failed: ${error.message}`, progress: null } }))
+      return
+    }
+
+    setQuotes(prev => prev.map(q => q.id === quoteId
+      ? { ...q, status: 'Published', published_at: publishedAt, published_by: user?.id, valid_until: validUntil, snapshot }
+      : q
+    ))
+
+    // Record in lead_history (silently skip if table doesn't exist)
+    try {
+      await supabase.from('lead_history').insert({
+        lead_id:    leadId,
+        user_id:    user?.id ?? null,
+        user_email: user?.email ?? null,
+        event:      'Quote published',
+        new_value:  `${leadNumber} / ${q.quote_number}`,
+        created_at: new Date().toISOString(),
+      })
+    } catch { /* lead_history may not exist */ }
+  }
+
+  // ── Copy ────────────────────────────────────────────────────────────────────
+
+  async function doCopyQuote(quoteId) {
+    const q = quotes.find(q => q.id === quoteId)
+    if (!q) return
+
+    const newNum = nextQuoteNumber(quotes)
+    const currentPf = priceFiles.find(p => p.is_current) || priceFiles.find(p => p.status === 'published')
+
+    const { data: newQuote, error: qErr } = await supabase
+      .from('quotes')
+      .insert({
+        lead_id:              leadId,
+        quote_number:         newNum,
+        status:               'Open',
+        salesperson_id:       q.salesperson_id ?? null,
+        valid_days:           q.valid_days ?? 30,
+        discount_pct:         q.discount_pct ?? 0,
+        deposit_pct:          q.deposit_pct ?? 40,
+        interim_pct:          q.interim_pct ?? 50,
+        price_file_id:        q.price_file_id ?? currentPf?.id ?? null,
+        copied_from_quote_id: quoteId,
+        created_at:           new Date().toISOString(),
+      })
+      .select('id, quote_number, status, lead_id, salesperson_id, valid_until, created_at, price_file_id, discount_pct, deposit_pct, interim_pct, valid_days')
+      .single()
+
+    if (qErr || !newQuote) {
+      console.error('Failed to copy quote:', qErr)
+      return
+    }
+
+    // Copy drawing selections
+    const selRows = jobItems
+      .map(item => {
+        const dwgId = selections[`${quoteId}_${item.id}`]
+        if (!dwgId) return null
+        return { quote_id: newQuote.id, job_item_id: item.id, drawing_id: dwgId }
+      })
+      .filter(Boolean)
+
+    if (selRows.length > 0) {
+      const { error: selErr } = await supabase.from('quote_drawings').insert(selRows)
+      if (selErr) console.error('Failed to copy quote_drawings:', selErr)
+      else {
+        const newSels = {}
+        for (const row of selRows) {
+          newSels[`${newQuote.id}_${row.job_item_id}`] = row.drawing_id
+        }
+        setSelections(prev => ({ ...prev, ...newSels }))
+      }
+    }
+
+    setQuotes(prev => [...prev, newQuote])
+    focusQuote(newQuote)
+
+    // Record in lead_history
+    try {
+      await supabase.from('lead_history').insert({
+        lead_id:    leadId,
+        user_id:    user?.id ?? null,
+        user_email: user?.email ?? null,
+        event:      'Quote copied',
+        old_value:  `${leadNumber} / ${q.quote_number}`,
+        new_value:  `${leadNumber} / ${newNum}`,
+        created_at: new Date().toISOString(),
+      })
+    } catch { /* lead_history may not exist */ }
+  }
+
+  // ── Accept ──────────────────────────────────────────────────────────────────
+
+  async function doAcceptQuote(quoteId) {
+    const acceptedAt = new Date().toISOString()
+    const { error } = await supabase.from('quotes').update({
+      status:      'Accepted',
+      accepted_at: acceptedAt,
+    }).eq('id', quoteId)
+
+    if (error) { console.error('Failed to accept quote:', error); return }
+
+    setQuotes(prev => prev.map(q => q.id === quoteId
+      ? { ...q, status: 'Accepted', accepted_at: acceptedAt }
+      : q
+    ))
+
+    // Record in lead_history
+    try {
+      const q = quotes.find(q => q.id === quoteId)
+      await supabase.from('lead_history').insert({
+        lead_id:    leadId,
+        user_id:    user?.id ?? null,
+        user_email: user?.email ?? null,
+        event:      'Quote accepted',
+        new_value:  `${leadNumber} / ${q?.quote_number}`,
+        created_at: new Date().toISOString(),
+      })
+    } catch { /* lead_history may not exist */ }
   }
 
   // ── Sidebar ─────────────────────────────────────────────────────────────────
@@ -789,8 +992,66 @@ export default function QuoteMatrix({ leadId, leadNumber, onClose }) {
                       </div>
                     </SidebarField>
 
+                    {/* Publish button */}
+                    <button
+                      onClick={() => doPublishQuote(focusedQuote.id)}
+                      style={{
+                        marginTop: 4, padding: '8px 0', width: '100%',
+                        border: 'none', borderRadius: 8,
+                        background: '#1a5fa8', color: '#fff',
+                        fontSize: 13, fontWeight: 700, cursor: 'pointer', letterSpacing: '.02em',
+                      }}
+                    >
+                      Publish Quote
+                    </button>
+
                   </div>
                 )}
+
+                {/* Locked quote info */}
+                {isLocked(focusedQuote) && (
+                  <div style={{ borderTop: '1px solid #f0eef8', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {focusedQuote.published_at && (
+                      <div style={{ fontSize: 12, color: '#555' }}>
+                        Published {new Date(focusedQuote.published_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        {salespersonName && ` by ${salespersonName.split(' ').map(p => p[0]).join('').toUpperCase()}`}
+                      </div>
+                    )}
+                    {focusedQuote.valid_until && (
+                      <div style={{ fontSize: 12, color: '#888' }}>
+                        Valid until {new Date(focusedQuote.valid_until).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </div>
+                    )}
+                    {focusedQuote.status === 'Published' && (
+                      <button
+                        onClick={() => doAcceptQuote(focusedQuote.id)}
+                        style={{
+                          padding: '7px 0', width: '100%',
+                          border: 'none', borderRadius: 8,
+                          background: '#0a5a3c', color: '#fff',
+                          fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                        }}
+                      >
+                        Mark as Accepted
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Copy button — available on any status */}
+                <div style={{ paddingTop: 12 }}>
+                  <button
+                    onClick={() => doCopyQuote(focusedQuote.id)}
+                    style={{
+                      padding: '6px 0', width: '100%',
+                      border: '1px solid #dcd9f5', borderRadius: 8,
+                      background: '#f8f7fe', color: '#3d35a8',
+                      fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                    }}
+                  >
+                    Copy to New Quote
+                  </button>
+                </div>
 
                 {/* Totals block */}
                 {(() => {
