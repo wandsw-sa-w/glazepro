@@ -67,9 +67,9 @@ ALTER TABLE drawings
 -- 5. Reference category: vat_rate
 -- ============================================================
 
-INSERT INTO reference_categories (code, label, sort_order)
+INSERT INTO reference_categories (category, label, sort_order)
 VALUES ('vat_rate', 'VAT Rate', 900)
-ON CONFLICT (code) DO NOTHING;
+ON CONFLICT (category) DO NOTHING;
 
 INSERT INTO reference_options (category, code, label, sort_order, is_active)
 VALUES
