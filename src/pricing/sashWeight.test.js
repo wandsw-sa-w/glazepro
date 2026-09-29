@@ -138,10 +138,10 @@ describe('computeSashWeight — geometry fields', () => {
     expect(r.gross_sash_height_in_mm).toBeCloseTo(932, 1)
   })
 
-  it('bottom sash gross_sash_height_in_mm has no horn', () => {
+  it('bottom sash gross_sash_height_in_mm includes cill extension', () => {
     const r = computeSashWeight(BOT_NODE, FIXTURE_TREE, GLASS_CATALOGUE)
-    // 793 + 88 + 40 + 0 = 921
-    expect(r.gross_sash_height_in_mm).toBeCloseTo(921, 1)
+    // 793 + 88 + 40 + 0 (horn) + 45 (cillExtension = cv.profiledHeight) = 966
+    expect(r.gross_sash_height_in_mm).toBeCloseTo(966, 1)
   })
 
   it('sash_thickness comes from sashPairPart.values.sashThickness', () => {

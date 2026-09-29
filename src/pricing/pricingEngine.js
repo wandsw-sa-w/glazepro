@@ -412,9 +412,15 @@ function evalPriceRuleLine(rule, vars, partNode) {
   if (!line.fires) return line
 
   try {
-    line.quantity = evaluateNumber(rule.quantity || '0', safeVars)
-    line.value    = evaluateNumber(rule.value    || '0', safeVars)
-    line.line_total = line.quantity * line.value * (rule.markup ?? 1)
+    line.quantity   = evaluateNumber(rule.quantity || '0', safeVars)
+    line.value      = evaluateNumber(rule.value    || '0', safeVars)
+    // Integrate rounds each line independently (no float accumulation error).
+    // line_cost  = round(qty × value, 2 dp)  — integer pence
+    // line_total = round(qty × value × markup, 2 dp)  — uses raw cost, not rounded cost
+    const raw_cost  = line.quantity * line.value
+    const markup    = rule.markup ?? 1
+    line.line_cost  = Math.round(raw_cost * 100) / 100
+    line.line_total = Math.round(raw_cost * markup * 100) / 100
   } catch (e) {
     line.error = `calc: ${e.message}`
   }
@@ -552,6 +558,7 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
   const priceRules = rules.filter(
     r => r.rule_family === 'price' && r.level !== 'quote' && (testMode || r.is_active)
   )
+  let totalCost  = 0
   let totalPrice = 0
   for (const rule of priceRules) {
     // Component loop: iterate over allocated non-sash-weight parts
@@ -574,7 +581,7 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
         const line = evalPriceRuleLine(rule, compVars, null)
         line.alloc_part_code = allocPart.part_code
         line.alloc_label     = allocPart.label
-        if (!line.error && line.fires) totalPrice += line.line_total
+        if (!line.error && line.fires) { totalCost += line.line_cost; totalPrice += line.line_total }
         results.price.lines.push(line)
       }
       continue
@@ -605,7 +612,7 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
           line.alloc_iron_short_name = ironLine.product_short_name
           line.alloc_iron_finish     = ironLine.finish_code
           line.alloc_iron_kit_cost   = kitCost
-          if (!line.error && line.fires) totalPrice += line.line_total
+          if (!line.error && line.fires) { totalCost += line.line_cost; totalPrice += line.line_total }
           results.price.lines.push(line)
         } else {
           for (const kitLine of kitParts) {
@@ -622,7 +629,7 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
             line.alloc_iron_short_name = ironLine.product_short_name
             line.alloc_iron_finish     = ironLine.finish_code
             line.alloc_iron_part_code  = kitLine.part_code
-            if (!line.error && line.fires) totalPrice += line.line_total
+            if (!line.error && line.fires) { totalCost += line.line_cost; totalPrice += line.line_total }
             results.price.lines.push(line)
           }
         }
@@ -637,11 +644,12 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
         ? { ...priceVars, ...computePartVariables(partNode, tree, derived, priceVars, glassCatalogue) }
         : priceVars
       const line = evalPriceRuleLine(rule, vars, partNode)
-      if (!line.error && line.fires) totalPrice += line.line_total
+      if (!line.error && line.fires) { totalCost += line.line_cost; totalPrice += line.line_total }
       results.price.lines.push(line)
     }
   }
-  results.price.total = totalPrice
+  results.price.total_cost = totalCost
+  results.price.total      = totalPrice
 
   return results
 }

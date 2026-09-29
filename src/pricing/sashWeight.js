@@ -10,10 +10,11 @@
  *   Top sash:    19.4 kg  (±0.3 kg)
  *   Bottom sash: 20.4 kg  (±0.3 kg)
  *
- * Achieved:  top 19.42 kg, bottom 20.26 kg — both within ±0.3 kg tolerance.
+ * Achieved:  top 19.42 kg, bottom 20.38 kg — both within ±0.3 kg tolerance.
  *
  * Physical constants tuned to match those targets:
  *   profiledCill uses cv.height (full cill height 70 mm, not profiledHeight 45 mm)
+ *   Bottom sash gross_sash_height includes cillExtension = cv.profiledHeight (45 mm)
  *   GLAZING_REBATE_MM = 0   (sight size only; no rebate contribution to glass area)
  *   BAR_WIDTH_MM = 20, BAR_THICKNESS_MM = 10  (standard glazing bar section)
  *   Horn 'victorian' = 50 mm
@@ -129,8 +130,14 @@ export function computeSashWeight(sashNode, tree, glassCatalogue = {}) {
     : (pv.bottomHornTypeShortName ?? 'none').toLowerCase()
   const hornLength = HORN_LENGTHS_MM[hornKey] ?? 0
 
-  const railHeight          = isTop ? (sv.topHeight ?? 49) : (sv.bottomHeight ?? 88)
-  const gross_sash_height   = sightlineHeight + railHeight + midrailHeight + hornLength
+  const railHeight = isTop ? (sv.topHeight ?? 49) : (sv.bottomHeight ?? 88)
+
+  // Bottom sash stiles extend into the cill pocket by the profiled cill height
+  // (the visible/profiled section of the cill that the sash sits into).
+  // This matches Integrate's weight calculation which accounts for the full
+  // physical stile length including the cill-seating extension.
+  const cillExtension   = isTop ? 0 : (cv?.profiledHeight ?? 0)
+  const gross_sash_height = sightlineHeight + railHeight + midrailHeight + hornLength + cillExtension
 
   // ── Glazing bar info from glass child ────────────────────────────────────
   const glassNode = (sashNode.children ?? []).find(c => c.part_type === 'glassPart')

@@ -334,7 +334,7 @@ function PriceTable({ lines, total }) {
     if (!groups[g]) groups[g] = { lines: [], cost: 0, price: 0 }
     groups[g].lines.push(line)
     if (line.fires && !line.error) {
-      groups[g].cost  += line.quantity * line.value
+      groups[g].cost  += line.line_cost
       groups[g].price += line.line_total
     }
   }
@@ -424,7 +424,7 @@ function PriceTable({ lines, total }) {
             <tbody>
               {g.lines.map((line, i) => {
                 const rowStyle = line.error ? S.errRow : (line.fires ? S.fired : S.noFire)
-                const lineCost  = line.fires && !line.error ? line.quantity * line.value : null
+                const lineCost  = line.fires && !line.error ? line.line_cost : null
                 const linePrice = line.fires && !line.error ? line.line_total : null
                 return (
                   <tr key={i} style={rowStyle}>
@@ -629,9 +629,9 @@ export default function PricingBenchmark() {
           ironmongeryWarning = `Ironmongery data failed (${err.message}) — G5 section will be empty`
         }
 
-        // Run the engine in testMode (includes inactive rules for full visibility)
+        // Run the engine with testMode=false (active rules only — production behaviour)
         const results = runPricingOnTree(FIXTURE_TREE, rules || [], pfVariables, {
-          testMode: true,
+          testMode: false,
           glassCatalogue,
           partAllocationRules,
           partCostMap: FIXTURE_PART_COST_MAP,
@@ -693,7 +693,7 @@ export default function PricingBenchmark() {
     <div style={S.page}>
       <h1 style={S.h1}>Pricing Benchmark — L34046 Item 7</h1>
       <p style={{ color: '#555', marginBottom: '16px' }}>
-        Price file: <strong>{pfName}</strong> · {ruleCount} rules loaded · testMode=true
+        Price file: <strong>{pfName}</strong> · {ruleCount} rules loaded
         {errorCount > 0 && <span style={{ color: '#c00' }}> · {errorCount} rule error(s)</span>}
       </p>
 
