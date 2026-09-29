@@ -5,9 +5,8 @@ import { useAuth } from '../context/AuthContext'
 import { useUsers } from '../hooks/useUsers'
 import { useUnmatchedCount } from '../hooks/useUnmatchedCount'
 import { useCurrentUser } from '../hooks/useCurrentUser'
-import QuoteDrawer from '../components/QuoteDrawer'
-import QuoteMatrix from '../components/QuoteMatrix'
 import { Layout, LeadsSubNav } from '../components/Layout'
+import { computeQuoteTotals } from '../quotes/quoteTotals'
 
 const stageColours = {
   New: { bg: '#e6f0fb', color: '#1a5fa8' },
@@ -51,9 +50,52 @@ const NOTE_TYPE_COLOURS = {
 }
 const APPT_TYPE_COLOURS = {
   Survey:       { bg: '#e6f0fb', color: '#1a5fa8' },
+  Sales:        { bg: '#faeeda', color: '#7a4a08' },
   Installation: { bg: '#e1f5ee', color: '#0a5a3c' },
   Snagging:     { bg: '#faeeda', color: '#7a4a08' },
   Other:        { bg: '#eeedfe', color: '#4a3ab0' },
+}
+const METHOD_OF_CONTACT_OPTIONS = ['Phone', 'Email', 'Web form', 'Walk-in', 'Referral']
+const PRODUCT_TYPE_OPTIONS = ['Sash', 'Casement', 'Door', 'Mixed']
+const HQ_LATLNG = { lat: 51.4780, lng: -0.1966 } // 461 Fulham Road, London SW6 1HL
+const LONDON_LATLNG = { lat: 51.5080, lng: -0.1281 } // Trafalgar Square, central London reference point
+
+function haversineMiles(a, b) {
+  if (!a || !b) return null
+  const R = 3958.8 // miles
+  const toRad = d => d * Math.PI / 180
+  const dLat = toRad(b.lat - a.lat)
+  const dLng = toRad(b.lng - a.lng)
+  const lat1 = toRad(a.lat)
+  const lat2 = toRad(b.lat)
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h))
+}
+
+function fmtGBP(n) {
+  if (n == null) return '—'
+  return `£${Number(n).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+function formatBytes(n) {
+  if (n == null) return '—'
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function Stars({ value, onChange }) {
+  return (
+    <div style={{ display: 'flex', gap: 2 }}>
+      {[1, 2, 3, 4, 5].map(n => (
+        <span
+          key={n}
+          onClick={() => onChange && onChange(n === value ? null : n)}
+          style={{ fontSize: 15, cursor: onChange ? 'pointer' : 'default', color: value >= n ? '#e0a020' : '#ddd' }}
+        >★</span>
+      ))}
+    </div>
+  )
 }
 
 function Pill({ text, colourMap }) {
@@ -142,38 +184,66 @@ export default function LeadDetail() {
   const [surveyBookedMsg, setSurveyBookedMsg] = useState(false)
   const [quotes, setQuotes] = useState([])
   const [quotesLoading, setQuotesLoading] = useState(false)
-  const [creatingQuote, setCreatingQuote] = useState(false)
-  const [openQuoteMatrix, setOpenQuoteMatrix] = useState(null)
+  const [quoteDrawings, setQuoteDrawings] = useState([]) // quote_drawings rows for this lead's quotes
   const [jobItems, setJobItems] = useState([])
   const [drawings, setDrawings] = useState([])
   const [jobItemsLoading, setJobItemsLoading] = useState(false)
-  const [addingJobItem, setAddingJobItem] = useState(false)
-  const [openDrawing, setOpenDrawing] = useState(null) // { drawingId, jobItemId }
-  const jobItemDebounceRefs = useRef({})
   const [leadHistory, setLeadHistory] = useState([])
   const [editingField, setEditingField] = useState(null)
   const [fieldDraft, setFieldDraft] = useState('')
+  const [showSameLocation, setShowSameLocation] = useState(false)
+  const [sameLocationLeads, setSameLocationLeads] = useState([])
+  const [copyingLead, setCopyingLead] = useState(false)
+  const [deletingLead, setDeletingLead] = useState(false)
+  const [placeId, setPlaceId] = useState(null)
+  const [mapType, setMapType] = useState('roadmap')
+  const [trackingDraft, setTrackingDraft] = useState(null)
+  const [savingTracking, setSavingTracking] = useState(false)
+  const [calendarWeekStart, setCalendarWeekStart] = useState(() => {
+    const d = new Date()
+    const day = d.getDay()
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1) // Monday
+    return new Date(d.getFullYear(), d.getMonth(), diff)
+  })
+  const [outputQuoteId, setOutputQuoteId] = useState('')
 
   useEffect(() => { fetchLead(); fetchUploads() }, [leadId])
 
   useEffect(() => {
     if (activeTab === 'tracking') fetchLeadAppointments()
     if (activeTab === 'correspondence') { fetchTasks(); fetchLeadNotes() }
-    if (activeTab === 'quotes') { fetchJobItemsAndDrawings(); fetchQuotes() }
+    if (activeTab === 'quotes' || activeTab === 'output') { fetchJobItemsAndDrawings(); fetchQuotes() }
     if (activeTab === 'general') fetchLeadHistory()
   }, [activeTab, leadId])
+
+  // Initialise tracking panel drafts from the lead
+  useEffect(() => {
+    if (lead) {
+      setTrackingDraft({
+        assigned_to: lead.assigned_to || '',
+        admin_notes: lead.admin_notes || '',
+        sales_date: lead.sales_date || '',
+        survey_date_t: lead.survey_date || '',
+        survey_notes: lead.survey_notes || '',
+        installation_date: lead.installation_date || '',
+        installation_notes: lead.installation_notes || '',
+      })
+    }
+  }, [lead?.id])
 
   useEffect(() => {
     if (activeTab !== 'location' || !lead) return
     const fullAddress = [lead.property_road, lead.property_town, lead.property_postcode].filter(Boolean).join(', ')
     if (!fullAddress) return
     setCoords(null)
+    setPlaceId(null)
     setGeoLoading(true)
     fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(fullAddress)}&key=${import.meta.env.VITE_GOOGLE_MAPS_KEY}`)
       .then(r => r.json())
       .then(data => {
         if (data.results?.[0]?.geometry?.location) {
           setCoords(data.results[0].geometry.location)
+          setPlaceId(data.results[0].place_id || null)
         }
       })
       .finally(() => setGeoLoading(false))
@@ -225,6 +295,78 @@ export default function LeadDetail() {
     await updateLead({ [editingField]: fieldDraft })
     setEditingField(null)
     setFieldDraft('')
+  }
+
+  async function toggleSameLocation() {
+    if (showSameLocation) { setShowSameLocation(false); return }
+    setShowSameLocation(true)
+    if (!lead?.property_postcode) { setSameLocationLeads([]); return }
+    const { data } = await supabase
+      .from('leads')
+      .select('id, lead_number, property_postcode')
+      .eq('property_postcode', lead.property_postcode)
+      .neq('id', leadId)
+      .is('deleted_at', null)
+    setSameLocationLeads(data || [])
+  }
+
+  async function copyLead() {
+    if (!lead) return
+    setCopyingLead(true)
+    const { id, lead_number, created_at, deleted_at, ...rest } = lead
+    const newNumber = `L${Date.now()}`
+    const { data: newLead, error } = await supabase
+      .from('leads')
+      .insert({ ...rest, lead_number: newNumber, created_at: new Date().toISOString() })
+      .select('id')
+      .single()
+    setCopyingLead(false)
+    if (!error && newLead) navigate(`/leads/${newLead.id}`)
+    else if (error) console.error('Error copying lead:', error)
+  }
+
+  async function deleteLead() {
+    if (!lead) return
+    const ok = window.confirm(`Delete lead ${lead.lead_number}? This can be undone by a database admin.`)
+    if (!ok) return
+    setDeletingLead(true)
+    const { error } = await supabase.from('leads').update({ deleted_at: new Date().toISOString() }).eq('id', leadId)
+    setDeletingLead(false)
+    if (!error) navigate('/leads')
+    else console.error('Error deleting lead:', error)
+  }
+
+  function updateTrackingDraft(field, value) {
+    setTrackingDraft(prev => ({ ...prev, [field]: value }))
+  }
+
+  async function saveTracking() {
+    if (!trackingDraft) return
+    setSavingTracking(true)
+    await updateLead({
+      assigned_to: trackingDraft.assigned_to,
+      admin_notes: trackingDraft.admin_notes,
+      sales_date: trackingDraft.sales_date || null,
+      survey_date: trackingDraft.survey_date_t || null,
+      survey_notes: trackingDraft.survey_notes,
+      installation_date: trackingDraft.installation_date || null,
+      installation_notes: trackingDraft.installation_notes,
+    })
+    setSavingTracking(false)
+  }
+
+  async function addTrackingAppointment(type, date) {
+    if (!date) { alert('Set a date first'); return }
+    const { error } = await supabase.from('appointments').insert({
+      type,
+      lead_id: leadId,
+      date,
+      title: lead?.lead_number || '',
+      status: 'Confirmed',
+      created_at: new Date().toISOString(),
+    })
+    if (error) console.error('Error creating appointment:', error)
+    else fetchLeadAppointments()
   }
 
   async function findGeoSlots() {
@@ -348,12 +490,19 @@ export default function LeadDetail() {
         filename: item.file.name,
         file_path: filePath,
         notes: item.notes,
+        uploaded_by: user?.email || null,
+        file_size: item.file.size || null,
         created_at: new Date().toISOString(),
       }])
     }
     await fetchUploads()
     setUploadFileList([])
     setUploading(false)
+  }
+
+  async function updateUploadField(uploadId, field, value) {
+    setUploads(prev => prev.map(u => u.id === uploadId ? { ...u, [field]: value } : u))
+    await supabase.from('lead_uploads').update({ [field]: value }).eq('id', uploadId)
   }
 
   async function fetchLeadAppointments() {
@@ -373,39 +522,17 @@ export default function LeadDetail() {
       .eq('lead_id', leadId)
       .order('created_at', { ascending: false })
     setQuotes(data || [])
-    setQuotesLoading(false)
-  }
-
-  async function createQuote() {
-    if (!lead) return
-    setCreatingQuote(true)
-    const { data: existing } = await supabase
-      .from('quotes')
-      .select('quote_number')
-      .eq('lead_id', leadId)
-    const nextNum = (existing?.length || 0) + 1
-    const quoteNumber = `Q${nextNum}`
-    const validUntil = new Date()
-    validUntil.setDate(validUntil.getDate() + 30)
-    const { data: newQuote, error } = await supabase
-      .from('quotes')
-      .insert({
-        lead_id: leadId,
-        quote_number: quoteNumber,
-        status: 'Open',
-        salesperson_id: user?.id || null,
-        valid_until: validUntil.toISOString().split('T')[0],
-        created_at: new Date().toISOString(),
-      })
-      .select('*')
-      .single()
-    setCreatingQuote(false)
-    if (!error && newQuote) {
-      setQuotes(prev => [newQuote, ...prev])
-      setOpenQuoteMatrix(newQuote)
-    } else if (error) {
-      console.error('Error creating quote:', error)
+    const quoteIds = (data || []).map(q => q.id)
+    if (quoteIds.length > 0) {
+      const { data: qds } = await supabase
+        .from('quote_drawings')
+        .select('quote_id, job_item_id, drawing_id')
+        .in('quote_id', quoteIds)
+      setQuoteDrawings(qds || [])
+    } else {
+      setQuoteDrawings([])
     }
+    setQuotesLoading(false)
   }
 
   async function fetchJobItemsAndDrawings() {
@@ -427,43 +554,6 @@ export default function LeadDetail() {
       setDrawings([])
     }
     setJobItemsLoading(false)
-  }
-
-  async function addJobItem() {
-    setAddingJobItem(true)
-    const nextNum = jobItems.length + 1
-    const { data: newItem, error } = await supabase
-      .from('job_items')
-      .insert({ lead_id: leadId, item_number: nextNum })
-      .select()
-      .single()
-    setAddingJobItem(false)
-    if (!error && newItem) setJobItems(prev => [...prev, newItem])
-  }
-
-  function updateJobItemField(itemId, field, value) {
-    setJobItems(prev => prev.map(it => it.id === itemId ? { ...it, [field]: value } : it))
-    if (jobItemDebounceRefs.current[itemId]) clearTimeout(jobItemDebounceRefs.current[itemId])
-    jobItemDebounceRefs.current[itemId] = setTimeout(() => {
-      supabase.from('job_items').update({ [field]: value }).eq('id', itemId)
-        .then(({ error }) => { if (error) console.error('Job item save error:', error) })
-    }, 500)
-  }
-
-  async function addDrawing(jobItemId) {
-    const itemDrawings = drawings.filter(d => d.job_item_id === jobItemId)
-    const nextNum = itemDrawings.length + 1
-    const { data: newDrawing, error } = await supabase
-      .from('drawings')
-      .insert({ job_item_id: jobItemId, drawing_number: nextNum })
-      .select()
-      .single()
-    if (!error && newDrawing) {
-      setDrawings(prev => [...prev, newDrawing])
-      setOpenDrawing({ drawingId: newDrawing.id, jobItemId })
-    } else if (error) {
-      console.error('Error creating drawing:', error)
-    }
   }
 
   async function fetchTasks() {
@@ -794,15 +884,44 @@ export default function LeadDetail() {
           const c = LEAD_TAG_COLOURS[tag] || { bg: '#f0eefc', color: '#3d35a8' }
           return <span key={tag} style={{ fontSize: 11, padding: '2px 9px', borderRadius: 999, fontWeight: 500, background: c.bg, color: c.color }}>{tag}</span>
         })}
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center', position: 'relative' }}>
           {saving && <span style={{ fontSize: 12, color: '#aaa' }}>Saving…</span>}
+          <div style={{ position: 'relative' }}>
+            <button onClick={toggleSameLocation} style={{ fontSize: 12, padding: '6px 12px', border: '1px solid #d8d5cf', borderRadius: 7, background: '#fff', cursor: 'pointer', fontWeight: 500, color: '#555', fontFamily: 'inherit' }}>
+              Leads and orders at same location
+            </button>
+            {showSameLocation && (
+              <div style={{ position: 'absolute', top: '110%', right: 0, zIndex: 20, width: 260, background: '#fff', border: '1px solid #e8e6e0', borderRadius: 10, boxShadow: '0 6px 20px rgba(0,0,0,0.12)', padding: 10 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', marginBottom: 8 }}>Same postcode</div>
+                {!lead.property_postcode ? (
+                  <div style={{ fontSize: 12, color: '#aaa' }}>No postcode set on this lead</div>
+                ) : sameLocationLeads.length === 0 ? (
+                  <div style={{ fontSize: 12, color: '#aaa' }}>No other leads found</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {sameLocationLeads.map(l => (
+                      <button key={l.id} onClick={() => navigate(`/leads/${l.id}`)} style={{ textAlign: 'left', fontSize: 12, padding: '6px 8px', border: 'none', borderRadius: 6, background: '#faf9f7', cursor: 'pointer', color: '#3d35a8' }}>
+                        {l.lead_number}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <button onClick={copyLead} disabled={copyingLead} style={{ fontSize: 12, padding: '6px 12px', border: '1px solid #d8d5cf', borderRadius: 7, background: '#fff', cursor: copyingLead ? 'default' : 'pointer', fontWeight: 500, color: '#555', fontFamily: 'inherit' }}>
+            {copyingLead ? 'Copying…' : 'Copy lead'}
+          </button>
+          <button onClick={deleteLead} disabled={deletingLead} style={{ fontSize: 12, padding: '6px 12px', border: '1px solid #f0c9c9', borderRadius: 7, background: '#fff', cursor: deletingLead ? 'default' : 'pointer', fontWeight: 500, color: '#c0392b', fontFamily: 'inherit' }}>
+            {deletingLead ? 'Deleting…' : 'Delete lead'}
+          </button>
           <button style={{ fontSize: 12, padding: '6px 14px', border: 'none', borderRadius: 8, background: '#3d35a8', color: '#fff', cursor: 'pointer', fontWeight: 600, fontFamily: 'inherit' }}>Convert to quote →</button>
         </div>
       </div>
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 0, padding: '0 24px', background: '#fff', borderBottom: '1px solid #e8e6e0', flexShrink: 0 }}>
-        {[['general', 'General'], ['contacts', 'Contacts'], ['correspondence', 'Correspondence'], ['survey', 'Survey'], ['uploads', 'Uploads'], ['location', 'Location'], ['tracking', 'Tracking'], ['quotes', 'Quotes']].map(([id, label]) => (
+        {[['general', 'General'], ['quotes', 'Quote'], ['uploads', 'Upload'], ['tracking', 'Tracking'], ['correspondence', 'Correspondence'], ['location', 'Location'], ['output', 'Output'], ['contacts', 'Contacts'], ['survey', 'Survey']].map(([id, label]) => (
           <div key={id} onClick={() => setActiveTab(id)} style={{ padding: '11px 16px', fontSize: 13, color: activeTab === id ? '#3d35a8' : '#888', cursor: 'pointer', borderBottom: activeTab === id ? '2px solid #3d35a8' : '2px solid transparent', fontWeight: 500 }}>{label}</div>
         ))}
       </div>
@@ -926,6 +1045,25 @@ export default function LeadDetail() {
                             </td>
                           </tr>
                         )})()}
+                        {/* Editable: Product Type */}
+                        {(() => { const isEdit = editingField === 'product_type'; return (
+                          <tr style={{ background: '#fff' }}>
+                            <td style={{ padding: '8px 14px', fontSize: 12, color: '#888', fontWeight: 500, width: 180, borderBottom: '1px solid #f5f4f0', verticalAlign: 'middle' }}>Product Type</td>
+                            <td style={{ padding: '8px 14px', fontSize: 13, borderBottom: '1px solid #f5f4f0', verticalAlign: 'middle' }}>
+                              {isEdit
+                                ? <select value={fieldDraft} onChange={e => setFieldDraft(e.target.value)} style={iStyle}>
+                                    <option value="">— Select —</option>
+                                    {PRODUCT_TYPE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                                  </select>
+                                : <span style={{ color: lead.product_type ? '#1a1a1a' : '#ccc' }}>{lead.product_type || '—'}</span>}
+                            </td>
+                            <td style={{ padding: '8px 10px', width: 40, borderBottom: '1px solid #f5f4f0', textAlign: 'center', verticalAlign: 'middle' }}>
+                              {!isEdit
+                                ? <button onClick={() => { setEditingField('product_type'); setFieldDraft(lead.product_type || '') }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#ccc', padding: '2px 4px', fontFamily: 'inherit' }} onMouseEnter={e => { e.currentTarget.style.color = '#3d35a8' }} onMouseLeave={e => { e.currentTarget.style.color = '#ccc' }}>✎</button>
+                                : <div style={{ display: 'flex', gap: 4 }}><button onClick={saveFieldEdit} style={{ background: '#3d35a8', border: 'none', borderRadius: 5, color: '#fff', cursor: 'pointer', fontSize: 10, padding: '3px 7px', fontFamily: 'inherit' }}>Save</button><button onClick={() => { setEditingField(null); setFieldDraft('') }} style={{ background: '#f0eeea', border: 'none', borderRadius: 5, cursor: 'pointer', fontSize: 10, padding: '3px 7px', fontFamily: 'inherit', color: '#555' }}>✕</button></div>}
+                            </td>
+                          </tr>
+                        )})()}
                         {/* Editable: Status */}
                         {(() => { const isEdit = editingField === 'stage'; return (
                           <tr style={{ background: '#faf9f8' }}>
@@ -946,6 +1084,47 @@ export default function LeadDetail() {
                             </td>
                           </tr>
                         )})()}
+                        {/* Editable: Rating */}
+                        <tr style={{ background: '#faf9f8' }}>
+                          <td style={{ padding: '8px 14px', fontSize: 12, color: '#888', fontWeight: 500, width: 180, borderBottom: '1px solid #f5f4f0', verticalAlign: 'middle' }}>Rating</td>
+                          <td style={{ padding: '8px 14px', fontSize: 13, borderBottom: '1px solid #f5f4f0', verticalAlign: 'middle' }}>
+                            <Stars value={lead.rating} onChange={n => updateLead({ rating: n })} />
+                          </td>
+                          <td style={{ width: 40, borderBottom: '1px solid #f5f4f0' }} />
+                        </tr>
+                        {/* Editable: Method of Contact */}
+                        {(() => { const isEdit = editingField === 'method_of_contact'; return (
+                          <tr style={{ background: '#fff' }}>
+                            <td style={{ padding: '8px 14px', fontSize: 12, color: '#888', fontWeight: 500, width: 180, borderBottom: '1px solid #f5f4f0', verticalAlign: 'middle' }}>Method of Contact</td>
+                            <td style={{ padding: '8px 14px', fontSize: 13, borderBottom: '1px solid #f5f4f0', verticalAlign: 'middle' }}>
+                              {isEdit
+                                ? <select value={fieldDraft} onChange={e => setFieldDraft(e.target.value)} style={iStyle}>
+                                    <option value="">— Select —</option>
+                                    {METHOD_OF_CONTACT_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                                  </select>
+                                : <span style={{ color: lead.method_of_contact ? '#1a1a1a' : '#ccc' }}>{lead.method_of_contact || '—'}</span>}
+                            </td>
+                            <td style={{ padding: '8px 10px', width: 40, borderBottom: '1px solid #f5f4f0', textAlign: 'center', verticalAlign: 'middle' }}>
+                              {!isEdit
+                                ? <button onClick={() => { setEditingField('method_of_contact'); setFieldDraft(lead.method_of_contact || '') }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#ccc', padding: '2px 4px', fontFamily: 'inherit' }} onMouseEnter={e => { e.currentTarget.style.color = '#3d35a8' }} onMouseLeave={e => { e.currentTarget.style.color = '#ccc' }}>✎</button>
+                                : <div style={{ display: 'flex', gap: 4 }}><button onClick={saveFieldEdit} style={{ background: '#3d35a8', border: 'none', borderRadius: 5, color: '#fff', cursor: 'pointer', fontSize: 10, padding: '3px 7px', fontFamily: 'inherit' }}>Save</button><button onClick={() => { setEditingField(null); setFieldDraft('') }} style={{ background: '#f0eeea', border: 'none', borderRadius: 5, cursor: 'pointer', fontSize: 10, padding: '3px 7px', fontFamily: 'inherit', color: '#555' }}>✕</button></div>}
+                            </td>
+                          </tr>
+                        )})()}
+                        {/* Read-only: Orders */}
+                        <tr style={{ background: '#faf9f8' }}>
+                          <td style={{ padding: '8px 14px', fontSize: 12, color: '#888', fontWeight: 500, width: 180, borderBottom: '1px solid #f5f4f0', verticalAlign: 'middle' }}>Orders</td>
+                          <td style={{ padding: '8px 14px', fontSize: 13, borderBottom: '1px solid #f5f4f0', verticalAlign: 'middle', color: '#888' }}>0</td>
+                          <td style={{ width: 40, borderBottom: '1px solid #f5f4f0' }} />
+                        </tr>
+                        {/* Account ID — stub, no accounts table yet */}
+                        <tr style={{ background: '#fff' }}>
+                          <td style={{ padding: '8px 14px', fontSize: 12, color: '#888', fontWeight: 500, width: 180, borderBottom: '1px solid #f5f4f0', verticalAlign: 'middle' }}>Account ID</td>
+                          <td style={{ padding: '8px 14px', fontSize: 13, borderBottom: '1px solid #f5f4f0', verticalAlign: 'middle' }}>
+                            <button disabled title="Accounts are not set up yet" style={{ fontSize: 12, padding: '5px 10px', border: '1px dashed #d8d5cf', borderRadius: 6, background: '#faf9f7', color: '#aaa', cursor: 'not-allowed', fontFamily: 'inherit' }}>Select Account</button>
+                          </td>
+                          <td style={{ width: 40, borderBottom: '1px solid #f5f4f0' }} />
+                        </tr>
                         {/* Editable: Window types */}
                         {(() => { const isEdit = editingField === 'window_types'; return (
                           <tr style={{ background: '#fff' }}>
@@ -1021,7 +1200,10 @@ export default function LeadDetail() {
                   {/* Customer card */}
                   {mainContact && (
                     <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, padding: '14px 16px' }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 12 }}>Customer</div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '.06em' }}>Customer</div>
+                        <button onClick={() => setActiveTab('contacts')} style={{ fontSize: 11, border: 'none', background: 'none', color: '#3d35a8', cursor: 'pointer', fontWeight: 600, fontFamily: 'inherit' }}>All contacts →</button>
+                      </div>
                       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
                         <div style={{ width: 38, height: 38, borderRadius: '50%', background: '#e6f0fb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#1a5fa8', flexShrink: 0 }}>
                           {(mainContact.first_name?.[0] || '') + (mainContact.last_name?.[0] || '')}
@@ -1867,33 +2049,54 @@ export default function LeadDetail() {
                 </div>
               </div>
 
-              {/* Upload list */}
-              {uploads.length === 0 && (
-                <div style={{ color: '#aaa', fontSize: 13, textAlign: 'center', padding: 40 }}>No uploads yet</div>
+              {/* Upload table */}
+              {uploads.length === 0 ? (
+                <div style={{ color: '#aaa', fontSize: 13, textAlign: 'center', padding: 40, background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12 }}>No uploads yet</div>
+              ) : (
+                <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, overflow: 'hidden' }}>
+                  <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ background: '#faf9f7' }}>
+                        <th style={{ textAlign: 'left', padding: '9px 14px', fontWeight: 600, color: '#888', borderBottom: '1px solid #eeece8' }}>File</th>
+                        <th style={{ textAlign: 'left', padding: '9px 14px', fontWeight: 600, color: '#888', borderBottom: '1px solid #eeece8', width: 150 }}>Uploaded by</th>
+                        <th style={{ textAlign: 'left', padding: '9px 14px', fontWeight: 600, color: '#888', borderBottom: '1px solid #eeece8', width: 170 }}>Photos taken by</th>
+                        <th style={{ textAlign: 'right', padding: '9px 14px', fontWeight: 600, color: '#888', borderBottom: '1px solid #eeece8', width: 60 }}>Qty</th>
+                        <th style={{ textAlign: 'right', padding: '9px 14px', fontWeight: 600, color: '#888', borderBottom: '1px solid #eeece8', width: 90 }}>Size</th>
+                        <th style={{ width: 60, borderBottom: '1px solid #eeece8' }} />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {uploads.map((upload, idx) => {
+                        const { data: { publicUrl } } = supabase.storage.from('lead-files').getPublicUrl(upload.file_path)
+                        return (
+                          <tr key={upload.id} style={{ background: idx % 2 === 0 ? '#fff' : '#faf9f8' }}>
+                            <td style={{ padding: '8px 14px', borderBottom: '1px solid #f5f4f0' }}>
+                              <div style={{ fontWeight: 500, color: '#1a1a1a' }}>{upload.filename}</div>
+                              {upload.notes && <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>{upload.notes}</div>}
+                              <div style={{ fontSize: 10, color: '#bbb', marginTop: 2 }}>{new Date(upload.created_at).toLocaleDateString('en-GB')}</div>
+                            </td>
+                            <td style={{ padding: '8px 14px', borderBottom: '1px solid #f5f4f0', color: '#555' }}>{upload.uploaded_by || '—'}</td>
+                            <td style={{ padding: '8px 14px', borderBottom: '1px solid #f5f4f0' }}>
+                              <input
+                                defaultValue={upload.photos_taken_by || ''}
+                                onBlur={e => { if (e.target.value !== (upload.photos_taken_by || '')) updateUploadField(upload.id, 'photos_taken_by', e.target.value) }}
+                                placeholder="—"
+                                style={{ fontSize: 12, padding: '4px 6px', border: '1px solid transparent', borderRadius: 5, outline: 'none', width: '100%', boxSizing: 'border-box', background: 'transparent' }}
+                                onFocus={e => { e.target.style.border = '1px solid #d8d5cf'; e.target.style.background = '#fff' }}
+                              />
+                            </td>
+                            <td style={{ padding: '8px 14px', borderBottom: '1px solid #f5f4f0', textAlign: 'right', color: '#555' }}>1</td>
+                            <td style={{ padding: '8px 14px', borderBottom: '1px solid #f5f4f0', textAlign: 'right', color: '#555' }}>{formatBytes(upload.file_size)}</td>
+                            <td style={{ padding: '8px 14px', borderBottom: '1px solid #f5f4f0', textAlign: 'right' }}>
+                              <a href={publicUrl} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: '#3d35a8', textDecoration: 'none', fontWeight: 500 }}>View ↗</a>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               )}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {uploads.map(upload => {
-                  const isImage = /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(upload.filename)
-                  const { data: { publicUrl } } = supabase.storage.from('lead-files').getPublicUrl(upload.file_path)
-                  return (
-                    <div key={upload.id} style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, padding: '14px 16px' }}>
-                      <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-                        {isImage && (
-                          <img src={publicUrl} alt={upload.filename} style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8, flexShrink: 0, border: '1px solid #e8e6e0' }} />
-                        )}
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
-                            <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{upload.filename}</div>
-                            <a href={publicUrl} target="_blank" rel="noreferrer" style={{ fontSize: 11, padding: '3px 10px', border: '1px solid #d8d5cf', borderRadius: 6, color: '#555', textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0 }}>View ↗</a>
-                          </div>
-                          {upload.notes && <div style={{ fontSize: 12, color: '#666', marginBottom: 4, lineHeight: 1.4 }}>{upload.notes}</div>}
-                          <div style={{ fontSize: 11, color: '#aaa' }}>{new Date(upload.created_at).toLocaleString('en-GB')}</div>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
             </div>
           )}
 
@@ -1901,8 +2104,10 @@ export default function LeadDetail() {
           {activeTab === 'location' && (() => {
             const fullAddress = [lead.property_road, lead.property_town, lead.property_postcode].filter(Boolean).join(', ')
             const apiKey = import.meta.env.VITE_GOOGLE_MAPS_KEY
-            const mapSrc = coords ? `https://www.google.com/maps/embed/v1/place?key=${apiKey}&q=${coords.lat},${coords.lng}` : null
+            const mapSrc = coords ? `https://www.google.com/maps/embed/v1/place?key=${apiKey}&q=${coords.lat},${coords.lng}&maptype=${mapType}` : null
             const svSrc = coords ? `https://www.google.com/maps/embed/v1/streetview?key=${apiKey}&location=${coords.lat},${coords.lng}&heading=210&pitch=10&fov=90` : null
+            const distHq = coords ? haversineMiles(coords, HQ_LATLNG) : null
+            const distLondon = coords ? haversineMiles(coords, LONDON_LATLNG) : null
             return (
               <div style={{ maxWidth: 1100 }}>
                 <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Location</div>
@@ -1920,10 +2125,35 @@ export default function LeadDetail() {
                   </div>
                 ) : (
                   <>
-                    <div style={{ fontSize: 13, color: '#555', marginBottom: 16 }}>{fullAddress}</div>
+                    <div style={{ fontSize: 13, color: '#555', marginBottom: 12 }}>{fullAddress}</div>
+                    <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', marginBottom: 18, background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, padding: '14px 18px' }}>
+                      <div>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '.06em' }}>Distance from HQ</div>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: '#1a1a1a' }}>{distHq != null ? `${distHq.toFixed(1)} miles` : '—'}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '.06em' }}>Distance from central London</div>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: '#1a1a1a' }}>{distLondon != null ? `${distLondon.toFixed(1)} miles` : '—'}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '.06em' }}>Lat / Long</div>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: '#1a1a1a' }}>{coords.lat.toFixed(5)}, {coords.lng.toFixed(5)}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '.06em' }}>Google Place ID</div>
+                        <div style={{ fontSize: 12, color: '#555', fontFamily: 'monospace' }}>{placeId || '—'}</div>
+                      </div>
+                    </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                       <div>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: '#555', marginBottom: 6 }}>Map</div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: '#555' }}>Map</div>
+                          <div style={{ display: 'flex', border: '1px solid #d8d5cf', borderRadius: 7, overflow: 'hidden' }}>
+                            {['roadmap', 'satellite'].map(mt => (
+                              <button key={mt} onClick={() => setMapType(mt)} style={{ fontSize: 11, padding: '4px 12px', border: 'none', cursor: 'pointer', fontWeight: 500, background: mapType === mt ? '#3d35a8' : '#fff', color: mapType === mt ? '#fff' : '#555', textTransform: 'capitalize' }}>{mt}</button>
+                            ))}
+                          </div>
+                        </div>
                         <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, overflow: 'hidden' }}>
                           <iframe
                             title="map"
@@ -1960,212 +2190,263 @@ export default function LeadDetail() {
           })()}
 
           {/* TRACKING TAB */}
-          {activeTab === 'tracking' && (
-            <div style={{ maxWidth: 700 }}>
-              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 16 }}>Appointments</div>
+          {activeTab === 'tracking' && trackingDraft && (() => {
+            const tiStyle = { fontSize: 12, padding: '6px 9px', border: '1px solid #d8d5cf', borderRadius: 6, outline: 'none', background: '#fff', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' }
+            const panelStyle = { background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, padding: '14px 16px' }
+            const panelTitle = { fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 10 }
+            const fieldLabel = { fontSize: 11, color: '#888', marginBottom: 4, display: 'block' }
+            const addBtn = { fontSize: 11, padding: '5px 10px', border: '1px solid #d8d5cf', borderRadius: 6, background: '#faf9f7', cursor: 'pointer', color: '#555', fontFamily: 'inherit' }
 
-              {leadAppointments.length === 0 ? (
-                <div style={{ color: '#aaa', fontSize: 13, textAlign: 'center', padding: '40px 24px', background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12 }}>
-                  No appointments linked to this lead yet
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                  {leadAppointments.map((appt, i) => {
-                    const c = APPT_TYPE_COLOURS[appt.type] || APPT_TYPE_COLOURS.Other
-                    const isLast = i === leadAppointments.length - 1
-                    return (
-                      <div key={appt.id} style={{ display: 'flex', gap: 14, paddingBottom: isLast ? 0 : 20 }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
-                          <div style={{ width: 10, height: 10, borderRadius: '50%', background: c.color, marginTop: 4 }} />
-                          {!isLast && <div style={{ width: 2, flex: 1, background: '#e8e6e0', marginTop: 4 }} />}
-                        </div>
-                        <div style={{ flex: 1, background: '#fff', border: '1px solid #e8e6e0', borderRadius: 10, padding: '12px 14px', marginBottom: isLast ? 0 : 0 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
-                            <span style={{ fontSize: 11, padding: '2px 9px', borderRadius: 999, fontWeight: 500, background: c.bg, color: c.color }}>{appt.type}</span>
-                            {appt.allday && <span style={{ fontSize: 11, padding: '2px 9px', borderRadius: 999, background: '#f5f4f0', color: '#666', fontWeight: 500 }}>All day</span>}
-                          </div>
-                          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>{appt.title}</div>
-                          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12, color: '#555' }}>
-                            {appt.date && <span>📅 {new Date(appt.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}</span>}
-                            {!appt.allday && appt.start_time && <span>🕐 {appt.start_time}{appt.end_time ? ` – ${appt.end_time}` : ''}</span>}
-                            {appt.assigned_to && <span>👤 {appt.assigned_to}</span>}
-                          </div>
-                          <div style={{ fontSize: 11, color: '#aaa', marginTop: 6 }}>
-                            Created {new Date(appt.created_at).toLocaleString('en-GB')}
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          )}
+            // Week grid range
+            const weekDays = Array.from({ length: 7 }, (_, i) => {
+              const d = new Date(calendarWeekStart)
+              d.setDate(d.getDate() + i)
+              return d
+            })
+            const apptsByDay = weekDays.map(d => {
+              const key = d.toISOString().slice(0, 10)
+              return leadAppointments.filter(a => a.date === key)
+            })
 
-          {/* QUOTES TAB */}
-          {activeTab === 'quotes' && (
-            <div style={{ maxWidth: 860 }}>
-
-              {/* ── SECTION 1: JOB ITEMS ─────────────────────────────── */}
-              <div style={{ marginBottom: 32 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600 }}>Items</div>
-                  <button
-                    onClick={addJobItem}
-                    disabled={addingJobItem}
-                    style={{ fontSize: 12, padding: '6px 14px', border: 'none', borderRadius: 7, background: '#3d35a8', color: '#fff', cursor: addingJobItem ? 'not-allowed' : 'pointer', fontWeight: 500, opacity: addingJobItem ? 0.7 : 1 }}
-                  >
-                    {addingJobItem ? 'Adding…' : '+ Add Item'}
+            return (
+              <div style={{ maxWidth: 1000 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600 }}>Tracking</div>
+                  <button onClick={saveTracking} disabled={savingTracking} style={{ fontSize: 12, padding: '7px 18px', border: 'none', borderRadius: 8, background: '#3d35a8', color: '#fff', cursor: savingTracking ? 'default' : 'pointer', fontWeight: 600, fontFamily: 'inherit' }}>
+                    {savingTracking ? 'Saving…' : 'Save'}
                   </button>
                 </div>
 
-                {jobItemsLoading ? (
-                  <div style={{ color: '#aaa', fontSize: 13, textAlign: 'center', padding: '32px 0' }}>Loading…</div>
-                ) : jobItems.length === 0 ? (
-                  <div style={{ color: '#aaa', fontSize: 13, textAlign: 'center', padding: '32px 24px', background: '#fff', border: '1px solid #e8e6e0', borderRadius: 10 }}>
-                    No items yet — add an item to start specifying windows
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 20 }}>
+                  {/* Admin */}
+                  <div style={panelStyle}>
+                    <div style={panelTitle}>Admin</div>
+                    <div style={{ fontSize: 12, color: '#555', marginBottom: 8 }}>Lead created {lead.created_at ? new Date(lead.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</div>
+                    <label style={fieldLabel}>Assigned to</label>
+                    <select value={trackingDraft.assigned_to} onChange={e => updateTrackingDraft('assigned_to', e.target.value)} style={{ ...tiStyle, marginBottom: 8 }}>
+                      <option value="">— Unassigned —</option>
+                      {users.map(u => <option key={u.id} value={u.full_name}>{u.full_name}</option>)}
+                    </select>
+                    <label style={fieldLabel}>Notes (max 1000 chars)</label>
+                    <textarea
+                      value={trackingDraft.admin_notes}
+                      onChange={e => updateTrackingDraft('admin_notes', e.target.value.slice(0, 1000))}
+                      rows={3}
+                      style={{ ...tiStyle, resize: 'vertical' }}
+                    />
                   </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {jobItems.map(item => {
-                      const itemDrawings = drawings.filter(d => d.job_item_id === item.id)
-                      return (
-                        <div key={item.id} style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 10, padding: '14px 16px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                            <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#f0eefc', color: '#3d35a8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
-                              {item.item_number}
-                            </div>
-                            <select
-                              value={item.floor_level || ''}
-                              onChange={e => updateJobItemField(item.id, 'floor_level', e.target.value)}
-                              style={{ fontSize: 12, padding: '5px 8px', border: '1px solid #d8d5cf', borderRadius: 6, outline: 'none', background: '#fff' }}
-                            >
-                              <option value="">Floor level…</option>
-                              {['Ground Floor', 'First Floor', 'Second Floor', 'Third Floor', 'Basement', 'Loft', 'Other'].map(o => <option key={o} value={o}>{o}</option>)}
-                            </select>
-                            <select
-                              value={item.elevation || ''}
-                              onChange={e => updateJobItemField(item.id, 'elevation', e.target.value)}
-                              style={{ fontSize: 12, padding: '5px 8px', border: '1px solid #d8d5cf', borderRadius: 6, outline: 'none', background: '#fff' }}
-                            >
-                              <option value="">Elevation…</option>
-                              {['Front Elevation', 'Rear Elevation', 'Side Elevation LHS', 'Side Elevation RHS', 'Internal'].map(o => <option key={o} value={o}>{o}</option>)}
-                            </select>
-                            <input
-                              value={item.room_name || ''}
-                              onChange={e => updateJobItemField(item.id, 'room_name', e.target.value)}
-                              placeholder="Room name…"
-                              style={{ fontSize: 12, padding: '5px 8px', border: '1px solid #d8d5cf', borderRadius: 6, outline: 'none', background: '#fff', width: 140 }}
-                            />
-                          </div>
 
-                          {/* Drawings list */}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                            {itemDrawings.map(dwg => (
-                              <React.Fragment key={dwg.id}>
-                                <button
-                                  onClick={() => setOpenDrawing({ drawingId: dwg.id, jobItemId: item.id })}
-                                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', fontSize: 11, border: '1px solid #d8d5cf', borderRadius: 6, background: '#fafaf8', cursor: 'pointer', fontWeight: 500 }}
-                                >
-                                  <span style={{ color: '#555' }}>Dwg {item.item_number}.{dwg.drawing_number}</span>
-                                  {dwg.window_type && (
-                                    <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 999, background: '#f0eefc', color: '#3d35a8', fontWeight: 600 }}>
-                                      {dwg.window_type}
-                                    </span>
-                                  )}
-                                </button>
-                                {dwg.window_type === 'Box Sash' && (
-                                  <button
-                                    onClick={() => navigate(`/drawing-board/${dwg.id}`)}
-                                    style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', fontSize: 11, border: '1px solid #3d35a8', borderRadius: 6, background: '#f0eefc', color: '#3d35a8', cursor: 'pointer', fontWeight: 500 }}
-                                    title="Open Drawing Board editor"
-                                  >
-                                    ✏ Drawing Board
-                                  </button>
-                                )}
-                              </React.Fragment>
-                            ))}
-                            <button
-                              onClick={() => addDrawing(item.id)}
-                              style={{ padding: '4px 10px', fontSize: 11, border: '1px dashed #c0bdb5', borderRadius: 6, background: 'transparent', cursor: 'pointer', color: '#777' }}
-                            >
-                              + Add Drawing
-                            </button>
+                  {/* Sales */}
+                  <div style={panelStyle}>
+                    <div style={panelTitle}>Sales</div>
+                    <label style={fieldLabel}>Sales date</label>
+                    <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                      <input type="date" value={trackingDraft.sales_date} onChange={e => updateTrackingDraft('sales_date', e.target.value)} style={tiStyle} />
+                      <button onClick={() => addTrackingAppointment('Sales', trackingDraft.sales_date)} style={addBtn}>Add appointment</button>
+                    </div>
+                  </div>
+
+                  {/* Survey */}
+                  <div style={panelStyle}>
+                    <div style={panelTitle}>Survey</div>
+                    <label style={fieldLabel}>Survey date</label>
+                    <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                      <input type="date" value={trackingDraft.survey_date_t} onChange={e => updateTrackingDraft('survey_date_t', e.target.value)} style={tiStyle} />
+                      <button onClick={() => addTrackingAppointment('Survey', trackingDraft.survey_date_t)} style={addBtn}>Add appointment</button>
+                    </div>
+                    <label style={fieldLabel}>Notes</label>
+                    <textarea value={trackingDraft.survey_notes} onChange={e => updateTrackingDraft('survey_notes', e.target.value)} rows={2} style={{ ...tiStyle, resize: 'vertical' }} />
+                  </div>
+
+                  {/* Installation */}
+                  <div style={panelStyle}>
+                    <div style={panelTitle}>Installation</div>
+                    <label style={fieldLabel}>Site visit</label>
+                    <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                      <input type="date" value={trackingDraft.installation_date} onChange={e => updateTrackingDraft('installation_date', e.target.value)} style={tiStyle} />
+                      <button onClick={() => addTrackingAppointment('Installation', trackingDraft.installation_date)} style={addBtn}>Add appointment</button>
+                    </div>
+                    <label style={fieldLabel}>Notes</label>
+                    <textarea value={trackingDraft.installation_notes} onChange={e => updateTrackingDraft('installation_notes', e.target.value)} rows={2} style={{ ...tiStyle, resize: 'vertical' }} />
+                  </div>
+                </div>
+
+                {/* Lead Calendar — week grid */}
+                <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, overflow: 'hidden' }}>
+                  <div style={{ padding: '12px 16px', borderBottom: '1px solid #f0eeea', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ fontSize: 13, fontWeight: 700 }}>Lead Calendar</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <button onClick={() => setCalendarWeekStart(d => { const n = new Date(d); n.setDate(n.getDate() - 7); return n })} style={addBtn}>← Prev</button>
+                      <span style={{ fontSize: 12, color: '#555' }}>
+                        {weekDays[0].toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – {weekDays[6].toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </span>
+                      <button onClick={() => setCalendarWeekStart(d => { const n = new Date(d); n.setDate(n.getDate() + 7); return n })} style={addBtn}>Next →</button>
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', minHeight: 160 }}>
+                    {weekDays.map((d, i) => {
+                      const isToday = d.toDateString() === new Date().toDateString()
+                      return (
+                        <div key={i} style={{ borderRight: i < 6 ? '1px solid #f0eeea' : 'none', padding: 8, minHeight: 160 }}>
+                          <div style={{ fontSize: 11, fontWeight: 600, color: isToday ? '#3d35a8' : '#888', marginBottom: 6 }}>
+                            {d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric' })}
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            {apptsByDay[i].map(a => {
+                              const c = APPT_TYPE_COLOURS[a.type] || APPT_TYPE_COLOURS.Other
+                              return (
+                                <div key={a.id} style={{ fontSize: 10, padding: '3px 6px', borderRadius: 5, background: c.bg, color: c.color, fontWeight: 500 }}>
+                                  {a.type}{a.start_time ? ` ${a.start_time}` : ''}
+                                </div>
+                              )
+                            })}
                           </div>
                         </div>
                       )
                     })}
                   </div>
-                )}
+                </div>
               </div>
+            )
+          })()}
 
-              {/* ── SECTION 2: QUOTES ────────────────────────────────── */}
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600 }}>Quotes</div>
+          {/* QUOTE TAB */}
+          {activeTab === 'quotes' && (() => {
+            const publishedQuotes = quotes.filter(q => q.status === 'Published' || q.status === 'Accepted')
+            const openQuotes = quotes.filter(q => q.status === 'Open')
+
+            function quoteSummary(q) {
+              const rows = quoteDrawings.filter(qd => qd.quote_id === q.id)
+              const items = rows.map(qd => {
+                const item = jobItems.find(i => i.id === qd.job_item_id)
+                const dwg = drawings.find(d => d.id === qd.drawing_id)
+                return { item, dwg }
+              }).filter(r => r.item)
+              const totalsInput = items.map(({ dwg }) => ({
+                calculated: parseFloat(dwg?.calculated_price) || 0,
+                priceOverride: dwg?.price_override ?? null,
+                itemDiscountPct: dwg?.item_discount_pct ?? 0,
+                vatRate: dwg?.vat_rate ?? 20,
+                poa: dwg?.poa ?? false,
+              }))
+              const totals = items.length > 0
+                ? computeQuoteTotals({ discountPct: q.discount_pct, depositPct: q.deposit_pct, interimPct: q.interim_pct }, totalsInput)
+                : null
+              return { items, totals }
+            }
+
+            return (
+              <div style={{ maxWidth: 860 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 600 }}>Quote</div>
+                    <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
+                      {publishedQuotes.length} published quote{publishedQuotes.length === 1 ? '' : 's'} · {openQuotes.length} open quote{openQuotes.length === 1 ? '' : 's'}
+                    </div>
+                  </div>
                   <button
-                    onClick={() => setOpenQuoteMatrix(true)}
-                    style={{ fontSize: 12, padding: '6px 14px', border: 'none', borderRadius: 7, background: '#3d35a8', color: '#fff', cursor: 'pointer', fontWeight: 500 }}
+                    onClick={() => navigate(`/leads/${leadId}/quotes`)}
+                    style={{ fontSize: 12, padding: '7px 16px', border: 'none', borderRadius: 7, background: '#3d35a8', color: '#fff', cursor: 'pointer', fontWeight: 600 }}
                   >
-                    + New Quote
+                    Manage Quotes
                   </button>
                 </div>
 
-                {quotesLoading ? (
+                {quotesLoading || jobItemsLoading ? (
                   <div style={{ color: '#aaa', fontSize: 13, textAlign: 'center', padding: '32px 0' }}>Loading…</div>
                 ) : quotes.length === 0 ? (
-                  <div style={{ color: '#aaa', fontSize: 13, textAlign: 'center', padding: '32px 24px', background: '#fff', border: '1px solid #e8e6e0', borderRadius: 10 }}>
-                    No quotes yet for this lead
+                  <div style={{ color: '#aaa', fontSize: 13, textAlign: 'center', padding: '32px 24px', background: '#fff', border: '1px solid #e8e6e0', borderRadius: 10, marginBottom: 20 }}>
+                    No quotes yet for this lead — click Manage Quotes to start one.
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
                     {quotes.map(q => {
                       const statusStyle = q.status === 'Open'
                         ? { bg: '#f5f4f0', color: '#666' }
                         : q.status === 'Published'
                         ? { bg: '#e6f0fb', color: '#1a5fa8' }
                         : { bg: '#e1f5ee', color: '#0a5a3c' }
+                      const { items, totals } = quoteSummary(q)
                       return (
-                        <div key={q.id} style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 10, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 14 }}>
-                          <div style={{ fontWeight: 600, fontSize: 14, minWidth: 44 }}>{q.quote_number}</div>
-                          <span style={{ fontSize: 11, padding: '2px 9px', borderRadius: 999, fontWeight: 500, background: statusStyle.bg, color: statusStyle.color }}>{q.status}</span>
-                          <div style={{ fontSize: 12, color: '#888', flex: 1 }}>
-                            {new Date(q.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        <div key={q.id} style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 10, padding: '14px 16px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: items.length > 0 ? 10 : 0 }}>
+                            <div style={{ fontWeight: 700, fontSize: 14 }}>{q.quote_number} — contains {items.length} item{items.length === 1 ? '' : 's'}</div>
+                            <span style={{ fontSize: 11, padding: '2px 9px', borderRadius: 999, fontWeight: 500, background: statusStyle.bg, color: statusStyle.color }}>{q.status}</span>
+                            {q.status !== 'Open' && <span title="Locked" style={{ fontSize: 12 }}>🔒</span>}
+                            <div style={{ flex: 1 }} />
+                            {totals && <div style={{ fontSize: 13, fontWeight: 700, color: '#1a5a1a' }}>{fmtGBP(totals.totalInclVat)} incl. VAT</div>}
+                            <button
+                              onClick={() => navigate(`/leads/${leadId}/quotes/${q.id}`)}
+                              style={{ fontSize: 12, padding: '5px 14px', border: '1px solid #d8d5cf', borderRadius: 7, background: '#fff', cursor: 'pointer', fontWeight: 500 }}
+                            >
+                              Open
+                            </button>
                           </div>
-                          <button
-                            onClick={() => setOpenQuoteMatrix(true)}
-                            style={{ fontSize: 12, padding: '5px 14px', border: '1px solid #d8d5cf', borderRadius: 7, background: '#fff', cursor: 'pointer', fontWeight: 500 }}
-                          >
-                            Open
-                          </button>
+                          {items.length > 0 && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                              {items.map(({ item, dwg }) => (
+                                <div key={item.id} style={{ fontSize: 12, color: '#666', display: 'flex', gap: 10 }}>
+                                  <span>Item {item.item_number} · {[item.floor_level, item.elevation, item.room_name].filter(Boolean).join(' · ') || 'No location set'}</span>
+                                  <span style={{ color: '#aaa' }}>1 drawing{dwg?.window_type ? ` (${dwg.window_type})` : ''}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )
                     })}
                   </div>
                 )}
-              </div>
 
+                {/* Manual Quote — stub */}
+                <div style={{ background: '#fff', border: '1px dashed #d8d5cf', borderRadius: 10, padding: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#555' }}>Manual Quote</div>
+                    <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>For quotes made outside the system</div>
+                  </div>
+                  <button disabled title="Coming soon" style={{ fontSize: 12, padding: '7px 16px', border: 'none', borderRadius: 7, background: '#e8e6f5', color: '#9993d4', cursor: 'not-allowed', fontWeight: 600 }}>
+                    Create Manual Quote
+                  </button>
+                </div>
+              </div>
+            )
+          })()}
+
+          {/* OUTPUT TAB */}
+          {activeTab === 'output' && (
+            <div style={{ maxWidth: 700 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 16 }}>Output</div>
+              <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 12, padding: '16px 18px' }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '.06em', display: 'block', marginBottom: 8 }}>Quote</label>
+                <select
+                  value={outputQuoteId}
+                  onChange={e => setOutputQuoteId(e.target.value)}
+                  style={{ fontSize: 13, padding: '7px 10px', border: '1px solid #d8d5cf', borderRadius: 7, outline: 'none', background: '#fff', width: '100%', maxWidth: 300, marginBottom: 20 }}
+                >
+                  <option value="">— Select a quote —</option>
+                  {quotes.map(q => <option key={q.id} value={q.id}>{q.quote_number} ({q.status})</option>)}
+                </select>
+
+                {outputQuoteId && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {[
+                      { label: 'Quote PDF', hint: 'Coming in Step H3' },
+                      { label: 'Item Details Sheet', hint: 'Coming soon' },
+                    ].map(o => (
+                      <div key={o.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', border: '1px solid #ece9e2', borderRadius: 8, background: '#faf9f7' }}>
+                        <span style={{ fontSize: 13, fontWeight: 500, color: '#555' }}>{o.label}</span>
+                        <button disabled title={o.hint} style={{ fontSize: 12, padding: '6px 14px', border: 'none', borderRadius: 7, background: '#e8e6f5', color: '#9993d4', cursor: 'not-allowed', fontWeight: 600 }}>
+                          Generate
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
         </div>
-
-      {openDrawing && (
-        <QuoteDrawer
-          drawingId={openDrawing.drawingId}
-          jobItemId={openDrawing.jobItemId}
-          leadNumber={lead?.lead_number}
-          onClose={() => { setOpenDrawing(null); fetchJobItemsAndDrawings() }}
-        />
-      )}
-
-      {openQuoteMatrix && (
-        <QuoteMatrix
-          leadId={lead?.id}
-          leadNumber={lead?.lead_number}
-          onClose={() => { setOpenQuoteMatrix(null); fetchQuotes() }}
-        />
-      )}
     </Layout>
   )
 }
