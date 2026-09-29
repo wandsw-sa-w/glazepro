@@ -19,6 +19,22 @@ BEGIN;
 -- STEP 1: ALTER part_allocation_rules
 -- =============================================================================
 
+-- The table was originally created with UNIQUE(sort_order) for the single
+-- part_allocator family.  Default ironmongery rules reuse sort_order numbers
+-- across groups (e.g. sort_order=10 exists in friction_hinges, mpls_casement,
+-- door_hinges, …).  Drop the global unique constraint; uniqueness is now
+-- enforced by the WHERE NOT EXISTS guards on (rule_family, group_name,
+-- sort_order, product_short_name).
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+     WHERE conname = 'part_allocation_rules_sort_order_key'
+  ) THEN
+    ALTER TABLE part_allocation_rules
+      DROP CONSTRAINT part_allocation_rules_sort_order_key;
+  END IF;
+END $$;
+
 ALTER TABLE part_allocation_rules
   ADD COLUMN IF NOT EXISTS rule_family         text NOT NULL DEFAULT 'part_allocator',
   ADD COLUMN IF NOT EXISTS product_short_name  text,
