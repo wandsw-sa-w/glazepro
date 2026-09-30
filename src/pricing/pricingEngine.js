@@ -921,7 +921,13 @@ export async function priceDrawing(drawingId, supabase, { priceFileId } = {}) {
 
 /**
  * Evaluate quote-level rules and apportion their cost and sales values
- * across drawings proportionally by calculated_price.
+ * across drawings proportionally by each drawing's latest-run price.
+ *
+ * IMPORTANT: priceQuote never reads or writes drawings.calculated_price.
+ * The source of truth for a drawing's price is its latest completed
+ * pricing run (sum of drawing_rule_results.sales for that run).
+ * Quote-level apportionment is stored in quote_item_apportionment and
+ * read by the UI separately.
  *
  * @param {string} quoteId
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
@@ -932,60 +938,74 @@ export async function priceQuote(quoteId, supabase, { priceFileId } = {}) {
   let quotePricingRunId = null
 
   try {
-    // ── 1. Fetch all drawings on this quote ───────────────────────────────────
+    // ── 1. Fetch drawing ids on this quote ──────────────────────────────────
     const { data: qdRows, error: qdErr } = await supabase
       .from('quote_drawings')
-      .select('drawing_id, drawings(calculated_price)')
+      .select('drawing_id')
       .eq('quote_id', quoteId)
 
     if (qdErr) throw new Error(`Failed to fetch quote_drawings: ${qdErr.message}`)
 
-    const drawings = (qdRows || []).map(row => ({
-      drawing_id:       row.drawing_id,
-      calculated_price: parseFloat(row.drawings?.calculated_price ?? 0) || 0,
-    }))
+    const drawingIds = (qdRows || []).map(row => row.drawing_id)
 
-    // ── 2. Sum quote_total / items_net_value ─────────────────────────────────
-    const quoteTotal = drawings.reduce((sum, d) => sum + d.calculated_price, 0)
-    // items_net_value = sum of included items' net sales, ex VAT, before
-    // quote-level rules and before the quote discount — equals quoteTotal here.
-    const items_net_value = quoteTotal
-
-    // ── 2b. Resolve nj_item_qty (count of new-joinery drawings) ──────────────
-    // Types of work counted as new joinery — Nathan to confirm.
+    // ── 2. Drawing-level prices from latest completed runs ──────────────────
+    // Read from drawing_rule_results so we never depend on
+    // drawings.calculated_price (which may have been corrupted by an older
+    // version of priceQuote that wrote back to it).
     const NJ_TYPES_OF_WORK = ['complete_new', 'new_pair_of_sashes']
-
     let nj_item_qty = 0
-    {
-      const drawingIds = drawings.map(d => d.drawing_id)
-      if (drawingIds.length > 0) {
-        const { data: runRows } = await supabase
-          .from('pricing_runs')
-          .select('id, drawing_id')
-          .in('drawing_id', drawingIds)
-          .eq('status', 'complete')
-          .order('created_at', { ascending: false })
+    const drawingLevelPrice = {} // String(drawingId) → sales total
 
-        const latestRunId = {}
-        for (const r of (runRows || [])) {
-          if (!latestRunId[r.drawing_id]) latestRunId[r.drawing_id] = r.id
+    if (drawingIds.length > 0) {
+      const { data: runRows } = await supabase
+        .from('pricing_runs')
+        .select('id, drawing_id')
+        .in('drawing_id', drawingIds)
+        .eq('status', 'complete')
+        .order('created_at', { ascending: false })
+
+      const latestRunId = {}
+      for (const r of (runRows || [])) {
+        const key = String(r.drawing_id)
+        if (!latestRunId[key]) latestRunId[key] = r.id
+      }
+      const runIds = Object.values(latestRunId)
+
+      if (runIds.length > 0) {
+        // nj_item_qty from drawing_pricing_variables
+        const { data: varRows } = await supabase
+          .from('drawing_pricing_variables')
+          .select('drawing_id, variables')
+          .in('pricing_run_id', runIds)
+
+        for (const v of (varRows || [])) {
+          if (NJ_TYPES_OF_WORK.includes(v.variables?.typeOfWork)) nj_item_qty++
         }
-        const runIds = Object.values(latestRunId)
 
-        if (runIds.length > 0) {
-          const { data: varRows } = await supabase
-            .from('drawing_pricing_variables')
-            .select('drawing_id, variables')
-            .in('pricing_run_id', runIds)
+        // Drawing-level sales from drawing_rule_results
+        const { data: ruleRows } = await supabase
+          .from('drawing_rule_results')
+          .select('drawing_id, sales')
+          .in('pricing_run_id', runIds)
 
-          for (const v of (varRows || [])) {
-            if (NJ_TYPES_OF_WORK.includes(v.variables?.typeOfWork)) nj_item_qty++
-          }
+        for (const r of (ruleRows || [])) {
+          const key = String(r.drawing_id)
+          drawingLevelPrice[key] = (drawingLevelPrice[key] || 0) + (Number(r.sales) || 0)
         }
       }
     }
 
-    // ── 3. Resolve price file ─────────────────────────────────────────────────
+    const drawings = drawingIds.map(id => ({
+      drawing_id:          id,
+      drawing_level_price: drawingLevelPrice[String(id)] || 0,
+    }))
+
+    const quoteTotal = drawings.reduce((sum, d) => sum + d.drawing_level_price, 0)
+    // items_net_value = sum of included items' net sales, ex VAT, before
+    // quote-level rules and before the quote discount — equals quoteTotal here.
+    const items_net_value = quoteTotal
+
+    // ── 3. Resolve price file ───────────────────────────────────────────────
     let resolvedPriceFileId = priceFileId
     if (!resolvedPriceFileId) {
       const { data: pfCurrent } = await supabase
@@ -1001,7 +1021,7 @@ export async function priceQuote(quoteId, supabase, { priceFileId } = {}) {
 
     const priceFile = { id: resolvedPriceFileId }
 
-    // ── 4. Create quote_pricing_runs row ──────────────────────────────────────
+    // ── 4. Create quote_pricing_runs row ────────────────────────────────────
     const { data: qRun, error: qrErr } = await supabase
       .from('quote_pricing_runs')
       .insert({
@@ -1019,7 +1039,7 @@ export async function priceQuote(quoteId, supabase, { priceFileId } = {}) {
 
     quotePricingRunId = qRun.id
 
-    // ── 5. Fetch active quote-level rules ─────────────────────────────────────
+    // ── 5. Fetch active quote-level rules ───────────────────────────────────
     const { data: quoteRules, error: qrulesErr } = await supabase
       .from('price_rules')
       .select('id, name, condition, quantity, value, markup')
@@ -1031,10 +1051,9 @@ export async function priceQuote(quoteId, supabase, { priceFileId } = {}) {
 
     if (qrulesErr) throw new Error(`Failed to fetch quote rules: ${qrulesErr.message}`)
 
-    const quoteVariables     = { quote_total: quoteTotal, items_net_value, nj_item_qty }
-    const drawingPriceDeltas = {}
+    const quoteVariables = { quote_total: quoteTotal, items_net_value, nj_item_qty }
 
-    // ── 6. Evaluate each rule, write quote_rule_results, then apportion ───────
+    // ── 6. Evaluate each rule, write quote_rule_results, then apportion ─────
     for (const rule of (quoteRules || [])) {
       let fires
       try { fires = evaluateCondition(rule.condition || 'true', quoteVariables) }
@@ -1078,7 +1097,7 @@ export async function priceQuote(quoteId, supabase, { priceFileId } = {}) {
       const apportionmentRows = []
 
       for (const drawing of drawings) {
-        const weight     = quoteTotal > 0 ? drawing.calculated_price / quoteTotal : 0
+        const weight     = quoteTotal > 0 ? drawing.drawing_level_price / quoteTotal : 0
         const costShare  = weight * cost
         const salesShare = weight * ruleSales
 
@@ -1089,9 +1108,6 @@ export async function priceQuote(quoteId, supabase, { priceFileId } = {}) {
           cost:                 costShare,
           sales:                salesShare,
         })
-
-        drawingPriceDeltas[drawing.drawing_id] =
-          (drawingPriceDeltas[drawing.drawing_id] ?? 0) + salesShare
       }
 
       if (apportionmentRows.length > 0) {
@@ -1102,21 +1118,10 @@ export async function priceQuote(quoteId, supabase, { priceFileId } = {}) {
       }
     }
 
-    // ── 7. Update each drawing's calculated_price with its apportioned share ──
-    await Promise.all(
-      Object.entries(drawingPriceDeltas).map(async ([dId, delta]) => {
-        const original = drawings.find(d => d.drawing_id === dId)?.calculated_price ?? 0
-        const { error: updErr } = await supabase
-          .from('drawings')
-          .update({ calculated_price: original + delta })
-          .eq('id', dId)
-        if (updErr) {
-          throw new Error(`Failed to update calculated_price for drawing ${dId}: ${updErr.message}`)
-        }
-      })
-    )
-
-    // ── 8. Mark quote_pricing_run complete ────────────────────────────────────
+    // ── 7. Mark quote_pricing_run complete ──────────────────────────────────
+    // NOTE: priceQuote does NOT update drawings.calculated_price.
+    // The apportionment is stored in quote_item_apportionment and the UI
+    // reads it separately to compute the item net for a quote.
     await supabase
       .from('quote_pricing_runs')
       .update({ status: 'complete' })

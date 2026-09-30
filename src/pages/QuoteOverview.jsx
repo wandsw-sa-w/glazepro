@@ -72,6 +72,7 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
   const [costByDrawing, setCostByDrawing] = useState({})
   const [installHours, setInstallHours] = useState(null)
   const [quoteItemCounts, setQuoteItemCounts] = useState({}) // quoteId → count
+  const [quoteApportionment, setQuoteApportionment] = useState({}) // drawingId → sales total from latest quote pricing run
 
   const [showDeleted, setShowDeleted] = useState(false)
   const [onSiteMode, setOnSiteMode] = useState(false)
@@ -163,6 +164,30 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
           setCostByDrawing(costMap)
         }
 
+        // Load latest quote-level apportionment for this quote
+        const { data: qprRow } = await supabase
+          .from('quote_pricing_runs')
+          .select('id')
+          .eq('quote_id', q.id)
+          .eq('status', 'complete')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        if (qprRow) {
+          const { data: apRows } = await supabase
+            .from('quote_item_apportionment')
+            .select('drawing_id, sales')
+            .eq('quote_pricing_run_id', qprRow.id)
+          const apMap = {}
+          for (const r of (apRows || [])) {
+            const key = String(r.drawing_id)
+            apMap[key] = (apMap[key] || 0) + (Number(r.sales) || 0)
+          }
+          setQuoteApportionment(apMap)
+        } else {
+          setQuoteApportionment({})
+        }
+
         // Load trees for the grid
         const treeEntries = await Promise.all(drawingIds.map(async id => [id, await loadDrawingParts(id).catch(() => null)]))
         setTrees(Object.fromEntries(treeEntries))
@@ -231,7 +256,9 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
     const dwgId = selections[item.id]
     const dwg = dwgId ? drawings.find(d => d.id === dwgId) : null
     if (!dwg) return null
-    return { calculated: parseFloat(dwg.calculated_price) || 0, priceOverride: dwg.price_override ?? null, itemDiscountPct: dwg.item_discount_pct ?? 0, vatRate: dwg.vat_rate ?? 20, poa: dwg.poa ?? false }
+    const drawingLevelPrice = parseFloat(dwg.calculated_price) || 0
+    const apportioned = quoteApportionment[String(dwg.id)] || 0
+    return { calculated: drawingLevelPrice + apportioned, priceOverride: dwg.price_override ?? null, itemDiscountPct: dwg.item_discount_pct ?? 0, vatRate: dwg.vat_rate ?? 20, poa: dwg.poa ?? false }
   }).filter(Boolean)
   const totals = isLive
     ? (totalsInput.length > 0 ? computeQuoteTotals({ discountPct: quote.discount_pct, depositPct: quote.deposit_pct, interimPct: quote.interim_pct }, totalsInput) : null)

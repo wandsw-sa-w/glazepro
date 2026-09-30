@@ -77,6 +77,7 @@ export default function QuoteMatrixPage() {
   const [profiles, setProfiles] = useState([])
   const [loading, setLoading] = useState(true)
   const [pricing, setPricing] = useState({})         // quoteId -> {busy, error, progress}
+  const [quoteApportionments, setQuoteApportionments] = useState({}) // quoteId → { drawingId → salesTotal }
 
   const [showDeleted, setShowDeleted] = useState(false)
   const [selectMode, setSelectMode] = useState(false)
@@ -158,6 +159,44 @@ export default function QuoteMatrixPage() {
     setProfiles(profs || [])
     setSelections(qdMap)
     setLatestRuns(runsMap)
+
+    // Load latest quote-level apportionment for each quote
+    if (quoteIds.length > 0) {
+      const { data: qprRows } = await supabase
+        .from('quote_pricing_runs')
+        .select('id, quote_id')
+        .in('quote_id', quoteIds)
+        .eq('status', 'complete')
+        .order('created_at', { ascending: false })
+      const latestQprId = {}
+      for (const r of (qprRows || [])) {
+        const key = String(r.quote_id)
+        if (!latestQprId[key]) latestQprId[key] = r.id
+      }
+      const qprIds = Object.values(latestQprId)
+      if (qprIds.length > 0) {
+        const { data: apRows } = await supabase
+          .from('quote_item_apportionment')
+          .select('quote_pricing_run_id, drawing_id, sales')
+          .in('quote_pricing_run_id', qprIds)
+        const qprIdToQuoteId = {}
+        for (const [qId, rId] of Object.entries(latestQprId)) qprIdToQuoteId[rId] = qId
+        const apMap = {}
+        for (const r of (apRows || [])) {
+          const qId = qprIdToQuoteId[r.quote_pricing_run_id]
+          if (!qId) continue
+          if (!apMap[qId]) apMap[qId] = {}
+          const dKey = String(r.drawing_id)
+          apMap[qId][dKey] = (apMap[qId][dKey] || 0) + (Number(r.sales) || 0)
+        }
+        setQuoteApportionments(apMap)
+      } else {
+        setQuoteApportionments({})
+      }
+    } else {
+      setQuoteApportionments({})
+    }
+
     setLoading(false)
   }
 
@@ -424,22 +463,28 @@ export default function QuoteMatrixPage() {
     const qRes = await priceQuote(quoteId, supabase, { priceFileId })
     if (!qRes.success) errors.push(`Quote-level pass: ${qRes.error}`)
 
-    // Refresh calculated_price from DB — priceQuote may have updated it
-    // with apportioned quote-level amounts (e.g. InstallSure)
-    const quotedDrawingIds = jobItems
-      .map(item => selections[`${quoteId}_${item.id}`])
-      .filter(Boolean)
-    if (quotedDrawingIds.length > 0) {
-      const { data: refreshed } = await supabase
-        .from('drawings')
-        .select('id, calculated_price')
-        .in('id', quotedDrawingIds)
-      if (refreshed) {
-        const priceMap = Object.fromEntries(refreshed.map(d => [String(d.id), d.calculated_price]))
-        setDrawings(prev => prev.map(d => String(d.id) in priceMap
-          ? { ...d, calculated_price: priceMap[String(d.id)] }
-          : d,
-        ))
+    // Reload apportionment for this quote (priceQuote writes to
+    // quote_item_apportionment, not drawings.calculated_price)
+    {
+      const { data: qprRow } = await supabase
+        .from('quote_pricing_runs')
+        .select('id')
+        .eq('quote_id', quoteId)
+        .eq('status', 'complete')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (qprRow) {
+        const { data: apRows } = await supabase
+          .from('quote_item_apportionment')
+          .select('drawing_id, sales')
+          .eq('quote_pricing_run_id', qprRow.id)
+        const apMap = {}
+        for (const r of (apRows || [])) {
+          const dKey = String(r.drawing_id)
+          apMap[dKey] = (apMap[dKey] || 0) + (Number(r.sales) || 0)
+        }
+        setQuoteApportionments(prev => ({ ...prev, [String(quoteId)]: apMap }))
       }
     }
 
@@ -447,12 +492,15 @@ export default function QuoteMatrixPage() {
   }
 
   function getItemsForTotals(quoteId) {
+    const apMap = quoteApportionments[String(quoteId)] || {}
     return jobItems.map(item => {
       const dwgId = selections[`${quoteId}_${item.id}`]
       const dwg = dwgId ? drawings.find(d => d.id === dwgId) : null
       if (!dwg) return null
+      const drawingPrice = drawingNetPrice(dwg) ?? 0
+      const apportioned = apMap[String(dwg.id)] || 0
       return {
-        calculated: drawingNetPrice(dwg) ?? 0,
+        calculated: drawingPrice + apportioned,
         priceOverride: dwg.price_override ?? null,
         itemDiscountPct: dwg.item_discount_pct ?? 0,
         vatRate: dwg.vat_rate ?? 20,

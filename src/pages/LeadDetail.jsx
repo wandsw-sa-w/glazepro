@@ -185,6 +185,7 @@ export default function LeadDetail() {
   const [quotes, setQuotes] = useState([])
   const [quotesLoading, setQuotesLoading] = useState(false)
   const [quoteDrawings, setQuoteDrawings] = useState([]) // quote_drawings rows for this lead's quotes
+  const [quoteApportionments, setQuoteApportionments] = useState({}) // quoteId → { drawingId → salesTotal }
   const [jobItems, setJobItems] = useState([])
   const [drawings, setDrawings] = useState([])
   const [jobItemsLoading, setJobItemsLoading] = useState(false)
@@ -529,8 +530,42 @@ export default function LeadDetail() {
         .select('quote_id, job_item_id, drawing_id')
         .in('quote_id', quoteIds)
       setQuoteDrawings(qds || [])
+
+      // Load latest quote-level apportionment per quote
+      const { data: qprRows } = await supabase
+        .from('quote_pricing_runs')
+        .select('id, quote_id')
+        .in('quote_id', quoteIds)
+        .eq('status', 'complete')
+        .order('created_at', { ascending: false })
+      const latestQprId = {}
+      for (const r of (qprRows || [])) {
+        const key = String(r.quote_id)
+        if (!latestQprId[key]) latestQprId[key] = r.id
+      }
+      const qprIds = Object.values(latestQprId)
+      if (qprIds.length > 0) {
+        const { data: apRows } = await supabase
+          .from('quote_item_apportionment')
+          .select('quote_pricing_run_id, drawing_id, sales')
+          .in('quote_pricing_run_id', qprIds)
+        const qprIdToQuoteId = {}
+        for (const [qId, rId] of Object.entries(latestQprId)) qprIdToQuoteId[rId] = qId
+        const apMap = {}
+        for (const r of (apRows || [])) {
+          const qId = qprIdToQuoteId[r.quote_pricing_run_id]
+          if (!qId) continue
+          if (!apMap[qId]) apMap[qId] = {}
+          const dKey = String(r.drawing_id)
+          apMap[qId][dKey] = (apMap[qId][dKey] || 0) + (Number(r.sales) || 0)
+        }
+        setQuoteApportionments(apMap)
+      } else {
+        setQuoteApportionments({})
+      }
     } else {
       setQuoteDrawings([])
+      setQuoteApportionments({})
     }
     setQuotesLoading(false)
   }
@@ -2317,18 +2352,23 @@ export default function LeadDetail() {
 
             function quoteSummary(q) {
               const rows = quoteDrawings.filter(qd => qd.quote_id === q.id)
+              const apMap = quoteApportionments[String(q.id)] || {}
               const items = rows.map(qd => {
                 const item = jobItems.find(i => i.id === qd.job_item_id)
                 const dwg = drawings.find(d => d.id === qd.drawing_id)
                 return { item, dwg }
               }).filter(r => r.item)
-              const totalsInput = items.map(({ dwg }) => ({
-                calculated: parseFloat(dwg?.calculated_price) || 0,
-                priceOverride: dwg?.price_override ?? null,
-                itemDiscountPct: dwg?.item_discount_pct ?? 0,
-                vatRate: dwg?.vat_rate ?? 20,
-                poa: dwg?.poa ?? false,
-              }))
+              const totalsInput = items.map(({ dwg }) => {
+                const drawingLevelPrice = parseFloat(dwg?.calculated_price) || 0
+                const apportioned = dwg ? (apMap[String(dwg.id)] || 0) : 0
+                return {
+                  calculated: drawingLevelPrice + apportioned,
+                  priceOverride: dwg?.price_override ?? null,
+                  itemDiscountPct: dwg?.item_discount_pct ?? 0,
+                  vatRate: dwg?.vat_rate ?? 20,
+                  poa: dwg?.poa ?? false,
+                }
+              })
               const totals = items.length > 0
                 ? computeQuoteTotals({ discountPct: q.discount_pct, depositPct: q.deposit_pct, interimPct: q.interim_pct }, totalsInput)
                 : null
