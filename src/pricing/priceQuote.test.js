@@ -234,3 +234,45 @@ describe('priceQuote – Draught Seal (nj_item_qty = 0)', () => {
     expect(written.qrResults).toHaveLength(0)
   })
 })
+
+describe('priceQuote – cost uses latest run only', () => {
+  it('reads drawing-level price from latest run, ignoring older runs', async () => {
+    // Simulate two completed pricing_runs for the same drawing:
+    // run1 (older) had sales 1400, run2 (latest, returned first) has sales 1622.44.
+    // priceQuote should pick run2 only because latestRunId deduplication
+    // keeps the first occurrence (latest by created_at DESC).
+    const { handlers, written } = buildQ1Handlers()
+
+    // Override pricing_runs to return two runs — latest first (order by created_at DESC)
+    handlers['pricing_runs:select,in,eq,order'] = {
+      data: [
+        { id: 'run2', drawing_id: DRAWING_ID },   // latest
+        { id: 'run1', drawing_id: DRAWING_ID },   // older
+      ],
+      error: null,
+    }
+
+    // drawing_rule_results returns rows for BOTH runs (simulating the DB
+    // containing results from multiple runs). The query uses
+    // `in('pricing_run_id', [run2])` so only run2 rows should be returned,
+    // but we verify priceQuote passes only the latest run id.
+    let requestedRunIds = null
+    handlers['drawing_rule_results:select,in'] = (ops) => {
+      const inOp = ops.find(([m]) => m === 'in')
+      requestedRunIds = inOp ? inOp[1][1] : null
+      return {
+        data: [{ drawing_id: DRAWING_ID, sales: DRAWING_NET }],
+        error: null,
+      }
+    }
+
+    const sb = makeSb(handlers)
+    const result = await priceQuote(QUOTE_ID, sb, { priceFileId: PRICE_FILE_ID })
+
+    expect(result.success).toBe(true)
+    // priceQuote should only request the latest run's results
+    expect(requestedRunIds).toEqual(['run2'])
+    // Apportionment is based on the latest run's price
+    expect(written.apportionments[0].sales).toBe(34.40)
+  })
+})

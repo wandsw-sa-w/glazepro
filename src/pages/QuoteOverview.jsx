@@ -150,8 +150,9 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
         for (const run of (runs || [])) { if (!runsMap[run.drawing_id]) runsMap[run.drawing_id] = run }
         setLatestRuns(runsMap)
 
-        // Install hours + internal cost from the latest runs
+        // Install hours + drawing-level cost from the latest runs
         const runIds = Object.values(runsMap).map(r => r.id)
+        const costMap = {}   // drawing_id → total cost (drawing-level + quote apportioned)
         if (runIds.length > 0) {
           const { data: vars } = await supabase.from('drawing_pricing_variables').select('pricing_run_id, drawing_id, variables').in('pricing_run_id', runIds)
           let totalMinutes = 0
@@ -159,9 +160,7 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
           setInstallHours(totalMinutes / 60)
 
           const { data: ruleResults } = await supabase.from('drawing_rule_results').select('pricing_run_id, drawing_id, cost').in('pricing_run_id', runIds)
-          const costMap = {}
           for (const r of (ruleResults || [])) costMap[r.drawing_id] = (costMap[r.drawing_id] || 0) + (Number(r.cost) || 0)
-          setCostByDrawing(costMap)
         }
 
         // Load latest quote-level apportionment for this quote
@@ -176,17 +175,20 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
         if (qprRow) {
           const { data: apRows } = await supabase
             .from('quote_item_apportionment')
-            .select('drawing_id, sales')
+            .select('drawing_id, cost, sales')
             .eq('quote_pricing_run_id', qprRow.id)
-          const apMap = {}
+          const apSalesMap = {}
           for (const r of (apRows || [])) {
             const key = String(r.drawing_id)
-            apMap[key] = (apMap[key] || 0) + (Number(r.sales) || 0)
+            apSalesMap[key] = (apSalesMap[key] || 0) + (Number(r.sales) || 0)
+            // Add quote-level apportioned cost to the drawing-level cost
+            costMap[r.drawing_id] = (costMap[r.drawing_id] || 0) + (Number(r.cost) || 0)
           }
-          setQuoteApportionment(apMap)
+          setQuoteApportionment(apSalesMap)
         } else {
           setQuoteApportionment({})
         }
+        setCostByDrawing(costMap)
 
         // Load trees for the grid
         const treeEntries = await Promise.all(drawingIds.map(async id => [id, await loadDrawingParts(id).catch(() => null)]))
