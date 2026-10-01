@@ -25,50 +25,48 @@ function fakeSupabase(tables) {
 }
 
 describe('loadDrawingRunPrices', () => {
-  it('sums sales and cost from the latest completed run only (not an older run)', async () => {
+  it('reads total_sales/total_cost from the latest completed run only (not an older run)', async () => {
     const supabase = fakeSupabase({
       pricing_runs: [
-        { id: 'run-old', drawing_id: 'd1', price_file_id: 'pf1', status: 'complete', created_at: '2026-01-01' },
-        { id: 'run-new', drawing_id: 'd1', price_file_id: 'pf1', status: 'complete', created_at: '2026-02-01' },
-      ],
-      drawing_rule_results: [
-        { drawing_id: 'd1', pricing_run_id: 'run-old', sales: 999, cost: 999 },
-        { drawing_id: 'd1', pricing_run_id: 'run-new', sales: 1622.44, cost: 500 },
+        { id: 'run-old', drawing_id: 'd1', price_file_id: 'pf1', status: 'complete', total_sales: 999,     total_cost: 999,    created_at: '2026-01-01' },
+        { id: 'run-new', drawing_id: 'd1', price_file_id: 'pf1', status: 'complete', total_sales: 1622.44, total_cost: 820.11, created_at: '2026-02-01' },
       ],
     })
     const result = await loadDrawingRunPrices(['d1'], supabase)
     expect(result.d1.sales).toBeCloseTo(1622.44, 2)
+    expect(result.d1.cost).toBeCloseTo(820.11, 2)
     expect(result.d1.pricingRunId).toBe('run-new')
   })
 
   it('ignores runs with status other than complete', async () => {
     const supabase = fakeSupabase({
       pricing_runs: [
-        { id: 'run-failed', drawing_id: 'd1', price_file_id: 'pf1', status: 'failed', created_at: '2026-02-01' },
+        { id: 'run-failed', drawing_id: 'd1', price_file_id: 'pf1', status: 'failed', total_sales: 1622.44, total_cost: 820.11, created_at: '2026-02-01' },
       ],
-      drawing_rule_results: [],
     })
     const result = await loadDrawingRunPrices(['d1'], supabase)
     expect(result.d1.sales).toBeNull()
     expect(result.d1.pricingRunId).toBeNull()
   })
 
-  it('sums multiple rows for the same drawing (price-rule lines)', async () => {
+  it('cost is well below sales for a typical run (labour minutes are not folded in)', async () => {
+    // A run with 1,337 manufacture + 450 install minutes used to add ~1,787
+    // to "cost" when it was summed from all drawing_rule_results rows
+    // unfiltered. total_cost here is pricing_runs' own column, written from
+    // engineResults.price.total_cost — which never included those rows.
     const supabase = fakeSupabase({
-      pricing_runs: [{ id: 'run1', drawing_id: 'd1', price_file_id: 'pf1', status: 'complete', created_at: '2026-01-01' }],
-      drawing_rule_results: [
-        { drawing_id: 'd1', pricing_run_id: 'run1', sales: 100, cost: 40 },
-        { drawing_id: 'd1', pricing_run_id: 'run1', sales: 50, cost: 20 },
+      pricing_runs: [
+        { id: 'run1', drawing_id: 'd8', price_file_id: 'pf30', status: 'complete', total_sales: 1622.44, total_cost: 740.50, created_at: '2026-01-01' },
       ],
     })
-    const result = await loadDrawingRunPrices(['d1'], supabase)
-    expect(result.d1.sales).toBeCloseTo(150, 2)
+    const result = await loadDrawingRunPrices(['d8'], supabase)
+    expect(result.d8.cost).toBeLessThan(result.d8.sales)
+    expect(result.d8.cost).toBeLessThan(1787) // sanity: nowhere near minutes-as-pounds territory
   })
 
   it('keeps drawings independent — one drawing with no run does not affect another', async () => {
     const supabase = fakeSupabase({
-      pricing_runs: [{ id: 'run1', drawing_id: 'd1', price_file_id: 'pf1', status: 'complete', created_at: '2026-01-01' }],
-      drawing_rule_results: [{ drawing_id: 'd1', pricing_run_id: 'run1', sales: 1622.44, cost: 500 }],
+      pricing_runs: [{ id: 'run1', drawing_id: 'd1', price_file_id: 'pf1', status: 'complete', total_sales: 1622.44, total_cost: 740.50, created_at: '2026-01-01' }],
     })
     const result = await loadDrawingRunPrices(['d1', 'd2'], supabase)
     expect(result.d1.sales).toBeCloseTo(1622.44, 2)
@@ -81,16 +79,14 @@ describe('loadDrawingRunPrices', () => {
     expect(result).toEqual({})
   })
 
-  it('treats null sales rows (labour lines) as not contributing to the sum, without crashing', async () => {
+  it('treats a null total_cost/total_sales as "no price yet", not zero', async () => {
     const supabase = fakeSupabase({
-      pricing_runs: [{ id: 'run1', drawing_id: 'd1', price_file_id: 'pf1', status: 'complete', created_at: '2026-01-01' }],
-      drawing_rule_results: [
-        { drawing_id: 'd1', pricing_run_id: 'run1', sales: 100, cost: 40 },
-        { drawing_id: 'd1', pricing_run_id: 'run1', sales: null, cost: 1337 }, // manufacture labour row (minutes, not pounds)
-      ],
+      pricing_runs: [{ id: 'run1', drawing_id: 'd1', price_file_id: 'pf1', status: 'complete', total_sales: null, total_cost: null, created_at: '2026-01-01' }],
     })
     const result = await loadDrawingRunPrices(['d1'], supabase)
-    expect(result.d1.sales).toBeCloseTo(100, 2)
+    expect(result.d1.sales).toBeNull()
+    expect(result.d1.cost).toBeNull()
+    expect(result.d1.pricingRunId).toBe('run1') // the run exists, it just has no totals written (pre-step-l2 row)
   })
 })
 

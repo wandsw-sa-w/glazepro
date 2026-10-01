@@ -18,11 +18,12 @@
  * Load each drawing's drawing-level sales/cost from its latest completed
  * pricing run.
  *
- * sales is the sum of drawing_rule_results.sales across that run (only
- * price-rule rows have a non-null sales value; labour rows are excluded
- * automatically). cost sums drawing_rule_results.cost the same way the
- * rest of this file always has — see sql/step-l2-pricing-run-totals.sql
- * for the fix that stops labour-minutes rows polluting the cost figure.
+ * Reads pricing_runs.total_cost/total_sales directly (sql/step-l2-pricing-run-totals.sql) —
+ * the same price-rule-only totals runPricingOnTree computes as
+ * engineResults.price.total_cost/.total, which never include
+ * manufacture_labour/install_labour rows (those store `cost: minutes`, not
+ * pounds, in drawing_rule_results — summing that table directly, without
+ * excluding them, was the earlier bug here).
  *
  * @param {Array<string|number>} drawingIds
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
@@ -40,7 +41,7 @@ export async function loadDrawingRunPrices(drawingIds, supabase) {
 
   const { data: runs } = await supabase
     .from('pricing_runs')
-    .select('id, drawing_id, price_file_id, created_at')
+    .select('id, drawing_id, price_file_id, total_cost, total_sales, created_at')
     .in('drawing_id', ids)
     .eq('status', 'complete')
     .order('created_at', { ascending: false })
@@ -51,25 +52,13 @@ export async function loadDrawingRunPrices(drawingIds, supabase) {
     if (!latestRun[key]) latestRun[key] = run
   }
 
-  const runIds = Object.values(latestRun).map(r => r.id)
-  if (runIds.length === 0) return result
-
-  const { data: rows } = await supabase
-    .from('drawing_rule_results')
-    .select('drawing_id, pricing_run_id, sales, cost')
-    .in('pricing_run_id', runIds)
-
-  const sums = {}
-  for (const row of (rows || [])) {
-    const key = String(row.drawing_id)
-    if (!sums[key]) sums[key] = { sales: 0, cost: 0 }
-    if (row.sales != null) sums[key].sales += Number(row.sales) || 0
-    sums[key].cost += Number(row.cost) || 0
-  }
-
   for (const [key, run] of Object.entries(latestRun)) {
-    const s = sums[key] ?? { sales: 0, cost: 0 }
-    result[key] = { sales: s.sales, cost: s.cost, pricingRunId: run.id, priceFileId: run.price_file_id }
+    result[key] = {
+      sales:        run.total_sales != null ? Number(run.total_sales) : null,
+      cost:         run.total_cost  != null ? Number(run.total_cost)  : null,
+      pricingRunId: run.id,
+      priceFileId:  run.price_file_id,
+    }
   }
 
   return result

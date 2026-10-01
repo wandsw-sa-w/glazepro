@@ -895,9 +895,19 @@ export async function priceDrawing(drawingId, supabase, { priceFileId } = {}) {
     if (varErr) throw new Error(`Failed to write drawing_pricing_variables: ${varErr.message}`)
 
     // ── 14. Mark pricing_run complete ─────────────────────────────────────────
+    // total_cost/total_sales are the price-rule-only totals the engine
+    // already computed (engineResults.price never includes labour-minutes
+    // rows — see runPricingOnTree passes 1-2 vs pass 3) — persisted here so
+    // readers never need to re-derive them by summing drawing_rule_results
+    // themselves (which, without filtering, double-counts labour minutes
+    // as cost). See src/quotes/drawingRunPrice.js.
     await supabase
       .from('pricing_runs')
-      .update({ status: 'complete' })
+      .update({
+        status:      'complete',
+        total_cost:  engineResults.price.total_cost,
+        total_sales: engineResults.price.total,
+      })
       .eq('id', pricingRunId)
 
     return { success: true, calculatedPrice, pricingRunId }
