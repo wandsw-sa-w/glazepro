@@ -170,6 +170,81 @@ describe('readColumnValue', () => {
   })
 })
 
+// ── readColumnValue — profile-default fallback (Step J+K fixes round 2, item 3) ──
+// The tree only stores values that were changed from the range/profile
+// default; the rest must fall back to the profile default, the same way the
+// drawing board resolves them.
+
+describe('readColumnValue — profile default fallback', () => {
+  const col = { partType: 'drawingItemPart', property: 'frameMaterialId' }
+  const profileDefaults = { 'drawingItemPart.frameMaterialId': 'solid_redwood' }
+
+  it('falls back to the profile default when the tree has no value for the field', () => {
+    const tree = makeTree() // no frameMaterialId set anywhere
+    expect(readColumnValue(tree, col, profileDefaults)).toBe('solid_redwood')
+  })
+
+  it('an explicit tree value wins over the profile default', () => {
+    const tree = makeTree()
+    tree.values.frameMaterialId = 'accoya' // explicit override on drawingItemPart
+    expect(readColumnValue(tree, col, profileDefaults)).toBe('accoya')
+  })
+
+  it('with no profileDefaults supplied, behaves exactly as before (null, not a crash)', () => {
+    const tree = makeTree()
+    expect(readColumnValue(tree, col)).toBeNull()
+  })
+
+  it('an explicit false/0 tree value is not treated as "missing" and overridden by the default', () => {
+    const boolCol = { partType: 'notesPart', property: 'cutBackPlaster' }
+    const defaults = { 'notesPart.cutBackPlaster': true }
+    expect(readColumnValue(makeTree(), boolCol, defaults)).toBe(false)
+  })
+})
+
+// ── Computed columns added for item 3 ─────────────────────────────────────────
+
+describe('glazing_bar column', () => {
+  const col = GRID_COLUMNS.find(c => c.key === 'glazing_bar')
+
+  it('describes vertical bars on the top sash glass', () => {
+    const tree = makeTree()
+    const topGlass = tree.children[1].children[1].children[0].children[0] // frame > pair > top > glass1
+    topGlass.children = [
+      { key: 'v1', part_type: 'verticalGlazingBarPart', values: { barWidth: 22 }, children: [] },
+      { key: 'v2', part_type: 'verticalGlazingBarPart', values: { barWidth: 22 }, children: [] },
+    ]
+    expect(readColumnValue(tree, col)).toBe('2 vertical, 22 mm')
+  })
+
+  it('returns null when there are no bars', () => {
+    expect(readColumnValue(makeTree(), col)).toBeNull()
+  })
+})
+
+describe('sash_weight / item_weight columns', () => {
+  const sashCol = GRID_COLUMNS.find(c => c.key === 'sash_weight')
+  const itemCol = GRID_COLUMNS.find(c => c.key === 'item_weight')
+
+  it('sash_weight is a positive number computed from the tree geometry', () => {
+    const val = readColumnValue(makeTree(), sashCol)
+    expect(typeof val).toBe('number')
+    expect(val).toBeGreaterThan(0)
+  })
+
+  it('item_weight is the sum of both sashes, so is larger than a single sash_weight', () => {
+    const sash = readColumnValue(makeTree(), sashCol)
+    const item = readColumnValue(makeTree(), itemCol)
+    expect(item).toBeGreaterThan(sash)
+  })
+
+  it('returns null rather than throwing for a tree with no sashes', () => {
+    const bareTree = { key: 'root', part_type: 'drawingItemPart', values: {}, children: [] }
+    expect(readColumnValue(bareTree, sashCol)).toBeNull()
+    expect(readColumnValue(bareTree, itemCol)).toBeNull()
+  })
+})
+
 // ── writeColumnValue ──────────────────────────────────────────────────────────
 
 describe('writeColumnValue', () => {

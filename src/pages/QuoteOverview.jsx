@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
-import { loadDrawingParts, saveDrawingParts, loadReferenceOptions } from '../drawingBoard/api.js'
+import { loadDrawingParts, saveDrawingParts, loadReferenceOptions, loadFieldDefinitions, loadProfileValues } from '../drawingBoard/api.js'
 import { treeHash } from '../pricing/treeHash.js'
 import { computeQuoteTotals } from '../quotes/quoteTotals.js'
 import { GRID_COLUMNS, readColumnValue, writeColumnValue } from '../quotes/gridColumns.js'
@@ -73,6 +73,8 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
   const [installHours, setInstallHours] = useState(null)
   const [quoteItemCounts, setQuoteItemCounts] = useState({}) // quoteId → count
   const [quoteApportionment, setQuoteApportionment] = useState({}) // drawingId → sales total from latest quote pricing run
+  const [profileDefaultsByDrawing, setProfileDefaultsByDrawing] = useState({}) // drawingId → { 'partType.property': value }
+  const [profileNames, setProfileNames] = useState({}) // profileId → label
 
   const [showDeleted, setShowDeleted] = useState(false)
   const [onSiteMode, setOnSiteMode] = useState(false)
@@ -130,7 +132,7 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
       if (itemIds.length > 0) {
         const { data } = await supabase
           .from('drawings')
-          .select('id, job_item_id, drawing_number, deleted_at, calculated_price, window_type, poa, price_override, item_discount_pct, vat_rate, notes_quote, notes_installation')
+          .select('id, job_item_id, drawing_number, deleted_at, calculated_price, window_type, poa, price_override, item_discount_pct, vat_rate, notes_quote, notes_installation, default_profile_id')
           .in('job_item_id', itemIds)
         dwgs = data || []
       }
@@ -201,7 +203,75 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
       } else setSalespersonName('')
 
       const categories = [...new Set(GRID_COLUMNS.filter(c => c.referenceCategory).map(c => c.referenceCategory))]
-      if (categories.length > 0) setRefOptions(await loadReferenceOptions(categories).catch(() => ({})))
+      const loadedRefOptions = categories.length > 0 ? await loadReferenceOptions(categories).catch(() => ({})) : {}
+      setRefOptions(loadedRefOptions)
+
+      // Load profile defaults for each drawing's profile
+      const profileIds = [...new Set(dwgs.map(d => d.default_profile_id).filter(Boolean))]
+      if (profileIds.length > 0) {
+        const fieldDefs = await loadFieldDefinitions().catch(() => ({}))
+        const { data: profileRows } = await supabase.from('default_profiles').select('id, label').in('id', profileIds)
+        const pnMap = {}
+        for (const p of (profileRows || [])) pnMap[p.id] = p.label
+        setProfileNames(pnMap)
+
+        const allPvRows = await Promise.all(profileIds.map(pid => loadProfileValues(pid).catch(() => [])))
+        const pvByProfile = {}
+        for (let i = 0; i < profileIds.length; i++) {
+          const pvMap = {}
+          for (const pv of (allPvRows[i] || [])) pvMap[pv.field_key] = pv
+          pvByProfile[profileIds[i]] = pvMap
+        }
+
+        // Build per-drawing profileDefaults: { drawingId: { 'partType.property': convertedValue } }
+        const pdMap = {}
+        for (const dwg of dwgs) {
+          if (!dwg.default_profile_id) continue
+          const pvMap = pvByProfile[dwg.default_profile_id] || {}
+          const defaults = {}
+          // For each grid column that has partType/property, resolve the profile default
+          for (const col of GRID_COLUMNS) {
+            if (!col.partType || !col.property) continue
+            const fieldKey = `${col.partType}.${col.property}`
+            const pv = pvMap[fieldKey]
+            if (!pv || pv.default_value == null) continue
+            // Find the field definition for this field_key to determine data_type
+            const fields = fieldDefs[col.partType] ?? []
+            const field = fields.find(f => f.field_key === fieldKey)
+            if (!field) { defaults[fieldKey] = pv.default_value; continue }
+            // Convert value based on data_type
+            switch (field.data_type) {
+              case 'number': {
+                const n = Number(pv.default_value)
+                if (!isNaN(n)) defaults[fieldKey] = n
+                break
+              }
+              case 'boolean': {
+                const s = String(pv.default_value).toLowerCase()
+                if (s === '1' || s === 'true' || s === 'yes') defaults[fieldKey] = true
+                else if (s === '0' || s === 'false' || s === 'no') defaults[fieldKey] = false
+                break
+              }
+              case 'reference':
+              case 'multi_reference': {
+                const category = field.reference_category
+                const options = loadedRefOptions[category] ?? []
+                const raw = pv.default_value
+                const srcRef = pv.source_ref
+                let match = options.find(o => o.code === raw)
+                if (!match && srcRef) match = options.find(o => o.code === srcRef)
+                if (!match) match = options.find(o => o.label.toLowerCase() === String(raw).toLowerCase())
+                if (match) defaults[fieldKey] = match.code
+                break
+              }
+              default:
+                defaults[fieldKey] = pv.default_value
+            }
+          }
+          pdMap[dwg.id] = defaults
+        }
+        setProfileDefaultsByDrawing(pdMap)
+      }
     } else if (q?.snapshot) {
       // Locked quote — everything from the snapshot
       const snapItems = q.snapshot.items || []
@@ -501,8 +571,8 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
                     {GRID_COLUMNS.map(col => {
                       if (!dwg) return <td key={col.key} style={{ ...bodyCell, background: rowBg, color: '#ccc' }}>—</td>
                       if (col.key === 'price_file') return <td key={col.key} style={{ ...bodyCell, background: rowBg }}>{defaultPriceFile?.name || '—'}</td>
-                      if (col.key === 'product_range') return <td key={col.key} style={{ ...bodyCell, background: rowBg }}>—</td>
-                      const raw = col.source === 'drawing' ? (dwg[col.field] ?? null) : readColumnValue(tree, col)
+                      if (col.key === 'product_range') return <td key={col.key} style={{ ...bodyCell, background: rowBg }}>{profileNames[dwg.default_profile_id] || '—'}</td>
+                      const raw = col.source === 'drawing' ? (dwg[col.field] ?? null) : readColumnValue(tree, col, profileDefaultsByDrawing[dwg.id])
                       const canEdit = isLive && col.editable && (col.source === 'drawing' || tree)
                       if (!canEdit) {
                         const display = col.type === 'boolean' ? (raw == null ? '—' : (raw ? 'Yes' : 'No')) : (raw == null || raw === '' ? '—' : String(raw))

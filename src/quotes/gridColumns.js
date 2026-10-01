@@ -11,13 +11,13 @@
  * Columns that require data beyond the tree (source: 'context') are
  * read outside the tree — see QuoteOverview.jsx.
  *
- * Columns for features not yet implemented (sash_weight, item_weight,
- * item_type, product_range, glazing_bar, surround, sash_travel) are left with
- * partType/property null so the grid renders "—".
+ * Columns for features not yet implemented (product_range, surround,
+ * sash_travel) are left with partType/property null so the grid renders "—".
  */
 
 import { computeSashGeometry } from '../drawingBoard/sashGeometry.js'
 import { computeDerived }       from '../drawingBoard/computeDerived.js'
+import { computeSashWeight }    from '../pricing/sashWeight.js'
 
 // ── Tree helpers (pure — duplicated from DrawingBoard.jsx so this module
 // has no dependency on the editor) ──────────────────────────────────────────
@@ -40,18 +40,30 @@ function updateFirstPartValues(node, partType, patch) {
 
 /**
  * Read a column's value out of a drawing's parts tree.
- * Falls back to column.compute(tree) for derived columns.
+ * Falls back to profileDefaults (if provided) when the tree value is
+ * absent, then to column.compute(tree) for derived columns.
+ *
+ * profileDefaults is keyed by `${partType}.${property}` → converted value
+ * (i.e. the same value that buildNewBoxSash would have stamped in).
+ *
  * @param {object|null} tree
  * @param {{partType?: string|null, property?: string|null, compute?: function}} column
+ * @param {Object<string, *>} [profileDefaults]  partType.property → default value
  * @returns {*} the raw value, or null if absent
  */
-export function readColumnValue(tree, column) {
+export function readColumnValue(tree, column, profileDefaults) {
   if (!tree) return null
   if (column?.partType && column?.property) {
     const part = findFirstPart(tree, column.partType)
-    if (!part) return null
-    const raw = part.values?.[column.property]
-    return raw === undefined ? null : raw
+    const raw = part?.values?.[column.property]
+    if (raw !== undefined && raw !== null) return raw
+    // Fall back to profile default when the tree value is null/missing
+    if (profileDefaults) {
+      const fieldKey = `${column.partType}.${column.property}`
+      const def = profileDefaults[fieldKey]
+      if (def !== undefined && def !== null) return def
+    }
+    return null
   }
   if (typeof column?.compute === 'function') {
     try { return column.compute(tree) ?? null } catch { return null }
@@ -86,6 +98,46 @@ function computeTopSashHeight(tree) {
   return geo?.topSashHeight ?? null
 }
 
+// Sash Weight: the top sash's own physical weight (timber + glass), using the
+// same formula pricingEngine.js evaluates sash_weights price rules against.
+// No glass catalogue is passed (grid context has no price file loaded), so
+// this is timber + a default glass estimate — close to, but not necessarily
+// identical to, the figure a priced run evaluated its rules against.
+function computeSashWeightKg(tree) {
+  const topSash = findFirstPart(tree, 'topSashPart')
+  if (!topSash) return null
+  const wt = computeSashWeight(topSash, tree, {})
+  return wt?.weight_in_kg != null ? Math.round(wt.weight_in_kg * 10) / 10 : null
+}
+
+// Item Weight: both sashes' weights added together.
+function computeItemWeightKg(tree) {
+  const topSash = findFirstPart(tree, 'topSashPart')
+  const botSash = findFirstPart(tree, 'bottomSashPart')
+  let total = null
+  for (const sash of [topSash, botSash]) {
+    if (!sash) continue
+    const wt = computeSashWeight(sash, tree, {})
+    if (wt?.weight_in_kg != null) total = (total ?? 0) + wt.weight_in_kg
+  }
+  return total != null ? Math.round(total * 10) / 10 : null
+}
+
+function computeGlazingBar(tree) {
+  const topSash = findFirstPart(tree, 'topSashPart')
+  const glass = findFirstPart(topSash, 'glassPart')
+  if (!glass) return null
+  const vBars = (glass.children ?? []).filter(c => c.part_type === 'verticalGlazingBarPart')
+  const hBars = (glass.children ?? []).filter(c => c.part_type === 'horizontalGlazingBarPart')
+  if (vBars.length === 0 && hBars.length === 0) return null
+  const parts = []
+  if (vBars.length > 0) parts.push(`${vBars.length} vertical`)
+  if (hBars.length > 0) parts.push(`${hBars.length} horizontal`)
+  const barWidth = vBars[0]?.values?.barWidth ?? hBars[0]?.values?.barWidth ?? null
+  const widthStr = barWidth ? `, ${barWidth} mm` : ''
+  return parts.join(', ') + widthStr
+}
+
 // ── Column config ────────────────────────────────────────────────────────────
 // type: 'reference' | 'number' | 'text' | 'boolean' | 'display'
 // source: 'tree' (default) | 'context'
@@ -93,7 +145,7 @@ function computeTopSashHeight(tree) {
 
 export const GRID_COLUMNS = [
   { key: 'price_file',      label: 'Price File',           source: 'context', editable: false, type: 'display' },
-  { key: 'item_type',       label: 'Item Type',            partType: null,                     property: null,                  editable: false, type: 'display' },
+  { key: 'item_type',       label: 'Item Type',            source: 'drawing', field: 'window_type', editable: false, type: 'display' },
   { key: 'type_of_work',    label: 'Type of Work',         partType: 'drawingItemPart',         property: 'typeOfWork',          editable: true,  type: 'reference', referenceCategory: 'type_of_work' },
   { key: 'supply_option',   label: 'Supply Option',        partType: 'drawingItemPart',         property: 'supplyOption',        editable: true,  type: 'reference', referenceCategory: 'supply_option' },
   { key: 'product_range',   label: 'Product Range',        source: 'context', editable: false, type: 'display' },
@@ -102,14 +154,14 @@ export const GRID_COLUMNS = [
   { key: 'cill_material',   label: 'Cill Material',        partType: 'cillPart',                property: 'cillMaterialId',      editable: true,  type: 'reference', referenceCategory: 'cill_material' },
   { key: 'staff_bead',      label: 'Staff Bead',           partType: 'drawingItemPart',         property: 'staffBeadTypeId',     editable: true,  type: 'reference', referenceCategory: 'staff_bead_type' },
   { key: 'sash_travel',     label: 'Sash Travel (%)',      partType: null,                     property: null,                  editable: false, type: 'display' },
-  { key: 'sash_weight',     label: 'Sash Weight',          partType: null,                     property: null,                  editable: false, type: 'display' },
-  { key: 'item_weight',     label: 'Item Weight',          partType: null,                     property: null,                  editable: false, type: 'display' },
+  { key: 'sash_weight',     label: 'Sash Weight',          editable: false, type: 'number', unit: 'kg', compute: computeSashWeightKg },
+  { key: 'item_weight',     label: 'Item Weight',          editable: false, type: 'number', unit: 'kg', compute: computeItemWeightKg },
   { key: 'sash_width',      label: 'Sash Width',           editable: false, type: 'number', unit: 'mm', compute: computeSashWidth },
   { key: 'sash_height',     label: 'Sash Height',          editable: false, type: 'number', unit: 'mm', compute: computeTopSashHeight },
   { key: 'sash_thickness',  label: 'Sash Thickness',       partType: 'sashPairPart',            property: 'sashThickness',       editable: false, type: 'number', unit: 'mm' },
   { key: 'top_horn',        label: 'Top Sash Horn',        partType: 'sashPairPart',            property: 'topHornTypeShortName', editable: true, type: 'reference', referenceCategory: 'horn_type' },
   { key: 'bottom_horn',     label: 'Bottom Sash Horn',     partType: 'sashPairPart',            property: 'bottomHornTypeShortName', editable: true, type: 'reference', referenceCategory: 'horn_type' },
-  { key: 'glazing_bar',     label: 'Glazing Bar',          partType: null,                     property: null,                  editable: false, type: 'display' },
+  { key: 'glazing_bar',     label: 'Glazing Bar',          editable: false, type: 'display', compute: computeGlazingBar },
   { key: 'single_glass',    label: 'Single Glass',         partType: 'glassPart',               property: 'singleGlassPartNo',   editable: true,  type: 'text' },
   { key: 'inner_glass',     label: 'Inner Glass',          partType: 'glassPart',               property: 'internalGlassPartNo', editable: true,  type: 'text' },
   { key: 'outer_glass',     label: 'Outer Glass',          partType: 'glassPart',               property: 'externalGlassPartNo', editable: true,  type: 'text' },
