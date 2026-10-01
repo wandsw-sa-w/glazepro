@@ -343,11 +343,17 @@ export function SashElevation({
     )
   }
 
-  // Frame head timber band: outer silhouette arc (archRadOuter, spanning the
-  // full frame width) on top, frame-inner arc (archRadFrameInner, spanning
-  // the jamb faces) on the bottom, both sharing the arch's centre point —
-  // i.e. a proper concentric arched head, not a rectangle with a thin arc
-  // stroked on top of it.
+  // Frame head + both jambs as ONE timber path — outer silhouette (outer
+  // jamb edges up to the outer arc, archRadOuter, across the crown) on the
+  // outside, frame-inner edges (inner jamb faces up to archRadFrameInner)
+  // on the inside, both sharing the arch's centre point (a proper
+  // concentric arched head, not a rectangle with a thin arc stroked on top
+  // of it). Head and jambs used to be three separate shapes — the head
+  // band's left/right edges are the diagonal segments from the outer
+  // spring point to the (lower) inner spring point, which don't line up
+  // with a jamb rect's flat top at the shoulder, leaving a small triangular
+  // gap at each outside corner. Tracing the whole outline in one path
+  // removes the seam entirely.
   function headTimberPath() {
     if (!hasArch || !archRadOuter || !archRadFrameInner || archH <= 0) return null
     const yOuterL = archAt(archRadOuter, 0)
@@ -355,13 +361,17 @@ export function SashElevation({
     const yInnerL = archAt(archRadFrameInner, OX)
     const yInnerR = archAt(archRadFrameInner, fW - rightWidth)
     if ([yOuterL, yOuterR, yInnerL, yInnerR].some(v => v == null)) return null
+    const jambBottom = OY + iH
     return (
-      `M 0 ${yOuterL}` +
-      ` A ${archRadOuter} ${archRadOuter} 0 0 1 ${fW} ${yOuterR}` +
-      ` L ${fW - rightWidth} ${yInnerR}` +
-      ` A ${archRadFrameInner} ${archRadFrameInner} 0 0 0 ${OX} ${yInnerL}` +
-      ` L 0 ${yOuterL}` +
-      ` Z`
+      `M 0 ${jambBottom}` +                                                   // bottom-left, outer edge
+      ` L 0 ${yOuterL}` +                                                     // up the left outer jamb edge to the spring point
+      ` A ${archRadOuter} ${archRadOuter} 0 0 1 ${fW} ${yOuterR}` +           // across the outer arc
+      ` L ${fW} ${jambBottom}` +                                              // down the right outer jamb edge
+      ` L ${fW - rightWidth} ${jambBottom}` +                                 // across the bottom to the right inner edge
+      ` L ${fW - rightWidth} ${yInnerR}` +                                    // up the right inner jamb edge to its spring point
+      ` A ${archRadFrameInner} ${archRadFrameInner} 0 0 0 ${OX} ${yInnerL}` + // across the inner arc (reverse)
+      ` L ${OX} ${jambBottom}` +                                              // down the left inner jamb edge
+      ` Z`                                                                    // back across the bottom to the start
     )
   }
 
@@ -602,9 +612,11 @@ export function SashElevation({
           <path d={interiorOpeningPath(0, iW)} fill={C.opening} stroke="none" />
         )}
 
-        {/* ── Frame head ────────────────────────────────────────────────────── */}
+        {/* ── Frame head + jambs ───────────────────────────────────────────────
+            Arched: one combined path (see headTimberPath) so there's no seam
+            between the curved head band and the straight jambs. Flat: three
+            separate rects, as before. */}
         {headPath ? (
-          /* Arched head: draw as path */
           <path
             d={headPath}
             fill={C.timber}
@@ -613,30 +625,30 @@ export function SashElevation({
             style={{ cursor: 'pointer' }}
             onClick={() => onSelectKey?.(frame?.key)}
           />
-        ) : OY > 0 ? (
-          /* Flat head: rect */
-          <rect x={0} y={0} width={fW} height={OY}
-            fill={C.timber} {...ss(frame?.key)}
-            style={{ cursor: 'pointer' }}
-            onClick={() => onSelectKey?.(frame?.key)}
-          />
-        ) : null}
-
-        {/* ── Left jamb ─────────────────────────────────────────────────────── */}
-        {OX > 0 && (
-          <rect x={0} y={leftJambTopY} width={OX} height={(OY + iH) - leftJambTopY}
-            fill={C.timber} {...ss(frame?.key)}
-            style={{ cursor: 'pointer' }}
-            onClick={() => onSelectKey?.(frame?.key)}
-          />
-        )}
-        {/* ── Right jamb ────────────────────────────────────────────────────── */}
-        {rightWidth > 0 && (
-          <rect x={OX + iW} y={rightJambTopY} width={rightWidth} height={(OY + iH) - rightJambTopY}
-            fill={C.timber} {...ss(frame?.key)}
-            style={{ cursor: 'pointer' }}
-            onClick={() => onSelectKey?.(frame?.key)}
-          />
+        ) : (
+          <>
+            {OY > 0 && (
+              <rect x={0} y={0} width={fW} height={OY}
+                fill={C.timber} {...ss(frame?.key)}
+                style={{ cursor: 'pointer' }}
+                onClick={() => onSelectKey?.(frame?.key)}
+              />
+            )}
+            {OX > 0 && (
+              <rect x={0} y={leftJambTopY} width={OX} height={(OY + iH) - leftJambTopY}
+                fill={C.timber} {...ss(frame?.key)}
+                style={{ cursor: 'pointer' }}
+                onClick={() => onSelectKey?.(frame?.key)}
+              />
+            )}
+            {rightWidth > 0 && (
+              <rect x={OX + iW} y={rightJambTopY} width={rightWidth} height={(OY + iH) - rightJambTopY}
+                fill={C.timber} {...ss(frame?.key)}
+                style={{ cursor: 'pointer' }}
+                onClick={() => onSelectKey?.(frame?.key)}
+              />
+            )}
+          </>
         )}
         {/* ── Cill ──────────────────────────────────────────────────────────── */}
         {cillH > 0 && (

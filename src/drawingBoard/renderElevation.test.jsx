@@ -244,29 +244,51 @@ describe('SashElevation — arched head', () => {
   // Before the fix, the jamb rects ran up to the flat topHeight (79), which
   // sits above the frame-inner arc's spring point, so the straight jamb
   // poked up past the curved head at both corners.
+  //
+  // J+K fixes round 3, item 5: that fix made the jamb rect's top match the
+  // shoulder, but the head band (a separate path, bounded by the outer arc
+  // above and the inner arc below) and the jamb rect only shared that one
+  // point, not an edge — the head band's left/right sides are the diagonal
+  // from the outer spring point down to the (lower) inner spring point,
+  // which doesn't coincide with the jamb's flat top, leaving a small
+  // triangular gap at each outside corner. The fix merges the head band and
+  // both jambs into one continuous path, so there is no longer a separate
+  // jamb <rect> for an arched frame at all — just one frame body up the
+  // outer edge, across the outer arc, and down the inner edge.
 
-  it('the jamb tops stop at the shoulder (meet the frame-inner arc), not above it', () => {
+  it('arched frame: head and jambs are one continuous path, not separate shapes with a seam', () => {
     const tree = makeArchTree(150)
     const geo  = makeGeometry({ sashWidth: 942, topSashHeight: 755, bottomSashHeight: 756, topGlassHeight: 657, bottomGlassHeight: 628 })
     const html = render({ tree, geometry: geo, refOptions: {} })
 
-    // Independently recompute the expected shoulder y: concentric circle
-    // centred at (fW/2, R_outer), R_frameInner = R_outer - topHeight.
-    const fW = 1100, archH = 150, topHeight = 79, leftWidth = 79
+    // Independently recompute the expected shoulder y (where the inner arc
+    // meets the jamb's inner face): concentric circle centred at
+    // (fW/2, R_outer), R_frameInner = R_outer - topHeight.
+    const fW = 1100, archH = 150, topHeight = 79, leftWidth = 79, rightWidth = 79
     const R_outer = (fW * fW / 4 + archH * archH) / (2 * archH)
     const R_frameInner = R_outer - topHeight
     const cx = fW / 2, cy = R_outer
     const dx = leftWidth - cx
-    const expectedY = cy - Math.sqrt(R_frameInner * R_frameInner - dx * dx)
+    const expectedShoulderY = cy - Math.sqrt(R_frameInner * R_frameInner - dx * dx)
 
-    // Left jamb rect: x="0" width="79" (leftWidth)
-    const m = html.match(/<rect x="0" y="([\d.]+)" width="79"/)
+    // The frame's combined timber path: starts at the bottom-left outer
+    // corner, runs straight up to the outer spring point (y = archH), then
+    // arcs. "L 0 <archH>" immediately following "M 0 <jambBottom>" is the
+    // straight outer jamb edge up to where it meets the arc.
+    expect(html).toMatch(new RegExp(`M 0 [\\d.]+ L 0 ${archH} A `))
+
+    // The inner arc's left endpoint (where it meets the jamb's inner face)
+    // is the shoulder — pull it straight out of the path data and compare
+    // to the independently computed value.
+    const m = html.match(new RegExp(`A [\\d.]+ [\\d.]+ 0 0 0 ${leftWidth} ([\\d.]+)`))
     expect(m).not.toBeNull()
-    const renderedY = parseFloat(m[1])
+    expect(parseFloat(m[1])).toBeCloseTo(expectedShoulderY, 1)
 
-    expect(renderedY).toBeCloseTo(expectedY, 1)
-    // Sanity check against the old bug: that fixed value was topHeight (79).
-    expect(renderedY).toBeGreaterThan(topHeight + 50)
+    // No separate jamb <rect> for an arched frame any more — a lone
+    // leftover rect at x=0 (or at the right jamb's x) would mean the old
+    // seam-producing shape is still being drawn alongside the new path.
+    expect(html).not.toMatch(/<rect x="0" y="[\d.]+" width="79"/)
+    expect(html).not.toMatch(new RegExp(`<rect x="${fW - rightWidth}"`))
   })
 
 })
