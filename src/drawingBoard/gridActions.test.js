@@ -134,6 +134,83 @@ describe('applyDividers — runs the actual Transom/Mullion... handler', () => {
     expect(html).toContain('B2')
   })
 
+  // ── J+K fixes round 3, item 4: label x = its own opening's glass centre ──
+  // Before the fix, opening A's label x came from the whole frame's
+  // geometry.sashWidth (no concept of mullions), landing it near the
+  // mullion instead of inside opening A's own glass — only the left half
+  // of "A1 / Cord Hung" was visible, the rest painted over by opening B.
+
+  function extractLabelX(html, pairIdx) {
+    const m = html.match(new RegExp(`<text x="([\\d.]+)"[^>]*clip-path="url\\(#glassclip-t-${pairIdx}\\)"`))
+    return m ? parseFloat(m[1]) : null
+  }
+
+  // Opening bounds in absolute frame-local x (same coordinate space the
+  // label x is rendered in): [gx, gx+glassW] for a given opening index.
+  function glassBounds(frame, openingIndex, numOpenings) {
+    const iW = frame.values.width - frame.values.leftWidth - frame.values.rightWidth
+    const openingW = iW / numOpenings
+    const stile = 47
+    const openingX = frame.values.leftWidth + openingIndex * openingW
+    const glassW = openingW - 2 * stile
+    return { min: openingX + stile, max: openingX + stile + glassW }
+  }
+
+  it('2 x 1: A1 label x sits inside opening A\'s glass, not opening B\'s', () => {
+    const tree = freshBoxSash()
+    const frame = findFirst(tree, 'assemblyFramePart')
+    const iW = frame.values.width - frame.values.leftWidth - frame.values.rightWidth
+    const iH = frame.values.height - frame.values.topHeight - 70
+
+    const next = applyDividers(tree, frame.key, 2, 1, iW, iH)
+    const html = renderTree(next)
+
+    const aX = extractLabelX(html, 0)
+    const bX = extractLabelX(html, 1)
+    expect(aX).not.toBeNull()
+    expect(bX).not.toBeNull()
+
+    const aBounds = glassBounds(frame, 0, 2)
+    const bBounds = glassBounds(frame, 1, 2)
+
+    expect(aX).toBeGreaterThan(aBounds.min)
+    expect(aX).toBeLessThan(aBounds.max)
+    // The old bug landed A's label right at the mullion — well outside its
+    // own opening and inside/at the edge of B's.
+    expect(aX).toBeLessThan(bBounds.min)
+
+    expect(bX).toBeGreaterThan(bBounds.min)
+    expect(bX).toBeLessThan(bBounds.max)
+  })
+
+  it('3 x 1: A1, B1 and C1 each sit inside their own opening', () => {
+    const tree = freshBoxSash()
+    const frame = findFirst(tree, 'assemblyFramePart')
+    const iW = frame.values.width - frame.values.leftWidth - frame.values.rightWidth
+    const iH = frame.values.height - frame.values.topHeight - 70
+
+    const next = applyDividers(tree, frame.key, 3, 1, iW, iH)
+    const html = renderTree(next)
+
+    for (let i = 0; i < 3; i++) {
+      const x = extractLabelX(html, i)
+      expect(x, `opening ${i} label x`).not.toBeNull()
+      const bounds = glassBounds(frame, i, 3)
+      expect(x).toBeGreaterThan(bounds.min)
+      expect(x).toBeLessThan(bounds.max)
+    }
+  })
+
+  it('a single-opening (1 x 1) frame still labels correctly — the fix does not regress the common case', () => {
+    const tree = freshBoxSash()
+    const html = renderTree(tree)
+    const x = extractLabelX(html, 0)
+    expect(x).not.toBeNull()
+    const bounds = glassBounds(findFirst(tree, 'assemblyFramePart'), 0, 1)
+    expect(x).toBeGreaterThan(bounds.min)
+    expect(x).toBeLessThan(bounds.max)
+  })
+
   it('3 x 1 creates three sash pairs and two mullions', () => {
     const tree = freshBoxSash()
     const frame = findFirst(tree, 'assemblyFramePart')

@@ -674,11 +674,16 @@ export function SashElevation({
           // Opening x offset: for multi-pair, each pair aligns to its opening
           const opX = openings[pairIdx]?.x ?? 0
 
-          // For multi-opening: sash width comes from opening width for the first pair,
-          // else fall back to computed sashWidth
+          // Sash width: on a single-opening frame, use the precise
+          // (clearance-adjusted) computed sashWidth for the one pair. On a
+          // multi-opening frame, EVERY pair — including the first — must
+          // use its own opening's width; geometry.sashWidth is derived from
+          // the whole frame's interior width with no concept of mullions,
+          // so using it for pair 0 made that opening's sash/glass/label
+          // centre land near the mullion instead of its own opening
+          // (reported as "labels centred on the mullion line").
           const openingW = openings[pairIdx]?.width ?? iW
-          // Use the shared geometry for all pairs (future: per-pair geometry)
-          const sW  = pairIdx === 0 ? sashWidth : openingW
+          const sW  = (pairIdx === 0 && allPairs.length === 1) ? sashWidth : openingW
           const sx  = OX + opX + clearLeft
           const ty  = OY + clearTop
           const by  = ty + (pairIdx === 0 ? topSashHeight : topSashHeight) - M
