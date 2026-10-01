@@ -12,6 +12,7 @@ import { applyOperationDefaults } from '../drawingBoard/applyOperationDefaults.j
 import { computeSashGeometry } from '../drawingBoard/sashGeometry.js'
 import { SashElevation } from '../drawingBoard/renderElevation.jsx'
 import { applyDividers, applyBars } from '../drawingBoard/gridActions.js'
+import { FALLBACK_PROFILE_CODE } from '../drawingBoard/defaultProfile.js'
 import { defaultIronmonger } from '../pricing/defaultIronmongery.js'
 import { computeVariables } from '../pricing/computeVariables.js'
 
@@ -961,10 +962,10 @@ function DrawingBoard() {
         // Load all reference data in parallel
         const [fDefs, profile, cont] = await Promise.all([
           loadFieldDefinitions(),
-          loadProfile('sash'),
+          loadProfile(FALLBACK_PROFILE_CODE),
           loadContainment(),
         ])
-        if (!profile) throw new Error('Profile with code "sash" not found in default_profiles')
+        if (!profile) throw new Error(`Profile with code "${FALLBACK_PROFILE_CODE}" not found in default_profiles`)
 
         const [pVals, rOpts] = await Promise.all([
           loadProfileValues(profile.id),

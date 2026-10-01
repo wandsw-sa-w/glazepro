@@ -7,6 +7,7 @@ import { treeHash } from '../pricing/treeHash.js'
 import { computeQuoteTotals } from '../quotes/quoteTotals.js'
 import { GRID_COLUMNS, readColumnValue, writeColumnValue } from '../quotes/gridColumns.js'
 import { loadDrawingRunPrices, drawingRunSales } from '../quotes/drawingRunPrice.js'
+import { effectiveProfileId } from '../drawingBoard/defaultProfile.js'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -77,6 +78,7 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
   const [quoteApportionment, setQuoteApportionment] = useState({}) // drawingId → sales total from latest quote pricing run
   const [profileDefaultsByDrawing, setProfileDefaultsByDrawing] = useState({}) // drawingId → { 'partType.property': value }
   const [profileNames, setProfileNames] = useState({}) // profileId → label
+  const [profiles, setProfiles] = useState([]) // [{id, code, label}] — active default_profiles, for the fallback resolver
 
   const [showDeleted, setShowDeleted] = useState(false)
   const [onSiteMode, setOnSiteMode] = useState(false)
@@ -214,13 +216,21 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
       const loadedRefOptions = categories.length > 0 ? await loadReferenceOptions(categories).catch(() => ({})) : {}
       setRefOptions(loadedRefOptions)
 
-      // Load profile defaults for each drawing's profile
-      const profileIds = [...new Set(dwgs.map(d => d.default_profile_id).filter(Boolean))]
+      // Load profile defaults for each drawing's profile. A drawing with no
+      // default_profile_id of its own (e.g. created before this fix, or by
+      // an older version of the quick "Sash" button) falls back to the same
+      // profile the drawing board itself falls back to — see
+      // src/drawingBoard/defaultProfile.js — instead of showing "—" for
+      // every field.
+      const { data: allProfiles } = await supabase.from('default_profiles').select('id, code, label').eq('is_active', true)
+      setProfiles(allProfiles || [])
+      const profileIds = [...new Set(
+        dwgs.map(d => effectiveProfileId(d, allProfiles || [])).filter(Boolean)
+      )]
       if (profileIds.length > 0) {
         const fieldDefs = await loadFieldDefinitions().catch(() => ({}))
-        const { data: profileRows } = await supabase.from('default_profiles').select('id, label').in('id', profileIds)
         const pnMap = {}
-        for (const p of (profileRows || [])) pnMap[p.id] = p.label
+        for (const p of (allProfiles || [])) pnMap[p.id] = p.label
         setProfileNames(pnMap)
 
         const allPvRows = await Promise.all(profileIds.map(pid => loadProfileValues(pid).catch(() => [])))
@@ -234,8 +244,9 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
         // Build per-drawing profileDefaults: { drawingId: { 'partType.property': convertedValue } }
         const pdMap = {}
         for (const dwg of dwgs) {
-          if (!dwg.default_profile_id) continue
-          const pvMap = pvByProfile[dwg.default_profile_id] || {}
+          const effId = effectiveProfileId(dwg, allProfiles || [])
+          if (!effId) continue
+          const pvMap = pvByProfile[effId] || {}
           const defaults = {}
           // For each grid column that has partType/property, resolve the profile default
           for (const col of GRID_COLUMNS) {
@@ -579,7 +590,7 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
                     {GRID_COLUMNS.map(col => {
                       if (!dwg) return <td key={col.key} style={{ ...bodyCell, background: rowBg, color: '#ccc' }}>—</td>
                       if (col.key === 'price_file') return <td key={col.key} style={{ ...bodyCell, background: rowBg }}>{defaultPriceFile?.name || '—'}</td>
-                      if (col.key === 'product_range') return <td key={col.key} style={{ ...bodyCell, background: rowBg }}>{profileNames[dwg.default_profile_id] || '—'}</td>
+                      if (col.key === 'product_range') return <td key={col.key} style={{ ...bodyCell, background: rowBg }}>{profileNames[effectiveProfileId(dwg, profiles)] || '—'}</td>
                       const raw = col.source === 'drawing' ? (dwg[col.field] ?? null) : readColumnValue(tree, col, profileDefaultsByDrawing[dwg.id])
                       const canEdit = isLive && col.editable && (col.source === 'drawing' || tree)
                       if (!canEdit) {

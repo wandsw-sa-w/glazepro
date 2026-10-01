@@ -6,6 +6,7 @@ import { Layout, LeadsSubNav } from '../components/Layout'
 import { priceDrawing, priceQuote } from '../pricing/pricingEngine.js'
 import { drawingCardLabel, drawingPickerLabel, drawingNetPrice } from '../quotes/drawingPrice.js'
 import { loadDrawingRunPrices } from '../quotes/drawingRunPrice.js'
+import { effectiveProfileId } from '../drawingBoard/defaultProfile.js'
 import { computeQuoteTotals } from '../quotes/quoteTotals.js'
 import { validatePublish, nextQuoteNumber } from '../quotes/publishValidation.js'
 import { computePopulatePatch } from '../quotes/populateQuote.js'
@@ -342,9 +343,13 @@ export default function QuoteMatrixPage() {
   async function addDrawingQuick(item, kind) {
     if (kind !== 'sash') { alert('Coming soon'); return }
     const nextNum = Math.max(0, ...drawings.filter(d => d.job_item_id === item.id).map(d => d.drawing_number || 0)) + 1
+    // Same profile the drawing board itself falls back to (defaultProfile.js)
+    // — without this, the drawing's fields have no default_profile_id to
+    // resolve against and the items grid shows "—" for everything.
+    const defaultProfileId = effectiveProfileId(null, profiles)
     const { data: newDwg, error } = await supabase
       .from('drawings')
-      .insert({ job_item_id: item.id, drawing_number: nextNum, sort_order: nextNum, window_type: 'Box Sash' })
+      .insert({ job_item_id: item.id, drawing_number: nextNum, sort_order: nextNum, window_type: 'Box Sash', default_profile_id: defaultProfileId })
       .select().single()
     if (!error && newDwg) navigate(`/drawing-board/${newDwg.id}`)
   }
