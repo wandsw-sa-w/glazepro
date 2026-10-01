@@ -240,6 +240,35 @@ describe('SashElevation — arched head', () => {
     expect(Math.abs(heights[0] - heights[1])).toBeLessThan(0.01)
   })
 
+  // ── J+K fixes round 2, item 4: arched frame jamb corners ──────────────────
+  // Before the fix, the jamb rects ran up to the flat topHeight (79), which
+  // sits above the frame-inner arc's spring point, so the straight jamb
+  // poked up past the curved head at both corners.
+
+  it('the jamb tops stop at the shoulder (meet the frame-inner arc), not above it', () => {
+    const tree = makeArchTree(150)
+    const geo  = makeGeometry({ sashWidth: 942, topSashHeight: 755, bottomSashHeight: 756, topGlassHeight: 657, bottomGlassHeight: 628 })
+    const html = render({ tree, geometry: geo, refOptions: {} })
+
+    // Independently recompute the expected shoulder y: concentric circle
+    // centred at (fW/2, R_outer), R_frameInner = R_outer - topHeight.
+    const fW = 1100, archH = 150, topHeight = 79, leftWidth = 79
+    const R_outer = (fW * fW / 4 + archH * archH) / (2 * archH)
+    const R_frameInner = R_outer - topHeight
+    const cx = fW / 2, cy = R_outer
+    const dx = leftWidth - cx
+    const expectedY = cy - Math.sqrt(R_frameInner * R_frameInner - dx * dx)
+
+    // Left jamb rect: x="0" width="79" (leftWidth)
+    const m = html.match(/<rect x="0" y="([\d.]+)" width="79"/)
+    expect(m).not.toBeNull()
+    const renderedY = parseFloat(m[1])
+
+    expect(renderedY).toBeCloseTo(expectedY, 1)
+    // Sanity check against the old bug: that fixed value was topHeight (79).
+    expect(renderedY).toBeGreaterThan(topHeight + 50)
+  })
+
 })
 
 // ── Tests — double box sash with mullion ──────────────────────────────────────
@@ -479,5 +508,118 @@ describe('SashElevation — sash split options', () => {
     expect(html).toContain('<svg')
     expect(html).not.toContain('NaN')
   })
+
+})
+
+// ── Tests — labels fit and clip to their own opening (J+K fixes round 2, item 4) ──
+// Before the fix, label font size was derived from the whole frame width
+// (fW), so on a multi-opening frame a single narrow opening's labels were
+// far too big and bled past it into the neighbouring mullion.
+
+describe('SashElevation — multi-opening labels fit their own glass area', () => {
+
+  // 4 openings on a 2400mm frame -> each opening is much narrower than fW,
+  // so the frame-wide font size (fW * 0.075 = 180) would badly overflow it.
+  function makeFourUpTree() {
+    const iW = 2400 - 79 - 79 // 2242
+    const openingW = iW / 4   // ~560.5
+    function pair(key) {
+      return {
+        key, part_type: 'sashPairPart', values: { midrailHeight: 40 }, children: [
+          { key: `${key}-top`, part_type: 'topSashPart',    values: { topHeight: 49, stileWidth: 47, operation: 'cord_hung' }, children: [] },
+          { key: `${key}-bot`, part_type: 'bottomSashPart', values: { bottomHeight: 88, operation: 'cord_hung' }, children: [] },
+        ],
+      }
+    }
+    const mullions = [1, 2, 3].map(i => ({
+      key: `mull${i}`, part_type: 'mullionPart', values: { offset: Math.round(openingW * i) }, children: [],
+    }))
+    return {
+      key: 'item1', part_type: 'drawingItemPart', values: {}, children: [{
+        key: 'frame1', part_type: 'assemblyFramePart',
+        values: { width: 2400, height: 1700, leftWidth: 79, rightWidth: 79, topHeight: 79 },
+        children: [
+          { key: 'cill1', part_type: 'cillPart', values: { height: 70 }, children: [] },
+          ...mullions,
+          pair('pair1'), pair('pair2'), pair('pair3'), pair('pair4'),
+        ],
+      }],
+    }
+  }
+
+  const refOptions = { sash_operation: [{ code: 'cord_hung', label: 'Cord Hung' }] }
+
+  it('renders all four openings without crashing or NaN', () => {
+    const tree = makeFourUpTree()
+    const geo  = makeGeometry()
+    const html = render({ tree, geometry: geo, refOptions })
+    expect(html).toContain('<svg')
+    expect(html).not.toContain('NaN')
+    expect(html).toContain('A1'); expect(html).toContain('D1')
+  })
+
+  it('shrinks the main label font size well below the old frame-wide size (fW * 0.075)', () => {
+    const tree = makeFourUpTree()
+    const geo  = makeGeometry()
+    const html = render({ tree, geometry: geo, refOptions })
+    const oldFrameWideSize = 2400 * 0.075 // 180 — what every label used before this fix
+
+    const mainLabelSizes = [...html.matchAll(/<tspan[^>]*font-size="([\d.]+)"[^>]*>[A-D]1[^<]*<\/tspan>/g)]
+      .map(m => parseFloat(m[1]))
+    expect(mainLabelSizes.length).toBeGreaterThanOrEqual(4)
+    for (const size of mainLabelSizes) expect(size).toBeLessThan(oldFrameWideSize)
+  })
+
+  it('the fitted size keeps the estimated label width within its own opening (not the whole frame)', () => {
+    const tree = makeFourUpTree()
+    const geo  = makeGeometry()
+    const html = render({ tree, geometry: geo, refOptions })
+    const openingGlassW = (2242 / 4) - 2 * 47 // opening width minus two stiles, ~466.5
+
+    const entries = [...html.matchAll(/<tspan[^>]*font-size="([\d.]+)"[^>]*>([^<]*)<\/tspan>/g)]
+      .filter(m => /^[A-D][12]/.test(m[2]))
+    expect(entries.length).toBeGreaterThan(0)
+    for (const [, sizeStr, text] of entries) {
+      const estWidth = text.length * parseFloat(sizeStr) * 0.62
+      expect(estWidth).toBeLessThanOrEqual(openingGlassW * 0.92 + 1) // +1 for rounding
+    }
+  })
+
+  it('labels are clipped to their own glass area', () => {
+    const tree = makeFourUpTree()
+    const geo  = makeGeometry()
+    const html = render({ tree, geometry: geo, refOptions })
+    expect(html).toContain('<clipPath')
+    expect(html).toMatch(/clip-path="url\(#glassclip-t-\d\)"/)
+  })
+
+  it('a single wide opening keeps a comfortable label size (no unnecessary shrinking)', () => {
+    const tree = makeArchTreeLikeSingle()
+    const geo  = makeGeometry()
+    const html = render({ tree, geometry: geo, refOptions })
+    const m = html.match(/<tspan[^>]*font-size="([\d.]+)"[^>]*>A1[^<]*<\/tspan>/)
+    expect(m).not.toBeNull()
+    // Single box sash, fW=500 -> base lfs = max(500*0.075, 12) = 37.5; should
+    // not have been shrunk since it comfortably fits a ~300mm-wide glass.
+    expect(parseFloat(m[1])).toBeCloseTo(37.5, 1)
+  })
+
+  function makeArchTreeLikeSingle() {
+    return {
+      key: 'item1', part_type: 'drawingItemPart', values: {}, children: [{
+        key: 'frame1', part_type: 'assemblyFramePart',
+        values: { width: 500, height: 1849, leftWidth: 85, rightWidth: 85, topHeight: 79 },
+        children: [
+          { key: 'cill1', part_type: 'cillPart', values: { height: 70 }, children: [] },
+          {
+            key: 'pair1', part_type: 'sashPairPart', values: { midrailHeight: 40 }, children: [
+              { key: 'top1', part_type: 'topSashPart',    values: { topHeight: 49, stileWidth: 47, operation: 'cord_hung' }, children: [] },
+              { key: 'bot1', part_type: 'bottomSashPart', values: { bottomHeight: 88, operation: 'cord_hung' }, children: [] },
+            ],
+          },
+        ],
+      }],
+    }
+  }
 
 })

@@ -390,6 +390,29 @@ export function SashElevation({
     const glassCY_t = ty + tRail + topGlassH / 2
     const glassCY_b = by + mid  + botGlassH / 2
 
+    // Label sizing: lfs is a single size derived from the whole frame width
+    // (fW), so on a multi-opening frame (double/triple box) it's far too
+    // big for a single opening's own glass — text bled past the opening
+    // into the neighbouring mullion. Fit each line's font size to this
+    // opening's own glass width (text-length estimate; exact measurement
+    // isn't available at SSR time), and clip to the glass area as a backstop.
+    const topMainText = prefix + '1' + topArrow
+    const topSubText  = opLabel(topOpCode)
+    const botMainText = prefix + '2' + botArrow
+    const botSubText  = opLabel(botOpCode)
+    function fitFontSize(text, maxWidth, baseFontSize, minFontSize = 7) {
+      if (!text) return baseFontSize
+      const estWidth = text.length * baseFontSize * 0.62
+      return estWidth <= maxWidth ? baseFontSize : Math.max(minFontSize, maxWidth / (text.length * 0.62))
+    }
+    const labelMaxW = Math.max(glassW * 0.92, 1)
+    const topMainFs = fitFontSize(topMainText, labelMaxW, lfs)
+    const topSubFs  = fitFontSize(topSubText,  labelMaxW, lfs * 0.72)
+    const botMainFs = fitFontSize(botMainText, labelMaxW, lfs)
+    const botSubFs  = fitFontSize(botSubText,  labelMaxW, lfs * 0.72)
+    const clipIdTop = `glassclip-t-${pairIdx}`
+    const clipIdBot = `glassclip-b-${pairIdx}`
+
     // Arched top sash: outer stiles start where they meet the sash's own
     // outer arc, the head rail is a curved band between the sash-outer and
     // glass-top arcs (same construction as the frame's head band), and the
@@ -471,24 +494,30 @@ export function SashElevation({
             selectedKey={selectedKey} onSelectKey={onSelectKey} ss={ss} archTop={archTopAt} />
         </g>
 
-        {/* Labels */}
+        {/* Labels — fitted to this opening's own glass width and clipped to it,
+            so a narrow opening (double/triple box) never bleeds into a
+            neighbouring mullion. */}
         {showGlassLabels && (
           <>
+            <clipPath id={clipIdTop}><rect x={gx} y={ty + tRail} width={glassW} height={topGlassH} /></clipPath>
+            <clipPath id={clipIdBot}><rect x={gx} y={by + mid}   width={glassW} height={botGlassH} /></clipPath>
             <text
               x={mx(glassCX)} y={glassCY_t}
               textAnchor="middle" dominantBaseline="middle"
               pointerEvents="none" fontFamily="inherit" fill={C.label}
+              clipPath={`url(#${clipIdTop})`}
             >
-              <tspan x={mx(glassCX)} dy="-0.6em" fontSize={lfs}>{prefix + '1' + topArrow}</tspan>
-              <tspan x={mx(glassCX)} dy="1.4em"  fontSize={lfs * 0.72}>{opLabel(topOpCode)}</tspan>
+              <tspan x={mx(glassCX)} dy="-0.6em" fontSize={topMainFs}>{topMainText}</tspan>
+              <tspan x={mx(glassCX)} dy="1.4em"  fontSize={topSubFs}>{topSubText}</tspan>
             </text>
             <text
               x={mx(glassCX)} y={glassCY_b}
               textAnchor="middle" dominantBaseline="middle"
               pointerEvents="none" fontFamily="inherit" fill={C.label}
+              clipPath={`url(#${clipIdBot})`}
             >
-              <tspan x={mx(glassCX)} dy="-0.6em" fontSize={lfs}>{prefix + '2' + botArrow}</tspan>
-              <tspan x={mx(glassCX)} dy="1.4em"  fontSize={lfs * 0.72}>{opLabel(botOpCode)}</tspan>
+              <tspan x={mx(glassCX)} dy="-0.6em" fontSize={botMainFs}>{botMainText}</tspan>
+              <tspan x={mx(glassCX)} dy="1.4em"  fontSize={botSubFs}>{botSubText}</tspan>
             </text>
           </>
         )}
@@ -545,6 +574,16 @@ export function SashElevation({
   // ── Head path (may be arched) ─────────────────────────────────────────────────
   const headPath = headTimberPath()
 
+  // Jamb tops: for a flat head they run straight up to OY. For an arched
+  // head, the straight jamb must stop at the shoulder — where the frame's
+  // inner (spring-line) arc meets that jamb's inner face — and the curved
+  // head band (headTimberPath, drawn separately) covers the wedge above
+  // that point up to the outer silhouette. Without this, the jamb rect
+  // still ran up to OY, which sits above the arc's spring point, so the
+  // rectangle stuck out past the arch at both corners.
+  const leftJambTopY  = (hasArch && archRadFrameInner) ? (archAt(archRadFrameInner, OX) ?? OY) : OY
+  const rightJambTopY = (hasArch && archRadFrameInner) ? (archAt(archRadFrameInner, fW - rightWidth) ?? OY) : OY
+
   return (
     <svg
       viewBox={`0 ${-topPad} ${VW} ${VH}`}
@@ -585,7 +624,7 @@ export function SashElevation({
 
         {/* ── Left jamb ─────────────────────────────────────────────────────── */}
         {OX > 0 && (
-          <rect x={0} y={OY} width={OX} height={iH}
+          <rect x={0} y={leftJambTopY} width={OX} height={(OY + iH) - leftJambTopY}
             fill={C.timber} {...ss(frame?.key)}
             style={{ cursor: 'pointer' }}
             onClick={() => onSelectKey?.(frame?.key)}
@@ -593,7 +632,7 @@ export function SashElevation({
         )}
         {/* ── Right jamb ────────────────────────────────────────────────────── */}
         {rightWidth > 0 && (
-          <rect x={OX + iW} y={OY} width={rightWidth} height={iH}
+          <rect x={OX + iW} y={rightJambTopY} width={rightWidth} height={(OY + iH) - rightJambTopY}
             fill={C.timber} {...ss(frame?.key)}
             style={{ cursor: 'pointer' }}
             onClick={() => onSelectKey?.(frame?.key)}
