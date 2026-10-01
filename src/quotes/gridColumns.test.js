@@ -2,17 +2,29 @@ import { describe, it, expect } from 'vitest'
 import { readColumnValue, writeColumnValue, GRID_COLUMNS } from './gridColumns.js'
 
 // ── Known valid (partType, property) pairs ────────────────────────────────────
-// Derived from default_field_definitions (step-a2) + J1 additions.
-// The schema-integrity test below fails if any GRID_COLUMN references a pair
-// not in this set — which catches typos before they reach the live app.
+// Derived from default_field_definitions (step-a2, step-g3) + J1 additions —
+// cross-checked field by field against supabase/migrations/20260923_step_a2_field_definitions.sql
+// and sql/step-g3-default-ironmongery.sql (the actual INSERT/UPDATE statements,
+// not assumption). The schema-integrity test below fails if any GRID_COLUMN
+// references a pair not in this set — which catches typos before they reach
+// the live app.
+//
+// Notes on fields that look like they'd fit elsewhere but don't:
+// - cillMaterialId is on drawingItemPart (role='input'), not cillPart.
+//   cillPart.cillMaterialId DOES exist too, but it's role='derived' — a
+//   read-only mirror, not the field the drawing board writes to — so it's
+//   deliberately NOT in this list; a grid column pointing at it would be wrong.
+// - ironmongeryFinishId is not a real field anywhere; the real one is
+//   ironmongeryFinish (no "Id" suffix, despite most other reference fields
+//   on this part following an "...Id" convention).
 const KNOWN_FIELDS = new Map([
-  ['drawingItemPart',        new Set(['typeOfWork', 'supplyOption', 'sashMaterialId', 'frameMaterialId', 'staffBeadTypeId', 'staffBeadId', 'isBiGlass'])],
-  ['cillPart',               new Set(['cillMaterialId', 'height', 'depth', 'width'])],
+  ['drawingItemPart',        new Set(['typeOfWork', 'supplyOption', 'sashMaterialId', 'frameMaterialId', 'cillMaterialId', 'staffBeadTypeId', 'staffBeadId', 'isBiGlass'])],
+  ['cillPart',               new Set(['height', 'depth', 'width'])],
   ['sashPairPart',           new Set(['sashThickness', 'topHornTypeShortName', 'bottomHornTypeShortName', 'midrailHeight', 'mechanicalClearanceLeft', 'mechanicalClearanceRight', 'mechanicalClearanceTop', 'mechanicalClearanceBottom', 'sashSplitId', 'fixedSashHeight', 'topHornLengthMm', 'bottomHornLengthMm'])],
   ['topSashPart',            new Set(['topHeight', 'bottomHeight', 'stileWidth', 'archHead', 'archHeight'])],
   ['bottomSashPart',         new Set(['topHeight', 'bottomHeight', 'stileWidth', 'archHead', 'archHeight'])],
   ['glassPart',              new Set(['singleGlassPartNo', 'internalGlassPartNo', 'externalGlassPartNo', 'spacerColourId', 'gasFillId', 'archHead', 'archHeight'])],
-  ['paintAndIronmongeryPart',new Set(['internalFinish', 'externalFinish', 'cillFinish', 'ironmongeryFinish', 'ironmongeryFinishId', 'cutOutBrickReveal'])],
+  ['paintAndIronmongeryPart',new Set(['internalFinish', 'externalFinish', 'cillFinish', 'ironmongeryFinish', 'cutOutBrickReveal'])],
   ['pricePart',              new Set(['poa', 'priceOverride'])],
   ['notesPart',              new Set(['installationMethod', 'fireEgress', 'internalHazard', 'internalAccess', 'landingAccess', 'externalAccessId', 'hazardBelow', 'cableAlarm', 'dormerIssue', 'cutBackPlaster', 'cutBackReveal', 'quoteNotes', 'installationNotes', 'productionNotes', 'drawingLabel'])],
   ['assemblyFramePart',      new Set(['width', 'height', 'topHeight', 'leftWidth', 'rightWidth', 'frameDepth', 'jambType', 'leftOuterJamb', 'rightOuterJamb', 'leftCillHorn', 'rightCillHorn', 'archHead', 'archHeight'])],
@@ -20,6 +32,24 @@ const KNOWN_FIELDS = new Map([
   ['transomPart',            new Set(['offset'])],
   ['verticalGlazingBarPart', new Set(['barWidth', 'offset'])],
   ['horizontalGlazingBarPart',new Set(['barWidth', 'offset'])],
+])
+
+// ── Known reference_category per field_key (for columns where it's been
+// directly verified against the migration/SQL that added the field — not
+// an exhaustive list, just the ones that have actually been wrong before).
+// J+K fixes round 4, item 2: Sash/Frame/Cill Material pointed at
+// 'sash_material'/'frame_material'/'cill_material', categories that don't
+// exist; the real one for all three is 'timber_species'
+// (supabase/migrations/20260923_step_a2_field_definitions.sql lines 64-95).
+const KNOWN_REFERENCE_CATEGORIES = new Map([
+  ['drawingItemPart.sashMaterialId',               'timber_species'],
+  ['drawingItemPart.frameMaterialId',              'timber_species'],
+  ['drawingItemPart.cillMaterialId',                'timber_species'],
+  ['drawingItemPart.staffBeadTypeId',               'staff_bead_type'],
+  ['paintAndIronmongeryPart.internalFinish',        'paint_finish'],
+  ['paintAndIronmongeryPart.externalFinish',        'paint_finish'],
+  ['paintAndIronmongeryPart.cillFinish',            'paint_finish'],
+  ['paintAndIronmongeryPart.ironmongeryFinish',     'ironmongery_finish'],
 ])
 
 // ── Tree fixture ──────────────────────────────────────────────────────────────
@@ -104,6 +134,27 @@ describe('GRID_COLUMNS schema integrity', () => {
         errors.push(`Unknown partType "${col.partType}" in column "${col.key}"`)
       } else if (!knownProps.has(col.property)) {
         errors.push(`Unknown property "${col.property}" on ${col.partType} in column "${col.key}"`)
+      }
+    }
+    expect(errors).toEqual([])
+  })
+
+  // J+K fixes round 4, item 2: existence alone didn't catch Sash/Frame/Cill
+  // Material — partType.property were correct, but referenceCategory pointed
+  // at categories ('sash_material'/'frame_material'/'cill_material') that
+  // don't exist, so the <select> had no matching <option> for the stored
+  // value and it looked blank. Only checks the subset of fields verified
+  // directly against the field-definition SQL (KNOWN_REFERENCE_CATEGORIES) —
+  // not exhaustive, but guards the exact class of bug that happened.
+  it('every column with a known reference_category uses the real one', () => {
+    const errors = []
+    for (const col of GRID_COLUMNS) {
+      if (!col.partType || !col.property) continue
+      const fieldKey = `${col.partType}.${col.property}`
+      const expected = KNOWN_REFERENCE_CATEGORIES.get(fieldKey)
+      if (expected === undefined) continue // not in the verified subset — skip, don't guess
+      if (col.referenceCategory !== expected) {
+        errors.push(`${fieldKey} (column "${col.key}"): referenceCategory is "${col.referenceCategory}", should be "${expected}"`)
       }
     }
     expect(errors).toEqual([])

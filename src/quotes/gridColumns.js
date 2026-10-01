@@ -149,9 +149,14 @@ export const GRID_COLUMNS = [
   { key: 'type_of_work',    label: 'Type of Work',         partType: 'drawingItemPart',         property: 'typeOfWork',          editable: true,  type: 'reference', referenceCategory: 'type_of_work' },
   { key: 'supply_option',   label: 'Supply Option',        partType: 'drawingItemPart',         property: 'supplyOption',        editable: true,  type: 'reference', referenceCategory: 'supply_option' },
   { key: 'product_range',   label: 'Product Range',        source: 'context', editable: false, type: 'display' },
-  { key: 'sash_material',   label: 'Sash Material',        partType: 'drawingItemPart',         property: 'sashMaterialId',      editable: true,  type: 'reference', referenceCategory: 'sash_material' },
-  { key: 'frame_material',  label: 'Frame Material',       partType: 'drawingItemPart',         property: 'frameMaterialId',     editable: true,  type: 'reference', referenceCategory: 'frame_material' },
-  { key: 'cill_material',   label: 'Cill Material',        partType: 'cillPart',                property: 'cillMaterialId',      editable: true,  type: 'reference', referenceCategory: 'cill_material' },
+  // Sash/Frame/Cill Material all live on drawingItemPart, all under the
+  // reference_category 'timber_species' — not per-field categories, and not
+  // cillPart for Cill Material (cillPart.cillMaterialId exists too, but it's
+  // role='derived', a read-only mirror of drawingItemPart's value — editing
+  // that one wouldn't be the real input field).
+  { key: 'sash_material',   label: 'Sash Material',        partType: 'drawingItemPart',         property: 'sashMaterialId',      editable: true,  type: 'reference', referenceCategory: 'timber_species' },
+  { key: 'frame_material',  label: 'Frame Material',       partType: 'drawingItemPart',         property: 'frameMaterialId',     editable: true,  type: 'reference', referenceCategory: 'timber_species' },
+  { key: 'cill_material',   label: 'Cill Material',        partType: 'drawingItemPart',         property: 'cillMaterialId',      editable: true,  type: 'reference', referenceCategory: 'timber_species' },
   { key: 'staff_bead',      label: 'Staff Bead',           partType: 'drawingItemPart',         property: 'staffBeadTypeId',     editable: true,  type: 'reference', referenceCategory: 'staff_bead_type' },
   { key: 'sash_travel',     label: 'Sash Travel (%)',      partType: null,                     property: null,                  editable: false, type: 'display' },
   { key: 'sash_weight',     label: 'Sash Weight',          editable: false, type: 'number', unit: 'kg', compute: computeSashWeightKg },

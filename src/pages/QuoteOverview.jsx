@@ -599,13 +599,22 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
                         <td key={col.key} style={{ ...bodyCell, background: rowBg }}>
                           {col.type === 'boolean' ? (
                             <input type="checkbox" checked={!!raw} onChange={e => editCell(item, col, e.target.checked)} />
-                          ) : col.type === 'reference' ? (
-                            <select value={raw ?? ''} onChange={e => editCell(item, col, e.target.value)} style={cellInput}>
-                              <option value="">—</option>
-                              {(refOptions[col.referenceCategory] || []).map(o => <option key={o.code} value={o.code}>{o.label}</option>)}
-                              {!col.referenceCategory && raw && <option value={raw}>{raw}</option>}
-                            </select>
-                          ) : col.type === 'number' ? (
+                          ) : col.type === 'reference' ? (() => {
+                            const options = refOptions[col.referenceCategory] || []
+                            // A stored value that isn't in the resolved options list (wrong/
+                            // missing reference_category, or an options list that's empty or
+                            // out of date) must still show, not silently vanish — <select>
+                            // shows nothing selected when `value` matches no <option>, which
+                            // looks exactly like the field is blank even though it has a value.
+                            const hasMatch = options.some(o => o.code === raw)
+                            return (
+                              <select value={raw ?? ''} onChange={e => editCell(item, col, e.target.value)} style={cellInput}>
+                                <option value="">—</option>
+                                {options.map(o => <option key={o.code} value={o.code}>{o.label}</option>)}
+                                {raw && !hasMatch && <option value={raw}>{raw}</option>}
+                              </select>
+                            )
+                          })() : col.type === 'number' ? (
                             <input type="number" value={raw ?? ''} onChange={e => editCell(item, col, e.target.value === '' ? null : Number(e.target.value))} style={cellInput} />
                           ) : (
                             <input type="text" value={raw ?? ''} onChange={e => editCell(item, col, e.target.value)} style={cellInput} />
