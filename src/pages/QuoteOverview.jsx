@@ -6,7 +6,7 @@ import { loadDrawingParts, saveDrawingParts, loadReferenceOptions, loadFieldDefi
 import { treeHash } from '../pricing/treeHash.js'
 import { computeQuoteTotals } from '../quotes/quoteTotals.js'
 import { GRID_COLUMNS, readColumnValue, writeColumnValue } from '../quotes/gridColumns.js'
-import { loadDrawingRunPrices, drawingRunSales } from '../quotes/drawingRunPrice.js'
+import { loadDrawingRunPrices, drawingRunSales, drawingQuoteItemNet } from '../quotes/drawingRunPrice.js'
 import { effectiveProfileId } from '../drawingBoard/defaultProfile.js'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -347,9 +347,7 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
     const dwgId = selections[item.id]
     const dwg = dwgId ? drawings.find(d => d.id === dwgId) : null
     if (!dwg) return null
-    const drawingLevelPrice = drawingRunSales(dwg, drawingRunPrices) ?? 0
-    const apportioned = quoteApportionment[String(dwg.id)] || 0
-    return { calculated: drawingLevelPrice + apportioned, priceOverride: dwg.price_override ?? null, itemDiscountPct: dwg.item_discount_pct ?? 0, vatRate: dwg.vat_rate ?? 20, poa: dwg.poa ?? false }
+    return { calculated: drawingQuoteItemNet(dwg, drawingRunPrices, quoteApportionment), priceOverride: dwg.price_override ?? null, itemDiscountPct: dwg.item_discount_pct ?? 0, vatRate: dwg.vat_rate ?? 20, poa: dwg.poa ?? false }
   }).filter(Boolean)
   const totals = isLive
     ? (totalsInput.length > 0 ? computeQuoteTotals({ discountPct: quote.discount_pct, depositPct: quote.deposit_pct, interimPct: quote.interim_pct }, totalsInput) : null)

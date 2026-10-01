@@ -7,7 +7,7 @@ import { useUnmatchedCount } from '../hooks/useUnmatchedCount'
 import { useCurrentUser } from '../hooks/useCurrentUser'
 import { Layout, LeadsSubNav } from '../components/Layout'
 import { computeQuoteTotals } from '../quotes/quoteTotals'
-import { loadDrawingRunPrices, drawingRunSales } from '../quotes/drawingRunPrice'
+import { loadDrawingRunPrices, drawingQuoteItemNet } from '../quotes/drawingRunPrice'
 
 const stageColours = {
   New: { bg: '#e6f0fb', color: '#1a5fa8' },
@@ -2362,17 +2362,13 @@ export default function LeadDetail() {
                 const dwg = drawings.find(d => d.id === qd.drawing_id)
                 return { item, dwg }
               }).filter(r => r.item)
-              const totalsInput = items.map(({ dwg }) => {
-                const drawingLevelPrice = drawingRunSales(dwg, drawingRunPrices) ?? 0
-                const apportioned = dwg ? (apMap[String(dwg.id)] || 0) : 0
-                return {
-                  calculated: drawingLevelPrice + apportioned,
-                  priceOverride: dwg?.price_override ?? null,
-                  itemDiscountPct: dwg?.item_discount_pct ?? 0,
-                  vatRate: dwg?.vat_rate ?? 20,
-                  poa: dwg?.poa ?? false,
-                }
-              })
+              const totalsInput = items.map(({ dwg }) => ({
+                calculated: drawingQuoteItemNet(dwg, drawingRunPrices, apMap),
+                priceOverride: dwg?.price_override ?? null,
+                itemDiscountPct: dwg?.item_discount_pct ?? 0,
+                vatRate: dwg?.vat_rate ?? 20,
+                poa: dwg?.poa ?? false,
+              }))
               const totals = items.length > 0
                 ? computeQuoteTotals({ discountPct: q.discount_pct, depositPct: q.deposit_pct, interimPct: q.interim_pct }, totalsInput)
                 : null

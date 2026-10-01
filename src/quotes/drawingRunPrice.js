@@ -81,3 +81,24 @@ export function drawingRunSales(drawing, runPrices) {
   const sales = runPrices?.[String(drawing.id)]?.sales
   return sales != null ? Number(sales) : null
 }
+
+/**
+ * An item's net price FOR A QUOTE: the drawing's own run price (or
+ * price_override) plus that quote's apportioned share of quote-level rules
+ * (e.g. InstallSure) — see priceQuote's quote_item_apportionment. This is
+ * the one calculation every "item net for this quote" figure in the app
+ * should use (the Quote Matrix picker Total, the lead page's Quote tab
+ * total, and the Quote Overview's totals), so they can't disagree the way
+ * the picker Total and the Overview did before (the picker added the
+ * drawing's own price but forgot the apportioned share).
+ *
+ * @param {object|null} drawing
+ * @param {Object<string, {sales: number|null}>} runPrices       from loadDrawingRunPrices
+ * @param {Object<string, number>} [apportionment]  drawingId -> this quote's apportioned sales share
+ * @returns {number}
+ */
+export function drawingQuoteItemNet(drawing, runPrices, apportionment) {
+  const drawingPrice = drawingRunSales(drawing, runPrices) ?? 0
+  const apportioned  = drawing ? (apportionment?.[String(drawing.id)] ?? 0) : 0
+  return drawingPrice + apportioned
+}

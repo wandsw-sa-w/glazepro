@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { loadDrawingRunPrices, drawingRunSales } from './drawingRunPrice.js'
+import { loadDrawingRunPrices, drawingRunSales, drawingQuoteItemNet } from './drawingRunPrice.js'
 
 // ── Minimal fake Supabase client ───────────────────────────────────────────────
 // Supports exactly the chain this module uses: .from(table).select(...).in(col,
@@ -111,5 +111,52 @@ describe('drawingRunSales', () => {
 
   it('ignores an empty-string override (treated as unset)', () => {
     expect(drawingRunSales({ id: 'd1', price_override: '' }, runPrices)).toBeCloseTo(1622.44, 2)
+  })
+})
+
+// ── drawingQuoteItemNet — J+K fixes round 4, item 1 ───────────────────────────
+// The picker Total used to forget the quote's apportioned InstallSure share
+// (it only added the drawing's own run price), so it disagreed with the
+// Overview's total — Q1 showed 1,946.93 on the matrix but 2,029.49 on the
+// Overview (1,946.93 + 68.80 InstallSure apportionment ~= the real total
+// once the second item/discount effects are accounted for in a real quote;
+// the key point these tests pin down is that the apportioned share is
+// always added, which it previously wasn't on the picker).
+
+describe('drawingQuoteItemNet', () => {
+  const runPrices = { d1: { sales: 1622.44 } }
+
+  it('adds the apportioned share on top of the drawing-level run price', () => {
+    const apportionment = { d1: 68.80 }
+    expect(drawingQuoteItemNet({ id: 'd1', price_override: null }, runPrices, apportionment)).toBeCloseTo(1691.24, 2)
+  })
+
+  it('with no apportionment for this quote, is just the drawing-level price', () => {
+    expect(drawingQuoteItemNet({ id: 'd1', price_override: null }, runPrices, {})).toBeCloseTo(1622.44, 2)
+  })
+
+  it('with no apportionment map at all, does not throw and uses 0', () => {
+    expect(drawingQuoteItemNet({ id: 'd1', price_override: null }, runPrices, undefined)).toBeCloseTo(1622.44, 2)
+  })
+
+  it('price_override still replaces the run price, with the apportionment still added on top', () => {
+    const apportionment = { d1: 68.80 }
+    expect(drawingQuoteItemNet({ id: 'd1', price_override: 2000 }, runPrices, apportionment)).toBeCloseTo(2068.80, 2)
+  })
+
+  it('a drawing with no run and no override contributes 0 plus its apportionment', () => {
+    const apportionment = { d2: 10 }
+    expect(drawingQuoteItemNet({ id: 'd2', price_override: null }, runPrices, apportionment)).toBe(10)
+  })
+
+  it('returns 0 for a null drawing', () => {
+    expect(drawingQuoteItemNet(null, runPrices, { d1: 68.80 })).toBe(0)
+  })
+
+  it('two quotes sharing the same drawing each get their own apportionment, not the other\'s', () => {
+    const q1Apportionment = { d1: 68.80 }
+    const q2Apportionment = { d1: 12.34 }
+    expect(drawingQuoteItemNet({ id: 'd1', price_override: null }, runPrices, q1Apportionment)).toBeCloseTo(1691.24, 2)
+    expect(drawingQuoteItemNet({ id: 'd1', price_override: null }, runPrices, q2Apportionment)).toBeCloseTo(1634.78, 2)
   })
 })

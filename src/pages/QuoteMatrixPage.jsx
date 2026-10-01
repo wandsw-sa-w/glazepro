@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { Layout, LeadsSubNav } from '../components/Layout'
 import { priceDrawing, priceQuote } from '../pricing/pricingEngine.js'
 import { drawingCardLabel, drawingPickerLabel, drawingNetPrice } from '../quotes/drawingPrice.js'
-import { loadDrawingRunPrices } from '../quotes/drawingRunPrice.js'
+import { loadDrawingRunPrices, drawingQuoteItemNet } from '../quotes/drawingRunPrice.js'
 import { effectiveProfileId } from '../drawingBoard/defaultProfile.js'
 import { computeQuoteTotals } from '../quotes/quoteTotals.js'
 import { validatePublish, nextQuoteNumber } from '../quotes/publishValidation.js'
@@ -517,10 +517,8 @@ export default function QuoteMatrixPage() {
       const dwgId = selections[`${quoteId}_${item.id}`]
       const dwg = dwgId ? drawings.find(d => d.id === dwgId) : null
       if (!dwg) return null
-      const drawingPrice = drawingNetPrice(dwg, drawingRunPrices) ?? 0
-      const apportioned = apMap[String(dwg.id)] || 0
       return {
-        calculated: drawingPrice + apportioned,
+        calculated: drawingQuoteItemNet(dwg, drawingRunPrices, apMap),
         priceOverride: dwg.price_override ?? null,
         itemDiscountPct: dwg.item_discount_pct ?? 0,
         vatRate: dwg.vat_rate ?? 20,
@@ -846,11 +844,16 @@ export default function QuoteMatrixPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                   {openQuotes.map(q => {
                     const totals = (() => {
+                      // Same calculation as getItemsForTotals/the Overview (drawing-level
+                      // run price + this quote's apportioned InstallSure share) — this used
+                      // to just use the drawing's own price and forget the apportioned
+                      // share, so the picker Total disagreed with the Overview's total.
+                      const apMap = quoteApportionments[String(q.id)] || {}
                       const items = jobItems.map(item => {
                         const dwgId = panelDraft[`${q.id}_${item.id}`]
                         const dwg = dwgId ? drawings.find(d => d.id === dwgId) : null
                         if (!dwg) return null
-                        return { calculated: drawingNetPrice(dwg, drawingRunPrices) ?? 0, priceOverride: dwg.price_override ?? null, itemDiscountPct: dwg.item_discount_pct ?? 0, vatRate: dwg.vat_rate ?? 20, poa: dwg.poa ?? false }
+                        return { calculated: drawingQuoteItemNet(dwg, drawingRunPrices, apMap), priceOverride: dwg.price_override ?? null, itemDiscountPct: dwg.item_discount_pct ?? 0, vatRate: dwg.vat_rate ?? 20, poa: dwg.poa ?? false }
                       }).filter(Boolean)
                       return items.length > 0 ? computeQuoteTotals({ discountPct: q.discount_pct, depositPct: q.deposit_pct, interimPct: q.interim_pct }, items) : null
                     })()
