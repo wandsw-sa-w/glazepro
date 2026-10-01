@@ -7,6 +7,7 @@ import { useUnmatchedCount } from '../hooks/useUnmatchedCount'
 import { useCurrentUser } from '../hooks/useCurrentUser'
 import { Layout, LeadsSubNav } from '../components/Layout'
 import { computeQuoteTotals } from '../quotes/quoteTotals'
+import { loadDrawingRunPrices, drawingRunSales } from '../quotes/drawingRunPrice'
 
 const stageColours = {
   New: { bg: '#e6f0fb', color: '#1a5fa8' },
@@ -188,6 +189,7 @@ export default function LeadDetail() {
   const [quoteApportionments, setQuoteApportionments] = useState({}) // quoteId → { drawingId → salesTotal }
   const [jobItems, setJobItems] = useState([])
   const [drawings, setDrawings] = useState([])
+  const [drawingRunPrices, setDrawingRunPrices] = useState({}) // drawingId -> {sales, cost, pricingRunId, priceFileId} — see drawingRunPrice.js
   const [jobItemsLoading, setJobItemsLoading] = useState(false)
   const [leadHistory, setLeadHistory] = useState([])
   const [editingField, setEditingField] = useState(null)
@@ -585,8 +587,10 @@ export default function LeadDetail() {
         .in('job_item_id', items.map(i => i.id))
         .order('drawing_number', { ascending: true })
       setDrawings(dwgs || [])
+      setDrawingRunPrices(await loadDrawingRunPrices((dwgs || []).map(d => d.id), supabase))
     } else {
       setDrawings([])
+      setDrawingRunPrices({})
     }
     setJobItemsLoading(false)
   }
@@ -2359,7 +2363,7 @@ export default function LeadDetail() {
                 return { item, dwg }
               }).filter(r => r.item)
               const totalsInput = items.map(({ dwg }) => {
-                const drawingLevelPrice = parseFloat(dwg?.calculated_price) || 0
+                const drawingLevelPrice = drawingRunSales(dwg, drawingRunPrices) ?? 0
                 const apportioned = dwg ? (apMap[String(dwg.id)] || 0) : 0
                 return {
                   calculated: drawingLevelPrice + apportioned,

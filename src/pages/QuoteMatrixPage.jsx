@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { Layout, LeadsSubNav } from '../components/Layout'
 import { priceDrawing, priceQuote } from '../pricing/pricingEngine.js'
 import { drawingCardLabel, drawingPickerLabel, drawingNetPrice } from '../quotes/drawingPrice.js'
+import { loadDrawingRunPrices } from '../quotes/drawingRunPrice.js'
 import { computeQuoteTotals } from '../quotes/quoteTotals.js'
 import { validatePublish, nextQuoteNumber } from '../quotes/publishValidation.js'
 import { computePopulatePatch } from '../quotes/populateQuote.js'
@@ -74,6 +75,7 @@ export default function QuoteMatrixPage() {
   const [selections, setSelections] = useState({})   // `${quoteId}_${jobItemId}` -> drawingId (saved)
   const [priceFiles, setPriceFiles] = useState([])
   const [latestRuns, setLatestRuns] = useState({})   // drawingId -> {price_file_id, status}
+  const [drawingRunPrices, setDrawingRunPrices] = useState({}) // drawingId -> {sales, cost, pricingRunId, priceFileId} — see drawingRunPrice.js
   const [profiles, setProfiles] = useState([])
   const [loading, setLoading] = useState(true)
   const [pricing, setPricing] = useState({})         // quoteId -> {busy, error, progress}
@@ -159,6 +161,7 @@ export default function QuoteMatrixPage() {
     setProfiles(profs || [])
     setSelections(qdMap)
     setLatestRuns(runsMap)
+    setDrawingRunPrices(await loadDrawingRunPrices(drawingIds, supabase))
 
     // Load latest quote-level apportionment for each quote
     if (quoteIds.length > 0) {
@@ -410,12 +413,18 @@ export default function QuoteMatrixPage() {
       ? drawings.filter(d => selectedItemIds.has(d.job_item_id) && !d.deleted_at).map(d => d.id)
       : drawings.filter(d => !d.deleted_at).map(d => d.id)
     setPriceFileModal(false)
+    const pricedIds = []
     for (const drawingId of targetIds) {
       const res = await priceDrawing(drawingId, supabase, { priceFileId })
       if (res.success) {
         setDrawings(prev => prev.map(d => d.id === drawingId ? { ...d, calculated_price: res.calculatedPrice } : d))
         setLatestRuns(prev => ({ ...prev, [drawingId]: { price_file_id: priceFileId, status: 'complete' } }))
+        pricedIds.push(drawingId)
       }
+    }
+    if (pricedIds.length > 0) {
+      const freshPrices = await loadDrawingRunPrices(pricedIds, supabase)
+      setDrawingRunPrices(prev => ({ ...prev, ...freshPrices }))
     }
   }
 
@@ -451,13 +460,19 @@ export default function QuoteMatrixPage() {
 
     setPricing(prev => ({ ...prev, [quoteId]: { busy: true, error: null, progress: `Pricing ${staleDrawingIds.length} drawing(s)…` } }))
     const errors = []
+    const pricedIds = []
     for (const drawingId of staleDrawingIds) {
       const res = await priceDrawing(drawingId, supabase, { priceFileId })
       if (!res.success) errors.push(`Drawing ${drawingId}: ${res.error}`)
       else {
         setDrawings(prev => prev.map(d => d.id === drawingId ? { ...d, calculated_price: res.calculatedPrice } : d))
         setLatestRuns(prev => ({ ...prev, [drawingId]: { price_file_id: priceFileId || null, status: 'complete' } }))
+        pricedIds.push(drawingId)
       }
+    }
+    if (pricedIds.length > 0) {
+      const freshPrices = await loadDrawingRunPrices(pricedIds, supabase)
+      setDrawingRunPrices(prev => ({ ...prev, ...freshPrices }))
     }
     setPricing(prev => ({ ...prev, [quoteId]: { ...prev[quoteId], progress: 'Running quote-level pass…' } }))
     const qRes = await priceQuote(quoteId, supabase, { priceFileId })
@@ -497,7 +512,7 @@ export default function QuoteMatrixPage() {
       const dwgId = selections[`${quoteId}_${item.id}`]
       const dwg = dwgId ? drawings.find(d => d.id === dwgId) : null
       if (!dwg) return null
-      const drawingPrice = drawingNetPrice(dwg) ?? 0
+      const drawingPrice = drawingNetPrice(dwg, drawingRunPrices) ?? 0
       const apportioned = apMap[String(dwg.id)] || 0
       return {
         calculated: drawingPrice + apportioned,
@@ -539,7 +554,7 @@ export default function QuoteMatrixPage() {
         job_item: { id: item.id, item_number: item.item_number, floor_level: item.floor_level, elevation: item.elevation, room_name: item.room_name },
         drawing: { id: dwg?.id, drawing_number: dwg?.drawing_number, window_type: dwg?.window_type },
         parts_tree: partsTree,
-        calculated_price: dwg?.calculated_price ?? null,
+        calculated_price: drawingNetPrice(dwg, drawingRunPrices),
         net: itemTotals?.net ?? null,
         net_after_quote_discount: itemTotals?.netAfterQuoteDiscount ?? null,
         vat: itemTotals?.vat ?? null,
@@ -751,7 +766,7 @@ export default function QuoteMatrixPage() {
                         <div style={{ flex: 1, display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4 }}>
                           {itemDwgs.map(dwg => {
                             const stale = isStale(dwg.id)
-                            const cardLabel = drawingCardLabel(dwg, priceFiles, latestRuns)
+                            const cardLabel = drawingCardLabel(dwg, priceFiles, latestRuns, drawingRunPrices)
                             const desc = [dwg.window_type, dwg.material_frame, dwg.finish_internal].filter(Boolean).join(' · ')
                             return (
                               <div key={dwg.id} style={{ width: 190, flexShrink: 0, border: '1px solid #e0def0', borderRadius: 10, overflow: 'hidden', opacity: dwg.deleted_at ? 0.5 : 1 }}>
@@ -830,7 +845,7 @@ export default function QuoteMatrixPage() {
                         const dwgId = panelDraft[`${q.id}_${item.id}`]
                         const dwg = dwgId ? drawings.find(d => d.id === dwgId) : null
                         if (!dwg) return null
-                        return { calculated: drawingNetPrice(dwg) ?? 0, priceOverride: dwg.price_override ?? null, itemDiscountPct: dwg.item_discount_pct ?? 0, vatRate: dwg.vat_rate ?? 20, poa: dwg.poa ?? false }
+                        return { calculated: drawingNetPrice(dwg, drawingRunPrices) ?? 0, priceOverride: dwg.price_override ?? null, itemDiscountPct: dwg.item_discount_pct ?? 0, vatRate: dwg.vat_rate ?? 20, poa: dwg.poa ?? false }
                       }).filter(Boolean)
                       return items.length > 0 ? computeQuoteTotals({ discountPct: q.discount_pct, depositPct: q.deposit_pct, interimPct: q.interim_pct }, items) : null
                     })()
@@ -860,7 +875,7 @@ export default function QuoteMatrixPage() {
                                   <option value="">Not included</option>
                                   {itemDwgs.map(dwg => (
                                     <option key={dwg.id} value={dwg.id}>
-                                      {drawingPickerLabel(dwg, dwg.drawing_number, priceFiles, latestRuns)}
+                                      {drawingPickerLabel(dwg, dwg.drawing_number, priceFiles, latestRuns, drawingRunPrices)}
                                     </option>
                                   ))}
                                 </select>

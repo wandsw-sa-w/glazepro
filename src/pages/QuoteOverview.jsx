@@ -6,6 +6,7 @@ import { loadDrawingParts, saveDrawingParts, loadReferenceOptions, loadFieldDefi
 import { treeHash } from '../pricing/treeHash.js'
 import { computeQuoteTotals } from '../quotes/quoteTotals.js'
 import { GRID_COLUMNS, readColumnValue, writeColumnValue } from '../quotes/gridColumns.js'
+import { loadDrawingRunPrices, drawingRunSales } from '../quotes/drawingRunPrice.js'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -65,6 +66,7 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
   const [selections, setSelections] = useState({})
   const [priceFiles, setPriceFiles] = useState([])
   const [latestRuns, setLatestRuns] = useState({}) // drawingId -> {id, price_file_id, tree_hash, status}
+  const [drawingRunPrices, setDrawingRunPrices] = useState({}) // drawingId -> {sales, cost, pricingRunId, priceFileId} — see drawingRunPrice.js
   const [salespersonName, setSalespersonName] = useState('')
   const [loading, setLoading] = useState(true)
   const [refOptions, setRefOptions] = useState({})
@@ -152,17 +154,23 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
         for (const run of (runs || [])) { if (!runsMap[run.drawing_id]) runsMap[run.drawing_id] = run }
         setLatestRuns(runsMap)
 
-        // Install hours + drawing-level cost from the latest runs
+        // Drawing-level sales/cost from each drawing's own latest completed
+        // run — never drawings.calculated_price, which priceQuote doesn't
+        // write and so can go stale. See src/quotes/drawingRunPrice.js.
+        const runPrices = await loadDrawingRunPrices(drawingIds, supabase)
+        setDrawingRunPrices(runPrices)
+
         const runIds = Object.values(runsMap).map(r => r.id)
         const costMap = {}   // drawing_id → total cost (drawing-level + quote apportioned)
+        for (const [dId, rp] of Object.entries(runPrices)) {
+          if (rp.cost != null) costMap[dId] = rp.cost
+        }
         if (runIds.length > 0) {
+          // Install hours from the latest runs' variable snapshots
           const { data: vars } = await supabase.from('drawing_pricing_variables').select('pricing_run_id, drawing_id, variables').in('pricing_run_id', runIds)
           let totalMinutes = 0
           for (const v of (vars || [])) totalMinutes += Number(v.variables?.total_install_minutes) || 0
           setInstallHours(totalMinutes / 60)
-
-          const { data: ruleResults } = await supabase.from('drawing_rule_results').select('pricing_run_id, drawing_id, cost').in('pricing_run_id', runIds)
-          for (const r of (ruleResults || [])) costMap[r.drawing_id] = (costMap[r.drawing_id] || 0) + (Number(r.cost) || 0)
         }
 
         // Load latest quote-level apportionment for this quote
@@ -328,7 +336,7 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
     const dwgId = selections[item.id]
     const dwg = dwgId ? drawings.find(d => d.id === dwgId) : null
     if (!dwg) return null
-    const drawingLevelPrice = parseFloat(dwg.calculated_price) || 0
+    const drawingLevelPrice = drawingRunSales(dwg, drawingRunPrices) ?? 0
     const apportioned = quoteApportionment[String(dwg.id)] || 0
     return { calculated: drawingLevelPrice + apportioned, priceOverride: dwg.price_override ?? null, itemDiscountPct: dwg.item_discount_pct ?? 0, vatRate: dwg.vat_rate ?? 20, poa: dwg.poa ?? false }
   }).filter(Boolean)
@@ -441,7 +449,7 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
         job_item: { id: item.id, item_number: item.item_number, floor_level: item.floor_level, elevation: item.elevation, room_name: item.room_name },
         drawing: { id: dwg?.id, drawing_number: dwg?.drawing_number, window_type: dwg?.window_type },
         parts_tree: trees[dwgId] || null,
-        calculated_price: dwg?.calculated_price ?? null,
+        calculated_price: drawingRunSales(dwg, drawingRunPrices),
         net: itemTotals?.net ?? null,
         net_after_quote_discount: itemTotals?.netAfterQuoteDiscount ?? null,
         vat: itemTotals?.vat ?? null,

@@ -3,6 +3,8 @@
 // Used by QuoteMatrixPage (card footer, picker) so both surfaces
 // always show the same price in the same format.
 
+import { drawingRunSales } from './drawingRunPrice.js'
+
 /**
  * Format n as £X,XXX.XX
  */
@@ -15,18 +17,17 @@ function fmtNet(n) {
 
 /**
  * Return the effective net price for a drawing.
- * price_override takes precedence; otherwise uses calculated_price
- * (which pricingEngine writes after each run, including quote-level
- * apportionment).
+ * price_override takes precedence; otherwise the drawing's latest
+ * completed pricing run (see drawingRunPrice.js) — never
+ * drawings.calculated_price, which is a cache that can go stale.
  *
  * @param {object|null} drawing
+ * @param {Object<string, {sales: number|null}>} runPrices  from loadDrawingRunPrices
  * @returns {number|null}
  */
-export function drawingNetPrice(drawing) {
+export function drawingNetPrice(drawing, runPrices) {
   if (!drawing || drawing.poa) return null
-  const raw = drawing.price_override ?? drawing.calculated_price
-  const n = parseFloat(raw)
-  return isFinite(n) ? n : null
+  return drawingRunSales(drawing, runPrices)
 }
 
 /**
@@ -51,13 +52,14 @@ export function drawingPfName(drawing, priceFiles, latestRuns) {
  * @param {object|null} drawing
  * @param {Array}       priceFiles
  * @param {object}      latestRuns
+ * @param {Object<string, {sales: number|null}>} runPrices  from loadDrawingRunPrices
  * @param {number}      [qty=1]
  * @returns {string}
  */
-export function drawingCardLabel(drawing, priceFiles, latestRuns, qty = 1) {
+export function drawingCardLabel(drawing, priceFiles, latestRuns, runPrices, qty = 1) {
   const pfName = drawingPfName(drawing, priceFiles, latestRuns)
   if (drawing?.poa) return `${pfName} POA Qty ${qty}`
-  const net = drawingNetPrice(drawing)
+  const net = drawingNetPrice(drawing, runPrices)
   return `${pfName} ${net != null ? fmtNet(net) : '—'} Qty ${qty}`
 }
 
@@ -69,9 +71,10 @@ export function drawingCardLabel(drawing, priceFiles, latestRuns, qty = 1) {
  * @param {number}      drawingNum
  * @param {Array}       priceFiles
  * @param {object}      latestRuns
+ * @param {Object<string, {sales: number|null}>} runPrices  from loadDrawingRunPrices
  * @param {number}      [qty=1]
  * @returns {string}
  */
-export function drawingPickerLabel(drawing, drawingNum, priceFiles, latestRuns, qty = 1) {
-  return `Drawing ${drawingNum} · ${drawingCardLabel(drawing, priceFiles, latestRuns, qty)}`
+export function drawingPickerLabel(drawing, drawingNum, priceFiles, latestRuns, runPrices, qty = 1) {
+  return `Drawing ${drawingNum} · ${drawingCardLabel(drawing, priceFiles, latestRuns, runPrices, qty)}`
 }
