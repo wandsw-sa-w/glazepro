@@ -268,8 +268,26 @@ describe('glazing_bar column', () => {
     expect(readColumnValue(tree, col)).toBe('2 vertical, 22 mm')
   })
 
-  it('returns null when there are no bars', () => {
-    expect(readColumnValue(makeTree(), col)).toBeNull()
+  // J+K fixes round 4, item 3: "-" read as "not set up yet"; a drawing with
+  // genuinely no bars should say so explicitly.
+  it('shows "None" (not "-"/null) when there are no bars', () => {
+    expect(readColumnValue(makeTree(), col)).toBe('None')
+  })
+
+  it('shows "None" when the top sash has no glass at all', () => {
+    const bareTree = { key: 'root', part_type: 'drawingItemPart', values: {}, children: [] }
+    expect(readColumnValue(bareTree, col)).toBe('None')
+  })
+
+  it('describes horizontal bars too (6-over-6 style)', () => {
+    const tree = makeTree()
+    const topGlass = tree.children[1].children[1].children[0].children[0]
+    topGlass.children = [
+      { key: 'v1', part_type: 'verticalGlazingBarPart', values: { barWidth: 22 }, children: [] },
+      { key: 'v2', part_type: 'verticalGlazingBarPart', values: { barWidth: 22 }, children: [] },
+      { key: 'h1', part_type: 'horizontalGlazingBarPart', values: { barWidth: 22 }, children: [] },
+    ]
+    expect(readColumnValue(tree, col)).toBe('2 vertical, 1 horizontal, 22 mm')
   })
 })
 

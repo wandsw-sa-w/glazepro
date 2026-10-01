@@ -126,10 +126,10 @@ function computeItemWeightKg(tree) {
 function computeGlazingBar(tree) {
   const topSash = findFirstPart(tree, 'topSashPart')
   const glass = findFirstPart(topSash, 'glassPart')
-  if (!glass) return null
+  if (!glass) return 'None'
   const vBars = (glass.children ?? []).filter(c => c.part_type === 'verticalGlazingBarPart')
   const hBars = (glass.children ?? []).filter(c => c.part_type === 'horizontalGlazingBarPart')
-  if (vBars.length === 0 && hBars.length === 0) return null
+  if (vBars.length === 0 && hBars.length === 0) return 'None'
   const parts = []
   if (vBars.length > 0) parts.push(`${vBars.length} vertical`)
   if (hBars.length > 0) parts.push(`${hBars.length} horizontal`)
