@@ -104,6 +104,11 @@ function makeSnapshot(overrides = {}) {
       total_incl_vat: 2029.49,
       stages: { deposit: 811.80, interim: 1014.75, balance: 202.94 },
     },
+    ref_labels: {
+      softwood: 'Solid Redwood', utile: 'Solid Utile Hardwood', accoya: 'Accoya',
+      argon: 'Argon', white: 'White', clean_white: 'Clean White',
+      custom_horn: 'Custom Horn', no_horn: 'No Horn', victorian: 'Victorian',
+    },
     items: [makeItem()],
     ...overrides,
   }
@@ -426,6 +431,28 @@ describe('buildDocModel', () => {
     const snap = makeSnapshot()
     const model = buildDocModel(snap)
     expect(model.frontLetter).not.toMatch(/\[[a-z_]+\]/)
+  })
+})
+
+// ── Tests: no raw codes in printed output ────────────────────────────────────
+
+describe('buildDocModel — no raw codes in headings or spec sections', () => {
+  it('heading and spec sections contain labels, not underscore codes', () => {
+    const snap = makeSnapshot({
+      items: [makeItem({ frameTimber: 'softwood', sashTimber: 'softwood', cillTimber: 'utile' })],
+    })
+    const model = buildDocModel(snap)
+    const item = model.items[0]
+
+    // Heading must have resolved labels
+    expect(item.heading).not.toMatch(/_/)
+    expect(item.heading).toContain('Solid Redwood')
+    expect(item.heading).toContain('Solid Utile Hardwood')
+
+    // Spec sections must have resolved labels
+    for (const sec of item.specSections) {
+      expect(sec.content).not.toMatch(/[a-z]+_[a-z]+/)
+    }
   })
 })
 

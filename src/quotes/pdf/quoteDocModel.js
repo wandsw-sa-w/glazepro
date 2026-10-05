@@ -79,6 +79,19 @@ export function snapshotMergeFields(snapshot) {
   }
 }
 
+// ── Label resolution ────────────────────────────────────────────────────────
+
+/**
+ * Resolve a raw code to its human label using the ref_labels map.
+ * Falls back to title-casing the code if not found.
+ */
+function resolveLabel(code, refLabels) {
+  if (!code) return ''
+  if (refLabels && refLabels[code]) return refLabels[code]
+  // Fallback: title-case, replace underscores with spaces
+  return code.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+}
+
 // ── Item heading ────────────────────────────────────────────────────────────
 
 const WINDOW_TYPE_MAP = {
@@ -92,9 +105,10 @@ const WINDOW_TYPE_MAP = {
  *
  * @param {object} item  snapshot item entry
  * @param {string|null} rangeDisplayName  profile label (e.g. "Standard Sash")
+ * @param {object} [refLabels]  code→label map from snapshot.ref_labels
  * @returns {{ heading: string, descriptionOfWork: string }}
  */
-export function itemHeading(item, rangeDisplayName) {
+export function itemHeading(item, rangeDisplayName, refLabels) {
   const tree = item.parts_tree
   const drawingItem = findFirst(tree, 'drawingItemPart')
   const typeOfWork = drawingItem?.values?.typeOfWork || 'complete_new'
@@ -105,7 +119,7 @@ export function itemHeading(item, rangeDisplayName) {
   const rangeStr = rangeDisplayName ? ` (${rangeDisplayName} range)` : ''
 
   // Timber description
-  const timberStr = buildTimberString(tree)
+  const timberStr = buildTimberString(tree, refLabels)
 
   // Type of Work prefix
   let prefix
@@ -134,44 +148,39 @@ export function itemHeading(item, rangeDisplayName) {
   }
 }
 
-function buildTimberString(tree) {
-  const frame = findFirst(tree, 'assemblyFramePart')
+function buildTimberString(tree, refLabels) {
   const frameMat = findFirst(tree, 'frameMaterialPart')
   const sashMat = findFirst(tree, 'sashMaterialPart')
   const cill = findFirst(tree, 'cillPart')
-
-  // Also check drawingItemPart for material IDs (the newer path)
   const drawingItem = findFirst(tree, 'drawingItemPart')
 
-  const frameTimber = frameMat?.values?.timberType
-    || drawingItem?.values?.frameMaterialId
-    || null
-  const sashTimber = sashMat?.values?.timberType
-    || drawingItem?.values?.sashMaterialId
-    || null
-  const cillTimber = cill?.values?.timberType
-    || drawingItem?.values?.cillMaterialId
-    || null
+  const frameCode = frameMat?.values?.timberType || drawingItem?.values?.frameMaterialId || null
+  const sashCode = sashMat?.values?.timberType || drawingItem?.values?.sashMaterialId || null
+  const cillCode = cill?.values?.timberType || drawingItem?.values?.cillMaterialId || null
 
-  if (!frameTimber && !sashTimber && !cillTimber) return ''
+  if (!frameCode && !sashCode && !cillCode) return ''
+
+  const frameTimber = resolveLabel(frameCode, refLabels)
+  const sashTimber = resolveLabel(sashCode, refLabels)
+  const cillTimber = resolveLabel(cillCode, refLabels)
 
   // All match → "in Accoya"
-  const allSame = frameTimber && sashTimber && cillTimber
-    && frameTimber === sashTimber && sashTimber === cillTimber
-  if (allSame) return `in ${frameTimber}`
+  if (frameCode && sashCode && cillCode && frameCode === sashCode && sashCode === cillCode) {
+    return `in ${frameTimber}`
+  }
 
-  // Frame and sash match, cill differs → "in Accoya with Solid Utile Hardwood cill"
-  if (frameTimber && sashTimber && frameTimber === sashTimber && cillTimber && cillTimber !== frameTimber) {
+  // Frame and sash match, cill differs
+  if (frameCode && sashCode && frameCode === sashCode && cillCode && cillCode !== frameCode) {
     return `in ${frameTimber} with ${cillTimber} cill`
   }
 
   // Frame and sash differ
   const parts = []
-  if (frameTimber) parts.push(`${frameTimber} frame`)
-  if (sashTimber && sashTimber !== frameTimber) parts.push(`${sashTimber} sash`)
-  if (cillTimber && cillTimber !== frameTimber && cillTimber !== sashTimber) parts.push(`${cillTimber} cill`)
-  if (parts.length === 0 && frameTimber) return `in ${frameTimber}`
-  return parts.length > 0 ? `in ${parts.join(' with ')}` : ''
+  if (frameCode) parts.push(frameTimber)
+  if (sashCode && sashCode !== frameCode) parts.push(`${sashTimber} sash`)
+  if (cillCode && cillCode !== frameCode && cillCode !== sashCode) parts.push(`${cillTimber} cill`)
+  if (parts.length === 0) return ''
+  return `in ${parts.join(' with ')}`
 }
 
 // ── Spec sections ───────────────────────────────────────────────────────────
@@ -180,7 +189,7 @@ function buildTimberString(tree) {
  * Build spec sections from a snapshot item's parts_tree and ironmongery.
  * Returns [{ title, content }], omitting empty sections.
  */
-export function specSections(item, hsOptinValues) {
+export function specSections(item, hsOptinValues, refLabels) {
   const tree = item.parts_tree
   const sections = []
 
@@ -200,14 +209,14 @@ export function specSections(item, hsOptinValues) {
     }
   }
 
-  // Sash Horn
+  // Sash Horn — resolve codes to labels
   const horn = findFirst(tree, 'hornPart')
   const pair = findFirst(tree, 'sashPairPart')
   const topHorn = horn?.values?.topHorn || pair?.values?.topHornTypeShortName
   const botHorn = horn?.values?.bottomHorn || pair?.values?.bottomHornTypeShortName
   if (topHorn || botHorn) {
-    const fmt = v => v ? v.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'No horn'
-    sections.push({ title: 'Sash Horn', content: `Top: ${fmt(topHorn)}, Bottom: ${fmt(botHorn)}` })
+    const fmtH = v => v ? resolveLabel(v, refLabels) : 'No horn'
+    sections.push({ title: 'Sash Horn', content: `Top: ${fmtH(topHorn)}, Bottom: ${fmtH(botHorn)}` })
   }
 
   // Double Glazing
@@ -215,7 +224,7 @@ export function specSections(item, hsOptinValues) {
   if (glassParts.length > 0) {
     const glassSpecs = glassParts.map((g, idx) => ({
       index: idx,
-      line: formatGlassLine(g),
+      line: formatGlassLine(g, refLabels),
       location: glassLocation(tree, g, idx, glassParts.length),
     }))
 
@@ -240,17 +249,16 @@ export function specSections(item, hsOptinValues) {
     if (desc) sections.push({ title: 'Panel', content: desc })
   }
 
-  // Paint / Finish
+  // Paint / Finish — resolve codes to labels
   const paint = findFirst(tree, 'paintAndIronmongeryPart')
   const intFinish = paint?.values?.internalFinish
   const extFinish = paint?.values?.externalFinish
   const cillFinish = paint?.values?.cillFinish
   if (intFinish || extFinish || cillFinish) {
-    const fmt = v => v ? v.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : '—'
     const parts = []
-    if (intFinish) parts.push(`Internal: ${fmt(intFinish)}`)
-    if (extFinish) parts.push(`External: ${fmt(extFinish)}`)
-    if (cillFinish) parts.push(`Cill: ${fmt(cillFinish)}`)
+    if (intFinish) parts.push(`Internal: ${resolveLabel(intFinish, refLabels)}`)
+    if (extFinish) parts.push(`External: ${resolveLabel(extFinish, refLabels)}`)
+    if (cillFinish) parts.push(`Cill: ${resolveLabel(cillFinish, refLabels)}`)
     sections.push({ title: 'Paint / Finish', content: parts.join(', ') })
   }
 
@@ -312,7 +320,7 @@ function glassLocation(tree, glassPart, index, total) {
   return index === 0 ? 'Top' : 'Bottom'
 }
 
-function formatGlassLine(glassPart) {
+function formatGlassLine(glassPart, refLabels) {
   const v = glassPart?.values ?? {}
   const glassType = v.glassType || v.glazingId
   if (!glassType || glassType === 'single_glazed') return null
@@ -322,11 +330,11 @@ function formatGlassLine(glassPart) {
   if (v.lowE) inner += ` ${v.lowE}`
   if (v.toughened_inner) inner += ' Toughened'
 
-  // Gas + spacer
-  const gas = v.gasType || v.gasFillId || ''
-  const gasStr = gas ? `${gas.charAt(0).toUpperCase() + gas.slice(1)} Filled` : ''
-  const spacer = v.spacerColour || v.spacerColourId || ''
-  const spacerStr = spacer ? `${spacer.charAt(0).toUpperCase() + spacer.slice(1)} Warm Edge spacer` : ''
+  // Gas + spacer — resolve codes to labels
+  const gasCode = v.gasType || v.gasFillId || ''
+  const gasStr = gasCode ? `${resolveLabel(gasCode, refLabels)} Filled` : ''
+  const spacerCode = v.spacerColour || v.spacerColourId || ''
+  const spacerStr = spacerCode ? `${resolveLabel(spacerCode, refLabels)} Warm Edge spacer` : ''
 
   // Outer pane
   let outer = v.outerPane || v.externalGlassPartNo || '4mm Clear'
@@ -487,6 +495,7 @@ export function buildDocModel(snapshot) {
   const fields = snapshotMergeFields(snapshot)
   const hsOptinValues = content.hs_optin_values || []
   const discountPct = snapshot.quote_settings?.discount_pct || 0
+  const refLabels = snapshot.ref_labels || {}
 
   const frontLetter = mergeFields(content.front_cover_letter || '', fields)
 
@@ -498,10 +507,9 @@ export function buildDocModel(snapshot) {
   const summary = summaryModel(snapshot)
 
   const items = (snapshot.items || []).map(item => {
-    // Range display name from profile_defaults or drawing metadata
-    const rangeDisplayName = null // Will be resolved from profile label in future
-    const { heading, descriptionOfWork } = itemHeading(item, rangeDisplayName)
-    const specs = specSections(item, hsOptinValues)
+    const rangeDisplayName = item.profile_label || null
+    const { heading, descriptionOfWork } = itemHeading(item, rangeDisplayName, refLabels)
+    const specs = specSections(item, hsOptinValues, refLabels)
     const tiles = ironmongeryTiles(item.ironmongery || [])
     const priceLabel = itemPriceLabel(item, discountPct)
 

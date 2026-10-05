@@ -31,6 +31,7 @@ export function assembleSnapshot(data) {
     trees, drawingRunPrices, quoteApportionment,
     ironmongeryByDrawing, allocatedPartsByDrawing,
     latestRunByDrawing, profilesByDrawing,
+    refLabels, profileLabelByDrawing,
     content,
   } = data
 
@@ -146,6 +147,7 @@ export function assembleSnapshot(data) {
 
       // ── v2 additions ──
       location_text: locationText,
+      profile_label: (profileLabelByDrawing || {})[dwgId] || null,
       ironmongery,
       allocated_parts: allocatedParts,
       pricing_run_id: pricingRun?.id || null,
@@ -200,6 +202,7 @@ export function assembleSnapshot(data) {
     },
 
     content,
+    ref_labels: refLabels || {},
 
     totals: {
       subtotal_before_discount: totals.subtotalBeforeDiscount,
@@ -376,10 +379,18 @@ export async function buildQuoteSnapshot({ quoteId, leadId, userId, supabase }) 
     }
   }
 
-  // 12. Profile defaults per drawing
+  // 12. Profile defaults per drawing + profile labels (for range display name)
   const profilesByDrawing = {}
+  const profileLabelByDrawing = {}
   const profileIds = [...new Set(drawings.map(d => d.default_profile_id).filter(Boolean))]
   if (profileIds.length > 0) {
+    const { data: profileRows } = await supabase
+      .from('default_profiles')
+      .select('id, label')
+      .in('id', profileIds)
+    const labelMap = {}
+    for (const p of (profileRows || [])) labelMap[p.id] = p.label
+
     const { data: pvRows } = await supabase
       .from('default_profile_values')
       .select('profile_id, field_key, default_value')
@@ -393,7 +404,20 @@ export async function buildQuoteSnapshot({ quoteId, leadId, userId, supabase }) 
       if (dwg.default_profile_id && pvByProfile[dwg.default_profile_id]) {
         profilesByDrawing[dwg.id] = pvByProfile[dwg.default_profile_id]
       }
+      if (dwg.default_profile_id && labelMap[dwg.default_profile_id]) {
+        profileLabelByDrawing[dwg.id] = labelMap[dwg.default_profile_id]
+      }
     }
+  }
+
+  // 13. Reference options — code→label map for resolving raw codes in the PDF
+  const refLabels = {}
+  const { data: refOpts } = await supabase
+    .from('reference_options')
+    .select('category, code, label')
+    .eq('is_active', true)
+  for (const opt of (refOpts || [])) {
+    refLabels[opt.code] = opt.label
   }
 
   return assembleSnapshot({
@@ -407,6 +431,8 @@ export async function buildQuoteSnapshot({ quoteId, leadId, userId, supabase }) 
     selections,
     drawings,
     trees,
+    refLabels,
+    profileLabelByDrawing,
     drawingRunPrices: drawingRunPricesMap,
     quoteApportionment,
     ironmongeryByDrawing,
