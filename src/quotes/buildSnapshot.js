@@ -16,6 +16,7 @@ import { defaultIronmonger } from '../pricing/defaultIronmongery.js'
 import { loadDrawingRunPrices, drawingQuoteItemNet } from './drawingRunPrice.js'
 import { computeQuoteTotals } from './quoteTotals.js'
 import { QUOTE_CONTENT } from './pdf/quoteContent.js'
+import { loadQuoteSettings, mergeQuoteContent } from './loadQuoteSettings.js'
 
 // ── Tree helper ─────────────────────────────────────────────────────────────
 
@@ -536,6 +537,10 @@ export async function buildQuoteSnapshot({ quoteId, leadId, userId, userName, su
     refOptionsByCategory[opt.category].push({ code: opt.code, label: opt.label })
   }
 
+  // 14. Load quote settings from DB, merge with quoteContent.js defaults
+  const dbSettings = await loadQuoteSettings(supabase)
+  const content = mergeQuoteContent(dbSettings)
+
   return assembleSnapshot({
     quote,
     lead,
@@ -556,6 +561,6 @@ export async function buildQuoteSnapshot({ quoteId, leadId, userId, userName, su
     allocatedPartsByDrawing,
     latestRunByDrawing,
     profilesByDrawing,
-    content: QUOTE_CONTENT,
+    content,
   })
 }
