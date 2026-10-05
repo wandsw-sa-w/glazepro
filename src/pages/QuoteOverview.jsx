@@ -80,6 +80,9 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
   const [letterView, setLetterView] = useState(null) // 'front' | 'back' | null
   const [publishing, setPublishing] = useState(false)
   const [publishError, setPublishError] = useState(null)
+  const [previewing, setPreviewing] = useState(false)
+  const [previewProgress, setPreviewProgress] = useState(null)
+  const [previewError, setPreviewError] = useState(null)
 
   const isLive = quote?.status === 'Open'
 
@@ -470,6 +473,24 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
     }
   }
 
+  async function doPreview() {
+    if (staleCount > 0) { setPreviewError(`${staleCount} drawing(s) need pricing before a preview can be generated — price them from the Quote Matrix.`); return }
+    setPreviewing(true)
+    setPreviewError(null)
+    setPreviewProgress('Building snapshot…')
+    try {
+      const snapshot = await buildQuoteSnapshot({ quoteId: quote.id, leadId, userId: user?.id, supabase })
+      const { renderQuotePdf } = await import('../quotes/pdf/renderQuotePdf.js')
+      const blob = await renderQuotePdf(snapshot, { watermark: true, onProgress: setPreviewProgress })
+      const url = URL.createObjectURL(blob)
+      window.open(url, '_blank')
+    } catch (e) {
+      setPreviewError(`Preview failed: ${e.message}`)
+    }
+    setPreviewing(false)
+    setPreviewProgress(null)
+  }
+
   const mergeFields = {
     customer_forename: mainContact?.first_name || '',
     installation_full_address_one_line: [lead?.property_road, lead?.property_town, lead?.property_postcode].filter(Boolean).join(', '),
@@ -680,7 +701,9 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
 
       {/* ── Outputs / publish ── */}
       <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 10, padding: 16, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <button disabled title="Coming in Step H3" style={disabledBtn()}>Generate quote preview</button>
+        {isLive && <button onClick={doPreview} disabled={previewing || staleCount > 0} style={previewing || staleCount > 0 ? disabledBtn() : { fontSize: 12, padding: '8px 16px', border: '1px solid #3d35a8', borderRadius: 8, background: '#fff', color: '#3d35a8', fontWeight: 600, cursor: 'pointer' }}>
+          {previewing ? (previewProgress || 'Generating…') : 'Generate quote preview'}
+        </button>}
         <button onClick={() => navigate(`/leads/${leadId}`)} style={miniLinkBtn()}>Click here for more outputs</button>
         <div style={{ flex: 1 }} />
         {quote.status === 'Open' ? (
@@ -697,6 +720,7 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
         {quote.status === 'Published' && <button onClick={doAccept} style={{ fontSize: 12, padding: '8px 16px', border: 'none', borderRadius: 8, background: '#0a5a3c', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>Accept</button>}
       </div>
       {publishError && <div style={{ color: '#c00', fontSize: 12, marginBottom: 16 }}>{publishError}</div>}
+      {previewError && <div style={{ color: '#c00', fontSize: 12, marginBottom: 16 }}>{previewError}</div>}
 
       {/* ── Tracking ── */}
       <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 10, padding: 16 }}>
