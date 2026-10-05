@@ -439,7 +439,7 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
     setPublishing(true)
     setPublishError(null)
     try {
-      await publishQuote({ quoteId: quote.id, leadId, userId: user?.id, leadNumber: lead?.lead_number, quoteNumber: quote.quote_number, supabase })
+      await publishQuote({ quoteId: quote.id, leadId, userId: user?.id, userName: user?.user_metadata?.full_name || user?.email, leadNumber: lead?.lead_number, quoteNumber: quote.quote_number, supabase })
     } catch (e) {
       setPublishError(e.message)
     }
@@ -477,7 +477,7 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
     setPreviewError(null)
     setPreviewProgress('Building snapshot…')
     try {
-      const snapshot = await buildQuoteSnapshot({ quoteId: quote.id, leadId, userId: user?.id, supabase })
+      const snapshot = await buildQuoteSnapshot({ quoteId: quote.id, leadId, userId: user?.id, userName: user?.user_metadata?.full_name || user?.email, supabase })
       const { renderQuotePdf } = await import('../quotes/pdf/renderQuotePdf.js')
       const blob = await renderQuotePdf(snapshot, { watermark: true, onProgress: setPreviewProgress })
       const url = URL.createObjectURL(blob)

@@ -9,12 +9,12 @@
 import { buildQuoteSnapshot } from './buildSnapshot.js'
 
 /**
- * @param {{ quoteId, leadId, userId, leadNumber, quoteNumber, supabase }} opts
+ * @param {{ quoteId, leadId, userId, userName, leadNumber, quoteNumber, supabase }} opts
  * @returns {Promise<{ snapshot: object, pdfPath: string }>}
  */
-export async function publishQuote({ quoteId, leadId, userId, leadNumber, quoteNumber, supabase }) {
+export async function publishQuote({ quoteId, leadId, userId, userName, leadNumber, quoteNumber, supabase }) {
   // 1. Build snapshot
-  const snapshot = await buildQuoteSnapshot({ quoteId, leadId, userId, supabase })
+  const snapshot = await buildQuoteSnapshot({ quoteId, leadId, userId, userName, supabase })
 
   // 2. Render PDF (no watermark)
   const { renderQuotePdf } = await import('./pdf/renderQuotePdf.js')

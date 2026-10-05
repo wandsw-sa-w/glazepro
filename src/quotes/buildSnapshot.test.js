@@ -117,6 +117,16 @@ describe('assembleSnapshot — v2 keys', () => {
     expect(snap.generated_on).toBeTruthy()
   })
 
+  it('generated_by uses publishingUser initials', () => {
+    const snap = assembleSnapshot(makeData())
+    expect(snap.generated_by).toBe('NS')
+  })
+
+  it('generated_by falls back when publishingUser is null', () => {
+    const snap = assembleSnapshot(makeData({ publishingUser: null }))
+    expect(snap.generated_by).toBe('')
+  })
+
   it('has quote_settings with item_layout and valid_until', () => {
     const snap = assembleSnapshot(makeData())
     expect(snap.quote_settings.item_layout).toBe('1 item with int & ext view, ironmongery & cover')

@@ -239,7 +239,7 @@ export function assembleSnapshot(data) {
  * @param {{ quoteId: string, leadId: string, userId: string, supabase: object }} opts
  * @returns {Promise<object>}  The assembled snapshot
  */
-export async function buildQuoteSnapshot({ quoteId, leadId, userId, supabase }) {
+export async function buildQuoteSnapshot({ quoteId, leadId, userId, userName, supabase }) {
   // 1. Quote row
   const { data: quote, error: qErr } = await supabase
     .from('quotes')
@@ -272,7 +272,8 @@ export async function buildQuoteSnapshot({ quoteId, leadId, userId, supabase }) 
     salesperson = sp
   }
 
-  // 4. Publishing user
+  // 4. Publishing user — try the users table first (may fail with anon key RLS),
+  // then fall back to the caller-supplied name or supabase.auth.getUser() metadata
   let publishingUser = null
   if (userId) {
     const { data: pu } = await supabase
@@ -281,6 +282,16 @@ export async function buildQuoteSnapshot({ quoteId, leadId, userId, supabase }) 
       .eq('id', userId)
       .maybeSingle()
     publishingUser = pu
+  }
+  if (!publishingUser?.full_name && userName) {
+    publishingUser = { full_name: userName }
+  }
+  if (!publishingUser?.full_name) {
+    try {
+      const { data: { user: authUser } } = await supabase.auth.getUser()
+      if (authUser?.user_metadata?.full_name) publishingUser = { full_name: authUser.user_metadata.full_name }
+      else if (authUser?.email) publishingUser = { full_name: authUser.email.split('@')[0] }
+    } catch { /* ignore */ }
   }
 
   // 5. Job items + quote_drawings selections
