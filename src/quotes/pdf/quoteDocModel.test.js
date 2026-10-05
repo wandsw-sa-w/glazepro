@@ -490,6 +490,30 @@ describe('buildDocModel — no raw codes in headings or spec sections', () => {
   })
 })
 
+// ── Tests: ironmongery in spec sections ──────────────────────────────────────
+
+describe('specSections — ironmongery from snapshot', () => {
+  it('includes Ironmongery section when item has ironmongery lines', () => {
+    const item = makeItem({
+      ironmongery: [
+        { name: 'Claw Fastener', qty: 1, finish_label: 'Polished Brass', photo_url: null, has_multipoint: false },
+        { name: 'Trickle Vent', qty: 1, finish_label: 'White', photo_url: null, has_multipoint: false },
+      ],
+    })
+    const sections = specSections(item, [])
+    const iron = sections.find(s => s.title === 'Ironmongery')
+    expect(iron).toBeDefined()
+    expect(iron.content).toContain('Claw Fastener')
+    expect(iron.content).toContain('Polished Brass')
+  })
+
+  it('omits Ironmongery section when no lines', () => {
+    const item = makeItem({ ironmongery: [] })
+    const sections = specSections(item, [])
+    expect(sections.find(s => s.title === 'Ironmongery')).toBeUndefined()
+  })
+})
+
 // ── Tests: ironmongeryTiles ──────────────────────────────────────────────────
 
 describe('ironmongeryTiles', () => {

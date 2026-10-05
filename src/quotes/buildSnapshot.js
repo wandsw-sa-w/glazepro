@@ -15,6 +15,18 @@ import { loadDrawingRunPrices, drawingQuoteItemNet } from './drawingRunPrice.js'
 import { computeQuoteTotals } from './quoteTotals.js'
 import { QUOTE_CONTENT } from './pdf/quoteContent.js'
 
+// ── Tree helper ─────────────────────────────────────────────────────────────
+
+function findFirst(node, partType) {
+  if (!node) return null
+  if (node.part_type === partType) return node
+  for (const child of (node.children ?? [])) {
+    const found = findFirst(child, partType)
+    if (found) return found
+  }
+  return null
+}
+
 // ── Pure assembly (tested directly) ─────────────────────────────────────────
 
 /**
@@ -344,9 +356,32 @@ export async function buildQuoteSnapshot({ quoteId, leadId, userId, supabase }) 
     }
   }
 
-  // 10. Ironmongery per drawing
+  // 10. Ironmongery per drawing — from drawing_ironmongery (QuoteDrawer) first,
+  // then fall back to the tree's ironmongeryLines (DrawingBoard default ironmongery)
   const ironmongeryByDrawing = {}
+
+  // Load product name/category lookup for resolving tree-stored short_names
+  const { data: ironProducts } = await supabase
+    .from('ironmongery_products')
+    .select('id, name, short_name, category')
+  const productByShortName = {}
+  const productById = {}
+  for (const p of (ironProducts || [])) {
+    if (p.short_name) productByShortName[p.short_name] = p
+    productById[p.id] = p
+  }
+
+  // Load variant finish lookup
+  const { data: ironVariants } = await supabase
+    .from('ironmongery_variants')
+    .select('id, product_id, finish_code, finish_name, photo_url')
+  const variantByProductFinish = {}
+  for (const v of (ironVariants || [])) {
+    variantByProductFinish[`${v.product_id}__${v.finish_code}`] = v
+  }
+
   if (drawingIds.length > 0) {
+    // Try drawing_ironmongery first (explicit user-added lines)
     const { data: ironRows } = await supabase
       .from('drawing_ironmongery')
       .select('drawing_id, quantity, sort_order, product_id, variant_id, ironmongery_products(name, category), ironmongery_variants(finish_name, finish_code, photo_url)')
@@ -356,6 +391,25 @@ export async function buildQuoteSnapshot({ quoteId, leadId, userId, supabase }) 
       const key = row.drawing_id
       if (!ironmongeryByDrawing[key]) ironmongeryByDrawing[key] = []
       ironmongeryByDrawing[key].push(row)
+    }
+
+    // For drawings with no drawing_ironmongery rows, check the tree's ironmongeryLines
+    for (const dwgId of drawingIds) {
+      if (ironmongeryByDrawing[dwgId] && ironmongeryByDrawing[dwgId].length > 0) continue
+      const tree = trees[dwgId]
+      if (!tree) continue
+      const paintPart = findFirst(tree, 'paintAndIronmongeryPart')
+      const treeLines = paintPart?.values?.ironmongeryLines
+      if (!treeLines || !Array.isArray(treeLines) || treeLines.length === 0) continue
+      ironmongeryByDrawing[dwgId] = treeLines.map(line => {
+        const product = productByShortName[line.product_short_name] || {}
+        const variant = variantByProductFinish[`${product.id}__${line.finish_code}`] || {}
+        return {
+          ironmongery_products: { name: product.name || line.product_short_name, category: product.category || '' },
+          ironmongery_variants: { finish_name: variant.finish_name || line.finish_code || '', photo_url: variant.photo_url || null },
+          quantity: line.qty || 1,
+        }
+      })
     }
   }
 
