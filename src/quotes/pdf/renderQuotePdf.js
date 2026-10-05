@@ -108,13 +108,22 @@ export async function renderQuotePdf(snapshot, opts = {}) {
     elevationImages.push({ internal, external })
   }
 
+  // Validate required assets (cover + logo must be real images, not HTML fallbacks)
+  onProgress?.('Checking assets…')
+  const logoUrl = '/quote-assets/logo-wsw.png'
+  const coverUrl = '/quote-assets/front-cover.jpg'
+  for (const [label, url] of [['Cover image', coverUrl], ['Logo', logoUrl]]) {
+    const res = await fetch(url, { method: 'HEAD' })
+    const ct = res.headers.get('content-type') || ''
+    if (!res.ok || !ct.startsWith('image/')) {
+      throw new Error(`${label} is not available (${url} returned ${ct || res.status}). Deploy the file to public/quote-assets/.`)
+    }
+  }
+
   // Dynamic import of @react-pdf/renderer
   onProgress?.('Generating PDF…')
   const { pdf } = await import('@react-pdf/renderer')
   const { default: QuotePdf } = await import('./QuotePdf.jsx')
-
-  const logoUrl = '/quote-assets/logo-wsw.png'
-  const coverUrl = '/quote-assets/front-cover.jpg'
 
   const doc = createElement(QuotePdf, {
     model,
