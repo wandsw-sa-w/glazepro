@@ -214,13 +214,21 @@ export function specSections(item, hsOptinValues, refLabels) {
 
   // Repair — no tree data for this yet; omitted when empty
 
-  // Moulding
-  const mouldProfile = tv('mouldingPart', 'profile') || tv('mouldingPart', 'mouldingProfile')
+  // Moulding — check mouldingPart in the tree, then drawingItemPart.mouldingTypeId as fallback
+  const mouldProfile = tv('mouldingPart', 'profile')
+    || tv('mouldingPart', 'mouldingProfile')
+    || tv('drawingItemPart', 'mouldingTypeId')
   const barWidth = tv('mouldingPart', 'glazingBarWidth')
-  if (mouldProfile || barWidth) {
+  // Also check for glazing bars in the glass parts to derive bar size
+  const allGlass = findAll(tree, 'glassPart')
+  const barFromGlass = allGlass.flatMap(g => (g.children || []).filter(c =>
+    c.part_type === 'verticalGlazingBarPart' || c.part_type === 'horizontalGlazingBarPart'
+  ))
+  const derivedBarWidth = barWidth || (barFromGlass[0]?.values?.barWidth ?? null)
+  if (mouldProfile || derivedBarWidth) {
     const parts = []
     if (mouldProfile) parts.push(resolveLabel(mouldProfile, refLabels))
-    if (barWidth) parts.push(`${barWidth} mm Glazing Bar`)
+    if (derivedBarWidth) parts.push(`${derivedBarWidth} mm Glazing Bar`)
     sections.push({ title: 'Moulding and Glazing Bar', content: parts.join(', ') })
   }
 

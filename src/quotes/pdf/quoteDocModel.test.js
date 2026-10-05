@@ -269,12 +269,27 @@ describe('specSections', () => {
     expect(glass.content).toContain('4mm Clear Toughened')
   })
 
-  it('includes moulding section', () => {
+  it('includes moulding section from mouldingPart', () => {
     const item = makeItem()
     const sections = specSections(item, [])
     const moulding = sections.find(s => s.title === 'Moulding and Glazing Bar')
     expect(moulding).toBeDefined()
     expect(moulding.content).toBe('Ovolo, 22 mm Glazing Bar')
+  })
+
+  it('includes moulding from drawingItemPart.mouldingTypeId when mouldingPart is absent', () => {
+    // Simulate a live tree with no mouldingPart but with mouldingTypeId on drawingItemPart
+    const item = makeItem({ moulding: null })
+    // Remove the mouldingPart from the tree
+    const frame = item.parts_tree.children[0]
+    frame.children = frame.children.filter(c => c.part_type !== 'mouldingPart')
+    // Set mouldingTypeId on drawingItemPart
+    item.parts_tree.values.mouldingTypeId = 'ovolo'
+    const refLabels = { ovolo: 'Ovolo' }
+    const sections = specSections(item, [], refLabels)
+    const moulding = sections.find(s => s.title === 'Moulding and Glazing Bar')
+    expect(moulding).toBeDefined()
+    expect(moulding.content).toContain('Ovolo')
   })
 
   it('includes sash horn section', () => {
