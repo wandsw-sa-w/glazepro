@@ -2,80 +2,14 @@
  * renderQuotePdf.js — render a quote PDF from a snapshot.
  *
  * Dynamic-imports @react-pdf/renderer so it stays out of the main bundle.
- * Rasterises SashElevation SVGs off-screen for embedding as PNGs.
+ * Elevation SVGs are rendered synchronously (renderToStaticMarkup) then
+ * rasterised to PNG, so the pipeline works even with a hidden browser tab.
  */
 
-import React, { createElement } from 'react'
-import { createRoot } from 'react-dom/client'
+import { createElement } from 'react'
 import { buildDocModel } from './quoteDocModel.js'
 import { PREVIEW_WATERMARK } from './quoteContent.js'
-
-// ── SVG rasterisation ───────────────────────────────────────────────────────
-
-/**
- * Render SashElevation to an off-screen SVG, then rasterise to a data-URI PNG
- * at roughly 300 dpi for a ~70 mm printed width.
- */
-async function rasteriseElevation(tree, geometry, derived, viewMode, refOptions) {
-  if (!tree || !geometry) return null
-
-  // Lazy-import so we don't pull the drawing board into the main chunk
-  const { SashElevation } = await import('../../drawingBoard/renderElevation.jsx')
-
-  const TARGET_PX = 900 // ~75 mm at 300 dpi
-  const container = document.createElement('div')
-  container.style.cssText = 'position:fixed;left:-9999px;top:0;width:830px;height:1200px;overflow:hidden'
-  document.body.appendChild(container)
-
-  const settings = {
-    showOverallSL: false,
-    showIndividualSL: false,
-    showGlazingRebate: false,
-    showTextOnDwg: true,
-    showGlassLabels: true,   // operation labels ("A1 Cord Hung") live inside the glass-labels block
-    showActiveRulers: false,
-    showSashCentricDims: false,
-  }
-
-  return new Promise((resolve) => {
-    const root = createRoot(container)
-    root.render(createElement(SashElevation, {
-      tree, geometry, derived, refOptions: refOptions || {}, viewMode, settings,
-      fontFamily: 'Helvetica, Arial, sans-serif',
-    }))
-
-    // Wait for paint, then grab the SVG
-    requestAnimationFrame(() => requestAnimationFrame(async () => {
-      try {
-        const svg = container.querySelector('svg')
-        if (!svg) { resolve(null); return }
-
-        const svgData = new XMLSerializer().serializeToString(svg)
-        const blob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' })
-        const url = URL.createObjectURL(blob)
-
-        const img = new window.Image()
-        img.onload = () => {
-          const aspect = img.naturalHeight / img.naturalWidth
-          const canvas = document.createElement('canvas')
-          canvas.width = TARGET_PX
-          canvas.height = Math.round(TARGET_PX * aspect)
-          const ctx = canvas.getContext('2d')
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-          URL.revokeObjectURL(url)
-          resolve(canvas.toDataURL('image/png'))
-        }
-        img.onerror = () => { URL.revokeObjectURL(url); resolve(null) }
-        img.src = url
-      } catch {
-        resolve(null)
-      } finally {
-        root.unmount()
-        document.body.removeChild(container)
-      }
-    }))
-  })
-}
+import { rasteriseElevation } from './rasteriseElevation.js'
 
 // ── Main render function ────────────────────────────────────────────────────
 

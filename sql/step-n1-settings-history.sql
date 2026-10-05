@@ -1,5 +1,5 @@
 -- ============================================================================
--- DO NOT RUN — Step N1: settings_history table + quote-assets Storage bucket
+-- Step N1: settings_history table + quote-assets Storage bucket  (RUN THIS ONE)
 -- ============================================================================
 -- Run order: after step-n0-users-rls.sql
 -- Rollback:  step-n1-settings-history-rollback.sql
