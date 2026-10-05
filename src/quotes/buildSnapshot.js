@@ -11,6 +11,8 @@
 import { loadDrawingParts } from '../drawingBoard/api.js'
 import { computeDerived } from '../drawingBoard/computeDerived.js'
 import { computeSashGeometry } from '../drawingBoard/sashGeometry.js'
+import { computeVariables } from '../pricing/computeVariables.js'
+import { defaultIronmonger } from '../pricing/defaultIronmongery.js'
 import { loadDrawingRunPrices, drawingQuoteItemNet } from './drawingRunPrice.js'
 import { computeQuoteTotals } from './quoteTotals.js'
 import { QUOTE_CONTENT } from './pdf/quoteContent.js'
@@ -405,19 +407,47 @@ export async function buildQuoteSnapshot({ quoteId, leadId, userId, userName, su
     }
 
     // For drawings with no drawing_ironmongery rows, check the tree's ironmongeryLines
+    // then fall back to computing the default ironmongery (same function the drawing
+    // board and pricing engine use)
+    // Load default-ironmongery rules once for the fallback computation
+    let defaultIronRules = null
     for (const dwgId of drawingIds) {
       if (ironmongeryByDrawing[dwgId] && ironmongeryByDrawing[dwgId].length > 0) continue
       const tree = trees[dwgId]
       if (!tree) continue
+
+      // Try saved tree lines first
       const paintPart = findFirst(tree, 'paintAndIronmongeryPart')
-      const treeLines = paintPart?.values?.ironmongeryLines
-      if (!treeLines || !Array.isArray(treeLines) || treeLines.length === 0) continue
-      ironmongeryByDrawing[dwgId] = treeLines.map(line => {
-        const product = productByShortName[line.product_short_name] || {}
-        const variant = variantByProductFinish[`${product.id}__${line.finish_code}`] || {}
+      let lines = paintPart?.values?.ironmongeryLines
+      if (!lines || !Array.isArray(lines) || lines.length === 0) lines = null
+
+      // Fall back to computing defaults if no saved lines
+      if (!lines) {
+        if (defaultIronRules === null) {
+          const { data: rules } = await supabase
+            .from('part_allocation_rules')
+            .select('*')
+            .eq('rule_family', 'default_ironmongery')
+            .eq('is_active', true)
+          defaultIronRules = rules || []
+        }
+        if (defaultIronRules.length > 0) {
+          try {
+            const vars = computeVariables(tree, computeDerived(tree), {})
+            lines = defaultIronmonger(tree, vars, defaultIronRules)
+          } catch { /* leave null */ }
+        }
+      }
+
+      if (!lines || lines.length === 0) continue
+      ironmongeryByDrawing[dwgId] = lines.map(line => {
+        const shortName = line.product_short_name || ''
+        const finishCode = line.finish_code || ''
+        const product = productByShortName[shortName] || {}
+        const variant = variantByProductFinish[`${product.id}__${finishCode}`] || {}
         return {
-          ironmongery_products: { name: product.name || line.product_short_name, category: product.category || '' },
-          ironmongery_variants: { finish_name: variant.finish_name || line.finish_code || '', photo_url: variant.photo_url || null },
+          ironmongery_products: { name: product.name || shortName, category: product.category || '' },
+          ironmongery_variants: { finish_name: variant.finish_name || finishCode || '', photo_url: variant.photo_url || null },
           quantity: line.qty || 1,
         }
       })

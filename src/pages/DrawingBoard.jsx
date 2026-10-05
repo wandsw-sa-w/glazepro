@@ -278,7 +278,7 @@ function PropertyField({ field, value, derivedValue, onChange, refOptions, requi
 
 // ── IronmongeryPanel ──────────────────────────────────────────────────────────
 
-function IronmongeryPanel({ node, tree, derived, refOptions, onChangeField, ironmongeryRules, ironmongeryProducts }) {
+function IronmongeryPanel({ node, tree, derived, refOptions, onChangeField, onAutoApplyDefaults, ironmongeryRules, ironmongeryProducts }) {
   const lines      = node.values?.ironmongeryLines  ?? []
   const finish     = node.values?.ironmongeryFinish ?? 'PB'
   const finishOpts = refOptions?.['ironmongery_finish'] ?? []
@@ -293,7 +293,10 @@ function IronmongeryPanel({ node, tree, derived, refOptions, onChangeField, iron
     catch { return {} }
   }
 
-  // Auto-apply defaults when lines are empty and data is loaded
+  // Auto-apply defaults when lines are empty and data is loaded.
+  // Uses onAutoApplyDefaults (not onChangeField) so the auto-applied tree
+  // is treated as the baseline for dirty tracking — the user hasn't changed
+  // anything, so the drawing should not show "Unsaved".
   const appliedRef = useRef(false)
   useEffect(() => {
     if (!appliedRef.current && lines.length === 0 && ironmongeryRules && ironmongeryRules.length > 0) {
@@ -310,7 +313,7 @@ function IronmongeryPanel({ node, tree, derived, refOptions, onChangeField, iron
       ...defaultLines.map(l => ({ ...l, source: 'default' })),
       ...manualLines,
     ]
-    onChangeField(node.key, 'ironmongeryLines', newLines, 'paintAndIronmongeryPart.ironmongeryLines')
+    onAutoApplyDefaults(node.key, 'ironmongeryLines', newLines)
   }
 
   function handleQtyChange(idx, val) {
@@ -432,7 +435,7 @@ function IronmongeryPanel({ node, tree, derived, refOptions, onChangeField, iron
 
 // ── PropertyEditor ────────────────────────────────────────────────────────────
 
-function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, onPrev, onNext, prevDisabled, nextDisabled, hiddenFields, tree, ironmongeryRules, ironmongeryProducts }) {
+function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, onAutoApplyDefaults, onPrev, onNext, prevDisabled, nextDisabled, hiddenFields, tree, ironmongeryRules, ironmongeryProducts }) {
   if (!node) {
     return (
       <div style={{ padding: 16, color: '#aaa', fontSize: 12, textAlign: 'center', paddingTop: 48 }}>
@@ -473,6 +476,7 @@ function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, o
             derived={derived}
             refOptions={refOptions}
             onChangeField={onChangeField}
+            onAutoApplyDefaults={onAutoApplyDefaults}
             ironmongeryRules={ironmongeryRules}
             ironmongeryProducts={ironmongeryProducts}
           />
@@ -1038,6 +1042,16 @@ function DrawingBoard() {
     commit(newTree)
   }, [tree, profileValues, refOptions])  // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Auto-apply defaults (e.g. default ironmongery on load) without marking dirty.
+  // Updates both the tree and the saved baseline so isDirtyVsSaved stays false.
+  const handleAutoApplyDefaults = useCallback((nodeKey, propertyName, newValue) => {
+    if (!tree) return
+    const newTree = updateNodeValues(tree, nodeKey, { [propertyName]: newValue })
+    savedTreeRef.current = newTree
+    setTree(newTree)
+    setDirty(false)
+  }, [tree])  // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Selection / prev-next ─────────────────────────────────────────────────────
   const siblingsOfType = selectedNode ? findAll(tree, selectedNode.part_type) : []
   const siblingIdx = siblingsOfType.findIndex(n => n.key === selectedKey)
@@ -1187,6 +1201,7 @@ function DrawingBoard() {
               derived={derived}
               refOptions={refOptions}
               onChangeField={handleChangeField}
+              onAutoApplyDefaults={handleAutoApplyDefaults}
               onPrev={handlePrev}
               onNext={handleNext}
               prevDisabled={prevDisabled}
