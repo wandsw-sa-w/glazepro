@@ -119,7 +119,7 @@ export default function QuoteMatrixPage() {
 
     const { data: qts } = await supabase
       .from('quotes')
-      .select('id, quote_number, status, lead_id, salesperson_id, valid_until, created_at, price_file_id, discount_pct, deposit_pct, interim_pct, valid_days')
+      .select('id, quote_number, status, lead_id, salesperson_id, valid_until, created_at, price_file_id, discount_pct, deposit_pct, interim_pct, valid_days, pdf_path')
       .eq('lead_id', leadId)
       .order('created_at')
 
@@ -447,7 +447,7 @@ export default function QuoteMatrixPage() {
         deposit_pct: 40, interim_pct: 50, price_file_id: currentPf?.id ?? null,
         created_at: new Date().toISOString(),
       })
-      .select('id, quote_number, status, lead_id, salesperson_id, valid_until, created_at, price_file_id, discount_pct, deposit_pct, interim_pct, valid_days')
+      .select('id, quote_number, status, lead_id, salesperson_id, valid_until, created_at, price_file_id, discount_pct, deposit_pct, interim_pct, valid_days, pdf_path')
       .single()
     if (!error && newQuote) {
       setQuotes(prev => [...prev, newQuote])
@@ -548,11 +548,21 @@ export default function QuoteMatrixPage() {
     }
     try {
       const snapshot = await buildQuoteSnapshot({ quoteId, leadId, userId: user?.id, supabase })
-      const { error } = await supabase.from('quotes').update({ status: 'Published', published_at: snapshot.published_at, published_by: user?.id ?? null, valid_until: snapshot.quote_settings.valid_until, snapshot }).eq('id', quoteId)
+
+      // Render PDF (no watermark)
+      const { renderQuotePdf } = await import('../quotes/pdf/renderQuotePdf.js')
+      const pdfBlob = await renderQuotePdf(snapshot, { watermark: false })
+
+      // Upload PDF
+      const pdfPath = `L${lead?.lead_number || leadId}/${lead?.lead_number || 'L'}_${q.quote_number}.pdf`
+      const { error: uploadError } = await supabase.storage.from('quote-pdfs').upload(pdfPath, pdfBlob, { contentType: 'application/pdf', upsert: false })
+      if (uploadError) { setPricing(prev => ({ ...prev, [quoteId]: { busy: false, error: `PDF upload failed: ${uploadError.message}`, progress: null } })); return }
+
+      const { error } = await supabase.from('quotes').update({ status: 'Published', published_at: snapshot.published_at, published_by: user?.id ?? null, valid_until: snapshot.quote_settings.valid_until, snapshot, pdf_path: pdfPath }).eq('id', quoteId)
       if (error) { setPricing(prev => ({ ...prev, [quoteId]: { busy: false, error: `Publish failed: ${error.message}`, progress: null } })); return }
-      setQuotes(prev => prev.map(q => q.id === quoteId ? { ...q, status: 'Published', published_at: snapshot.published_at, published_by: user?.id, valid_until: snapshot.quote_settings.valid_until, snapshot } : q))
+      setQuotes(prev => prev.map(q => q.id === quoteId ? { ...q, status: 'Published', published_at: snapshot.published_at, published_by: user?.id, valid_until: snapshot.quote_settings.valid_until, snapshot, pdf_path: pdfPath } : q))
       try {
-        await supabase.from('lead_history').insert({ lead_id: leadId, user_id: user?.id ?? null, user_email: user?.email ?? null, event: 'Quote published', new_value: `${lead?.lead_number} / ${q.quote_number}`, created_at: new Date().toISOString() })
+        await supabase.from('lead_history').insert({ lead_id: leadId, user_id: user?.id ?? null, user_email: user?.email ?? null, event: 'Quote PDF generated', new_value: `${lead?.lead_number} / ${q.quote_number}`, created_at: new Date().toISOString() })
       } catch { /* lead_history may not exist */ }
     } catch (e) {
       setPricing(prev => ({ ...prev, [quoteId]: { busy: false, error: `Publish failed: ${e.message}`, progress: null } }))
@@ -572,7 +582,7 @@ export default function QuoteMatrixPage() {
         interim_pct: q.interim_pct ?? 50, price_file_id: q.price_file_id ?? currentPf?.id ?? null,
         copied_from_quote_id: quoteId, created_at: new Date().toISOString(),
       })
-      .select('id, quote_number, status, lead_id, salesperson_id, valid_until, created_at, price_file_id, discount_pct, deposit_pct, interim_pct, valid_days')
+      .select('id, quote_number, status, lead_id, salesperson_id, valid_until, created_at, price_file_id, discount_pct, deposit_pct, interim_pct, valid_days, pdf_path')
       .single()
     if (qErr || !newQuote) { console.error('Failed to copy quote:', qErr); return }
     const selRows = jobItems.map(item => {

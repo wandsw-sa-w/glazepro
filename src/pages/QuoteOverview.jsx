@@ -438,10 +438,24 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
     setPublishing(true)
     setPublishError(null)
     try {
+      // 1. Build snapshot
       const snapshot = await buildQuoteSnapshot({ quoteId: quote.id, leadId, userId: user?.id, supabase })
-      const { error } = await supabase.from('quotes').update({ status: 'Published', published_at: snapshot.published_at, published_by: user?.id ?? null, valid_until: snapshot.quote_settings.valid_until, snapshot }).eq('id', quote.id)
+
+      // 2. Render PDF (no watermark)
+      const { renderQuotePdf } = await import('../quotes/pdf/renderQuotePdf.js')
+      const pdfBlob = await renderQuotePdf(snapshot, { watermark: false })
+
+      // 3. Upload PDF to quote-pdfs bucket
+      const pdfPath = `L${lead?.lead_number || leadId}/${lead?.lead_number || 'L'}_${quote.quote_number}.pdf`
+      const { error: uploadError } = await supabase.storage.from('quote-pdfs').upload(pdfPath, pdfBlob, { contentType: 'application/pdf', upsert: false })
+      if (uploadError) { setPublishError(`PDF upload failed: ${uploadError.message}`); setPublishing(false); return }
+
+      // 4. Update quote with status, snapshot AND pdf_path together
+      const { error } = await supabase.from('quotes').update({ status: 'Published', published_at: snapshot.published_at, published_by: user?.id ?? null, valid_until: snapshot.quote_settings.valid_until, snapshot, pdf_path: pdfPath }).eq('id', quote.id)
       if (error) { setPublishError(`Publish failed: ${error.message}`); setPublishing(false); return }
-      try { await supabase.from('lead_history').insert({ lead_id: leadId, user_id: user?.id ?? null, user_email: user?.email ?? null, event: 'Quote published', new_value: `${lead?.lead_number} / ${quote.quote_number}`, created_at: new Date().toISOString() }) } catch { /* ignore */ }
+
+      // 5. Lead history
+      try { await supabase.from('lead_history').insert({ lead_id: leadId, user_id: user?.id ?? null, user_email: user?.email ?? null, event: 'Quote PDF generated', new_value: `${lead?.lead_number} / ${quote.quote_number}`, created_at: new Date().toISOString() }) } catch { /* ignore */ }
     } catch (e) {
       setPublishError(`Publish failed: ${e.message}`)
     }
@@ -714,7 +728,15 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
             </button>
           </>
         ) : (
-          <span style={{ fontSize: 12, color: '#555' }}>🔒 Published {quote.published_at ? new Date(quote.published_at).toLocaleDateString('en-GB') : ''}</span>
+          <>
+            <span style={{ fontSize: 12, color: '#555' }}>🔒 Published {quote.published_at ? new Date(quote.published_at).toLocaleDateString('en-GB') : ''}</span>
+            {quote.pdf_path && <button onClick={async () => {
+              const { data, error } = await supabase.storage.from('quote-pdfs').createSignedUrl(quote.pdf_path, 300)
+              if (data?.signedUrl) window.open(data.signedUrl, '_blank')
+              else if (error) alert(`Download failed: ${error.message}`)
+            }} style={{ fontSize: 12, padding: '8px 16px', border: '1px solid #1a5fa8', borderRadius: 8, background: '#fff', color: '#1a5fa8', fontWeight: 600, cursor: 'pointer' }}>Download PDF</button>}
+            {!quote.pdf_path && quote.snapshot?.version !== 2 && <span style={{ fontSize: 11, color: '#aaa' }}>Published before PDFs were available — copy to a new quote and publish that</span>}
+          </>
         )}
         <button onClick={doCopy} style={{ fontSize: 12, padding: '8px 16px', border: '1px solid #d8d5cf', borderRadius: 8, background: '#fff', color: '#3d35a8', fontWeight: 600, cursor: 'pointer' }}>Copy to new quote</button>
         {quote.status === 'Published' && <button onClick={doAccept} style={{ fontSize: 12, padding: '8px 16px', border: 'none', borderRadius: 8, background: '#0a5a3c', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>Accept</button>}
