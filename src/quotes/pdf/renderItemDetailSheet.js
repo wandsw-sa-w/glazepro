@@ -35,9 +35,11 @@ export async function renderItemDetailSheet(snapshot, opts = {}) {
   for (let i = 0; i < (snapshot.items || []).length; i++) {
     const item = snapshot.items[i]
     onProgress?.(`Rendering elevation ${i + 1} of ${snapshot.items.length}...`)
+    // Item Detail Sheet shows overall frame dimensions on the elevation
+    const dimSettings = { showOverallSL: true }
     const [internal, external] = await Promise.all([
-      rasteriseElevation(item.parts_tree, item.geometry, item.derived, 'internal', elevRefOptions),
-      rasteriseElevation(item.parts_tree, item.geometry, item.derived, 'external', elevRefOptions),
+      rasteriseElevation(item.parts_tree, item.geometry, item.derived, 'internal', elevRefOptions, dimSettings),
+      rasteriseElevation(item.parts_tree, item.geometry, item.derived, 'external', elevRefOptions, dimSettings),
     ])
     elevationImages.push({ internal, external })
   }

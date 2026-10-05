@@ -182,3 +182,19 @@ describe('buildItemDetailModel — spec sections', () => {
     }
   })
 })
+
+describe('buildItemDetailModel — elevation data', () => {
+  it('each item carries partsTree for elevation rasterisation (geometry computed on the fly)', () => {
+    const model = buildItemDetailModel(makeSnapshot(1))
+    expect(model.items[0].partsTree).toBeDefined()
+    expect(model.items[0].partsTree).not.toBeNull()
+    // geometry may be null in the snapshot — rasteriseElevation computes it from the tree
+    expect(model.items[0].drawing).toBeDefined()
+  })
+
+  it('each item has frame dimensions for the elevation overlay', () => {
+    const model = buildItemDetailModel(makeSnapshot(1))
+    expect(model.items[0].frameWidth).toBe(1075)
+    expect(model.items[0].frameHeight).toBe(1630)
+  })
+})

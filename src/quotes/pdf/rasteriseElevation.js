@@ -22,10 +22,22 @@ const TIMEOUT_MS = 20_000
  * @param {object} refOptions e.g. { sash_operation: [{code,label}] }
  * @returns {Promise<string|null>} data:image/png;base64,… or null
  */
-export async function rasteriseElevation(tree, geometry, derived, viewMode, refOptions) {
-  if (!tree || !geometry) return null
+export async function rasteriseElevation(tree, geometry, derived, viewMode, refOptions, settingsOverride) {
+  if (!tree) return null
 
   const { SashElevation } = await import('../../drawingBoard/renderElevation.jsx')
+
+  // Compute geometry/derived on the fly when the snapshot doesn't carry them
+  // (older published snapshots, or computeSashGeometry threw during build)
+  if (!geometry || !derived) {
+    try {
+      const { computeDerived } = await import('../../drawingBoard/computeDerived.js')
+      const { computeSashGeometry } = await import('../../drawingBoard/sashGeometry.js')
+      derived = derived || computeDerived(tree)
+      geometry = geometry || computeSashGeometry(tree, derived)
+    } catch { /* leave null — placeholder will show */ }
+    if (!geometry) return null
+  }
 
   const settings = {
     showOverallSL: false,
@@ -35,6 +47,7 @@ export async function rasteriseElevation(tree, geometry, derived, viewMode, refO
     showGlassLabels: true,
     showActiveRulers: false,
     showSashCentricDims: false,
+    ...settingsOverride,
   }
 
   // Render SVG markup synchronously — no DOM, no animation frame

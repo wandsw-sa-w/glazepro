@@ -171,4 +171,12 @@ describe('buildSowModel — items have spec sections', () => {
     expect(model.items[1].itemNumber).toBe(2)
     expect(model.items[0].location).toContain('Room 1')
   })
+
+  it('each item carries partsTree for elevation rasterisation (geometry computed on the fly)', () => {
+    const model = buildSowModel(makeSnapshot(1))
+    expect(model.items[0].partsTree).toBeDefined()
+    expect(model.items[0].partsTree).not.toBeNull()
+    // geometry may be null in the snapshot — rasteriseElevation computes it from the tree
+    expect(model.items[0].drawing).toBeDefined()
+  })
 })

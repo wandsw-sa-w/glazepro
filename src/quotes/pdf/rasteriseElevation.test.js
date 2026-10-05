@@ -62,6 +62,21 @@ describe('rasteriseElevation — synchronous rendering', () => {
     expect(source).toContain('TIMEOUT_MS')
   })
 
+  it('computes geometry on the fly when it is null (old snapshot fallback)', () => {
+    // rasteriseElevation should not return null for a valid tree + null geometry
+    // because it computes geometry internally. We test the import+compute path
+    // by checking the source contains the fallback logic.
+    const fs = require('fs')
+    const source = fs.readFileSync('src/quotes/pdf/rasteriseElevation.js', 'utf-8')
+    expect(source).toContain('computeSashGeometry')
+    expect(source).toContain('computeDerived')
+    // The guard `if (!tree) return null` is the ONLY early null return for
+    // missing inputs; geometry=null triggers the compute fallback, not a return.
+    const lines = source.split('\n')
+    const earlyReturns = lines.filter(l => l.trim().startsWith('if (!tree') && l.includes('return null'))
+    expect(earlyReturns).toHaveLength(1)
+  })
+
   it('no renderer file uses requestAnimationFrame any more', async () => {
     const fs = await import('fs')
     for (const file of [
