@@ -12,6 +12,7 @@ import { buildQuoteSnapshot } from '../quotes/buildSnapshot.js'
 import { publishQuote } from '../quotes/publishQuote.js'
 import { copyQuote } from '../quotes/copyQuote.js'
 import { FRONT_COVER_LETTER, BACK_COVER_LETTER } from '../quotes/pdf/quoteContent.js'
+import { useVersion } from '../context/VersionContext.jsx'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -47,6 +48,7 @@ function flatBackCoverLetter(sections) {
 export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { isStale } = useVersion()
 
   const [lead, setLead] = useState(leadStub || null)
   const [mainContact, setMainContact] = useState(null)
@@ -435,6 +437,7 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
   // ── Publish / copy / accept ──────────────────────────────────────────────────
 
   async function doPublish() {
+    if (isStale) { setPublishError('A new version of GlazePro is available — please reload the page before publishing.'); return }
     if (staleCount > 0) { setPublishError(`${staleCount} drawing(s) need pricing before this quote can be published — price them from the Quote Matrix.`); return }
     if (poaCount > 0 && !window.confirm(`This quote contains ${poaCount} POA item(s). Publish anyway?`)) return
     setPublishing(true)
@@ -706,7 +709,7 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
         {quote.status === 'Open' ? (
           <>
             <span style={{ fontSize: 11, color: '#aaa' }}>A quote becomes locked when it is published</span>
-            <button onClick={doPublish} disabled={publishing} style={{ fontSize: 12, padding: '8px 18px', border: 'none', borderRadius: 8, background: '#1a5fa8', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>
+            <button onClick={doPublish} disabled={publishing || isStale} style={{ fontSize: 12, padding: '8px 18px', border: 'none', borderRadius: 8, background: isStale ? '#ccc' : '#1a5fa8', color: '#fff', fontWeight: 700, cursor: isStale ? 'not-allowed' : 'pointer' }}>
               {publishing ? 'Publishing…' : `Publish ${quote.quote_number}`}
             </button>
           </>
