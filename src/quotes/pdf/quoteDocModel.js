@@ -201,22 +201,27 @@ function buildTimberString(tree, refLabels) {
  */
 export function specSections(item, hsOptinValues, refLabels) {
   const tree = item.parts_tree
+  const pd = item.profile_defaults || {}
   const sections = []
 
+  // Helper: read a tree value, falling back to profile default
+  function tv(partType, property) {
+    const part = findFirst(tree, partType)
+    const v = part?.values?.[property]
+    if (v !== undefined && v !== null) return v
+    return pd[`${partType}.${property}`] ?? null
+  }
+
   // Repair — no tree data for this yet; omitted when empty
-  // (will come from a repairPart when it exists)
 
   // Moulding
-  const moulding = findFirst(tree, 'mouldingPart')
-  if (moulding) {
-    const profile = moulding.values?.profile || moulding.values?.mouldingProfile
-    const barWidth = moulding.values?.glazingBarWidth
-    if (profile || barWidth) {
-      const parts = []
-      if (profile) parts.push(profile.charAt(0).toUpperCase() + profile.slice(1))
-      if (barWidth) parts.push(`${barWidth} mm Glazing Bar`)
-      sections.push({ title: 'Moulding and Glazing Bar', content: parts.join(', ') })
-    }
+  const mouldProfile = tv('mouldingPart', 'profile') || tv('mouldingPart', 'mouldingProfile')
+  const barWidth = tv('mouldingPart', 'glazingBarWidth')
+  if (mouldProfile || barWidth) {
+    const parts = []
+    if (mouldProfile) parts.push(resolveLabel(mouldProfile, refLabels))
+    if (barWidth) parts.push(`${barWidth} mm Glazing Bar`)
+    sections.push({ title: 'Moulding and Glazing Bar', content: parts.join(', ') })
   }
 
   // Sash Horn — resolve codes to labels
@@ -259,11 +264,10 @@ export function specSections(item, hsOptinValues, refLabels) {
     if (desc) sections.push({ title: 'Panel', content: desc })
   }
 
-  // Paint / Finish — resolve codes to labels
-  const paint = findFirst(tree, 'paintAndIronmongeryPart')
-  const intFinish = paint?.values?.internalFinish
-  const extFinish = paint?.values?.externalFinish
-  const cillFinish = paint?.values?.cillFinish
+  // Paint / Finish — resolve codes to labels, with profile default fallback
+  const intFinish = tv('paintAndIronmongeryPart', 'internalFinish')
+  const extFinish = tv('paintAndIronmongeryPart', 'externalFinish')
+  const cillFinish = tv('paintAndIronmongeryPart', 'cillFinish')
   if (intFinish || extFinish || cillFinish) {
     const parts = []
     if (intFinish) parts.push(`Internal: ${resolveLabel(intFinish, refLabels)}`)
@@ -284,27 +288,22 @@ export function specSections(item, hsOptinValues, refLabels) {
     sections.push({ title: 'Surrounds', content: surroundParts.map(p => p.part_name).join(', ') })
   }
 
-  // Health & Safety / Access
+  // Health & Safety / Access — only the opted-in values from quoteContent.js
   const notesPart = findFirst(tree, 'notesPart')
   if (notesPart && hsOptinValues && hsOptinValues.length > 0) {
+    const fieldMap = {
+      'Landing Access': 'landingAccess',
+      'External Access': 'externalAccessId',
+    }
     const hsLines = []
     for (const opt of hsOptinValues) {
-      // Match opt-in values against notesPart fields
-      const fieldMap = {
-        'Landing Access': 'landingAccess',
-        'External Access': 'externalAccessId',
-        'Internal Access': 'internalAccess',
-        'Fire Egress': 'fireEgress',
-        'Internal Hazard': 'internalHazard',
-        'Hazard Below': 'hazardBelow',
-        'Cable/Alarm': 'cableAlarm',
-        'Dormer Issue': 'dormerIssue',
-      }
       const field = fieldMap[opt.group]
-      const val = field ? notesPart.values?.[field] : null
-      if (val) {
-        // The reference value code needs to match the opt-in value
-        const label = typeof val === 'string' ? val.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : val
+      if (!field) continue
+      const val = notesPart.values?.[field]
+      if (!val) continue
+      // Resolve the code to a label and check it matches the opt-in value
+      const label = resolveLabel(val, refLabels)
+      if (label === opt.value) {
         hsLines.push(`${label}.`)
       }
     }
