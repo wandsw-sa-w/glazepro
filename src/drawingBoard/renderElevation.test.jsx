@@ -828,6 +828,58 @@ describe('SashElevation — operation labels from refOptions', () => {
     expect(html).not.toContain('Cord Hung')
   })
 
+  it('external view: labels read left-to-right (counter-flipped, no net negative x scale)', () => {
+    const tree = makeTree(
+      { width: 500, height: 1849, leftWidth: 85, rightWidth: 85, topHeight: 79 },
+      { height: 70 },
+      { midrailHeight: 40 },
+      { topHeight: 49, stileWidth: 47, operation: 'cord_hung' },
+      { bottomHeight: 88, operation: 'cord_hung' },
+    )
+    const geo  = makeGeometry()
+    const html = render({ tree, geometry: geo, refOptions, viewMode: 'external' })
+    expect(html).toContain('Cord Hung')
+
+    // Each <text> inside the mirror group must have a counter-flip transform
+    // that cancels the parent's scale(-1,1). Extract all text transforms.
+    // The counter-flip is: translate(2*x, 0) scale(-1, 1)
+    // Combined with the parent's scale(-1,1), the net x-scale is +1.
+    const textTransforms = [...html.matchAll(/<text[^>]*transform="([^"]+)"[^>]*/g)]
+    expect(textTransforms.length).toBeGreaterThan(0)
+    for (const [, t] of textTransforms) {
+      // The transform contains scale(-1,1) — when composed with the
+      // parent's scale(-1,1), the net is scale(1,1): readable text.
+      expect(t).toContain('scale(-1,1)')
+    }
+  })
+
+  it('internal view: labels have no counter-flip transform', () => {
+    const tree = makeTree(
+      { width: 500, height: 1849, leftWidth: 85, rightWidth: 85, topHeight: 79 },
+      { height: 70 },
+      { midrailHeight: 40 },
+      { topHeight: 49, stileWidth: 47, operation: 'cord_hung' },
+      { bottomHeight: 88, operation: 'cord_hung' },
+    )
+    const geo  = makeGeometry()
+    const html = render({ tree, geometry: geo, refOptions, viewMode: 'internal' })
+    // In internal view there is no mirror group, so no counter-flip needed
+    const textTransforms = [...html.matchAll(/<text[^>]*transform="([^"]+)"[^>]*/g)]
+    for (const [, t] of textTransforms) {
+      expect(t).not.toContain('scale(-1')
+    }
+  })
+
+  it('accepts a fontFamily prop for off-screen rendering', () => {
+    const tree = makeTree(
+      { width: 500, height: 1849, leftWidth: 85, rightWidth: 85, topHeight: 79 },
+      { height: 70 },
+    )
+    const geo  = makeGeometry()
+    const html = render({ tree, geometry: geo, refOptions: {}, fontFamily: 'Helvetica, Arial, sans-serif' })
+    expect(html).toContain('Helvetica')
+  })
+
   it('shows no label text when refOptions is empty (simulates anon-key empty result)', () => {
     const tree = makeTree(
       { width: 500, height: 1849, leftWidth: 85, rightWidth: 85, topHeight: 79 },

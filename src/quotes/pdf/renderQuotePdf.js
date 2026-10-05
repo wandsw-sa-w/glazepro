@@ -41,6 +41,7 @@ async function rasteriseElevation(tree, geometry, derived, viewMode, refOptions)
     const root = createRoot(container)
     root.render(createElement(SashElevation, {
       tree, geometry, derived, refOptions: refOptions || {}, viewMode, settings,
+      fontFamily: 'Helvetica, Arial, sans-serif',
     }))
 
     // Wait for paint, then grab the SVG

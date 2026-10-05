@@ -190,6 +190,7 @@ export function SashElevation({
   selectedKey,
   onSelectKey,
   settings,
+  fontFamily: fontFamilyProp,
 }) {
   if (!geometry) {
     return (
@@ -515,31 +516,41 @@ export function SashElevation({
 
         {/* Labels — fitted to this opening's own glass width and clipped to it,
             so a narrow opening (double/triple box) never bleeds into a
-            neighbouring mullion. */}
-        {showGlassLabels && (
-          <>
-            <clipPath id={clipIdTop}><rect x={gx} y={ty + tRail} width={glassW} height={topGlassH} /></clipPath>
-            <clipPath id={clipIdBot}><rect x={gx} y={by + mid}   width={glassW} height={botGlassH} /></clipPath>
-            <text
-              x={mx(glassCX)} y={glassCY_t}
-              textAnchor="middle" dominantBaseline="middle"
-              pointerEvents="none" fontFamily="inherit" fill={C.label}
-              clipPath={`url(#${clipIdTop})`}
-            >
-              <tspan x={mx(glassCX)} dy="-0.6em" fontSize={topMainFs}>{topMainText}</tspan>
-              <tspan x={mx(glassCX)} dy="1.4em"  fontSize={topSubFs}>{topSubText}</tspan>
-            </text>
-            <text
-              x={mx(glassCX)} y={glassCY_b}
-              textAnchor="middle" dominantBaseline="middle"
-              pointerEvents="none" fontFamily="inherit" fill={C.label}
-              clipPath={`url(#${clipIdBot})`}
-            >
-              <tspan x={mx(glassCX)} dy="-0.6em" fontSize={botMainFs}>{botMainText}</tspan>
-              <tspan x={mx(glassCX)} dy="1.4em"  fontSize={botSubFs}>{botSubText}</tspan>
-            </text>
-          </>
-        )}
+            neighbouring mullion.
+            When mirrored (external view) the parent <g> has scale(-1,1), which
+            flips the text backwards. Counter-flip each <text> about its own x
+            so glyphs always read left-to-right. */}
+        {showGlassLabels && (() => {
+          const lx = mx(glassCX)
+          // Counter-flip: translate to 2x, scale(-1,1), so text un-mirrors about its own centre
+          const counterFlip = mir ? `translate(${2 * lx},0) scale(-1,1)` : undefined
+          return (
+            <>
+              <clipPath id={clipIdTop}><rect x={gx} y={ty + tRail} width={glassW} height={topGlassH} /></clipPath>
+              <clipPath id={clipIdBot}><rect x={gx} y={by + mid}   width={glassW} height={botGlassH} /></clipPath>
+              <text
+                x={lx} y={glassCY_t}
+                textAnchor="middle" dominantBaseline="middle"
+                pointerEvents="none" fontFamily="inherit" fill={C.label}
+                clipPath={`url(#${clipIdTop})`}
+                transform={counterFlip}
+              >
+                <tspan x={lx} dy="-0.6em" fontSize={topMainFs}>{topMainText}</tspan>
+                <tspan x={lx} dy="1.4em"  fontSize={topSubFs}>{topSubText}</tspan>
+              </text>
+              <text
+                x={lx} y={glassCY_b}
+                textAnchor="middle" dominantBaseline="middle"
+                pointerEvents="none" fontFamily="inherit" fill={C.label}
+                clipPath={`url(#${clipIdBot})`}
+                transform={counterFlip}
+              >
+                <tspan x={lx} dy="-0.6em" fontSize={botMainFs}>{botMainText}</tspan>
+                <tspan x={lx} dy="1.4em"  fontSize={botSubFs}>{botSubText}</tspan>
+              </text>
+            </>
+          )
+        })()}
       </g>
     )
   }
@@ -609,7 +620,7 @@ export function SashElevation({
       width="100%" height="100%"
       preserveAspectRatio="xMidYMid meet"
       style={{ display: 'block' }}
-      fontFamily="inherit"
+      fontFamily={fontFamilyProp || 'inherit'}
     >
       {/* ── All geometry inside mirror group ──────────────────────────────────── */}
       <g transform={mir ? `translate(${fW},0) scale(-1,1)` : undefined}>
