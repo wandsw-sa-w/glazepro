@@ -146,59 +146,67 @@ export default function QuotePdf({ model, watermark, logoUrl, coverUrl, elevatio
 
       {/* ── 3. Financial summary ── */}
       <Page size="A4" style={s.page}>
-        <View style={s.headerFull}>
-          <View>
-            <Text style={s.headerTitle}>Quotation</Text>
-            {lead.contact_name && <Text style={{ fontSize: 8 }}>{lead.contact_name}</Text>}
-            {lead.installation_address_one_line && <Text style={{ fontSize: 7, color: '#666' }}>{lead.installation_address_one_line}</Text>}
-            {lead.phone && <Text style={{ fontSize: 7, color: '#666' }}>Phone: {lead.phone}</Text>}
-            {lead.email && <Text style={{ fontSize: 7, color: '#666' }}>Email: {lead.email}</Text>}
-            {(lead.phone || lead.email) && <Text style={{ fontSize: 6, color: '#999' }}>*: Customer</Text>}
+        {/* Header block with labelled rows */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', padding: '14 24 10 24', borderBottom: '1 solid #e8e6e0' }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 6 }}>Quotation</Text>
+            <View style={{ fontSize: 7, lineHeight: 1.6 }}>
+              {lead.contact_name && <Text><Text style={{ color: '#888' }}>Customer name: </Text>{lead.contact_name}</Text>}
+              {lead.installation_address_one_line && <Text><Text style={{ color: '#888' }}>Installation address: </Text>{lead.installation_address_one_line}</Text>}
+              {lead.contact_name && <Text><Text style={{ color: '#888' }}>Contact: </Text>{lead.contact_name}</Text>}
+              {lead.postal_address_lines?.length > 0 && <Text><Text style={{ color: '#888' }}>Postal address: </Text>{lead.postal_address_lines.join(', ')}</Text>}
+              {lead.phone && <Text><Text style={{ color: '#888' }}>Phone*: </Text>{lead.phone}</Text>}
+              {lead.email && <Text><Text style={{ color: '#888' }}>Email*: </Text>{lead.email}</Text>}
+              {(lead.phone || lead.email) && <Text style={{ fontSize: 6, color: '#999', marginTop: 2 }}>*: Customer</Text>}
+            </View>
           </View>
-          <View style={{ alignItems: 'flex-end' }}>
+          <View style={{ alignItems: 'flex-end', width: 160 }}>
             {logoUrl && <Image src={logoUrl} style={s.headerLogo} />}
-            {salesperson.full_name && <Text style={{ fontSize: 8, marginTop: 4 }}>Sales manager</Text>}
-            {salesperson.full_name && <Text style={{ fontSize: 7, color: '#666' }}>{salesperson.full_name}</Text>}
-            {salesperson.phone && <Text style={{ fontSize: 7, color: '#666' }}>{salesperson.phone}</Text>}
-            {salesperson.email && <Text style={{ fontSize: 7, color: '#666' }}>{salesperson.email}</Text>}
+            <View style={{ fontSize: 7, lineHeight: 1.6, marginTop: 6, textAlign: 'right' }}>
+              {salesperson.full_name && <Text><Text style={{ color: '#888' }}>Sales manager: </Text>{salesperson.full_name}</Text>}
+              {salesperson.phone && <Text><Text style={{ color: '#888' }}>Phone: </Text>{salesperson.phone}</Text>}
+              {salesperson.email && <Text><Text style={{ color: '#888' }}>Email: </Text>{salesperson.email}</Text>}
+            </View>
           </View>
         </View>
 
-        {/* Grid */}
-        <View style={s.summaryGrid}>
-          <View style={s.summaryHeaderRow}>
-            <Text style={{ ...s.summaryCell, width: 25, fontWeight: 'bold' }}>Item</Text>
-            <Text style={{ ...s.summaryCell, width: 155, fontWeight: 'bold' }}>Location</Text>
-            <Text style={{ ...s.summaryCell, flex: 1, fontWeight: 'bold' }}>Description of Work</Text>
-            <Text style={{ ...s.summaryCell, width: 65, textAlign: 'right', fontWeight: 'bold' }}>Net Price excl. VAT</Text>
+        {/* Item grid with borders */}
+        <View style={{ margin: '10 24', border: '0.5 solid #ccc' }}>
+          <View style={{ flexDirection: 'row', backgroundColor: '#f5f4f0', borderBottom: '0.5 solid #ccc', padding: '4 6' }}>
+            <Text style={{ fontSize: 7, fontWeight: 'bold', width: 25 }}>Item</Text>
+            <Text style={{ fontSize: 7, fontWeight: 'bold', width: 156 }}>Location</Text>
+            <Text style={{ fontSize: 7, fontWeight: 'bold', flex: 1 }}>Description of Work</Text>
+            <Text style={{ fontSize: 7, fontWeight: 'bold', width: 62, textAlign: 'right' }}>Net Price excl. VAT</Text>
           </View>
           {summary.rows.map((row, i) => (
-            <View key={i} style={s.summaryRow}>
-              <Text style={{ ...s.summaryCell, width: 25 }}>{row.itemNumber}</Text>
-              <Text style={{ ...s.summaryCell, width: 155 }}>{row.location}</Text>
-              <Text style={{ ...s.summaryCell, flex: 1 }}>{row.descriptionOfWork}</Text>
-              <Text style={{ ...s.summaryCell, width: 65, textAlign: 'right' }}>{row.netPrice}</Text>
+            <View key={i} style={{ flexDirection: 'row', borderBottom: '0.5 solid #eee', padding: '3 6' }}>
+              <Text style={{ fontSize: 7, width: 25 }}>{row.itemNumber}</Text>
+              <Text style={{ fontSize: 7, width: 156 }}>{row.location}</Text>
+              <Text style={{ fontSize: 7, flex: 1 }}>{row.descriptionOfWork}</Text>
+              <Text style={{ fontSize: 7, width: 62, textAlign: 'right' }}>{row.netPrice}</Text>
             </View>
           ))}
         </View>
 
-        {/* Totals */}
-        <View style={s.summaryTotals}>
-          {summary.totalsLines.map((line, i) => (
-            <View key={i} style={s.summaryTotalRow}>
-              <Text style={{ fontSize: 8, fontWeight: line.bold ? 'bold' : 'normal' }}>{line.label}</Text>
-              <Text style={{ fontSize: 8, fontWeight: line.bold ? 'bold' : 'normal' }}>{line.value}</Text>
-            </View>
-          ))}
-        </View>
-
-        {/* Left box */}
-        <View style={s.summaryLeftBox}>
-          <Text>Quotation Ref.: {summary.leftBox.quoteRef}</Text>
-          {summary.leftBox.bankDetails && <Text>Banking Details: {summary.leftBox.bankDetails}</Text>}
-          <Text>{summary.leftBox.vatNote}</Text>
-          <Text style={s.summaryLeftBold}>{summary.leftBox.validLine}</Text>
-          <Text style={{ fontSize: 6, color: '#999' }}>{summary.leftBox.generatedLine}</Text>
+        {/* Bottom: left box + right totals, side by side */}
+        <View style={{ flexDirection: 'row', margin: '6 24', gap: 12 }}>
+          {/* Left: reference/banking box */}
+          <View style={{ flex: 1, border: '0.5 solid #ccc', padding: 8, fontSize: 7, lineHeight: 1.5 }}>
+            <Text>Quotation Ref.: {summary.leftBox.quoteRef}</Text>
+            {summary.leftBox.bankDetails && <Text>Banking Details: {summary.leftBox.bankDetails}</Text>}
+            <Text>{summary.leftBox.vatNote}</Text>
+            <Text style={{ fontWeight: 'bold', marginTop: 3 }}>{summary.leftBox.validLine}</Text>
+            <Text style={{ fontSize: 6, color: '#999', marginTop: 2 }}>{summary.leftBox.generatedLine}</Text>
+          </View>
+          {/* Right: totals box */}
+          <View style={{ width: 200, border: '0.5 solid #ccc', padding: 8 }}>
+            {summary.totalsLines.map((line, i) => (
+              <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 1.5 }}>
+                <Text style={{ fontSize: 7, fontWeight: line.bold ? 'bold' : 'normal', flex: 1 }}>{line.label}</Text>
+                <Text style={{ fontSize: 7, fontWeight: line.bold ? 'bold' : 'normal', width: 60, textAlign: 'right' }}>{line.value}</Text>
+              </View>
+            ))}
+          </View>
         </View>
 
         {watermark && <Text style={s.watermark}>{watermark}</Text>}
