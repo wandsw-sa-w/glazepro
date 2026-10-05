@@ -142,9 +142,19 @@ export function itemHeading(item, rangeDisplayName, refLabels) {
       prefix = `Supply & Install a complete new Doc L ${itemTypeName}${rangeStr}`
   }
 
+  // description_of_work = the prefix WITHOUT range or timber, e.g.
+  // "Supply & Install a complete new Doc L sash window"
+  const descPrefix = typeOfWork === 'complete_new'
+    ? `Supply & Install a complete new Doc L ${itemTypeName}`
+    : typeOfWork === 'new_pair_of_sashes'
+      ? `Supply & Install a new pair of sashes for ${itemTypeName}`
+      : typeOfWork === 'bi_glass'
+        ? `Supply & Install Bi-Glass secondary glazing for ${itemTypeName}`
+        : `Supply & Install a complete new Doc L ${itemTypeName}`
+
   return {
     heading: `${prefix}${timberStr ? ' ' + timberStr : ''}`,
-    descriptionOfWork: `${prefix.split(rangeStr)[0]}${itemTypeName}`,
+    descriptionOfWork: descPrefix,
   }
 }
 
@@ -429,7 +439,7 @@ export function summaryModel(snapshot) {
   const rows = (snapshot.items || []).map((item, idx) => ({
     itemNumber: item.job_item?.item_number ?? (idx + 1),
     location: item.location_text || '',
-    descriptionOfWork: itemHeading(item, null).descriptionOfWork,
+    descriptionOfWork: itemHeading(item, null, snapshot.ref_labels).descriptionOfWork,
     netPrice: item.poa ? 'POA' : fmtMoney(item.net_after_quote_discount ?? item.net),
     poa: item.poa || false,
   }))

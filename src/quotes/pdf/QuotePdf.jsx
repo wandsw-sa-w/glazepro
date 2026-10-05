@@ -219,7 +219,7 @@ export default function QuotePdf({ model, watermark, logoUrl, coverUrl, elevatio
           <Text style={s.hingeNote}>The opening sash symbol (or arrow head) points to the hinge position</Text>
 
           <View style={s.itemHeader}>
-            <Text style={s.itemTitle}>ITEM {item.itemNumber} - {item.location}</Text>
+            <Text style={s.itemTitle}>ITEM {item.itemNumber}{item.location ? ` - ${item.location}` : ''}</Text>
             <Text style={s.itemPrice}>{item.priceLabel}</Text>
           </View>
 
