@@ -10,6 +10,7 @@ import { loadDrawingRunPrices, drawingRunSales, drawingQuoteItemNet } from '../q
 import { effectiveProfileId } from '../drawingBoard/defaultProfile.js'
 import { buildQuoteSnapshot } from '../quotes/buildSnapshot.js'
 import { publishQuote } from '../quotes/publishQuote.js'
+import { copyQuote } from '../quotes/copyQuote.js'
 import { FRONT_COVER_LETTER, BACK_COVER_LETTER } from '../quotes/pdf/quoteContent.js'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -448,18 +449,16 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
   }
 
   async function doCopy() {
-    const nextNum = `Q${quotes.length + 1}`
-    const { data: newQuote, error } = await supabase.from('quotes').insert({
-      lead_id: leadId, quote_number: nextNum, status: 'Open', salesperson_id: quote.salesperson_id ?? null,
-      valid_days: quote.valid_days ?? 30, discount_pct: quote.discount_pct ?? 0, deposit_pct: quote.deposit_pct ?? 40,
-      interim_pct: quote.interim_pct ?? 50, price_file_id: quote.price_file_id ?? null, copied_from_quote_id: quote.id,
-      created_at: new Date().toISOString(),
-    }).select('id').single()
-    if (error || !newQuote) return
-    const rows = jobItems.map(item => { const dwgId = selections[item.id]; return dwgId ? { quote_id: newQuote.id, job_item_id: item.id, drawing_id: dwgId } : null }).filter(Boolean)
-    if (rows.length > 0) await supabase.from('quote_drawings').insert(rows)
-    try { await supabase.from('lead_history').insert({ lead_id: leadId, user_id: user?.id ?? null, user_email: user?.email ?? null, event: 'Quote copied', old_value: `${lead?.lead_number} / ${quote.quote_number}`, new_value: `${lead?.lead_number} / ${nextNum}`, created_at: new Date().toISOString() }) } catch { /* ignore */ }
-    navigate(`/leads/${leadId}/quotes/${newQuote.id}`)
+    setPublishError(null)
+    try {
+      const { newQuote } = await copyQuote({
+        sourceQuote: quote, quotes, leadId, leadNumber: lead?.lead_number,
+        jobItems, selections, userId: user?.id, userEmail: user?.email, supabase,
+      })
+      navigate(`/leads/${leadId}/quotes/${newQuote.id}`)
+    } catch (e) {
+      setPublishError(e.message)
+    }
   }
 
   async function doAccept() {

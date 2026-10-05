@@ -15,6 +15,7 @@ import { computeDerived } from '../drawingBoard/computeDerived.js'
 import { computeSashGeometry } from '../drawingBoard/sashGeometry.js'
 import { SashElevation } from '../drawingBoard/renderElevation.jsx'
 import { publishQuote } from '../quotes/publishQuote.js'
+import { copyQuote } from '../quotes/copyQuote.js'
 import QuoteOverview from './QuoteOverview.jsx'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -557,35 +558,20 @@ export default function QuoteMatrixPage() {
   async function doCopyQuote(quoteId) {
     const q = quotes.find(q => q.id === quoteId)
     if (!q) return
-    const newNum = nextQuoteNumber(quotes)
     const currentPf = priceFiles.find(p => p.is_current) || priceFiles.find(p => p.status === 'published')
-    const { data: newQuote, error: qErr } = await supabase
-      .from('quotes')
-      .insert({
-        lead_id: leadId, quote_number: newNum, status: 'Open', salesperson_id: q.salesperson_id ?? null,
-        valid_days: q.valid_days ?? 30, discount_pct: q.discount_pct ?? 0, deposit_pct: q.deposit_pct ?? 40,
-        interim_pct: q.interim_pct ?? 50, price_file_id: q.price_file_id ?? currentPf?.id ?? null,
-        copied_from_quote_id: quoteId, created_at: new Date().toISOString(),
-      })
-      .select('id, quote_number, status, lead_id, salesperson_id, valid_until, created_at, price_file_id, discount_pct, deposit_pct, interim_pct, valid_days, pdf_path')
-      .single()
-    if (qErr || !newQuote) { console.error('Failed to copy quote:', qErr); return }
-    const selRows = jobItems.map(item => {
-      const dwgId = selections[`${quoteId}_${item.id}`]
-      return dwgId ? { quote_id: newQuote.id, job_item_id: item.id, drawing_id: dwgId } : null
-    }).filter(Boolean)
-    if (selRows.length > 0) {
-      const { error: selErr } = await supabase.from('quote_drawings').insert(selRows)
-      if (!selErr) {
-        const newSels = {}
-        for (const row of selRows) newSels[`${newQuote.id}_${row.job_item_id}`] = row.drawing_id
-        setSelections(prev => ({ ...prev, ...newSels }))
-      }
-    }
-    setQuotes(prev => [...prev, newQuote])
     try {
-      await supabase.from('lead_history').insert({ lead_id: leadId, user_id: user?.id ?? null, user_email: user?.email ?? null, event: 'Quote copied', old_value: `${lead?.lead_number} / ${q.quote_number}`, new_value: `${lead?.lead_number} / ${newNum}`, created_at: new Date().toISOString() })
-    } catch { /* ignore */ }
+      const { newQuote, selRows } = await copyQuote({
+        sourceQuote: q, quotes, leadId, leadNumber: lead?.lead_number,
+        jobItems, selections, userId: user?.id, userEmail: user?.email,
+        supabase, priceFileId: currentPf?.id,
+      })
+      const newSels = {}
+      for (const row of selRows) newSels[`${newQuote.id}_${row.job_item_id}`] = row.drawing_id
+      setSelections(prev => ({ ...prev, ...newSels }))
+      setQuotes(prev => [...prev, newQuote])
+    } catch (e) {
+      setPricing(prev => ({ ...prev, [quoteId]: { busy: false, error: e.message, progress: null } }))
+    }
   }
 
   // ── Floating quote picker panel ──────────────────────────────────────────────
