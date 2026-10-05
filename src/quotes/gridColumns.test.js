@@ -253,6 +253,51 @@ describe('readColumnValue — profile default fallback', () => {
   })
 })
 
+// ── Finish columns — profile default fallback (H3 followup, item 2) ──────────
+// These columns were showing "—" because no paint_finish reference category
+// or profile defaults existed. After the SQL fix, profile defaults resolve
+// exactly as materials do.
+
+describe('readColumnValue — finish columns from profile defaults', () => {
+  const profileDefaults = {
+    'paintAndIronmongeryPart.internalFinish': 'clean_white',
+    'paintAndIronmongeryPart.externalFinish': 'clean_white',
+    'paintAndIronmongeryPart.cillFinish':     'clean_white',
+  }
+
+  // Tree with paintAndIronmongeryPart but no finish values set
+  function makeTreeNoFinish() {
+    const tree = makeTree()
+    // Clear finish values from the paint node
+    const paintNode = tree.children.find(c => c.part_type === 'paintAndIronmongeryPart')
+    paintNode.values = {}
+    return tree
+  }
+
+  it('Internal Finish falls back to profile default when tree value is null', () => {
+    const col = GRID_COLUMNS.find(c => c.key === 'internal_finish')
+    expect(readColumnValue(makeTreeNoFinish(), col, profileDefaults)).toBe('clean_white')
+  })
+
+  it('External Finish falls back to profile default when tree value is null', () => {
+    const col = GRID_COLUMNS.find(c => c.key === 'external_finish')
+    expect(readColumnValue(makeTreeNoFinish(), col, profileDefaults)).toBe('clean_white')
+  })
+
+  it('Cill Finish falls back to profile default when tree value is null', () => {
+    const col = GRID_COLUMNS.find(c => c.key === 'cill_finish')
+    expect(readColumnValue(makeTreeNoFinish(), col, profileDefaults)).toBe('clean_white')
+  })
+
+  it('explicit tree value wins over profile default for finishes', () => {
+    const col = GRID_COLUMNS.find(c => c.key === 'internal_finish')
+    // Tree fixture already has internalFinish: 'clean_white'
+    const tree = makeTree()
+    tree.children.find(c => c.part_type === 'paintAndIronmongeryPart').values.internalFinish = 'white_gloss'
+    expect(readColumnValue(tree, col, profileDefaults)).toBe('white_gloss')
+  })
+})
+
 // ── Computed columns added for item 3 ─────────────────────────────────────────
 
 describe('glazing_bar column', () => {
