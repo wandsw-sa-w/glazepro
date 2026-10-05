@@ -13,14 +13,14 @@ import {
 // ── Styles ──────────────────────────────────────────────────────────────────
 
 const FOOTER_BG = '#faebce'
-const FOOTER_H  = 27
+const FOOTER_H  = 76  // 27mm ≈ 76pt
 const PAGE_W    = 595.28 // A4 pt
 const PAGE_H    = 841.89
 
 Font.register({ family: 'Helvetica' })
 
 const s = StyleSheet.create({
-  page: { fontFamily: 'Helvetica', fontSize: 9, color: '#1a1a1a', paddingBottom: FOOTER_H + 10 },
+  page: { fontFamily: 'Helvetica', fontSize: 9, color: '#1a1a1a', paddingBottom: FOOTER_H + 6 },
   pageBleed: { fontFamily: 'Helvetica', fontSize: 9, color: '#1a1a1a' },
 
   // Header
@@ -47,7 +47,7 @@ const s = StyleSheet.create({
   letterLogo: { width: 100, height: 38, objectFit: 'contain' },
   letterRefBold: { fontSize: 11, fontWeight: 'bold', marginTop: 10, marginBottom: 8 },
   letterBody: { fontSize: 8, lineHeight: 1.7, padding: '0 24' },
-  letterParagraph: { marginBottom: 6 },
+  letterParagraph: { marginBottom: 8 },
 
   // Summary
   summaryGrid: { marginBottom: 10, padding: '0 24' },
