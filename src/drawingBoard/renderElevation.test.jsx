@@ -777,3 +777,36 @@ describe('SashElevation — cill full-width and horn extensions', () => {
   })
 
 })
+
+// ── Tests — operation labels with refOptions (H3 fixes round 3, item 1) ──────
+
+describe('SashElevation — operation labels from refOptions', () => {
+
+  const refOptions = { sash_operation: [{ code: 'cord_hung', label: 'Cord Hung' }] }
+
+  it('shows "Cord Hung" when sash_operation refOptions are provided', () => {
+    const tree = makeTree(
+      { width: 500, height: 1849, leftWidth: 85, rightWidth: 85, topHeight: 79 },
+      { height: 70 },
+      { midrailHeight: 40 },
+      { topHeight: 49, stileWidth: 47, operation: 'cord_hung' },
+      { bottomHeight: 88, operation: 'cord_hung' },
+    )
+    const geo  = makeGeometry()
+    const html = render({ tree, geometry: geo, refOptions, viewMode: 'internal' })
+    expect(html).toContain('Cord Hung')
+  })
+
+  it('shows no label text when refOptions is empty (simulates anon-key empty result)', () => {
+    const tree = makeTree(
+      { width: 500, height: 1849, leftWidth: 85, rightWidth: 85, topHeight: 79 },
+      { height: 70 },
+      { midrailHeight: 40 },
+      { topHeight: 49, stileWidth: 47, operation: 'cord_hung' },
+      { bottomHeight: 88, operation: 'cord_hung' },
+    )
+    const geo  = makeGeometry()
+    const html = render({ tree, geometry: geo, refOptions: {}, viewMode: 'internal' })
+    expect(html).not.toContain('Cord Hung')
+  })
+})

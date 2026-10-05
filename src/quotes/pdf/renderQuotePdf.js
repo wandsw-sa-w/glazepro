@@ -95,10 +95,9 @@ export async function renderQuotePdf(snapshot, opts = {}) {
   onProgress?.('Building document model…')
   const model = buildDocModel(snapshot)
 
-  // Load reference options for operation labels (e.g. "Cord Hung")
-  const { loadReferenceOptions } = await import('../../drawingBoard/api.js')
-  let elevRefOptions = {}
-  try { elevRefOptions = await loadReferenceOptions(['sash_operation']) } catch { /* non-fatal */ }
+  // Use reference options from the snapshot (resolved at build time with the
+  // authenticated client — the anon key returns empty from RLS-protected tables)
+  const elevRefOptions = snapshot.ref_options || {}
 
   // Rasterise elevations
   onProgress?.('Rendering elevations…')

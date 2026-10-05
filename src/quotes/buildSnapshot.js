@@ -31,7 +31,7 @@ export function assembleSnapshot(data) {
     trees, drawingRunPrices, quoteApportionment,
     ironmongeryByDrawing, allocatedPartsByDrawing,
     latestRunByDrawing, profilesByDrawing,
-    refLabels, profileLabelByDrawing,
+    refLabels, refOptionsByCategory, profileLabelByDrawing,
     content,
   } = data
 
@@ -203,6 +203,7 @@ export function assembleSnapshot(data) {
 
     content,
     ref_labels: refLabels || {},
+    ref_options: refOptionsByCategory || {},
 
     totals: {
       subtotal_before_discount: totals.subtotalBeforeDiscount,
@@ -410,14 +411,17 @@ export async function buildQuoteSnapshot({ quoteId, leadId, userId, supabase }) 
     }
   }
 
-  // 13. Reference options — code→label map for resolving raw codes in the PDF
+  // 13. Reference options — code→label map + grouped by category (for elevations)
   const refLabels = {}
+  const refOptionsByCategory = {}
   const { data: refOpts } = await supabase
     .from('reference_options')
     .select('category, code, label')
     .eq('is_active', true)
   for (const opt of (refOpts || [])) {
     refLabels[opt.code] = opt.label
+    if (!refOptionsByCategory[opt.category]) refOptionsByCategory[opt.category] = []
+    refOptionsByCategory[opt.category].push({ code: opt.code, label: opt.label })
   }
 
   return assembleSnapshot({
@@ -432,6 +436,7 @@ export async function buildQuoteSnapshot({ quoteId, leadId, userId, supabase }) 
     drawings,
     trees,
     refLabels,
+    refOptionsByCategory,
     profileLabelByDrawing,
     drawingRunPrices: drawingRunPricesMap,
     quoteApportionment,
