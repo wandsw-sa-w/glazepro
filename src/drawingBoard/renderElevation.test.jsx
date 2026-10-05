@@ -797,6 +797,37 @@ describe('SashElevation — operation labels from refOptions', () => {
     expect(html).toContain('Cord Hung')
   })
 
+  it('shows "Cord Hung" with the PDF elevation settings (showGlassLabels: true)', () => {
+    const tree = makeTree(
+      { width: 500, height: 1849, leftWidth: 85, rightWidth: 85, topHeight: 79 },
+      { height: 70 },
+      { midrailHeight: 40 },
+      { topHeight: 49, stileWidth: 47, operation: 'cord_hung' },
+      { bottomHeight: 88, operation: 'cord_hung' },
+    )
+    const geo  = makeGeometry()
+    // These are the exact settings renderQuotePdf uses
+    const pdfSettings = {
+      showOverallSL: false, showIndividualSL: false, showGlazingRebate: false,
+      showTextOnDwg: true, showGlassLabels: true, showActiveRulers: false, showSashCentricDims: false,
+    }
+    const html = render({ tree, geometry: geo, refOptions, viewMode: 'internal', settings: pdfSettings })
+    expect(html).toContain('Cord Hung')
+  })
+
+  it('hides labels when showGlassLabels is false', () => {
+    const tree = makeTree(
+      { width: 500, height: 1849, leftWidth: 85, rightWidth: 85, topHeight: 79 },
+      { height: 70 },
+      { midrailHeight: 40 },
+      { topHeight: 49, stileWidth: 47, operation: 'cord_hung' },
+      { bottomHeight: 88, operation: 'cord_hung' },
+    )
+    const geo  = makeGeometry()
+    const html = render({ tree, geometry: geo, refOptions, viewMode: 'internal', settings: { showGlassLabels: false } })
+    expect(html).not.toContain('Cord Hung')
+  })
+
   it('shows no label text when refOptions is empty (simulates anon-key empty result)', () => {
     const tree = makeTree(
       { width: 500, height: 1849, leftWidth: 85, rightWidth: 85, topHeight: 79 },

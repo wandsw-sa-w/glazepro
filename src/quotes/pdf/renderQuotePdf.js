@@ -32,7 +32,7 @@ async function rasteriseElevation(tree, geometry, derived, viewMode, refOptions)
     showIndividualSL: false,
     showGlazingRebate: false,
     showTextOnDwg: true,
-    showGlassLabels: false,
+    showGlassLabels: true,   // operation labels ("A1 Cord Hung") live inside the glass-labels block
     showActiveRulers: false,
     showSashCentricDims: false,
   }
