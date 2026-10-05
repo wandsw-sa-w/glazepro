@@ -514,6 +514,23 @@ describe('specSections — ironmongery from snapshot', () => {
   })
 })
 
+// ── Tests: QuotePdf logo aspect ratio ─────────────────────────────────────────
+
+describe('QuotePdf — logo aspect ratio', () => {
+  it('every logo Image in QuotePdf.jsx uses objectFit contain', async () => {
+    const fs = await import('fs')
+    const source = fs.readFileSync('src/quotes/pdf/QuotePdf.jsx', 'utf-8')
+    // headerLogo style constant
+    expect(source).toContain("headerLogo: { width: 80, height: 30, objectFit: 'contain' }")
+    // letterLogo already uses objectFit: 'contain'
+    expect(source).toContain("objectFit: 'contain'")
+    // inline item-page logo
+    const itemLogoMatch = source.match(/width: 60, height: 22[^}]*/)
+    expect(itemLogoMatch).not.toBeNull()
+    expect(itemLogoMatch[0]).toContain('contain')
+  })
+})
+
 // ── Tests: ironmongeryTiles ──────────────────────────────────────────────────
 
 describe('ironmongeryTiles', () => {

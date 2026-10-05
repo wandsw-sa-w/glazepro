@@ -27,7 +27,7 @@ const s = StyleSheet.create({
   headerFull: { flexDirection: 'row', justifyContent: 'space-between', padding: '12 24', borderBottom: '1 solid #e8e6e0', marginBottom: 10 },
   headerCompact: { flexDirection: 'row', justifyContent: 'space-between', padding: '8 24', borderBottom: '0.5 solid #ddd', marginBottom: 6 },
   headerTitle: { fontSize: 14, fontWeight: 'bold', marginBottom: 2 },
-  headerLogo: { width: 80, height: 30 },
+  headerLogo: { width: 80, height: 30, objectFit: 'contain' },
   headerSmall: { fontSize: 7, color: '#888' },
 
   // Footer
@@ -221,7 +221,7 @@ export default function QuotePdf({ model, watermark, logoUrl, coverUrl, elevatio
               <Text style={{ fontSize: 7, color: '#888' }}>{quoteRef}</Text>
               <Text style={{ fontSize: 10, fontWeight: 'bold' }}>Quotation</Text>
             </View>
-            {logoUrl && <Image src={logoUrl} style={{ width: 60, height: 22 }} />}
+            {logoUrl && <Image src={logoUrl} style={{ width: 60, height: 22, objectFit: 'contain' }} />}
           </View>
 
           <Text style={s.hingeNote}>The opening sash symbol (or arrow head) points to the hinge position</Text>
