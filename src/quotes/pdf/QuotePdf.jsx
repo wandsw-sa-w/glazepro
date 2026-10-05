@@ -67,7 +67,7 @@ const s = StyleSheet.create({
   itemLeft: { width: '42%' },
   itemRight: { width: '55%' },
   elevationLabel: { fontSize: 7, color: '#888', textAlign: 'center', marginBottom: 2 },
-  elevationBox: { border: '0.5 solid #ddd', marginBottom: 6, padding: 4, height: 180 },
+  elevationBox: { border: '0.5 solid #ddd', marginBottom: 6, padding: 4, height: 210 },
   specTitle: { fontSize: 8, fontWeight: 'bold', marginTop: 4, marginBottom: 1, color: '#333' },
   specContent: { fontSize: 7.5, color: '#555', lineHeight: 1.5, marginBottom: 2 },
 

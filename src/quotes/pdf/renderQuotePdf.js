@@ -16,13 +16,13 @@ import { PREVIEW_WATERMARK } from './quoteContent.js'
  * Render SashElevation to an off-screen SVG, then rasterise to a data-URI PNG
  * at roughly 300 dpi for a ~70 mm printed width.
  */
-async function rasteriseElevation(tree, geometry, derived, viewMode) {
+async function rasteriseElevation(tree, geometry, derived, viewMode, refOptions) {
   if (!tree || !geometry) return null
 
   // Lazy-import so we don't pull the drawing board into the main chunk
   const { SashElevation } = await import('../../drawingBoard/renderElevation.jsx')
 
-  const TARGET_PX = 830 // ~70 mm at 300 dpi
+  const TARGET_PX = 900 // ~75 mm at 300 dpi
   const container = document.createElement('div')
   container.style.cssText = 'position:fixed;left:-9999px;top:0;width:830px;height:1200px;overflow:hidden'
   document.body.appendChild(container)
@@ -40,7 +40,7 @@ async function rasteriseElevation(tree, geometry, derived, viewMode) {
   return new Promise((resolve) => {
     const root = createRoot(container)
     root.render(createElement(SashElevation, {
-      tree, geometry, derived, refOptions: {}, viewMode, settings,
+      tree, geometry, derived, refOptions: refOptions || {}, viewMode, settings,
     }))
 
     // Wait for paint, then grab the SVG
@@ -95,6 +95,11 @@ export async function renderQuotePdf(snapshot, opts = {}) {
   onProgress?.('Building document model…')
   const model = buildDocModel(snapshot)
 
+  // Load reference options for operation labels (e.g. "Cord Hung")
+  const { loadReferenceOptions } = await import('../../drawingBoard/api.js')
+  let elevRefOptions = {}
+  try { elevRefOptions = await loadReferenceOptions(['sash_operation']) } catch { /* non-fatal */ }
+
   // Rasterise elevations
   onProgress?.('Rendering elevations…')
   const elevationImages = []
@@ -102,8 +107,8 @@ export async function renderQuotePdf(snapshot, opts = {}) {
     const item = snapshot.items[i]
     onProgress?.(`Rendering elevation ${i + 1} of ${snapshot.items.length}…`)
     const [internal, external] = await Promise.all([
-      rasteriseElevation(item.parts_tree, item.geometry, item.derived, 'internal'),
-      rasteriseElevation(item.parts_tree, item.geometry, item.derived, 'external'),
+      rasteriseElevation(item.parts_tree, item.geometry, item.derived, 'internal', elevRefOptions),
+      rasteriseElevation(item.parts_tree, item.geometry, item.derived, 'external', elevRefOptions),
     ])
     elevationImages.push({ internal, external })
   }
