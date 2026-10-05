@@ -387,10 +387,10 @@ export async function buildQuoteSnapshot({ quoteId, leadId, userId, supabase }) 
   if (profileIds.length > 0) {
     const { data: profileRows } = await supabase
       .from('default_profiles')
-      .select('id, label')
+      .select('id, label, display_name')
       .in('id', profileIds)
     const labelMap = {}
-    for (const p of (profileRows || [])) labelMap[p.id] = p.label
+    for (const p of (profileRows || [])) labelMap[p.id] = p.display_name || p.label
 
     const { data: pvRows } = await supabase
       .from('default_profile_values')

@@ -137,13 +137,20 @@ describe('quoteDocModel — Integrate 15-item totals', () => {
 // ── Tests: Item heading ──────────────────────────────────────────────────────
 
 describe('itemHeading', () => {
-  it('single timber — all match', () => {
+  it('single timber — all match, with display_name from profile', () => {
     const item = makeItem()
     const { heading } = itemHeading(item, 'Standard Sash')
     expect(heading).toContain('Supply & Install a complete new Doc L sash window')
     expect(heading).toContain('(Standard Sash range)')
     expect(heading).toContain('in Accoya')
     expect(heading).not.toContain('with')
+  })
+
+  it('uses profile_label from snapshot for range name', () => {
+    const snap = makeSnapshot()
+    snap.items[0].profile_label = 'Standard Sash'
+    const model = buildDocModel(snap)
+    expect(model.items[0].heading).toContain('(Standard Sash range)')
   })
 
   it('split timber — frame/sash differ from cill', () => {
