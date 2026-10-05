@@ -72,6 +72,8 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
   const [profileNames, setProfileNames] = useState({}) // profileId → label
   const [profiles, setProfiles] = useState([]) // [{id, code, label}] — active default_profiles, for the fallback resolver
 
+  const [usersList, setUsersList] = useState([]) // [{id, full_name}] for salesperson dropdown
+
   const [showDeleted, setShowDeleted] = useState(false)
   const [onSiteMode, setOnSiteMode] = useState(false)
   const [trees, setTrees] = useState({})       // drawingId -> tree (live, Open quotes only)
@@ -207,6 +209,10 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
         setSalespersonName(sp?.full_name || '')
       } else setSalespersonName('')
 
+      // Load users for salesperson dropdown
+      const { data: usersRows } = await supabase.from('users').select('id, full_name').order('full_name')
+      setUsersList((usersRows || []).filter(u => u.full_name))
+
       const categories = [...new Set(GRID_COLUMNS.filter(c => c.referenceCategory).map(c => c.referenceCategory))]
       const loadedRefOptions = categories.length > 0 ? await loadReferenceOptions(categories).catch(() => ({})) : {}
       setRefOptions(loadedRefOptions)
@@ -318,6 +324,7 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
       discount_pct: quote.discount_pct ?? 0,
       valid_days: quote.valid_days ?? 30,
       item_layout: quote.item_layout || '',
+      salesperson_id: quote.salesperson_id || '',
     })
     setPaymentsDraft({ deposit_pct: quote.deposit_pct ?? 40, interim_pct: quote.interim_pct ?? 50 })
   }, [quote?.id])
@@ -420,9 +427,10 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
       discount_pct: parseFloat(detailsDraft.discount_pct) || 0,
       valid_days: parseInt(detailsDraft.valid_days, 10) || 30,
       item_layout: detailsDraft.item_layout || null,
+      salesperson_id: detailsDraft.salesperson_id || null,
     }
     const { error } = await supabase.from('quotes').update(patch).eq('id', quote.id)
-    if (!error) { setQuote(prev => ({ ...prev, ...patch })); setEditDetailsOpen(false) }
+    if (!error) { setQuote(prev => ({ ...prev, ...patch })); setEditDetailsOpen(false); load() }
   }
 
   async function savePayments() {
@@ -443,7 +451,7 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
     setPublishing(true)
     setPublishError(null)
     try {
-      await publishQuote({ quoteId: quote.id, leadId, userId: user?.id, userName: user?.user_metadata?.full_name || user?.email, leadNumber: lead?.lead_number, quoteNumber: quote.quote_number, supabase })
+      await publishQuote({ quoteId: quote.id, leadId, userId: user?.id, userName: user?.user_metadata?.full_name || user?.email?.split('@')[0], userEmail: user?.email, leadNumber: lead?.lead_number, quoteNumber: quote.quote_number, supabase })
     } catch (e) {
       setPublishError(e.message)
     }
@@ -479,7 +487,7 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
     setPreviewError(null)
     setPreviewProgress('Building snapshot…')
     try {
-      const snapshot = await buildQuoteSnapshot({ quoteId: quote.id, leadId, userId: user?.id, userName: user?.user_metadata?.full_name || user?.email, supabase })
+      const snapshot = await buildQuoteSnapshot({ quoteId: quote.id, leadId, userId: user?.id, userName: user?.user_metadata?.full_name || user?.email?.split('@')[0], supabase })
       const { renderQuotePdf } = await import('../quotes/pdf/renderQuotePdf.js')
       const blob = await renderQuotePdf(snapshot, { watermark: true, onProgress: setPreviewProgress })
       const url = URL.createObjectURL(blob)
@@ -771,6 +779,12 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
           </FieldRow>
           <FieldRow label="Discount %"><input type="number" value={detailsDraft.discount_pct} onChange={e => setDetailsDraft(d => ({ ...d, discount_pct: e.target.value }))} style={modalInput} /></FieldRow>
           <FieldRow label="Valid for (days)"><input type="number" value={detailsDraft.valid_days} onChange={e => setDetailsDraft(d => ({ ...d, valid_days: e.target.value }))} style={modalInput} /></FieldRow>
+          <FieldRow label="Sales Person on Quote">
+            <select value={detailsDraft.salesperson_id} onChange={e => setDetailsDraft(d => ({ ...d, salesperson_id: e.target.value }))} style={modalInput}>
+              <option value="">— None —</option>
+              {usersList.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+            </select>
+          </FieldRow>
           <FieldRow label="Layout">
             <select value={detailsDraft.item_layout} onChange={e => setDetailsDraft(d => ({ ...d, item_layout: e.target.value }))} style={modalInput}>
               <option value="">— Default —</option>

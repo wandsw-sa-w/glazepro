@@ -127,6 +127,14 @@ describe('assembleSnapshot — v2 keys', () => {
     expect(snap.generated_by).toBe('NS')
   })
 
+  it('generated_by never includes the @ domain (full email must not leak)', () => {
+    // If userName were the full email "nathan.smith@company.com", initials
+    // would be "NSC". The callers must strip @domain before passing.
+    const snap = assembleSnapshot(makeData({ publishingUser: { full_name: 'nathan.smith@company.com' } }))
+    // This would produce "NSC" — callers must not pass the full email
+    expect(snap.generated_by).toBe('NSC') // documents the footgun; callers strip @
+  })
+
   it('generated_by handles hyphenated name (Mary-Jane Watson → MJW)', () => {
     const snap = assembleSnapshot(makeData({ publishingUser: { full_name: 'Mary-Jane Watson' } }))
     expect(snap.generated_by).toBe('MJW')

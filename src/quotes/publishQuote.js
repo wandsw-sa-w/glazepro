@@ -9,10 +9,10 @@
 import { buildQuoteSnapshot } from './buildSnapshot.js'
 
 /**
- * @param {{ quoteId, leadId, userId, userName, leadNumber, quoteNumber, supabase }} opts
+ * @param {{ quoteId, leadId, userId, userName, userEmail, leadNumber, quoteNumber, supabase }} opts
  * @returns {Promise<{ snapshot: object, pdfPath: string }>}
  */
-export async function publishQuote({ quoteId, leadId, userId, userName, leadNumber, quoteNumber, supabase }) {
+export async function publishQuote({ quoteId, leadId, userId, userName, userEmail, leadNumber, quoteNumber, supabase }) {
   // 1. Build snapshot
   const snapshot = await buildQuoteSnapshot({ quoteId, leadId, userId, userName, supabase })
 
@@ -25,8 +25,10 @@ export async function publishQuote({ quoteId, leadId, userId, userName, leadNumb
   const pdfBlob = await renderQuotePdf(snapshot, { watermark: false })
 
   // 3. Upload PDF to a unique path (timestamp avoids "already exists" on retry)
+  // leadNumber already starts with "L" (e.g. "L507712") — don't add another
   const ts = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14) // yyyymmddHHMMss
-  const pdfPath = `L${leadNumber || leadId}/L${leadNumber || ''}_${quoteNumber}_${ts}.pdf`
+  const lead = leadNumber || `L${leadId}`
+  const pdfPath = `${lead}/${lead}_${quoteNumber}_${ts}.pdf`
   const { error: uploadError } = await supabase.storage
     .from('quote-pdfs')
     .upload(pdfPath, pdfBlob, { contentType: 'application/pdf', upsert: false })
@@ -43,12 +45,13 @@ export async function publishQuote({ quoteId, leadId, userId, userName, leadNumb
   }).eq('id', quoteId)
   if (error) throw new Error(`Publish failed: ${error.message}`)
 
-  // 5. Lead history
+  // 5. Lead history — one "Quote published" row with user email
   try {
     await supabase.from('lead_history').insert({
       lead_id: leadId,
       user_id: userId ?? null,
-      event: 'Quote PDF generated',
+      user_email: userEmail ?? null,
+      event: 'Quote published',
       new_value: `${leadNumber} / ${quoteNumber}`,
       created_at: new Date().toISOString(),
     })

@@ -548,7 +548,7 @@ export default function QuoteMatrixPage() {
       if (!ok) return
     }
     try {
-      const { snapshot, pdfPath } = await publishQuote({ quoteId, leadId, userId: user?.id, userName: user?.user_metadata?.full_name || user?.email, leadNumber: lead?.lead_number, quoteNumber: q.quote_number, supabase })
+      const { snapshot, pdfPath } = await publishQuote({ quoteId, leadId, userId: user?.id, userName: user?.user_metadata?.full_name || user?.email?.split('@')[0], userEmail: user?.email, leadNumber: lead?.lead_number, quoteNumber: q.quote_number, supabase })
       setQuotes(prev => prev.map(qq => qq.id === quoteId ? { ...qq, status: 'Published', published_at: snapshot.published_at, published_by: user?.id, valid_until: snapshot.quote_settings.valid_until, snapshot, pdf_path: pdfPath } : qq))
     } catch (e) {
       setPricing(prev => ({ ...prev, [quoteId]: { busy: false, error: e.message, progress: null } }))
