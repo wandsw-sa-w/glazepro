@@ -89,6 +89,8 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
   const [previewing, setPreviewing] = useState(false)
   const [previewProgress, setPreviewProgress] = useState(null)
   const [previewError, setPreviewError] = useState(null)
+  const [generatingSow, setGeneratingSow] = useState(false)
+  const [generatingDetail, setGeneratingDetail] = useState(false)
 
   const isLive = quote?.status === 'Open'
 
@@ -499,6 +501,48 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
     setPreviewProgress(null)
   }
 
+  async function doGenerateSow() {
+    setGeneratingSow(true)
+    setPreviewError(null)
+    try {
+      let snapshot
+      if (quote.status === 'Open') {
+        snapshot = await buildQuoteSnapshot({ quoteId: quote.id, leadId, userId: user?.id, userName: user?.user_metadata?.full_name || user?.email?.split('@')[0], supabase })
+      } else {
+        snapshot = quote.snapshot
+      }
+      if (!snapshot || snapshot.version !== 2) throw new Error('Snapshot not available — publish the quote first or copy to a new one')
+      const { renderScheduleOfWork } = await import('../quotes/pdf/renderScheduleOfWork.js')
+      const blob = await renderScheduleOfWork(snapshot, { headerMode: 'customer' })
+      const url = URL.createObjectURL(blob)
+      window.open(url, '_blank')
+    } catch (e) {
+      setPreviewError(`SOW failed: ${e.message}`)
+    }
+    setGeneratingSow(false)
+  }
+
+  async function doGenerateItemDetail() {
+    setGeneratingDetail(true)
+    setPreviewError(null)
+    try {
+      let snapshot
+      if (quote.status === 'Open') {
+        snapshot = await buildQuoteSnapshot({ quoteId: quote.id, leadId, userId: user?.id, userName: user?.user_metadata?.full_name || user?.email?.split('@')[0], supabase })
+      } else {
+        snapshot = quote.snapshot
+      }
+      if (!snapshot || snapshot.version !== 2) throw new Error('Snapshot not available — publish the quote first or copy to a new one')
+      const { renderItemDetailSheet } = await import('../quotes/pdf/renderItemDetailSheet.js')
+      const blob = await renderItemDetailSheet(snapshot)
+      const url = URL.createObjectURL(blob)
+      window.open(url, '_blank')
+    } catch (e) {
+      setPreviewError(`Item Detail failed: ${e.message}`)
+    }
+    setGeneratingDetail(false)
+  }
+
   const mergeFields = {
     customer_forename: mainContact?.first_name || '',
     installation_full_address_one_line: [lead?.property_road, lead?.property_town, lead?.property_postcode].filter(Boolean).join(', '),
@@ -713,6 +757,16 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
           {previewing ? (previewProgress || 'Generating…') : 'Generate quote preview'}
         </button>}
         <button onClick={() => navigate(`/leads/${leadId}`)} style={miniLinkBtn()}>Click here for more outputs</button>
+        {(quote.status === 'Open' || quote.status === 'Published') && (
+          <button onClick={doGenerateSow} disabled={generatingSow} style={{ fontSize: 11, padding: '6px 14px', border: '1px solid #d8d5cf', borderRadius: 8, background: '#fff', color: '#555', cursor: generatingSow ? 'default' : 'pointer' }}>
+            {generatingSow ? 'Generating...' : 'Schedule of Work'}
+          </button>
+        )}
+        {(quote.status === 'Open' || quote.status === 'Published') && (
+          <button onClick={doGenerateItemDetail} disabled={generatingDetail} style={{ fontSize: 11, padding: '6px 14px', border: '1px solid #d8d5cf', borderRadius: 8, background: '#fff', color: '#555', cursor: generatingDetail ? 'default' : 'pointer' }}>
+            {generatingDetail ? 'Generating...' : 'Item Detail Sheet'}
+          </button>
+        )}
         <div style={{ flex: 1 }} />
         {quote.status === 'Open' ? (
           <>
