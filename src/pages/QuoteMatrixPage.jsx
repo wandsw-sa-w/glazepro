@@ -14,7 +14,7 @@ import { loadDrawingParts, saveDrawingParts } from '../drawingBoard/api.js'
 import { computeDerived } from '../drawingBoard/computeDerived.js'
 import { computeSashGeometry } from '../drawingBoard/sashGeometry.js'
 import { SashElevation } from '../drawingBoard/renderElevation.jsx'
-import { buildQuoteSnapshot } from '../quotes/buildSnapshot.js'
+import { publishQuote } from '../quotes/publishQuote.js'
 import QuoteOverview from './QuoteOverview.jsx'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -547,25 +547,10 @@ export default function QuoteMatrixPage() {
       if (!ok) return
     }
     try {
-      const snapshot = await buildQuoteSnapshot({ quoteId, leadId, userId: user?.id, supabase })
-
-      // Render PDF (no watermark)
-      const { renderQuotePdf } = await import('../quotes/pdf/renderQuotePdf.js')
-      const pdfBlob = await renderQuotePdf(snapshot, { watermark: false })
-
-      // Upload PDF
-      const pdfPath = `L${lead?.lead_number || leadId}/${lead?.lead_number || 'L'}_${q.quote_number}.pdf`
-      const { error: uploadError } = await supabase.storage.from('quote-pdfs').upload(pdfPath, pdfBlob, { contentType: 'application/pdf', upsert: false })
-      if (uploadError) { setPricing(prev => ({ ...prev, [quoteId]: { busy: false, error: `PDF upload failed: ${uploadError.message}`, progress: null } })); return }
-
-      const { error } = await supabase.from('quotes').update({ status: 'Published', published_at: snapshot.published_at, published_by: user?.id ?? null, valid_until: snapshot.quote_settings.valid_until, snapshot, pdf_path: pdfPath }).eq('id', quoteId)
-      if (error) { setPricing(prev => ({ ...prev, [quoteId]: { busy: false, error: `Publish failed: ${error.message}`, progress: null } })); return }
-      setQuotes(prev => prev.map(q => q.id === quoteId ? { ...q, status: 'Published', published_at: snapshot.published_at, published_by: user?.id, valid_until: snapshot.quote_settings.valid_until, snapshot, pdf_path: pdfPath } : q))
-      try {
-        await supabase.from('lead_history').insert({ lead_id: leadId, user_id: user?.id ?? null, user_email: user?.email ?? null, event: 'Quote PDF generated', new_value: `${lead?.lead_number} / ${q.quote_number}`, created_at: new Date().toISOString() })
-      } catch { /* lead_history may not exist */ }
+      const { snapshot, pdfPath } = await publishQuote({ quoteId, leadId, userId: user?.id, leadNumber: lead?.lead_number, quoteNumber: q.quote_number, supabase })
+      setQuotes(prev => prev.map(qq => qq.id === quoteId ? { ...qq, status: 'Published', published_at: snapshot.published_at, published_by: user?.id, valid_until: snapshot.quote_settings.valid_until, snapshot, pdf_path: pdfPath } : qq))
     } catch (e) {
-      setPricing(prev => ({ ...prev, [quoteId]: { busy: false, error: `Publish failed: ${e.message}`, progress: null } }))
+      setPricing(prev => ({ ...prev, [quoteId]: { busy: false, error: e.message, progress: null } }))
     }
   }
 

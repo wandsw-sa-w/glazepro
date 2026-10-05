@@ -9,6 +9,7 @@ import { GRID_COLUMNS, readColumnValue, writeColumnValue } from '../quotes/gridC
 import { loadDrawingRunPrices, drawingRunSales, drawingQuoteItemNet } from '../quotes/drawingRunPrice.js'
 import { effectiveProfileId } from '../drawingBoard/defaultProfile.js'
 import { buildQuoteSnapshot } from '../quotes/buildSnapshot.js'
+import { publishQuote } from '../quotes/publishQuote.js'
 import { FRONT_COVER_LETTER, BACK_COVER_LETTER } from '../quotes/pdf/quoteContent.js'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -438,26 +439,9 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
     setPublishing(true)
     setPublishError(null)
     try {
-      // 1. Build snapshot
-      const snapshot = await buildQuoteSnapshot({ quoteId: quote.id, leadId, userId: user?.id, supabase })
-
-      // 2. Render PDF (no watermark)
-      const { renderQuotePdf } = await import('../quotes/pdf/renderQuotePdf.js')
-      const pdfBlob = await renderQuotePdf(snapshot, { watermark: false })
-
-      // 3. Upload PDF to quote-pdfs bucket
-      const pdfPath = `L${lead?.lead_number || leadId}/${lead?.lead_number || 'L'}_${quote.quote_number}.pdf`
-      const { error: uploadError } = await supabase.storage.from('quote-pdfs').upload(pdfPath, pdfBlob, { contentType: 'application/pdf', upsert: false })
-      if (uploadError) { setPublishError(`PDF upload failed: ${uploadError.message}`); setPublishing(false); return }
-
-      // 4. Update quote with status, snapshot AND pdf_path together
-      const { error } = await supabase.from('quotes').update({ status: 'Published', published_at: snapshot.published_at, published_by: user?.id ?? null, valid_until: snapshot.quote_settings.valid_until, snapshot, pdf_path: pdfPath }).eq('id', quote.id)
-      if (error) { setPublishError(`Publish failed: ${error.message}`); setPublishing(false); return }
-
-      // 5. Lead history
-      try { await supabase.from('lead_history').insert({ lead_id: leadId, user_id: user?.id ?? null, user_email: user?.email ?? null, event: 'Quote PDF generated', new_value: `${lead?.lead_number} / ${quote.quote_number}`, created_at: new Date().toISOString() }) } catch { /* ignore */ }
+      await publishQuote({ quoteId: quote.id, leadId, userId: user?.id, leadNumber: lead?.lead_number, quoteNumber: quote.quote_number, supabase })
     } catch (e) {
-      setPublishError(`Publish failed: ${e.message}`)
+      setPublishError(e.message)
     }
     setPublishing(false)
     load()
