@@ -35,11 +35,13 @@ export function isDrawingStale(quote, drawingId, latestRuns) {
 export function validatePublish(quote, jobItems, drawings, selections, latestRuns) {
   const staleDwgIds = []
   const poaItemIndices = []
+  let selectedCount = 0
 
   for (let idx = 0; idx < jobItems.length; idx++) {
     const item = jobItems[idx]
     const drawingId = selections[`${quote.id}_${item.id}`]
     if (!drawingId) continue
+    selectedCount++
 
     if (isDrawingStale(quote, drawingId, latestRuns)) {
       staleDwgIds.push(drawingId)
@@ -47,6 +49,15 @@ export function validatePublish(quote, jobItems, drawings, selections, latestRun
 
     const dwg = drawings.find(d => d.id === drawingId)
     if (dwg?.poa) poaItemIndices.push(idx)
+  }
+
+  if (selectedCount === 0) {
+    return {
+      ok: false,
+      staleDwgIds: [],
+      poaItemIndices: [],
+      reason: 'Add at least one item before publishing.',
+    }
   }
 
   if (staleDwgIds.length > 0) {

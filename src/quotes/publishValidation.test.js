@@ -101,6 +101,28 @@ describe('nextQuoteNumber', () => {
   })
 })
 
+// ── validatePublish — no items ────────────────────────────────────────────────
+
+describe('validatePublish — refuses empty quote', () => {
+  it('returns ok:false when no items are selected', () => {
+    const quote    = { id: 'q1', price_file_id: 'pf1' }
+    const jobItems = [{ id: 'ji1', item_number: 1 }]
+    const drawings = []
+    const sels     = {}  // nothing selected
+    const runs     = {}
+
+    const result = validatePublish(quote, jobItems, drawings, sels, runs)
+    expect(result.ok).toBe(false)
+    expect(result.reason).toBe('Add at least one item before publishing.')
+  })
+
+  it('returns ok:false when jobItems is empty', () => {
+    const result = validatePublish({ id: 'q1' }, [], [], {}, {})
+    expect(result.ok).toBe(false)
+    expect(result.reason).toBe('Add at least one item before publishing.')
+  })
+})
+
 // ── isLocked ──────────────────────────────────────────────────────────────────
 
 describe('isLocked', () => {

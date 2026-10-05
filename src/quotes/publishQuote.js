@@ -16,6 +16,10 @@ export async function publishQuote({ quoteId, leadId, userId, userName, leadNumb
   // 1. Build snapshot
   const snapshot = await buildQuoteSnapshot({ quoteId, leadId, userId, userName, supabase })
 
+  if (!snapshot.items || snapshot.items.length === 0) {
+    throw new Error('Add at least one item before publishing.')
+  }
+
   // 2. Render PDF (no watermark)
   const { renderQuotePdf } = await import('./pdf/renderQuotePdf.js')
   const pdfBlob = await renderQuotePdf(snapshot, { watermark: false })
