@@ -3,6 +3,10 @@ import {
   itemHeading, specSections, ironmongerySentence, ironmongeryTiles,
   summaryModel, itemPriceLabel, mergeFields, formatDate, fmtMoney,
   buildDocModel, snapshotMergeFields, SUMMARY_COLUMNS,
+  groupItemPages, itemsPerPage, layoutShowsTiles,
+  LAYOUT_1_VIEWS, LAYOUT_1_COVER_PHOTO,
+  LAYOUT_2_WITH_IMAGES, LAYOUT_2_NO_IMAGES,
+  LAYOUT_3_NO_IMAGES,
 } from './quoteDocModel.js'
 import { computeQuoteTotals } from '../quoteTotals.js'
 import { QUOTE_CONTENT } from './quoteContent.js'
@@ -543,5 +547,106 @@ describe('ironmongeryTiles', () => {
     const tiles = ironmongeryTiles(iron)
     expect(tiles).toHaveLength(1)
     expect(tiles[0].name).toBe('Fastener')
+  })
+})
+
+// ── Tests: Item layout grouping (N2) ────────────────────────────────────────
+
+describe('itemsPerPage', () => {
+  it('returns 1 for default layout', () => {
+    expect(itemsPerPage(LAYOUT_1_VIEWS)).toBe(1)
+  })
+  it('returns 1 for cover photo layout', () => {
+    expect(itemsPerPage(LAYOUT_1_COVER_PHOTO)).toBe(1)
+  })
+  it('returns 2 for 2-with-images layout', () => {
+    expect(itemsPerPage(LAYOUT_2_WITH_IMAGES)).toBe(2)
+  })
+  it('returns 2 for 2-no-images layout', () => {
+    expect(itemsPerPage(LAYOUT_2_NO_IMAGES)).toBe(2)
+  })
+  it('returns 3 for 3-no-images layout', () => {
+    expect(itemsPerPage(LAYOUT_3_NO_IMAGES)).toBe(3)
+  })
+  it('returns 1 for unknown layout', () => {
+    expect(itemsPerPage('something weird')).toBe(1)
+  })
+})
+
+describe('groupItemPages', () => {
+  const fakeItems = Array.from({ length: 7 }, (_, i) => ({ id: i }))
+
+  it('5 items at 2 per page gives 3 item pages', () => {
+    const pages = groupItemPages(fakeItems.slice(0, 5), LAYOUT_2_WITH_IMAGES)
+    expect(pages).toHaveLength(3)
+    expect(pages[0]).toHaveLength(2)
+    expect(pages[1]).toHaveLength(2)
+    expect(pages[2]).toHaveLength(1)
+  })
+
+  it('7 items at 3 per page gives 3 item pages', () => {
+    const pages = groupItemPages(fakeItems, LAYOUT_3_NO_IMAGES)
+    expect(pages).toHaveLength(3)
+    expect(pages[0]).toHaveLength(3)
+    expect(pages[1]).toHaveLength(3)
+    expect(pages[2]).toHaveLength(1)
+  })
+
+  it('1 item at 1 per page gives 1 page', () => {
+    const pages = groupItemPages([fakeItems[0]], LAYOUT_1_VIEWS)
+    expect(pages).toHaveLength(1)
+    expect(pages[0]).toHaveLength(1)
+  })
+
+  it('0 items gives 0 pages', () => {
+    const pages = groupItemPages([], LAYOUT_2_NO_IMAGES)
+    expect(pages).toHaveLength(0)
+  })
+})
+
+describe('layoutShowsTiles', () => {
+  it('shows tiles for 1-item layouts', () => {
+    expect(layoutShowsTiles(LAYOUT_1_VIEWS)).toBe(true)
+    expect(layoutShowsTiles(LAYOUT_1_COVER_PHOTO)).toBe(true)
+  })
+  it('shows tiles for 2-with-images', () => {
+    expect(layoutShowsTiles(LAYOUT_2_WITH_IMAGES)).toBe(true)
+  })
+  it('hides tiles for no-images layouts', () => {
+    expect(layoutShowsTiles(LAYOUT_2_NO_IMAGES)).toBe(false)
+    expect(layoutShowsTiles(LAYOUT_3_NO_IMAGES)).toBe(false)
+  })
+})
+
+describe('buildDocModel — layout integration', () => {
+  it('includes itemPages and itemLayout in the model', () => {
+    const snap = makeSnapshot()
+    const model = buildDocModel(snap)
+    expect(model.itemLayout).toBe(LAYOUT_1_VIEWS)
+    expect(model.itemPages).toBeDefined()
+    expect(model.itemPages).toHaveLength(1) // 1 item = 1 page at 1-per-page
+    expect(model.itemPages[0]).toHaveLength(1)
+  })
+
+  it('groups items into 2-per-page when layout is set', () => {
+    const items = Array.from({ length: 5 }, (_, i) => makeItem({ itemOverrides: { job_item: { id: `ji${i}`, item_number: i + 1 } } }))
+    const snap = makeSnapshot({
+      quote_settings: { item_layout: LAYOUT_2_WITH_IMAGES, discount_pct: 0, valid_days: 30 },
+      items,
+    })
+    const model = buildDocModel(snap)
+    expect(model.itemLayout).toBe(LAYOUT_2_WITH_IMAGES)
+    expect(model.itemPages).toHaveLength(3) // 5 items / 2 per page = 3 pages
+  })
+
+  it('groups items into 3-per-page when layout is set', () => {
+    const items = Array.from({ length: 7 }, (_, i) => makeItem({ itemOverrides: { job_item: { id: `ji${i}`, item_number: i + 1 } } }))
+    const snap = makeSnapshot({
+      quote_settings: { item_layout: LAYOUT_3_NO_IMAGES, discount_pct: 0, valid_days: 30 },
+      items,
+    })
+    const model = buildDocModel(snap)
+    expect(model.itemLayout).toBe(LAYOUT_3_NO_IMAGES)
+    expect(model.itemPages).toHaveLength(3) // 7 items / 3 per page = 3 pages
   })
 })

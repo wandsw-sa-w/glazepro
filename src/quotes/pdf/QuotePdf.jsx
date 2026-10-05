@@ -9,6 +9,12 @@ import React from 'react'
 import {
   Document, Page, View, Text, Image, Font, StyleSheet, Link,
 } from '@react-pdf/renderer'
+import {
+  LAYOUT_1_VIEWS, LAYOUT_1_COVER_PHOTO,
+  LAYOUT_2_WITH_IMAGES, LAYOUT_2_NO_IMAGES,
+  LAYOUT_3_NO_IMAGES,
+  layoutShowsTiles,
+} from './quoteDocModel.js'
 
 // ── Styles ──────────────────────────────────────────────────────────────────
 
@@ -87,6 +93,23 @@ const s = StyleSheet.create({
 
   // Hinge note
   hingeNote: { fontSize: 6.5, color: '#888', fontStyle: 'italic', marginBottom: 4, padding: '0 24' },
+
+  // Multi-item layouts
+  itemCompactHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4, padding: '0 24' },
+  itemCompactTitle: { fontSize: 8, fontWeight: 'bold' },
+  itemCompactPrice: { fontSize: 7, textAlign: 'right' },
+  itemCompactBody: { flexDirection: 'row', gap: 8, padding: '0 24' },
+  itemCompactLeft: { width: '35%' },
+  itemCompactRight: { width: '62%' },
+  elevationBoxSmall: { border: '0.5 solid #ddd', marginBottom: 4, padding: 2, height: 130 },
+  elevationBoxTiny: { border: '0.5 solid #ddd', marginBottom: 3, padding: 2, height: 95 },
+  specTitleCompact: { fontSize: 7, fontWeight: 'bold', marginTop: 2, marginBottom: 0.5, color: '#333' },
+  specContentCompact: { fontSize: 6.5, color: '#555', lineHeight: 1.4, marginBottom: 1 },
+  tilesRowCompact: { flexDirection: 'row', gap: 4, flexWrap: 'wrap', padding: '4 24', marginTop: 4 },
+  tileCompact: { width: 70, alignItems: 'center' },
+  tileNameCompact: { fontSize: 5, textAlign: 'center', marginBottom: 1 },
+  tileImgCompact: { width: 60, height: 45, objectFit: 'contain' },
+  itemDivider: { borderBottom: '0.5 solid #e8e6e0', marginVertical: 6, marginHorizontal: 24 },
 })
 
 // ── Footer component ────────────────────────────────────────────────────────
@@ -108,10 +131,132 @@ function Footer({ isLastPage }) {
   )
 }
 
+// ── Item renderers per layout ──────────────────────────────────────────────
+
+/**
+ * Full-page single-item renderer (layout 1: views, or layout 2: cover photo).
+ */
+function ItemFull({ item, idx, elevationImages, showTiles, layout }) {
+  const isCoverPhoto = layout === LAYOUT_1_COVER_PHOTO
+  return (
+    <View>
+      <View style={s.itemHeader}>
+        <Text style={s.itemTitle}>ITEM {item.itemNumber}{item.location ? ` - ${item.location}` : ''}</Text>
+        <Text style={s.itemPrice}>{item.priceLabel}</Text>
+      </View>
+      <View style={s.itemBody}>
+        <View style={s.itemLeft}>
+          <Text style={s.elevationLabel}>Internal View</Text>
+          <View style={s.elevationBox}>
+            {elevationImages?.[idx]?.internal ? (
+              <Image src={elevationImages[idx].internal} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+            ) : (
+              <Text style={{ fontSize: 7, color: '#ccc', textAlign: 'center', marginTop: 70 }}>Elevation not available</Text>
+            )}
+          </View>
+          {!isCoverPhoto && (
+            <>
+              <Text style={s.elevationLabel}>External View</Text>
+              <View style={s.elevationBox}>
+                {elevationImages?.[idx]?.external ? (
+                  <Image src={elevationImages[idx].external} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                ) : (
+                  <Text style={{ fontSize: 7, color: '#ccc', textAlign: 'center', marginTop: 70 }}>Elevation not available</Text>
+                )}
+              </View>
+            </>
+          )}
+          {isCoverPhoto && (
+            <>
+              <Text style={s.elevationLabel}>Cover Photo</Text>
+              <View style={s.elevationBox}>
+                <Text style={{ fontSize: 7, color: '#ccc', textAlign: 'center', marginTop: 70 }}>Cover photo not yet available</Text>
+              </View>
+            </>
+          )}
+        </View>
+        <View style={s.itemRight}>
+          <Text style={{ fontSize: 9, fontWeight: 'bold', marginBottom: 6 }}>{item.heading}</Text>
+          {item.specSections.map((sec, si) => (
+            <View key={si} wrap={false}>
+              <Text style={s.specTitle}>{sec.title}</Text>
+              <Text style={s.specContent}>{sec.content}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+      {showTiles && item.ironmongeryTiles.length > 0 && (
+        <View style={s.tilesRow}>
+          {item.ironmongeryTiles.map((tile, ti) => (
+            <View key={ti} style={s.tile}>
+              <Text style={s.tileName}>{tile.name}</Text>
+              {tile.photo_url && <Image src={tile.photo_url} style={s.tileImg} />}
+            </View>
+          ))}
+        </View>
+      )}
+    </View>
+  )
+}
+
+/**
+ * Compact item renderer for 2 or 3 items per page.
+ */
+function ItemCompact({ item, idx, elevationImages, showTiles, perPage }) {
+  const elevH = perPage === 3 ? s.elevationBoxTiny : s.elevationBoxSmall
+  return (
+    <View wrap={false}>
+      <View style={s.itemCompactHeader}>
+        <Text style={s.itemCompactTitle}>ITEM {item.itemNumber}{item.location ? ` - ${item.location}` : ''}</Text>
+        <Text style={s.itemCompactPrice}>{item.priceLabel}</Text>
+      </View>
+      <View style={s.itemCompactBody}>
+        <View style={s.itemCompactLeft}>
+          <Text style={{ ...s.elevationLabel, fontSize: 6 }}>Internal View</Text>
+          <View style={elevH}>
+            {elevationImages?.[idx]?.internal ? (
+              <Image src={elevationImages[idx].internal} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+            ) : (
+              <Text style={{ fontSize: 6, color: '#ccc', textAlign: 'center', marginTop: perPage === 3 ? 30 : 45 }}>Elevation not available</Text>
+            )}
+          </View>
+          <Text style={{ ...s.elevationLabel, fontSize: 6 }}>External View</Text>
+          <View style={elevH}>
+            {elevationImages?.[idx]?.external ? (
+              <Image src={elevationImages[idx].external} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+            ) : (
+              <Text style={{ fontSize: 6, color: '#ccc', textAlign: 'center', marginTop: perPage === 3 ? 30 : 45 }}>Elevation not available</Text>
+            )}
+          </View>
+        </View>
+        <View style={s.itemCompactRight}>
+          <Text style={{ fontSize: 7.5, fontWeight: 'bold', marginBottom: 4 }}>{item.heading}</Text>
+          {item.specSections.map((sec, si) => (
+            <View key={si}>
+              <Text style={s.specTitleCompact}>{sec.title}</Text>
+              <Text style={s.specContentCompact}>{sec.content}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+      {showTiles && item.ironmongeryTiles.length > 0 && (
+        <View style={s.tilesRowCompact}>
+          {item.ironmongeryTiles.map((tile, ti) => (
+            <View key={ti} style={s.tileCompact}>
+              <Text style={s.tileNameCompact}>{tile.name}</Text>
+              {tile.photo_url && <Image src={tile.photo_url} style={s.tileImgCompact} />}
+            </View>
+          ))}
+        </View>
+      )}
+    </View>
+  )
+}
+
 // ── Main document ───────────────────────────────────────────────────────────
 
 export default function QuotePdf({ model, watermark, logoUrl, coverUrl, elevationImages }) {
-  const { quoteRef, frontLetter, backLetterSections, summary, items, lead, salesperson } = model
+  const { quoteRef, frontLetter, backLetterSections, summary, items, itemPages, itemLayout, lead, salesperson } = model
 
   return (
     <Document title={`Quotation ${quoteRef}`} author="Wandsworth Sash Windows">
@@ -213,73 +358,57 @@ export default function QuotePdf({ model, watermark, logoUrl, coverUrl, elevatio
         <Footer />
       </Page>
 
-      {/* ── 4. Item pages ── */}
-      {items.map((item, idx) => (
-        <Page key={idx} size="A4" style={s.page}>
-          <View style={s.headerCompact}>
-            <View style={{ flexDirection: 'row', gap: 12, alignItems: 'baseline' }}>
-              <Text style={{ fontSize: 7, color: '#888' }}>{quoteRef}</Text>
-              <Text style={{ fontSize: 10, fontWeight: 'bold' }}>Quotation</Text>
-            </View>
-            {logoUrl && <Image src={logoUrl} style={{ width: 60, height: 22, objectFit: 'contain' }} />}
-          </View>
+      {/* ── 4. Item pages (layout-aware) ── */}
+      {(itemPages || [items.map((_, i) => i)]).map((pageItems, pageIdx) => {
+        const layout = itemLayout || LAYOUT_1_VIEWS
+        const perPage = pageItems.length
+        const isSingleItem = layout === LAYOUT_1_VIEWS || layout === LAYOUT_1_COVER_PHOTO
+        const showTiles = layoutShowsTiles(layout)
 
-          <Text style={s.hingeNote}>The opening sash symbol (or arrow head) points to the hinge position</Text>
-
-          <View style={s.itemHeader}>
-            <Text style={s.itemTitle}>ITEM {item.itemNumber}{item.location ? ` - ${item.location}` : ''}</Text>
-            <Text style={s.itemPrice}>{item.priceLabel}</Text>
-          </View>
-
-          <View style={s.itemBody}>
-            {/* Left column: elevations */}
-            <View style={s.itemLeft}>
-              <Text style={s.elevationLabel}>Internal View</Text>
-              <View style={s.elevationBox}>
-                {elevationImages?.[idx]?.internal ? (
-                  <Image src={elevationImages[idx].internal} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                ) : (
-                  <Text style={{ fontSize: 7, color: '#ccc', textAlign: 'center', marginTop: 70 }}>Elevation not available</Text>
-                )}
+        return (
+          <Page key={`item-page-${pageIdx}`} size="A4" style={s.page}>
+            <View style={s.headerCompact}>
+              <View style={{ flexDirection: 'row', gap: 12, alignItems: 'baseline' }}>
+                <Text style={{ fontSize: 7, color: '#888' }}>{quoteRef}</Text>
+                <Text style={{ fontSize: 10, fontWeight: 'bold' }}>Quotation</Text>
               </View>
-              <Text style={s.elevationLabel}>External View</Text>
-              <View style={s.elevationBox}>
-                {elevationImages?.[idx]?.external ? (
-                  <Image src={elevationImages[idx].external} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                ) : (
-                  <Text style={{ fontSize: 7, color: '#ccc', textAlign: 'center', marginTop: 70 }}>Elevation not available</Text>
-                )}
-              </View>
+              {logoUrl && <Image src={logoUrl} style={{ width: 60, height: 22, objectFit: 'contain' }} />}
             </View>
 
-            {/* Right column: heading + spec sections */}
-            <View style={s.itemRight}>
-              <Text style={{ fontSize: 9, fontWeight: 'bold', marginBottom: 6 }}>{item.heading}</Text>
-              {item.specSections.map((sec, si) => (
-                <View key={si} wrap={false}>
-                  <Text style={s.specTitle}>{sec.title}</Text>
-                  <Text style={s.specContent}>{sec.content}</Text>
+            <Text style={s.hingeNote}>The opening sash symbol (or arrow head) points to the hinge position</Text>
+
+            {pageItems.map((item, itemIdx) => {
+              // Find the original index of this item in the flat items array
+              const flatIdx = items.indexOf(item)
+              return (
+                <View key={itemIdx}>
+                  {itemIdx > 0 && <View style={s.itemDivider} />}
+                  {isSingleItem ? (
+                    <ItemFull
+                      item={item}
+                      idx={flatIdx}
+                      elevationImages={elevationImages}
+                      showTiles={showTiles}
+                      layout={layout}
+                    />
+                  ) : (
+                    <ItemCompact
+                      item={item}
+                      idx={flatIdx}
+                      elevationImages={elevationImages}
+                      showTiles={showTiles}
+                      perPage={perPage}
+                    />
+                  )}
                 </View>
-              ))}
-            </View>
-          </View>
+              )
+            })}
 
-          {/* Ironmongery tiles */}
-          {item.ironmongeryTiles.length > 0 && (
-            <View style={s.tilesRow}>
-              {item.ironmongeryTiles.map((tile, ti) => (
-                <View key={ti} style={s.tile}>
-                  <Text style={s.tileName}>{tile.name}</Text>
-                  {tile.photo_url && <Image src={tile.photo_url} style={s.tileImg} />}
-                </View>
-              ))}
-            </View>
-          )}
-
-          {watermark && <Text style={s.watermark}>{watermark}</Text>}
-          <Footer />
-        </Page>
-      ))}
+            {watermark && <Text style={s.watermark}>{watermark}</Text>}
+            <Footer />
+          </Page>
+        )
+      })}
 
       {/* ── 5. Back cover letter ── */}
       <Page size="A4" style={s.page}>

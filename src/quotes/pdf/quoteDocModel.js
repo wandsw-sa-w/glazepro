@@ -506,6 +506,66 @@ export const SUMMARY_COLUMNS = [
   { label: 'Net Price excl. VAT', width: 22, align: 'right' },
 ]
 
+// ── Item layout page grouping ──────────────────────────────────────────────
+
+/**
+ * Layout key constants — matches the dropdown values.
+ */
+export const LAYOUT_1_VIEWS        = '1 item with int & ext view, ironmongery & cover'
+export const LAYOUT_1_COVER_PHOTO  = '1 item with ironmongery images & cover photo'
+export const LAYOUT_2_WITH_IMAGES  = '2 items per page with ironmongery images'
+export const LAYOUT_2_NO_IMAGES    = '2 items per page (no ironmongery images)'
+export const LAYOUT_3_NO_IMAGES    = '3 items per page (no ironmongery images)'
+
+/**
+ * Return items per page for a given layout.
+ */
+export function itemsPerPage(layout) {
+  switch (layout) {
+    case LAYOUT_2_WITH_IMAGES:
+    case LAYOUT_2_NO_IMAGES:
+      return 2
+    case LAYOUT_3_NO_IMAGES:
+      return 3
+    default:
+      return 1
+  }
+}
+
+/**
+ * Group items into pages based on the layout.
+ * Returns an array of arrays: [[item, item], [item, item], ...].
+ */
+export function groupItemPages(items, layout) {
+  const perPage = itemsPerPage(layout)
+  const pages = []
+  for (let i = 0; i < items.length; i += perPage) {
+    pages.push(items.slice(i, i + perPage))
+  }
+  return pages
+}
+
+/**
+ * Whether the layout shows ironmongery tiles.
+ */
+export function layoutShowsTiles(layout) {
+  switch (layout) {
+    case LAYOUT_2_NO_IMAGES:
+    case LAYOUT_3_NO_IMAGES:
+      return false
+    default:
+      return true
+  }
+}
+
+/**
+ * Whether the layout shows elevation views.
+ */
+export function layoutShowsElevations(layout) {
+  // All layouts show elevations but they scale down for multi-item
+  return true
+}
+
 // ── Full document model ─────────────────────────────────────────────────────
 
 /**
@@ -551,12 +611,17 @@ export function buildDocModel(snapshot) {
     }
   })
 
+  const itemLayout = snapshot.quote_settings?.item_layout || LAYOUT_1_VIEWS
+  const itemPages = groupItemPages(items, itemLayout)
+
   return {
     quoteRef: `${snapshot.lead_number || ''} / ${snapshot.quote_number || ''}`,
     frontLetter,
     backLetterSections,
     summary,
     items,
+    itemPages,
+    itemLayout,
     lead: snapshot.lead || {},
     salesperson: snapshot.salesperson || {},
     mergeFieldMap: fields,
