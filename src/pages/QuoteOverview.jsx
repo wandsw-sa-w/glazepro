@@ -8,6 +8,8 @@ import { computeQuoteTotals } from '../quotes/quoteTotals.js'
 import { GRID_COLUMNS, readColumnValue, writeColumnValue } from '../quotes/gridColumns.js'
 import { loadDrawingRunPrices, drawingRunSales, drawingQuoteItemNet } from '../quotes/drawingRunPrice.js'
 import { effectiveProfileId } from '../drawingBoard/defaultProfile.js'
+import { buildQuoteSnapshot } from '../quotes/buildSnapshot.js'
+import { FRONT_COVER_LETTER, BACK_COVER_LETTER } from '../quotes/pdf/quoteContent.js'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -31,26 +33,12 @@ function mergeLetter(text, fields) {
   return out
 }
 
-const FRONT_COVER_LETTER = `Dear [customer_forename],
-
-I would like to thank you for your enquiry, and I have included below our quotation for the proposed works at [installation_full_address_one_line].
-
-Wandsworth Sash Windows and Parsons Joinery are part of Branford Group Limited, a family-run business specialising in high-quality timber joinery.
-
-At present, our lead time for the manufacture of new joinery is [nj_lead_time] weeks, though this may vary throughout the year.
-
-[sales_person_full_name]
-Branford Group Limited
-Wandsworth Sash Windows & Parsons Joinery`
-
-const BACK_COVER_LETTER = `Price Matching
-We are dedicated to providing the best value for our customers.
-
-Payment Terms
-A 40% deposit is required to place your order. A further 50% is due 8 weeks after the order is placed, prior to installation and the 10% balance is due upon completion of the installation.
-
-Lead Time
-Our lead time for manufacture is currently [nj_lead_time] weeks.`
+// Back cover letter: flatten [{heading, body}] into display text for the
+// letter-view modal.
+function flatBackCoverLetter(sections) {
+  if (typeof sections === 'string') return sections
+  return (sections || []).map(s => `${s.heading}\n${s.body}`).join('\n\n')
+}
 
 // ── Main component ────────────────────────────────────────────────────────────
 
@@ -446,36 +434,15 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
     if (poaCount > 0 && !window.confirm(`This quote contains ${poaCount} POA item(s). Publish anyway?`)) return
     setPublishing(true)
     setPublishError(null)
-    const publishedAt = new Date().toISOString()
-    const validUntil = quote.valid_days ? new Date(Date.now() + quote.valid_days * 24 * 60 * 60 * 1000).toISOString().split('T')[0] : null
-    const items = await Promise.all(jobItems.map(async item => {
-      const dwgId = selections[item.id]
-      if (!dwgId) return null
-      const dwg = drawings.find(d => d.id === dwgId)
-      const idx = jobItems.filter(i => selections[i.id]).findIndex(i => i.id === item.id)
-      const itemTotals = totals?.items?.[idx]
-      return {
-        job_item: { id: item.id, item_number: item.item_number, floor_level: item.floor_level, elevation: item.elevation, room_name: item.room_name },
-        drawing: { id: dwg?.id, drawing_number: dwg?.drawing_number, window_type: dwg?.window_type },
-        parts_tree: trees[dwgId] || null,
-        calculated_price: drawingRunSales(dwg, drawingRunPrices),
-        net: itemTotals?.net ?? null,
-        net_after_quote_discount: itemTotals?.netAfterQuoteDiscount ?? null,
-        vat: itemTotals?.vat ?? null,
-        vat_rate: dwg?.vat_rate ?? 20,
-        poa: dwg?.poa ?? false,
-      }
-    }))
-    const snapshot = {
-      published_at: publishedAt, lead_number: lead?.lead_number, quote_number: quote.quote_number,
-      quote_settings: { discount_pct: quote.discount_pct, deposit_pct: quote.deposit_pct, interim_pct: quote.interim_pct, valid_days: quote.valid_days, price_file_id: quote.price_file_id },
-      totals: totals ? { subtotal_before_discount: totals.subtotalBeforeDiscount, discount_amount: totals.discountAmount, subtotal_after_discount: totals.subtotalAfterDiscount, vat_by_rate: totals.vatByRate, total_vat: totals.totalVat, total_incl_vat: totals.totalInclVat, stages: totals.stages } : null,
-      items: items.filter(Boolean),
+    try {
+      const snapshot = await buildQuoteSnapshot({ quoteId: quote.id, leadId, userId: user?.id, supabase })
+      const { error } = await supabase.from('quotes').update({ status: 'Published', published_at: snapshot.published_at, published_by: user?.id ?? null, valid_until: snapshot.quote_settings.valid_until, snapshot }).eq('id', quote.id)
+      if (error) { setPublishError(`Publish failed: ${error.message}`); setPublishing(false); return }
+      try { await supabase.from('lead_history').insert({ lead_id: leadId, user_id: user?.id ?? null, user_email: user?.email ?? null, event: 'Quote published', new_value: `${lead?.lead_number} / ${quote.quote_number}`, created_at: new Date().toISOString() }) } catch { /* ignore */ }
+    } catch (e) {
+      setPublishError(`Publish failed: ${e.message}`)
     }
-    const { error } = await supabase.from('quotes').update({ status: 'Published', published_at: publishedAt, published_by: user?.id ?? null, valid_until: validUntil, snapshot }).eq('id', quote.id)
     setPublishing(false)
-    if (error) { setPublishError(`Publish failed: ${error.message}`); return }
-    try { await supabase.from('lead_history').insert({ lead_id: leadId, user_id: user?.id ?? null, user_email: user?.email ?? null, event: 'Quote published', new_value: `${lead?.lead_number} / ${quote.quote_number}`, created_at: new Date().toISOString() }) } catch { /* ignore */ }
     load()
   }
 
@@ -806,7 +773,7 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
       {letterView && (
         <Modal onClose={() => setLetterView(null)} title={letterView === 'front' ? 'Front Cover Letter' : 'Back Cover Letter'} wide>
           <div style={{ fontSize: 12, lineHeight: 1.7, whiteSpace: 'pre-wrap', color: '#333' }}>
-            {mergeLetter(letterView === 'front' ? FRONT_COVER_LETTER : BACK_COVER_LETTER, mergeFields)}
+            {mergeLetter(letterView === 'front' ? FRONT_COVER_LETTER : flatBackCoverLetter(BACK_COVER_LETTER), mergeFields)}
           </div>
         </Modal>
       )}

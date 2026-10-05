@@ -12,6 +12,7 @@ dist
 dist-ssr
 *.local
 _to_delete/
+docs/integrate-screens/*.pdf
 
 # Editor directories and files
 .vscode/*

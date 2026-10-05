@@ -14,6 +14,7 @@ import { loadDrawingParts, saveDrawingParts } from '../drawingBoard/api.js'
 import { computeDerived } from '../drawingBoard/computeDerived.js'
 import { computeSashGeometry } from '../drawingBoard/sashGeometry.js'
 import { SashElevation } from '../drawingBoard/renderElevation.jsx'
+import { buildQuoteSnapshot } from '../quotes/buildSnapshot.js'
 import QuoteOverview from './QuoteOverview.jsx'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -545,45 +546,17 @@ export default function QuoteMatrixPage() {
       const ok = window.confirm(`This quote contains ${validation.poaItemIndices.length} POA item(s). Publish anyway?`)
       if (!ok) return
     }
-    const totals = getQuoteTotals(q)
-    const selectedItems = (await Promise.all(jobItems.map(async item => {
-      const dwgId = selections[`${q.id}_${item.id}`]
-      if (!dwgId) return null
-      const dwg = drawings.find(d => d.id === dwgId)
-      const itemTotals = totals?.items?.[jobItems.indexOf(item)]
-      let partsTree = null
-      try { partsTree = await loadDrawingParts(dwgId) } catch { /* leave null — grid shows "—" for this item */ }
-      return {
-        job_item: { id: item.id, item_number: item.item_number, floor_level: item.floor_level, elevation: item.elevation, room_name: item.room_name },
-        drawing: { id: dwg?.id, drawing_number: dwg?.drawing_number, window_type: dwg?.window_type },
-        parts_tree: partsTree,
-        calculated_price: drawingNetPrice(dwg, drawingRunPrices),
-        net: itemTotals?.net ?? null,
-        net_after_quote_discount: itemTotals?.netAfterQuoteDiscount ?? null,
-        vat: itemTotals?.vat ?? null,
-        vat_rate: dwg?.vat_rate ?? 20,
-        poa: dwg?.poa ?? false,
-      }
-    }))).filter(Boolean)
-
-    const publishedAt = new Date().toISOString()
-    const validUntil = q.valid_days ? new Date(Date.now() + q.valid_days * 24 * 60 * 60 * 1000).toISOString().split('T')[0] : null
-    const snapshot = {
-      published_at: publishedAt, lead_number: lead?.lead_number, quote_number: q.quote_number,
-      quote_settings: { discount_pct: q.discount_pct, deposit_pct: q.deposit_pct, interim_pct: q.interim_pct, valid_days: q.valid_days, price_file_id: q.price_file_id },
-      totals: totals ? {
-        subtotal_before_discount: totals.subtotalBeforeDiscount, discount_amount: totals.discountAmount,
-        subtotal_after_discount: totals.subtotalAfterDiscount, vat_by_rate: totals.vatByRate,
-        total_vat: totals.totalVat, total_incl_vat: totals.totalInclVat, stages: totals.stages,
-      } : null,
-      items: selectedItems,
-    }
-    const { error } = await supabase.from('quotes').update({ status: 'Published', published_at: publishedAt, published_by: user?.id ?? null, valid_until: validUntil, snapshot }).eq('id', quoteId)
-    if (error) { setPricing(prev => ({ ...prev, [quoteId]: { busy: false, error: `Publish failed: ${error.message}`, progress: null } })); return }
-    setQuotes(prev => prev.map(q => q.id === quoteId ? { ...q, status: 'Published', published_at: publishedAt, published_by: user?.id, valid_until: validUntil, snapshot } : q))
     try {
-      await supabase.from('lead_history').insert({ lead_id: leadId, user_id: user?.id ?? null, user_email: user?.email ?? null, event: 'Quote published', new_value: `${lead?.lead_number} / ${q.quote_number}`, created_at: new Date().toISOString() })
-    } catch { /* lead_history may not exist */ }
+      const snapshot = await buildQuoteSnapshot({ quoteId, leadId, userId: user?.id, supabase })
+      const { error } = await supabase.from('quotes').update({ status: 'Published', published_at: snapshot.published_at, published_by: user?.id ?? null, valid_until: snapshot.quote_settings.valid_until, snapshot }).eq('id', quoteId)
+      if (error) { setPricing(prev => ({ ...prev, [quoteId]: { busy: false, error: `Publish failed: ${error.message}`, progress: null } })); return }
+      setQuotes(prev => prev.map(q => q.id === quoteId ? { ...q, status: 'Published', published_at: snapshot.published_at, published_by: user?.id, valid_until: snapshot.quote_settings.valid_until, snapshot } : q))
+      try {
+        await supabase.from('lead_history').insert({ lead_id: leadId, user_id: user?.id ?? null, user_email: user?.email ?? null, event: 'Quote published', new_value: `${lead?.lead_number} / ${q.quote_number}`, created_at: new Date().toISOString() })
+      } catch { /* lead_history may not exist */ }
+    } catch (e) {
+      setPricing(prev => ({ ...prev, [quoteId]: { busy: false, error: `Publish failed: ${e.message}`, progress: null } }))
+    }
   }
 
   async function doCopyQuote(quoteId) {
