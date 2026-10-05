@@ -117,9 +117,19 @@ describe('assembleSnapshot — v2 keys', () => {
     expect(snap.generated_on).toBeTruthy()
   })
 
-  it('generated_by uses publishingUser initials', () => {
+  it('generated_by uses publishingUser initials (full name)', () => {
     const snap = assembleSnapshot(makeData())
     expect(snap.generated_by).toBe('NS')
+  })
+
+  it('generated_by handles email local part with dot (nathan.smith → NS)', () => {
+    const snap = assembleSnapshot(makeData({ publishingUser: { full_name: 'nathan.smith' } }))
+    expect(snap.generated_by).toBe('NS')
+  })
+
+  it('generated_by handles hyphenated name (Mary-Jane Watson → MJW)', () => {
+    const snap = assembleSnapshot(makeData({ publishingUser: { full_name: 'Mary-Jane Watson' } }))
+    expect(snap.generated_by).toBe('MJW')
   })
 
   it('generated_by falls back when publishingUser is null', () => {

@@ -100,10 +100,13 @@ export function assembleSnapshot(data) {
     ? new Date(Date.now() + quote.valid_days * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
     : null
 
-  // Salesperson initials (first letter of each word in full_name)
+  // Initials from a full name ("Nathan Smith" → "NS") or an email local
+  // part ("nathan.smith" → "NS"). Splits on whitespace, dots, hyphens.
   function initials(name) {
     if (!name) return ''
-    return name.split(/\s+/).map(w => w[0]).join('').toUpperCase()
+    const parts = name.split(/[\s.\-_]+/).filter(Boolean)
+    if (parts.length === 0) return ''
+    return parts.map(w => w[0]).join('').toUpperCase()
   }
 
   // ── Per-item snapshot entries ─────────────────────────────────────────────
@@ -292,7 +295,7 @@ export async function buildQuoteSnapshot({ quoteId, leadId, userId, userName, su
     try {
       const { data: { user: authUser } } = await supabase.auth.getUser()
       if (authUser?.user_metadata?.full_name) publishingUser = { full_name: authUser.user_metadata.full_name }
-      else if (authUser?.email) publishingUser = { full_name: authUser.email.split('@')[0] }
+      else if (authUser?.email) publishingUser = { full_name: authUser.email.split('@')[0] }  // e.g. "nathan.smith" → initials "NS"
     } catch { /* ignore */ }
   }
 
@@ -480,10 +483,24 @@ export async function buildQuoteSnapshot({ quoteId, leadId, userId, userName, su
   const profileLabelByDrawing = {}
   const profileIds = [...new Set(drawings.map(d => d.default_profile_id).filter(Boolean))]
   if (profileIds.length > 0) {
-    const { data: profileRows } = await supabase
-      .from('default_profiles')
-      .select('id, label, display_name')
-      .in('id', profileIds)
+    // Try selecting display_name; if the column doesn't exist yet, fall back to label only
+    let profileRows = null
+    {
+      const { data, error } = await supabase
+        .from('default_profiles')
+        .select('id, label, display_name')
+        .in('id', profileIds)
+      if (error) {
+        console.warn('buildQuoteSnapshot: display_name select failed, falling back to label only:', error.message)
+        const { data: fallback } = await supabase
+          .from('default_profiles')
+          .select('id, label')
+          .in('id', profileIds)
+        profileRows = fallback
+      } else {
+        profileRows = data
+      }
+    }
     const labelMap = {}
     for (const p of (profileRows || [])) labelMap[p.id] = p.display_name || p.label
 
