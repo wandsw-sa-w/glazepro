@@ -232,6 +232,10 @@ export function SashElevation({
   const topHeight   = n(fv.topHeight,  0)
   const cillH       = n(cill?.values?.height, 0)
 
+  // Cill horn extensions — read the same way pricing does (frame part values)
+  const leftCillHorn  = n(fv.leftCillHorn,  0)
+  const rightCillHorn = n(fv.rightCillHorn, 0)
+
   const OX  = leftWidth
   const OY  = topHeight
   const iW  = fW - leftWidth - rightWidth
@@ -280,6 +284,11 @@ export function SashElevation({
   const tk     = dfs * 0.55
   const topPad = hasArch ? dfs * 2.5 + archH * 0.5 : dfs * 2.5
 
+  // Horizontal extent including cill horns (horns extend past the frame).
+  // In external view the mirror swaps left/right, so pad both sides by the
+  // longer horn to prevent clipping in either view.
+  const hornPad = Math.max(leftCillHorn, rightCillHorn)
+
   const R1 = fW + dfs * 1.5
   const R2 = fW + dfs * 4.0
   const R3 = fW + dfs * 6.5
@@ -287,7 +296,7 @@ export function SashElevation({
   const B1 = fH + dfs * 1.5
   const B2 = fH + dfs * 4.0
   const B3 = fH + dfs * 6.5
-  const VW = fW + dfs * 16
+  const VW = fW + dfs * 16 + hornPad * 2
   const VH = fH + dfs * 10 + topPad
 
   // Label Y anti-collision for right-side dimensions
@@ -596,7 +605,7 @@ export function SashElevation({
 
   return (
     <svg
-      viewBox={`0 ${-topPad} ${VW} ${VH}`}
+      viewBox={`${-hornPad} ${-topPad} ${VW} ${VH}`}
       width="100%" height="100%"
       preserveAspectRatio="xMidYMid meet"
       style={{ display: 'block' }}
@@ -650,10 +659,10 @@ export function SashElevation({
             )}
           </>
         )}
-        {/* ── Cill ──────────────────────────────────────────────────────────── */}
+        {/* ── Cill (full width + horn extensions) ────────────────────────── */}
         {cillH > 0 && (
-          <rect x={OX} y={OY + iH} width={iW} height={cillH}
-            fill={C.timber} {...ss(cill?.key)}
+          <rect data-key={cill?.key} x={-leftCillHorn} y={OY + iH} width={fW + leftCillHorn + rightCillHorn} height={cillH}
+            fill={C.timber} stroke={C.timberStroke} strokeWidth={1.2}
             style={{ cursor: 'pointer' }}
             onClick={() => onSelectKey?.(cill?.key)}
           />

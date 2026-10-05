@@ -645,3 +645,135 @@ describe('SashElevation — multi-opening labels fit their own glass area', () =
   }
 
 })
+
+// ── Tests — cill runs full width with optional horn extensions ────────────────
+
+describe('SashElevation — cill full-width and horn extensions', () => {
+
+  function makeCillTree(frameOverrides = {}, cillHeight = 70) {
+    return {
+      key: 'item1', part_type: 'drawingItemPart', values: {}, children: [{
+        key: 'frame1', part_type: 'assemblyFramePart',
+        values: { width: 500, height: 1849, leftWidth: 85, rightWidth: 85, topHeight: 79, ...frameOverrides },
+        children: [
+          { key: 'cill1', part_type: 'cillPart', values: { height: cillHeight }, children: [] },
+          {
+            key: 'pair1', part_type: 'sashPairPart', values: { midrailHeight: 40 }, children: [
+              { key: 'top1', part_type: 'topSashPart',    values: { topHeight: 49, stileWidth: 47 }, children: [] },
+              { key: 'bot1', part_type: 'bottomSashPart', values: { bottomHeight: 88 }, children: [] },
+            ],
+          },
+        ],
+      }],
+    }
+  }
+
+  // Helper to extract the cill rect's x and width from the rendered SVG.
+  function extractCillRect(html) {
+    // Find <rect> elements that include data-key="cill1"
+    const rects = [...html.matchAll(/<rect [^>]*data-key="cill1"[^>]*/g)]
+    if (rects.length === 0) return null
+    const tag = rects[0][0]
+    const x      = tag.match(/x="([^"]+)"/)
+    const y      = tag.match(/y="([^"]+)"/)
+    const width  = tag.match(/width="([^"]+)"/)
+    const height = tag.match(/height="([^"]+)"/)
+    return {
+      x: parseFloat(x?.[1]),
+      y: parseFloat(y?.[1]),
+      width: parseFloat(width?.[1]),
+      height: parseFloat(height?.[1]),
+    }
+  }
+
+  it('no horns: cill spans 0 to fW', () => {
+    const tree = makeCillTree({})
+    const geo  = makeGeometry()
+    const html = render({ tree, geometry: geo, refOptions: {} })
+    const cill = extractCillRect(html)
+    expect(cill).not.toBeNull()
+    expect(cill.x).toBe(0)
+    expect(cill.width).toBe(500) // fW
+  })
+
+  it('left 50, right 0: cill spans -50 to fW', () => {
+    const tree = makeCillTree({ leftCillHorn: 50 })
+    const geo  = makeGeometry()
+    const html = render({ tree, geometry: geo, refOptions: {}, viewMode: 'internal' })
+    const cill = extractCillRect(html)
+    expect(cill).not.toBeNull()
+    expect(cill.x).toBe(-50)
+    expect(cill.width).toBe(550) // fW + 50
+  })
+
+  it('left 50, right 0: mirrored in external view (horn on the right)', () => {
+    const tree = makeCillTree({ leftCillHorn: 50 })
+    const geo  = makeGeometry()
+    const intHtml = render({ tree, geometry: geo, refOptions: {}, viewMode: 'internal' })
+    const extHtml = render({ tree, geometry: geo, refOptions: {}, viewMode: 'external' })
+    // Both render without crash
+    expect(intHtml).toContain('<svg')
+    expect(extHtml).toContain('<svg')
+    // The SVG markup for the cill rect is the same in both (mirroring is
+    // via a transform on the parent <g>), so the horn's visual position is
+    // reversed by the mirror. Just check the external view renders.
+    expect(extHtml).not.toContain('NaN')
+  })
+
+  it('left 50, right 50 on an arched frame', () => {
+    const tree = makeCillTree({ leftCillHorn: 50, rightCillHorn: 50, archHead: true, archHeight: 150, width: 1100, height: 1600, leftWidth: 79, rightWidth: 79, topHeight: 79 }, 70)
+    const geo  = makeGeometry({ sashWidth: 942, topSashHeight: 755, bottomSashHeight: 756, topGlassHeight: 657, bottomGlassHeight: 628 })
+    const html = render({ tree, geometry: geo, refOptions: {} })
+    const cill = extractCillRect(html)
+    expect(cill).not.toBeNull()
+    expect(cill.x).toBe(-50)
+    expect(cill.width).toBe(1200) // 1100 + 50 + 50
+    expect(html).not.toContain('NaN')
+  })
+
+  it('left 50, right 50 on a double box with mullion', () => {
+    const tree = {
+      key: 'item1', part_type: 'drawingItemPart', values: {}, children: [{
+        key: 'frame1', part_type: 'assemblyFramePart',
+        values: { width: 1000, height: 1700, leftWidth: 79, rightWidth: 79, topHeight: 79, leftCillHorn: 50, rightCillHorn: 50 },
+        children: [
+          { key: 'cill1', part_type: 'cillPart', values: { height: 70 }, children: [] },
+          { key: 'mull1', part_type: 'mullionPart', values: { offset: 421, thicknessInFrame: 40 }, children: [] },
+          {
+            key: 'pair1', part_type: 'sashPairPart', values: { midrailHeight: 40 }, children: [
+              { key: 'top1', part_type: 'topSashPart',    values: { topHeight: 49, stileWidth: 47 }, children: [] },
+              { key: 'bot1', part_type: 'bottomSashPart', values: { bottomHeight: 88 }, children: [] },
+            ],
+          },
+          {
+            key: 'pair2', part_type: 'sashPairPart', values: { midrailHeight: 40 }, children: [
+              { key: 'top2', part_type: 'topSashPart',    values: { topHeight: 49, stileWidth: 47 }, children: [] },
+              { key: 'bot2', part_type: 'bottomSashPart', values: { bottomHeight: 88 }, children: [] },
+            ],
+          },
+        ],
+      }],
+    }
+    const geo  = makeGeometry()
+    const html = render({ tree, geometry: geo, refOptions: {} })
+    const cill = extractCillRect(html)
+    expect(cill).not.toBeNull()
+    expect(cill.x).toBe(-50)
+    expect(cill.width).toBe(1100) // 1000 + 50 + 50
+    expect(html).not.toContain('NaN')
+  })
+
+  it('viewBox contains the whole cill when horns are present', () => {
+    const tree = makeCillTree({ leftCillHorn: 50, rightCillHorn: 30 })
+    const geo  = makeGeometry()
+    const html = render({ tree, geometry: geo, refOptions: {} })
+    const m = html.match(/viewBox="([^"]+)"/)
+    expect(m).not.toBeNull()
+    const [vbX, , vbW] = m[1].split(' ').map(Number)
+    // viewBox must start at or before -50 (left horn)
+    expect(vbX).toBeLessThanOrEqual(-50)
+    // viewBox right edge must reach at least fW + 50 (max horn for external view)
+    expect(vbX + vbW).toBeGreaterThanOrEqual(500 + 50)
+  })
+
+})
