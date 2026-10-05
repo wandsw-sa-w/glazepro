@@ -239,6 +239,18 @@ describe('specSections', () => {
     expect(glassSections[1].title).toBe('Double Glazing - Bottom')
   })
 
+  it('glass line does not duplicate "Warm Edge" when the label already contains it', () => {
+    const snap = makeSnapshot()
+    // Simulate a ref_labels where the spacer label already includes "Warm Edge"
+    snap.ref_labels.white = 'White Warm Edge'
+    const model = buildDocModel(snap)
+    const item = model.items[0]
+    const glass = item.specSections.find(s => s.title.startsWith('Double Glazing'))
+    expect(glass).toBeDefined()
+    expect(glass.content).toContain('White Warm Edge spacer')
+    expect(glass.content).not.toContain('Warm Edge Warm Edge')
+  })
+
   it('glass line format matches expected pattern', () => {
     const item = makeItem()
     const sections = specSections(item, [])

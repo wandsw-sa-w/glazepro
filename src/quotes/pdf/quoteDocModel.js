@@ -343,7 +343,12 @@ function formatGlassLine(glassPart, refLabels) {
   const gasCode = v.gasType || v.gasFillId || ''
   const gasStr = gasCode ? `${resolveLabel(gasCode, refLabels)} Filled` : ''
   const spacerCode = v.spacerColour || v.spacerColourId || ''
-  const spacerStr = spacerCode ? `${resolveLabel(spacerCode, refLabels)} Warm Edge spacer` : ''
+  let spacerStr = ''
+  if (spacerCode) {
+    const spacerLabel = resolveLabel(spacerCode, refLabels)
+    // The label may already contain "Warm Edge" (e.g. "White Warm Edge"); don't duplicate it
+    spacerStr = spacerLabel.includes('Warm Edge') ? `${spacerLabel} spacer` : `${spacerLabel} Warm Edge spacer`
+  }
 
   // Outer pane
   let outer = v.outerPane || v.externalGlassPartNo || '4mm Clear'
