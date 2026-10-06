@@ -2010,8 +2010,8 @@ function DrawingBoard() {
           </div>
         )
       })()}
-      {/* Show hidden fields (admin only) */}
-      {currentUser?.role === 'Admin' && (
+      {/* Show hidden fields — available to any user who can switch modes */}
+      {currentUser?.drawing_board_mode === 'switch' && (
         <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#888', cursor: 'pointer', whiteSpace: 'nowrap', marginLeft: 4 }}>
           <input type="checkbox" checked={showHidden} onChange={e => setShowHidden(e.target.checked)} />
           Show hidden

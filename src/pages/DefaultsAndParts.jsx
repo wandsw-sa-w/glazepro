@@ -4,6 +4,30 @@ import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { useUnmatchedCount } from '../hooks/useUnmatchedCount'
 
+// ─── Part type display labels ─────────────────────────────────────────────────
+
+const PART_LABELS = {
+  drawingItemPart:         'Item',
+  paintAndIronmongeryPart: 'Finish & Ironmongery',
+  notesPart:               'Access & H&S',
+  pricePart:               'Price',
+  assemblyFramePart:       'Frame',
+  cillPart:                'Cill',
+  sashPairPart:            'Pair of Sashes',
+  topSashPart:             'Top Sash',
+  bottomSashPart:          'Bottom Sash',
+  glassPart:               'Glazing',
+  mullionPart:             'Mullion',
+  transomPart:             'Transom',
+  verticalGlazingBarPart:  'Vertical GB',
+  horizontalGlazingBarPart:'Horizontal GB',
+  casementSashPart:        'Casement Sash',
+  doorLeafPart:            'Door Leaf',
+  panelPart:               'Panel',
+}
+
+function partLabel(pt) { return PART_LABELS[pt] || pt }
+
 // ─── Shared UI primitives ──────────────────────────────────────────────────────
 
 const labelStyle = {
@@ -658,8 +682,8 @@ export default function DefaultsAndParts() {
                     style={{ fontSize: 12, padding: '6px 10px', border: '1px solid #d8d5cf', borderRadius: 8, outline: 'none' }}
                   >
                     <option value="">All part types</option>
-                    {[...new Set(visFields.map(f => f.part_type))].map(pt => (
-                      <option key={pt} value={pt}>{pt}</option>
+                    {[...new Set(visFields.map(f => f.part_type))].sort((a, b) => partLabel(a).localeCompare(partLabel(b))).map(pt => (
+                      <option key={pt} value={pt}>{partLabel(pt)}</option>
                     ))}
                   </select>
                   <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#555', cursor: 'pointer' }}>
@@ -735,7 +759,7 @@ export default function DefaultsAndParts() {
                               }}
                             />
                           </td>
-                          <td style={{ padding: '4px 8px', color: '#888', whiteSpace: 'nowrap' }}>{f.part_type}</td>
+                          <td style={{ padding: '4px 8px', color: '#888', whiteSpace: 'nowrap' }}>{partLabel(f.part_type)}</td>
                           <td style={{ padding: '4px 8px', fontWeight: 500 }}>{f.label}</td>
                           {visProfiles.map(p => {
                             const cellKey = `${p.id}:${f.field_key}`
