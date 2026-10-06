@@ -1,5 +1,10 @@
+import { readFileSync } from 'fs'
+import { resolve, dirname } from 'path'
+import { fileURLToPath } from 'url'
 import { describe, it, expect } from 'vitest'
 import { validateDrawing, validateQuote, countBySeverity, hasErrors } from './validate.js'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -286,5 +291,41 @@ describe('hasErrors', () => {
       { status: 'passed', severity: 'error' },
     ]
     expect(hasErrors(results)).toBe(false)
+  })
+})
+
+// ── Import SQL verification ─────────────────────────────────────────────────
+
+describe('step-p3 import SQL', () => {
+  it('never marks a rule with an unknown variable as active', () => {
+    const sqlPath = resolve(__dirname, '../../sql/step-p3-validation-import.sql')
+    const sql = readFileSync(sqlPath, 'utf-8')
+
+    // Find all INSERT blocks and extract (is_active, blocked_reason, condition)
+    const insertBlocks = sql.split(/^-- Rule \d+:/m).slice(1)
+
+    for (const block of insertBlocks) {
+      const activeMatch = block.match(/^\s*(true|false),\s*$/m)
+      const reasonMatch = block.match(/^\s*(NULL|'[^']*'),?\s*$/m)
+      if (!activeMatch) continue
+
+      const isActive = activeMatch[1] === 'true'
+      const reason = reasonMatch?.[1]
+
+      // If blocked_reason contains "missing variable", is_active must be false
+      if (reason && reason.includes('missing variable')) {
+        expect(isActive).toBe(false)
+      }
+
+      // If is_active is true, blocked_reason must be NULL
+      if (isActive) {
+        // The reason line should be NULL (the last value before closing paren)
+        const valuesBlock = block.match(/VALUES\s*\(([\s\S]*?)\);/)?.[1]
+        if (valuesBlock) {
+          const lastValue = valuesBlock.trim().replace(/,\s*$/, '').split(',').pop()?.trim()
+          expect(lastValue).toBe('NULL')
+        }
+      }
+    }
   })
 })

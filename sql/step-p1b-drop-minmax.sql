@@ -1,6 +1,6 @@
 -- ============================================================================
 -- step-p1b-drop-minmax.sql — Drop min_value / max_value from default_field_definitions
--- DO NOT RUN — apply through Supabase SQL Editor after review
+-- Apply through Supabase SQL Editor after review
 -- ============================================================================
 --
 -- Verification: nothing in the application reads min_value or max_value from

@@ -7,8 +7,8 @@ Generated: 2026-10-06
 | Metric | Value |
 |--------|-------|
 | Total rules parsed | 158 |
-| Active | 158 |
-| Blocked | 0 |
+| Active | 22 |
+| Blocked | 136 |
 
 ## Rules per Group
 
@@ -31,9 +31,466 @@ Generated: 2026-10-06
 | To Be Checked | 1 |
 | Heritage | 10 |
 
-## Blocked Rules
+## Active Rules
 
-None.
+- Toughened Glass with Duplex Bars [Glass]
+- Toughened Glass with Duplex Bars [Glass]
+- Toughened Glass with Duplex Bars [Glass]
+- Fineo under 200mm x 200mm [Glass]
+- LandVac Lead Times [Glass]
+- DirGU in frame [Glass]
+- Sash Replacement Thickness [Sash Windows]
+- Lambs Tongue [Sash Windows]
+- Sash Replacement Thickness [Sash Windows]
+- DSO ON SPRINGS [Sash Windows]
+- Large Springs [Sash Windows]
+- Casement Sash Thickness [Stormproof Casements]
+- Front Door [Suspicious Detail]
+- Fit to prepared opening [Recommendation]
+- Non-Standard Paint [Recommendation]
+- DSO with standard paint [Recommendation]
+- Cut Back Plaster [Recommendation]
+- Cut Out Brick Reveal [Recommendation]
+- Decoration Text [Recommendation]
+- Ironmongery Quantity [Ironmongery]
+- Ironmongery Quantity [Ironmongery]
+- Overweight sash [Health & Safety]
+
+## Blocked Rules by Reason
+
+### missing variable: quote_margin
+
+- Reminder to Increase R Rumber in busy periods [Quote Summary]
+
+### missing variable: item_qty, item_with_onsite_decoration_by_us_qty_excl_free_items, item_qty_with_solid_utile_hardwood_cill
+
+- Single item fee [Quote Summary]
+
+### missing variable: item_qty_with_black_warm_edge_spacer, item_qty_with_white_warm_edge_spacer, item_qty_with_brown_warm_edge_spacer, item_qty_with_bronze_aluminium_spacer
+
+- Mixed Spacer Colour [Quote Summary]
+
+### missing variable: item_qty_with_4mm_spacer, item_qty_with_6mm_spacer, item_qty_with_8mm_spacer, item_qty_with_10mm_spacer, item_qty_with_12mm_spacer, item_qty_with_14mm_spacer, item_qty_with_16mm_spacer
+
+- Mixed Spacer Dimension [Quote Summary]
+
+### missing variable: item_qty_with_accoya_cill, item_qty_with_oak_cill, item_qty_with_douglas_fir_cill, item_qty_with_solid_redwood_cill, item_qty_with_idigbo_cill, item_qty_with_solid_utile_hardwood_cill
+
+- Cill Timber Not matching [Quote Summary]
+
+### missing variable: item_installed_by_us_qty
+
+- Installation labour hours [Quote Summary]
+
+### missing variable: user_can_access_all_quotes, is_open_quote, is_pricefile_retired, quote_pricefile_no, latest_pricefile_no
+
+- Quote PF not latest - HQ [Quote Summary]
+- Quote PF not latest - restricted [Quote Summary]
+
+### missing variable: user_can_access_all_quotes, is_open_quote, is_pricefile_retired
+
+- Quote PF retired - HQ [Quote Summary]
+- Quote PF retired - restricted [Quote Summary]
+
+### empty list: landvac_fineo
+
+- Temp [Glass]
+
+### missing variable: new_sash_with_curved_head_qty
+
+- No Curved Head Sash Replacements [Glass]
+
+### product not offered
+
+- (unnamed) [Glass]
+- 35mm Sashes DGU [Sash Windows]
+- 40mm Sashes DGU [Sash Windows]
+- 40mm Sashes DGU [Sash Windows]
+- 45mm Sashes DGU [Sash Windows]
+- 45mm Sashes DGU [Sash Windows]
+- Stormproof Heritage [Stormproof Casements]
+- Toughened too small [Dimension]
+- Toughened too small [Dimension]
+- Replacement sash not allowed in heritage range (complete new windows only) [Suspicious Detail]
+- Cill depth vs height [Recommendation]
+- Not MPLS [Casement Espags]
+- Small Sliding Doors [Doors]
+- Too Wide Sliding Doors [Doors]
+- SHORT Sliding Doors [Doors]
+- TALL Sliding Doors [Doors]
+- Heritage [Heritage]
+- No Argon Gas [Heritage]
+- Force individual panes [Heritage]
+- Heritage Spacer Dim [Heritage]
+- Single Glazing max 7mm [Heritage]
+- Prevent DocL [Heritage]
+- Non-Heritage Spacer Dim [Heritage]
+- Krypton not permitted for non-heritage [Heritage]
+- Minimum GB width for non-heritage [Heritage]
+- Minimum GB width for heritage [Heritage]
+
+### missing variable: encapsulated_leaded_light_qty
+
+- Encapsulated Leaded Lights [Glass]
+- Encapsulated Leaded Lights [Recommendation]
+
+### missing variable: glass_unit_thickness
+
+- Fineo Toughened Evacuation Port [Glass]
+- 35mm Sashes DGU [Sash Windows]
+- 50mm Sashes DGU [Sash Windows]
+- 50mm Sashes DGU [Sash Windows]
+- Single Glazed Item [Suspicious Detail]
+
+### empty list: 6_8_acoustic, 6_8_acoustic
+
+- Acoustic Glass in Complete New Joinery Only [Glass]
+- Acoustic Glass Spacer [Glass]
+
+### missing variable: is_bolection_moulding_around_panel_internally
+
+- Front Door Letter Plate [Sash Windows]
+- Front Door Letter Plate [Sash Windows]
+- Internal Bolection Moulding Front Door [Recommendation]
+
+### missing variable: frame_depth
+
+- Box Frame Depth [Sash Windows]
+- Casement Frame Thickness [Stormproof Casements]
+- Frame depth 0 [Missing Detail]
+
+### empty list: trickle_vents
+
+- Sash head with trickle vent [Sash Windows]
+- Sash head no trickle vent [Sash Windows]
+- Trickle Vent part_no [Recommendation]
+
+### part type not built yet: casement_sash
+
+- Storm Proof Sash Replacement [Stormproof Casements]
+- Storm proof casement windows (not flush) [Stormproof Casements]
+- Bottom Hung Stormproof Casements [Stormproof Casements]
+- Tilt and Turn Windows [Stormproof Casements]
+- Top Hung Casement Width [Stormproof Casements]
+- Casement Window Bottom Rail [Stormproof Casements]
+- Casement Window Bottom Rail Size [Stormproof Casements]
+- Casement Window Top Rail [Stormproof Casements]
+- Casement Window Stiles [Stormproof Casements]
+- CASEMENT SASH WIDTH [Dimension]
+- CASEMENT SASH HEIGHT [Dimension]
+- Fanlight bottom rail [Dimension]
+- Over 24kg Casement Sash [Friction Hinges]
+- Too Long [Casement Espags]
+- Short Casement Espag [Casement Espags]
+- Short Casement Espag [Casement Espags]
+- Overweight sash [Health & Safety]
+
+### missing variable: widest_external_frame_width
+
+- Casement Frame Head [Stormproof Casements]
+- Casement Frame Head [Stormproof Casements]
+
+### missing variable: frame_head_height_in_mm
+
+- Casement Frame Head [Stormproof Casements]
+
+### missing variable: frame_jamb_left
+
+- Casement Frame Jambs [Stormproof Casements]
+
+### missing variable: frame_jamb_profiled_left, frame_jamb_left
+
+- Casement Machined Out (Left) [Stormproof Casements]
+
+### missing variable: frame_jamb_profiled_right, frame_jamb_right
+
+- Casement Machined Out (Right) [Stormproof Casements]
+
+### missing variable: frame_head_profiled_height_in_mm, frame_head_height_in_mm
+
+- Casement Machined Out (Head) [Stormproof Casements]
+
+### missing variable: frame_mullion_to_be_replaced_width
+
+- Mullion Size [Stormproof Casements]
+
+### missing variable: is_installation_level_test_1
+
+- Building Site Installation Level [Missing Detail]
+- Building Site Installation Level Customer Info Sheet [Missing Detail]
+
+### missing variable: cill_depth
+
+- Cill depth 0 [Missing Detail]
+
+### missing variable: is_survey_drawing, is_surveyor_specified
+
+- No surveyor [Missing Detail]
+
+### missing variable: widest_external_frame_width, tallest_external_frame_height
+
+- Fit in van [Missing Detail]
+
+### missing variable: surround_row_qty
+
+- No surrounds [Missing Detail]
+- Sash Replacement Surrounds [Missing Detail]
+
+### missing variable: has_unmodified_default_measurement
+
+- Unmodified default [Missing Detail]
+
+### missing variable: internal_finish, external_finish
+
+- Paint empty [Missing Detail]
+
+### missing variable: is_bi_fold_door_set, weight_of_heaviest_sash_to_be_replaced
+
+- Bifold Door Weight [Dimension]
+
+### missing variable: eq_glazing_is_out
+
+- Equal glazing is out [Dimension]
+
+### missing variable: sliding_sash_with_restricted_travel_qty
+
+- Restricted sash travel [Dimension]
+
+### missing variable: cill_height, cill_depth, frame_depth
+
+- Frame deeper than cill [Dimension]
+
+### part type not built yet: door_leaf
+
+- Multipoint Doors too Tall [Dimension]
+- Multipoint Doors to Short [Dimension]
+- Bifold hEIGHT [Suspicious Detail]
+- BIFOLD WIDTH [Suspicious Detail]
+- Overweight sash [Health & Safety]
+- MPLS Door [Doors]
+- Door height below UK standard [Doors]
+- Door height below UK standard [Doors]
+
+### missing variable: is_solid_softwood_pine_frame, frame_depth
+
+- Softwood Over 100mm Thickness [Dimension]
+
+### missing variable: hoarg_qty, glass_unit_thickness
+
+- Fineo HOARG vs BiGlass [Suspicious Detail]
+
+### missing variable: is_oak_cill, is_oak_sash
+
+- Oak [Suspicious Detail]
+
+### missing variable: is_solid_redwood_cill
+
+- Softwood Cill [Suspicious Detail]
+
+### missing variable: opening_out_door_leaf_qty
+
+- Opening out front door [Suspicious Detail]
+
+### missing variable: frame_interior_widths_are_slightly_off
+
+- Frame interior widths off [Suspicious Detail]
+
+### missing variable: glass_unit_thickness, glass_unit_qty
+
+- DOCL Heritage [Suspicious Detail]
+
+### missing variable: glass_unit_qty, glass_unit_thickness
+
+- DOCL Single [Suspicious Detail]
+
+### missing variable: has_raked_frame
+
+- Raked Frame [Suspicious Detail]
+
+### missing variable: is_bi_fold_door_set, opening_in_door_leaf_qty
+
+- Inward Opening Bifold [Suspicious Detail]
+
+### missing variable: is_aluminium_cill, overall_frame_width_in_mm
+
+- Ali Threshold Over 3m [Suspicious Detail]
+
+### part type not built yet: component
+
+- TEST [Recommendation]
+
+### missing variable: has_plantation_shutters, remove_and_refit_existing_sdg_or_panel
+
+- (unnamed) [Recommendation]
+
+### missing variable: is_idigbo_frame, is_idigbo_sash
+
+- Idigbo Warning [Recommendation]
+
+### missing variable: has_panelling, has_shutter_boxes, remove_and_refit_existing_sdg_or_panel
+
+- (unnamed) [Recommendation]
+
+### missing variable: is_bolection_moulding_around_panel_externally
+
+- External Bolection Moulding Front Door [Recommendation]
+
+### missing variable: has_finger_jointed_material
+
+- Varnished vs finger joints [Recommendation]
+
+### missing variable: remove_and_refit_existing_sdg_or_panel, remove_and_dispose_existing_sdg_or_panel
+
+- Secondary Glazing Decoration [Recommendation]
+
+### missing variable: is_bay_joined_internally, is_bay_with_full_timber_mullion
+
+- Bay Type [Recommendation]
+
+### part type not built yet: ironmongery_part
+
+- Banham [Ironmongery]
+
+### missing variable: new_french_casement_pair_qty
+
+- French Casement Min Size [Casement Espags]
+
+### part type not built yet: panel
+
+- Panels [Doors]
+- Stain with T&G Panel [Doors]
+
+### missing variable: is_open_in_doors_range, is_single_and_french_doors_range, sash_transom_qty
+
+- Midrail & Transom Info [Doors]
+
+### missing variable: is_open_in_doors_range, is_single_and_french_doors_range, sash_mullion_qty
+
+- Midrail & Transom Info [Doors]
+
+### missing variable: is_bolection_moulding_around_panel_externally, is_door_mpls
+
+- Non-MPLS with Bolection [Doors]
+
+### missing variable: is_bolection_moulding_around_panel_internally, is_door_mpls
+
+- Non-MPLS with Bolection [Doors]
+
+### missing variable: has_allocated_trickle_vent
+
+- Trickle Vent Position [Factory]
+
+### missing variable: is_survey_drawing, bi_fold_door_leaf_qty
+
+- HCJ [Factory]
+- LTW [Factory]
+
+### missing variable: is_survey_drawing, sash_with_curved_head_qty, frame_with_curved_inner_head_qty
+
+- NFJ [Factory]
+- NFJ/PSJ [Factory]
+
+### missing variable: is_survey_drawing, sash_with_curved_head_qty
+
+- NFJ [Factory]
+
+### missing variable: is_installation_level_test_1, has_architrave, has_lining, has_deep_window_board
+
+- Surrounds not allowed [To Be Checked]
+
+## Missing Variables (ranked by rules blocked)
+
+| Variable | Rules blocked |
+|----------|---------------|
+| `glass_unit_thickness` | 8 |
+| `is_survey_drawing` | 6 |
+| `frame_depth` | 5 |
+| `user_can_access_all_quotes` | 4 |
+| `is_open_quote` | 4 |
+| `is_pricefile_retired` | 4 |
+| `quote_pricefile_no` | 4 |
+| `is_bolection_moulding_around_panel_internally` | 4 |
+| `widest_external_frame_width` | 4 |
+| `item_qty_with_solid_utile_hardwood_cill` | 3 |
+| `frame_head_height_in_mm` | 3 |
+| `is_installation_level_test_1` | 3 |
+| `remove_and_refit_existing_sdg_or_panel` | 3 |
+| `sash_with_curved_head_qty` | 3 |
+| `item_qty_with_black_warm_edge_spacer` | 2 |
+| `item_qty_with_white_warm_edge_spacer` | 2 |
+| `item_qty_with_brown_warm_edge_spacer` | 2 |
+| `item_qty_with_bronze_aluminium_spacer` | 2 |
+| `item_qty_with_4mm_spacer` | 2 |
+| `item_qty_with_6mm_spacer` | 2 |
+| `item_qty_with_8mm_spacer` | 2 |
+| `item_qty_with_10mm_spacer` | 2 |
+| `item_qty_with_12mm_spacer` | 2 |
+| `item_qty_with_14mm_spacer` | 2 |
+| `item_qty_with_accoya_cill` | 2 |
+| `item_qty_with_oak_cill` | 2 |
+| `item_qty_with_douglas_fir_cill` | 2 |
+| `item_qty_with_solid_redwood_cill` | 2 |
+| `item_qty_with_idigbo_cill` | 2 |
+| `latest_pricefile_no` | 2 |
+| `encapsulated_leaded_light_qty` | 2 |
+| `frame_jamb_left` | 2 |
+| `cill_depth` | 2 |
+| `tallest_external_frame_height` | 2 |
+| `surround_row_qty` | 2 |
+| `is_bi_fold_door_set` | 2 |
+| `is_oak_cill` | 2 |
+| `glass_unit_qty` | 2 |
+| `is_bolection_moulding_around_panel_externally` | 2 |
+| `is_open_in_doors_range` | 2 |
+| `is_single_and_french_doors_range` | 2 |
+| `is_door_mpls` | 2 |
+| `bi_fold_door_leaf_qty` | 2 |
+| `frame_with_curved_inner_head_qty` | 2 |
+| `quote_margin` | 1 |
+| `item_qty` | 1 |
+| `item_with_onsite_decoration_by_us_qty_excl_free_items` | 1 |
+| `item_qty_with_16mm_spacer` | 1 |
+| `item_installed_by_us_qty` | 1 |
+| `new_sash_with_curved_head_qty` | 1 |
+| `frame_jamb_profiled_left` | 1 |
+| `frame_jamb_profiled_right` | 1 |
+| `frame_jamb_right` | 1 |
+| `frame_head_profiled_height_in_mm` | 1 |
+| `frame_mullion_to_be_replaced_width` | 1 |
+| `is_surveyor_specified` | 1 |
+| `has_unmodified_default_measurement` | 1 |
+| `internal_finish` | 1 |
+| `external_finish` | 1 |
+| `weight_of_heaviest_sash_to_be_replaced` | 1 |
+| `eq_glazing_is_out` | 1 |
+| `sliding_sash_with_restricted_travel_qty` | 1 |
+| `cill_height` | 1 |
+| `is_solid_softwood_pine_frame` | 1 |
+| `hoarg_qty` | 1 |
+| `is_oak_sash` | 1 |
+| `is_solid_redwood_cill` | 1 |
+| `opening_out_door_leaf_qty` | 1 |
+| `frame_interior_widths_are_slightly_off` | 1 |
+| `has_raked_frame` | 1 |
+| `opening_in_door_leaf_qty` | 1 |
+| `is_aluminium_cill` | 1 |
+| `overall_frame_width_in_mm` | 1 |
+| `has_plantation_shutters` | 1 |
+| `is_idigbo_frame` | 1 |
+| `is_idigbo_sash` | 1 |
+| `has_panelling` | 1 |
+| `has_shutter_boxes` | 1 |
+| `has_finger_jointed_material` | 1 |
+| `remove_and_dispose_existing_sdg_or_panel` | 1 |
+| `is_bay_joined_internally` | 1 |
+| `is_bay_with_full_timber_mullion` | 1 |
+| `new_french_casement_pair_qty` | 1 |
+| `sash_transom_qty` | 1 |
+| `sash_mullion_qty` | 1 |
+| `has_allocated_trickle_vent` | 1 |
+| `has_architrave` | 1 |
+| `has_lining` | 1 |
+| `has_deep_window_board` | 1 |
 
 ## Transformations Applied
 
