@@ -907,7 +907,9 @@ function HistoryPanel({ entries, loading: historyLoading }) {
               <div key={entry.id} style={{ marginBottom: 6, padding: '4px 6px', background: '#fafaf8', borderRadius: 5, border: '1px solid #eeece6' }}>
                 <div style={{ fontSize: 10, color: '#888', marginBottom: 2 }}>
                   {formatDateTime(entry.created_at)}
-                  {entry.user_email && <span style={{ marginLeft: 4 }}>{entry.user_email}</span>}
+                  {(entry.user_name || entry.user_email) && (
+                    <span style={{ marginLeft: 4 }}>{entry.user_name || entry.user_email}</span>
+                  )}
                 </div>
                 <div style={{ fontSize: 11, fontWeight: 600, color: '#555', marginBottom: changes.length > 0 ? 3 : 0 }}>
                   {EVENT_LABELS[entry.event] ?? entry.event}
