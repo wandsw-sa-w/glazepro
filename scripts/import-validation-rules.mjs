@@ -460,7 +460,13 @@ function fixMessage(msg) {
   // "not not " at start or after space -> "!! "
   m = m.replace(/\bnot not\b/g, '!!')
   // Word-internal "not" -> "!" (e.g. "VENTSnot" -> "VENTS!")
-  m = m.replace(/(\w)not\b/g, '$1!')
+  // But never alter "cannot" / "Cannot" — those are real English words.
+  m = m.replace(/(\w)not\b/g, (match, pre, offset) => {
+    // Look back to check if the full word ending here is "cannot"
+    const before = m.slice(Math.max(0, offset - 3), offset + 1)
+    if (/[Cc]an$/.test(before)) return match
+    return pre + '!'
+  })
   return m
 }
 

@@ -434,3 +434,39 @@ describe('validateDrawing — part display labels', () => {
     expect(labels.some(l => l.includes('Bottom Sash'))).toBe(true)
   })
 })
+
+// ── Import script fixMessage: "cannot" must not become "can!" ────────────────
+
+describe('import-validation-rules fixMessage', () => {
+  // Replicate the fixMessage logic here to test it
+  function fixMessage(msg) {
+    let m = msg
+    m = m.replace(/\bnot not\b/g, '!!')
+    m = m.replace(/(\w)not\b/g, (match, pre, offset) => {
+      const before = m.slice(Math.max(0, offset - 3), offset + 1)
+      if (/[Cc]an$/.test(before)) return match
+      return pre + '!'
+    })
+    return m
+  }
+
+  it('"cannot" is preserved', () => {
+    expect(fixMessage('Quote cannot be published')).toBe('Quote cannot be published')
+  })
+
+  it('"Cannot" is preserved', () => {
+    expect(fixMessage('Cannot publish with retired price file')).toBe('Cannot publish with retired price file')
+  })
+
+  it('"VENTSnot" becomes "VENTS!"', () => {
+    expect(fixMessage('VENTSnot ADD')).toBe('VENTS! ADD')
+  })
+
+  it('"not not" becomes "!!"', () => {
+    expect(fixMessage('not not Please note')).toBe('!! Please note')
+  })
+
+  it('mixed: "cannot" kept, "VENTSnot" fixed', () => {
+    expect(fixMessage('You cannot use VENTSnot items')).toBe('You cannot use VENTS! items')
+  })
+})
