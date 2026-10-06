@@ -10,7 +10,7 @@ export function useCurrentUser() {
     if (!user?.email) return
     supabase
       .from('users')
-      .select('id, full_name, email, role, phone')
+      .select('id, full_name, email, role, phone, drawing_board_mode')
       .eq('email', user.email)
       .maybeSingle()
       .then(({ data }) => setCurrentUser(data))

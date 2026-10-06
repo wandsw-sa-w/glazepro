@@ -19,6 +19,7 @@ import { saveAsTemplate, listTemplates } from '../drawingBoard/templates.js'
 import { diffTrees } from '../drawingBoard/diffTrees.js'
 import { insertDrawingHistory, loadDrawingHistory } from '../drawingBoard/drawingHistory.js'
 import { FALLBACK_PROFILE_CODE } from '../drawingBoard/defaultProfile.js'
+import { isFieldHidden, hiddenTag } from '../drawingBoard/fieldVisibility.js'
 import { useCurrentUser } from '../hooks/useCurrentUser.js'
 import { defaultIronmonger } from '../pricing/defaultIronmongery.js'
 import { computeVariables } from '../pricing/computeVariables.js'
@@ -106,11 +107,11 @@ function collectCategories(fieldDefs) {
   return [...cats]
 }
 
-function findRequiredEmpty(tree, fieldDefs, hiddenFields = new Set()) {
+function findRequiredEmpty(tree, fieldDefs, visibilityMap = {}, boardMode = 'sales', showHidden = false) {
   const issues = []
   function traverse(node) {
     const fields = (fieldDefs[node.part_type] ?? []).filter(
-      f => f.is_required && f.role === 'input' && !hiddenFields.has(f.field_key)
+      f => f.is_required && f.role === 'input' && !isFieldHidden(visibilityMap[f.field_key], boardMode, showHidden)
     )
     for (const f of fields) {
       const v = node.values?.[f.property_name]
@@ -160,7 +161,16 @@ function InfoNoteIcon({ note }) {
 
 // ── PropertyField ─────────────────────────────────────────────────────────────
 
-function PropertyField({ field, value, derivedValue, onChange, refOptions, required, partType }) {
+function HiddenBadge({ text }) {
+  if (!text) return null
+  return (
+    <span style={{ fontSize: 9, fontWeight: 500, color: '#999', background: '#f0eeea', borderRadius: 4, padding: '1px 5px', marginLeft: 6, whiteSpace: 'nowrap' }}>
+      {text}
+    </span>
+  )
+}
+
+function PropertyField({ field, value, derivedValue, onChange, refOptions, required, partType, hiddenTagText }) {
   const isRequired = required && (value === null || value === undefined || value === '')
   const inputBorder = isRequired ? '1px solid #e57373' : '1px solid #d8d5cf'
 
@@ -170,6 +180,7 @@ function PropertyField({ field, value, derivedValue, onChange, refOptions, requi
         <label title={field.field_key} style={{ fontSize: 11, fontWeight: 500, color: '#aaa', display: 'block', marginBottom: 3 }}>
           {field.label} {field.unit ? <span style={{ fontWeight: 400 }}>({field.unit})</span> : null}
           <InfoNoteIcon note={field.info_note} />
+          <HiddenBadge text={hiddenTagText} />
         </label>
         <div style={{ fontSize: 12, padding: '6px 8px', background: '#f7f6f2', borderRadius: 6, color: '#888', border: '1px solid #e8e6e0' }}>
           {derivedValue !== null && derivedValue !== undefined ? String(derivedValue) : '—'}
@@ -190,6 +201,7 @@ function PropertyField({ field, value, derivedValue, onChange, refOptions, requi
         <label title={field.field_key} style={{ fontSize: 12, color: '#555', cursor: 'pointer', userSelect: 'none' }} onClick={() => onChange(!value)}>
           {field.label}
           <InfoNoteIcon note={field.info_note} />
+          <HiddenBadge text={hiddenTagText} />
         </label>
       </div>
     )
@@ -202,6 +214,7 @@ function PropertyField({ field, value, derivedValue, onChange, refOptions, requi
           {field.label}{field.is_required ? ' *' : ''}
           {field.unit ? <span style={{ fontWeight: 400, color: '#aaa' }}> ({field.unit})</span> : null}
           <InfoNoteIcon note={field.info_note} />
+          <HiddenBadge text={hiddenTagText} />
         </label>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <input
@@ -241,6 +254,7 @@ function PropertyField({ field, value, derivedValue, onChange, refOptions, requi
         <label title={field.field_key} style={{ fontSize: 11, fontWeight: 500, color: '#666', display: 'block', marginBottom: 3 }}>
           {field.label}{field.is_required ? ' *' : ''}
           <InfoNoteIcon note={field.info_note} />
+          <HiddenBadge text={hiddenTagText} />
         </label>
         <select
           value={value ?? ''}
@@ -269,6 +283,7 @@ function PropertyField({ field, value, derivedValue, onChange, refOptions, requi
         <label title={field.field_key} style={{ fontSize: 11, fontWeight: 500, color: '#666', display: 'block', marginBottom: 3 }}>
           {field.label}{field.is_required ? ' *' : ''}
           <InfoNoteIcon note={field.info_note} />
+          <HiddenBadge text={hiddenTagText} />
         </label>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
           {opts.map(o => {
@@ -293,6 +308,7 @@ function PropertyField({ field, value, derivedValue, onChange, refOptions, requi
         <label title={field.field_key} style={{ fontSize: 11, fontWeight: 500, color: '#666', display: 'block', marginBottom: 3 }}>
           {field.label}{field.is_required ? ' *' : ''}
           <InfoNoteIcon note={field.info_note} />
+          <HiddenBadge text={hiddenTagText} />
         </label>
         <input
           value={value ?? ''}
@@ -311,6 +327,7 @@ function PropertyField({ field, value, derivedValue, onChange, refOptions, requi
       <label title={field.field_key} style={{ fontSize: 11, fontWeight: 500, color: '#666', display: 'block', marginBottom: 3 }}>
         {field.label}{field.is_required ? ' *' : ''}
         <InfoNoteIcon note={field.info_note} />
+        <HiddenBadge text={hiddenTagText} />
       </label>
       <input
         value={value ?? ''}
@@ -480,7 +497,7 @@ function IronmongeryPanel({ node, tree, derived, refOptions, onChangeField, onAu
 
 // ── PropertyEditor ────────────────────────────────────────────────────────────
 
-function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, onAutoApplyDefaults, onPrev, onNext, prevDisabled, nextDisabled, prevLabel, nextLabel, hiddenFields, tree, ironmongeryRules, ironmongeryProducts }) {
+function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, onAutoApplyDefaults, onPrev, onNext, prevDisabled, nextDisabled, prevLabel, nextLabel, visibilityMap, boardMode, showHidden, tree, ironmongeryRules, ironmongeryProducts }) {
   if (!node) {
     return (
       <div style={{ padding: 16, color: '#aaa', fontSize: 12, textAlign: 'center', paddingTop: 48 }}>
@@ -490,7 +507,7 @@ function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, o
   }
 
   const fields = (fieldDefs[node.part_type] ?? []).filter(
-    f => f.role !== 'config' && !hiddenFields.has(f.field_key)
+    f => f.role !== 'config' && !isFieldHidden(visibilityMap[f.field_key], boardMode, showHidden)
   )
   const derivedMap = derived?.[node.key] ?? {}
 
@@ -544,6 +561,7 @@ function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, o
             refOptions={refOptions}
             required={field.is_required}
             partType={node.part_type}
+            hiddenTagText={showHidden ? hiddenTag(visibilityMap[field.field_key], boardMode) : null}
           />
         ))}
       </div>
@@ -655,7 +673,7 @@ function DrawingPlaceholder({ tree, derived, refOptions }) {
 
 // ── Summary ───────────────────────────────────────────────────────────────────
 
-function Summary({ tree, fieldDefs, derived, refOptions, onSelectKey, drawingMeta, hiddenFields, pricingInfo, sashWeights }) {
+function Summary({ tree, fieldDefs, derived, refOptions, onSelectKey, drawingMeta, visibilityMap, boardMode, showHidden, pricingInfo, sashWeights }) {
   const item  = findFirst(tree, 'drawingItemPart')
   const frame = findFirst(tree, 'assemblyFramePart')
 
@@ -668,7 +686,7 @@ function Summary({ tree, fieldDefs, derived, refOptions, onSelectKey, drawingMet
   const frameH = frame?.values?.height
   const frameSize = frameW && frameH ? `${frameW} \u00d7 ${frameH} mm` : '\u2014'
 
-  const requiredEmpty = findRequiredEmpty(tree, fieldDefs, hiddenFields)
+  const requiredEmpty = findRequiredEmpty(tree, fieldDefs, visibilityMap, boardMode, showHidden)
 
   // Format net price
   const priceLabel = pricingInfo?.netPrice != null
@@ -1275,7 +1293,11 @@ function DrawingBoard() {
   const [refOptions,  setRefOptions]    = useState({})
   const [profileValues, setProfileValues] = useState([])
   const [containment, setContainment]   = useState([])
-  const [hiddenFields, setHiddenFields] = useState(() => new Set())
+  const [visibilityMap, setVisibilityMap] = useState({})  // { fieldKey: 'shown'|'hidden_sales'|... }
+  const [boardMode, setBoardMode] = useState(() => {
+    try { return localStorage.getItem('glazepro_board_mode') || 'sales' } catch { return 'sales' }
+  })
+  const [showHidden, setShowHidden] = useState(false)
   const [loading,     setLoading]       = useState(true)
   const [loadError,   setLoadError]     = useState(null)
 
@@ -1301,6 +1323,14 @@ function DrawingBoard() {
     showActiveRulers: false,
     showSashCentricDims: false,
   })
+
+  // Sync board mode with user's fixed mode (sales/survey lock the toggle)
+  useEffect(() => {
+    const userMode = currentUser?.drawing_board_mode
+    if (userMode === 'sales' || userMode === 'survey') {
+      setBoardMode(userMode)
+    }
+  }, [currentUser?.drawing_board_mode])
 
   // ── Dialog state ─────────────────────────────────────────────────────────────
   const [dividerDialog, setDividerDialog] = useState(false)
@@ -1513,7 +1543,16 @@ function DrawingBoard() {
         setRefOptions(rOpts)
         setProfileValues(pVals)
         setContainment(cont)
-        setHiddenFields(new Set(profile.hidden_fields ?? []))
+
+        // Load field visibility for this profile
+        const { data: visRows, error: visErr } = await supabase
+          .from('field_visibility')
+          .select('field_key, visibility')
+          .eq('profile_id', profile.id)
+        if (visErr) throw new Error(`Failed to load field visibility: ${visErr.message}`)
+        const vMap = {}
+        for (const row of (visRows ?? [])) { vMap[row.field_key] = row.visibility }
+        setVisibilityMap(vMap)
 
         // Load or build the tree
         const loadedTree = await loadDrawingParts(Number(drawingId))
@@ -1605,6 +1644,7 @@ function DrawingBoard() {
             userName: currentUser?.full_name || authUser?.email || null,
             event,
             changes,
+            note: (event === 'saved' && boardMode === 'survey') ? 'Survey mode' : null,
           })
           if (histErr) {
             console.warn('History insert failed:', histErr.message)
@@ -1934,6 +1974,50 @@ function DrawingBoard() {
         </div>
       )}
 
+      {/* Mode switch / label */}
+      <div style={tbSep} />
+      {(() => {
+        const userMode = currentUser?.drawing_board_mode || 'switch'
+        if (userMode === 'sales') {
+          return <span style={{ fontSize: 11, color: '#555', fontWeight: 500, whiteSpace: 'nowrap' }}>Sales mode</span>
+        }
+        if (userMode === 'survey') {
+          return <span style={{ fontSize: 11, color: '#555', fontWeight: 500, whiteSpace: 'nowrap' }}>Survey mode</span>
+        }
+        // switch — two-way toggle
+        return (
+          <div style={{ display: 'flex', gap: 0, flexShrink: 0 }}>
+            {['sales', 'survey'].map(m => (
+              <button
+                key={m}
+                onClick={() => {
+                  setBoardMode(m)
+                  try { localStorage.setItem('glazepro_board_mode', m) } catch { /* ignore */ }
+                }}
+                style={{
+                  fontSize: 11, padding: '3px 10px', border: '1px solid #d8d5cf',
+                  borderRadius: m === 'sales' ? '6px 0 0 6px' : '0 6px 6px 0',
+                  background: boardMode === m ? '#f0eefc' : '#fff',
+                  color: boardMode === m ? '#3d35a8' : '#555',
+                  fontWeight: boardMode === m ? 600 : 400,
+                  cursor: 'pointer', fontFamily: 'inherit',
+                  marginLeft: m === 'survey' ? -1 : 0,
+                }}
+              >
+                {m === 'sales' ? 'Sales' : 'Survey'}
+              </button>
+            ))}
+          </div>
+        )
+      })()}
+      {/* Show hidden fields (admin only) */}
+      {currentUser?.role === 'Admin' && (
+        <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#888', cursor: 'pointer', whiteSpace: 'nowrap', marginLeft: 4 }}>
+          <input type="checkbox" checked={showHidden} onChange={e => setShowHidden(e.target.checked)} />
+          Show hidden
+        </label>
+      )}
+
       <div style={{ flex: 1 }} />
 
       {/* Status */}
@@ -2021,7 +2105,9 @@ function DrawingBoard() {
               nextDisabled={nextDisabled}
               prevLabel={prevPartLabel}
               nextLabel={nextPartLabel}
-              hiddenFields={hiddenFields}
+              visibilityMap={visibilityMap}
+              boardMode={boardMode}
+              showHidden={showHidden}
               tree={tree}
               ironmongeryRules={ironmongeryRules}
               ironmongeryProducts={ironmongeryProducts}
@@ -2151,7 +2237,9 @@ function DrawingBoard() {
               refOptions={refOptions}
               onSelectKey={setSelectedKey}
               drawingMeta={drawingMeta}
-              hiddenFields={hiddenFields}
+              visibilityMap={visibilityMap}
+              boardMode={boardMode}
+              showHidden={showHidden}
               pricingInfo={pricingInfo}
               sashWeights={sashWeights}
             />
