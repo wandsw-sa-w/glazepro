@@ -75,3 +75,42 @@ describe('Benchmark fixtures load and engine runs without errors', () => {
     }
   })
 })
+
+describe('Benchmark B — DSO variables are correct', () => {
+  it('frame_area = 1.32 m2 for the DSO SqM Rate rule', () => {
+    const { tree } = BENCHMARK_B
+    const derived = computeDerived(tree)
+    const vars = computeVariables(tree, derived, PF_VARIABLES)
+    // frame_area is the outer frame area: 1100 * 1200 / 1e6 = 1.32
+    expect(vars.frame_area).toBeCloseTo(1.32, 2)
+  })
+
+  it('sliding_sash_qty=2, fixed_sliding_sash_qty=0 for DSO Extra Profits', () => {
+    const { tree } = BENCHMARK_B
+    const derived = computeDerived(tree)
+    const vars = computeVariables(tree, derived, PF_VARIABLES)
+    expect(vars.sliding_sash_qty).toBe(2)
+    expect(vars.fixed_sliding_sash_qty).toBe(0)
+  })
+
+  it('frame_to_be_replaced=false, needs_draughtsealing=true', () => {
+    const { tree } = BENCHMARK_B
+    const derived = computeDerived(tree)
+    const vars = computeVariables(tree, derived, PF_VARIABLES)
+    expect(vars.frame_to_be_replaced).toBe(false)
+    expect(vars.needs_draughtsealing).toBe(true)
+    expect(vars.nj_involved).toBe(false)
+  })
+})
+
+describe('Benchmark A — sash replacement variables are correct', () => {
+  it('to_be_replaced=true for sashes, frame_to_be_replaced=false', () => {
+    const { tree } = BENCHMARK_A
+    const derived = computeDerived(tree)
+    const vars = computeVariables(tree, derived, PF_VARIABLES)
+    expect(vars.is_sash_replacement).toBe(true)
+    expect(vars.frame_to_be_replaced).toBe(false)
+    expect(vars.nj_involved).toBe(true)
+    expect(vars.new_sliding_sash_qty).toBe(2)
+  })
+})
