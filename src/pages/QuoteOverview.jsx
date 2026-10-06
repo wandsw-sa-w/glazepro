@@ -338,6 +338,18 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
         setValidationCounts({ errors: 0, warnings: 0, info: 0 })
         return
       }
+      // Load install minutes from latest pricing runs for installation_labour_time
+      const drawingIds = treeKeys.map(Number).filter(Boolean)
+      let totalInstallMinutes = 0
+      if (drawingIds.length > 0) {
+        const { data: pVars } = await supabase
+          .from('drawing_pricing_variables')
+          .select('drawing_id, variables')
+          .in('drawing_id', drawingIds)
+        if (cancelled) return
+        for (const v of (pVars || [])) totalInstallMinutes += Number(v.variables?.total_install_minutes) || 0
+      }
+
       const [
         { data: ruleData, error: rErr },
         { data: listData, error: lErr },
@@ -383,7 +395,7 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
 
       // Quote-level rules
       if (quoteRules.length > 0) {
-        const quoteVars = computeQuoteVariables(itemVarsList)
+        const quoteVars = computeQuoteVariables(itemVarsList, { totalInstallMinutes })
         const quoteResults = validateQuote(quoteVars, allResults, quoteRules, listsMap)
         for (const r of quoteResults) {
           if (r.status === 'fired') {

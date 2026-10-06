@@ -782,7 +782,7 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
  *
  * @param {Object[]}  itemVarsList  - Array of per-item variable objects (from computeVariables)
  * @param {Object}    quoteContext  - Optional quote-level context
- *   { status, pricefileNo, latestPricefileNo, isPricefileRetired }
+ *   { status, pricefileNo, latestPricefileNo, isPricefileRetired, totalInstallMinutes }
  * @returns {Object} Quote-level variables for validation
  */
 export function computeQuoteVariables(itemVarsList = [], quoteContext = {}) {
@@ -834,8 +834,12 @@ export function computeQuoteVariables(itemVarsList = [], quoteContext = {}) {
     item_qty_with_16mm_spacer = sc.dim_16 ?? 0
   }
 
-  // Sum installation labour time across items
-  const installation_labour_time = items.reduce((sum, v) => sum + (v.installation_labour_time ?? 0), 0)
+  // Installation labour time from pricing runs (install minutes / 60, summed).
+  // Item-level installation_labour_time is always 0 (set by engine after pass),
+  // so use the pricing data passed by the caller.
+  const installation_labour_time = quoteContext.totalInstallMinutes != null
+    ? quoteContext.totalInstallMinutes / 60
+    : items.reduce((sum, v) => sum + (v.installation_labour_time ?? 0), 0)
 
   // Quote margin: default R number (configurable in Integrate, default 1000)
   const quote_margin = quoteContext.quoteMargin ?? 1000

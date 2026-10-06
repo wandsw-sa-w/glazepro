@@ -628,4 +628,14 @@ describe('computeQuoteVariables', () => {
     expect(qv.quote_margin).toBe(1100)
     expect(qv.user_can_access_all_quotes).toBe(true)
   })
+
+  it('installation_labour_time uses totalInstallMinutes from context', () => {
+    const qv = computeQuoteVariables([], { totalInstallMinutes: 450 })
+    expect(qv.installation_labour_time).toBe(7.5) // 450 / 60
+  })
+
+  it('installation_labour_time falls back to 0 when no context', () => {
+    const qv = computeQuoteVariables([])
+    expect(qv.installation_labour_time).toBe(0)
+  })
 })

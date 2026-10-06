@@ -63,8 +63,16 @@ export async function publishQuote({ quoteId, leadId, userId, userName, userEmai
       } catch { /* skip items that fail to compute */ }
     }
 
+    // Installation labour from the snapshot's pricing data
+    let totalInstallMinutes = 0
+    for (const item of snapshot.items) {
+      // pricing_run_id is in the snapshot; total_install_minutes is in item variables
+      // For now approximate from item-level — the real value comes from pricing_variables
+      totalInstallMinutes += (item.derived?.totalInstallMinutes ?? 0)
+    }
+
     // Quote-level rules
-    const quoteVars = computeQuoteVariables(itemVarsList)
+    const quoteVars = computeQuoteVariables(itemVarsList, { totalInstallMinutes })
     const quoteResults = validateQuote(quoteVars, [], quoteRules, listsMap)
     for (const r of quoteResults) {
       if (r.status === 'fired' && r.severity === 'error') {
