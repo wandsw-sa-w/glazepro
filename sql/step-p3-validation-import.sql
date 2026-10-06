@@ -26,8 +26,8 @@ VALUES (
   'quote_margin !=1100',
   'R Number should be set to R1100 in busy periods',
   'Default to RNumber is R1000 In busy periods this should be set to R1100.',
-  false,
-  'missing variable: quote_margin'
+  true,
+  NULL
 );
 
 -- Rule 2: Single item fee [Quote Summary]
@@ -42,8 +42,8 @@ VALUES (
   'new_frame_qty == 0 and new_sliding_sash_qty <= 2 and item_qty == 1 and item_with_onsite_decoration_by_us_qty_excl_free_items == 0 and item_qty_with_solid_utile_hardwood_cill == 0',
   'Add a ''Single Item Fee'' free text item for single SASH REPLACEMENT projects.',
   NULL,
-  false,
-  'missing variable: item_qty, item_with_onsite_decoration_by_us_qty_excl_free_items, item_qty_with_solid_utile_hardwood_cill'
+  true,
+  NULL
 );
 
 -- Rule 3: Mixed Spacer Colour [Quote Summary]
@@ -58,8 +58,8 @@ VALUES (
   'max(item_qty_with_black_warm_edge_spacer, item_qty_with_white_warm_edge_spacer, item_qty_with_brown_warm_edge_spacer, item_qty_with_bronze_aluminium_spacer) < item_qty_with_black_warm_edge_spacer + item_qty_with_white_warm_edge_spacer + item_qty_with_brown_warm_edge_spacer + item_qty_with_bronze_aluminium_spacer',
   'Mixed spacer colours. Spacer colour should be amended to match all items.',
   NULL,
-  false,
-  'missing variable: item_qty_with_black_warm_edge_spacer, item_qty_with_white_warm_edge_spacer, item_qty_with_brown_warm_edge_spacer, item_qty_with_bronze_aluminium_spacer'
+  true,
+  NULL
 );
 
 -- Rule 4: Mixed Spacer Dimension [Quote Summary]
@@ -74,8 +74,8 @@ VALUES (
   'max(item_qty_with_4mm_spacer,item_qty_with_6mm_spacer, item_qty_with_8mm_spacer, item_qty_with_10mm_spacer, item_qty_with_12mm_spacer, item_qty_with_14mm_spacer) < item_qty_with_4mm_spacer + item_qty_with_6mm_spacer + item_qty_with_8mm_spacer + item_qty_with_10mm_spacer + item_qty_with_12mm_spacer + item_qty_with_14mm_spacer + item_qty_with_16mm_spacer',
   'Mixed spacer dimensions. Spacer dimension normally matches for all items please check or amend',
   NULL,
-  false,
-  'missing variable: item_qty_with_4mm_spacer, item_qty_with_6mm_spacer, item_qty_with_8mm_spacer, item_qty_with_10mm_spacer, item_qty_with_12mm_spacer, item_qty_with_14mm_spacer, item_qty_with_16mm_spacer'
+  true,
+  NULL
 );
 
 -- Rule 5: Cill Timber Not matching [Quote Summary]
@@ -90,8 +90,8 @@ VALUES (
   'max(item_qty_with_accoya_cill,item_qty_with_oak_cill,item_qty_with_douglas_fir_cill,item_qty_with_solid_redwood_cill,item_qty_with_idigbo_cill,item_qty_with_solid_utile_hardwood_cill) < item_qty_with_accoya_cill + item_qty_with_douglas_fir_cill + item_qty_with_oak_cill + item_qty_with_solid_redwood_cill + item_qty_with_idigbo_cill + item_qty_with_solid_utile_hardwood_cill',
   'Mixed timber for cills. Cill timber normally matches for all items please check or amend',
   NULL,
-  false,
-  'missing variable: item_qty_with_accoya_cill, item_qty_with_oak_cill, item_qty_with_douglas_fir_cill, item_qty_with_solid_redwood_cill, item_qty_with_idigbo_cill, item_qty_with_solid_utile_hardwood_cill'
+  true,
+  NULL
 );
 
 -- Rule 6: Installation labour hours [Quote Summary]
@@ -106,8 +106,8 @@ VALUES (
   'item_installed_by_us_qty > 0',
   'Estimated installation hours: installation_labour_time',
   NULL,
-  false,
-  'missing variable: item_installed_by_us_qty'
+  true,
+  NULL
 );
 
 -- Rule 7: Quote PF not latest - HQ [Quote Summary]
@@ -122,8 +122,8 @@ VALUES (
   'user_can_access_all_quotes and is_open_quote and not is_pricefile_retired and quote_pricefile_no < latest_pricefile_no and quote_pricefile_no > 0',
   'Quote should be updated to the latest price file.',
   NULL,
-  false,
-  'missing variable: user_can_access_all_quotes, is_open_quote, is_pricefile_retired, quote_pricefile_no, latest_pricefile_no'
+  true,
+  NULL
 );
 
 -- Rule 8: Quote PF retired - HQ [Quote Summary]
@@ -138,8 +138,8 @@ VALUES (
   'user_can_access_all_quotes and is_open_quote and is_pricefile_retired',
   'PF quote_pricefile_no is retired. Please switch to latest live one.',
   NULL,
-  false,
-  'missing variable: user_can_access_all_quotes, is_open_quote, is_pricefile_retired'
+  true,
+  NULL
 );
 
 -- Rule 9: Quote PF not latest - restricted [Quote Summary]
@@ -154,8 +154,8 @@ VALUES (
   'not user_can_access_all_quotes and is_open_quote and not is_pricefile_retired and quote_pricefile_no < latest_pricefile_no and quote_pricefile_no > 0',
   'Quote should be updated to the latest price file, unless it is already a quotation presented to the customer within the validation period.',
   NULL,
-  false,
-  'missing variable: user_can_access_all_quotes, is_open_quote, is_pricefile_retired, quote_pricefile_no, latest_pricefile_no'
+  true,
+  NULL
 );
 
 -- Rule 10: Quote PF retired - restricted [Quote Summary]
@@ -170,8 +170,8 @@ VALUES (
   'not user_can_access_all_quotes and is_open_quote and is_pricefile_retired',
   'PF quote_pricefile_no is retired. Quote can! be published with retired price file.',
   NULL,
-  false,
-  'missing variable: user_can_access_all_quotes, is_open_quote, is_pricefile_retired'
+  true,
+  NULL
 );
 
 -- Rule 11: Temp [Glass]
@@ -202,8 +202,8 @@ VALUES (
   'new_sash_with_curved_head_qty > 0 and is_replacement_sashes_range',
   'We do not offer sash replacements if the sashes have a curved top rail',
   NULL,
-  false,
-  'missing variable: new_sash_with_curved_head_qty'
+  true,
+  NULL
 );
 
 -- Rule 13: (unnamed) [Glass]
@@ -234,8 +234,8 @@ VALUES (
   'encapsulated_leaded_light_qty >= 1',
   'DO NOT USE ENCAPSULATED LEADED LIGHTS. DO NOT IGNORE THIS MESSAGE. SPEAK TO CHARLIE ABOUT THIS',
   NULL,
-  false,
-  'missing variable: encapsulated_leaded_light_qty'
+  true,
+  NULL
 );
 
 -- Rule 15: Fineo Toughened Evacuation Port [Glass]
@@ -250,8 +250,8 @@ VALUES (
   'glass_unit_thickness == 9.7',
   'IF FINEO TOUGHENED IS USED, ADD QUOTE NOTE - Please note, a small visible black circular evacuation port will be visible in the corner of each unit of Fineo Toughened. We recommend viewing a sample.',
   NULL,
-  false,
-  'missing variable: glass_unit_thickness'
+  true,
+  NULL
 );
 
 -- Rule 16: Toughened Glass with Duplex Bars [Glass]
@@ -506,8 +506,8 @@ VALUES (
   'sash_thickness == 35 and glass_unit_thickness > 14 and not is_single_glazed',
   '35mm sashes must have a 14mm thick DGU if STANDARD double glazed (4/6/4)',
   NULL,
-  false,
-  'missing variable: glass_unit_thickness'
+  true,
+  NULL
 );
 
 -- Rule 32: 35mm Sashes DGU [Sash Windows]
@@ -602,8 +602,8 @@ VALUES (
   '(sash_thickness == 50) and (glass_unit_thickness < 28 ) and not is_single_glazed',
   '50mm sashes must have a 28mm thick DGU if STANDARD double glazed (4/20/4)',
   NULL,
-  false,
-  'missing variable: glass_unit_thickness'
+  true,
+  NULL
 );
 
 -- Rule 38: 50mm Sashes DGU [Sash Windows]
@@ -618,8 +618,8 @@ VALUES (
   '(sash_thickness == 50) and (glass_unit_thickness > 28 ) and not is_single_glazed',
   '50mm sashes must have a 28mm thick DGU if STANDARD double glazed (4/20/4)',
   NULL,
-  false,
-  'missing variable: glass_unit_thickness'
+  true,
+  NULL
 );
 
 -- Rule 39: Box Frame Depth [Sash Windows]
@@ -634,8 +634,8 @@ VALUES (
   'frame_depth < 140 and is_double_glazed and is_sw and frame_to_be_replaced',
   'Box frame depth must be 140mm to allow for double glazing',
   NULL,
-  false,
-  'missing variable: frame_depth'
+  true,
+  NULL
 );
 
 -- Rule 40: Sash head with trickle vent [Sash Windows]
@@ -970,8 +970,8 @@ VALUES (
   'is_casement_window and frame_to_be_replaced and not (frame_depth == 93)',
   'Casement frame depth must be 93mm',
   NULL,
-  false,
-  'missing variable: frame_depth'
+  true,
+  NULL
 );
 
 -- Rule 61: Mullion Size [Stormproof Casements]
@@ -1034,8 +1034,8 @@ VALUES (
   'frame_depth == 0 and frame_to_be_replaced',
   'Frame depth can! be 0mm',
   NULL,
-  false,
-  'missing variable: frame_depth'
+  true,
+  NULL
 );
 
 -- Rule 65: Cill depth 0 [Missing Detail]
@@ -1050,8 +1050,8 @@ VALUES (
   'cill_depth == 0 and frame_to_be_replaced',
   'Cill depth can! be 0mm',
   NULL,
-  false,
-  'missing variable: cill_depth'
+  true,
+  NULL
 );
 
 -- Rule 66: No surveyor [Missing Detail]
@@ -1066,8 +1066,8 @@ VALUES (
   'is_survey_drawing and not is_surveyor_specified',
   'Surveyor not specified',
   NULL,
-  false,
-  'missing variable: is_survey_drawing, is_surveyor_specified'
+  true,
+  NULL
 );
 
 -- Rule 67: Fit in van [Missing Detail]
@@ -1098,8 +1098,8 @@ VALUES (
   'is_complete_new and is_installation_included and surround_row_qty == 0',
   'Complete new item without surrounds',
   NULL,
-  false,
-  'missing variable: surround_row_qty'
+  true,
+  NULL
 );
 
 -- Rule 69: Sash Replacement Surrounds [Missing Detail]
@@ -1114,8 +1114,8 @@ VALUES (
   'is_installation_included and surround_row_qty >= 1 and not is_complete_new',
   'Non-frame replacement with surrounds',
   NULL,
-  false,
-  'missing variable: surround_row_qty'
+  true,
+  NULL
 );
 
 -- Rule 70: Unmodified default [Missing Detail]
@@ -1130,8 +1130,8 @@ VALUES (
   'has_unmodified_default_measurement',
   'Default measurement(s) not modified (unmodified_default_measurement_text)',
   'Dimension ends in 99',
-  false,
-  'missing variable: has_unmodified_default_measurement'
+  true,
+  NULL
 );
 
 -- Rule 71: Paint empty [Missing Detail]
@@ -1146,8 +1146,8 @@ VALUES (
   'empty(internal_finish) or empty(external_finish)',
   'Paint finish missing',
   NULL,
-  false,
-  'missing variable: internal_finish, external_finish'
+  true,
+  NULL
 );
 
 -- Rule 72: Bifold Door Weight [Dimension]
@@ -1226,8 +1226,8 @@ VALUES (
   'new_sash_qty > 0 and eq_glazing_is_out',
   'Equal glazing is out, check sightline sizes',
   NULL,
-  false,
-  'missing variable: eq_glazing_is_out'
+  true,
+  NULL
 );
 
 -- Rule 77: Restricted sash travel [Dimension]
@@ -1242,8 +1242,8 @@ VALUES (
   'sliding_sash_with_restricted_travel_qty > 0',
   'Restricted sash travel for sliding_sash_with_restricted_travel_qty sash(es)',
   NULL,
-  false,
-  'missing variable: sliding_sash_with_restricted_travel_qty'
+  true,
+  NULL
 );
 
 -- Rule 78: Toughened too small [Dimension]
@@ -1290,8 +1290,8 @@ VALUES (
   'new_frame_qty > 0 and cill_height > 1 and cill_depth < frame_depth',
   'Frame can! be deeper than cill',
   NULL,
-  false,
-  'missing variable: cill_height, cill_depth, frame_depth'
+  true,
+  NULL
 );
 
 -- Rule 81: Multipoint Doors too Tall [Dimension]
@@ -1339,7 +1339,7 @@ VALUES (
   'Softwood should not be used in sections greater than 100mm. Must be hardwood.',
   NULL,
   false,
-  'missing variable: is_solid_softwood_pine_frame, frame_depth'
+  'missing variable: is_solid_softwood_pine_frame'
 );
 
 -- Rule 84: Fineo HOARG vs BiGlass [Suspicious Detail]
@@ -1355,7 +1355,7 @@ VALUES (
   'Fineo glass replacement into existing is bi-glass',
   NULL,
   false,
-  'missing variable: hoarg_qty, glass_unit_thickness'
+  'missing variable: hoarg_qty'
 );
 
 -- Rule 85: Oak [Suspicious Detail]
@@ -1370,8 +1370,8 @@ VALUES (
   'is_oak_cill or is_oak_cill or is_oak_sash',
   'Please note, we advise against using oak for external joinery. It is very prone to discolouration and movement. We offer no guarantee against this. We recommend using idigbo wood as an oak alternative. For more information on this please speak to your surveyor.',
   NULL,
-  false,
-  'missing variable: is_oak_cill, is_oak_sash'
+  true,
+  NULL
 );
 
 -- Rule 86: Softwood Cill [Suspicious Detail]
@@ -1386,8 +1386,8 @@ VALUES (
   'is_solid_redwood_cill',
   'Softwood cills are not permitted. Please change to hardwood',
   NULL,
-  false,
-  'missing variable: is_solid_redwood_cill'
+  true,
+  NULL
 );
 
 -- Rule 87: Front Door [Suspicious Detail]
@@ -1450,8 +1450,8 @@ VALUES (
   'is_single_glazed and frame_to_be_replaced and is_docl and not glass_unit_thickness == 7.7',
   'Single glazing in complete replacement is not building reg compliant. Ensure Doc L is unticked',
   NULL,
-  false,
-  'missing variable: glass_unit_thickness'
+  true,
+  NULL
 );
 
 -- Rule 91: DOCL Heritage [Suspicious Detail]
@@ -1466,8 +1466,8 @@ VALUES (
   'glass_unit_thickness <= 18 and frame_to_be_replaced and is_docl and glass_unit_qty >= 1 and is_double_glazed',
   'DOC L? This item may not be not building reg compliant. If the glazing does not have a centre pane U-value of 1.4 or less, Ensure Doc L is unticked',
   NULL,
-  false,
-  'missing variable: glass_unit_thickness, glass_unit_qty'
+  true,
+  NULL
 );
 
 -- Rule 92: DOCL Single [Suspicious Detail]
@@ -1482,8 +1482,8 @@ VALUES (
   'frame_to_be_replaced and is_docl and glass_unit_qty >= 1 and is_single_glazed and glass_unit_thickness < 7',
   'DOC L? This item may not be not building reg compliant. If the glazing does not have a centre pane U-value of 1.4 or less, Ensure Doc L is unticked',
   NULL,
-  false,
-  'missing variable: glass_unit_qty, glass_unit_thickness'
+  true,
+  NULL
 );
 
 -- Rule 93: Raked Frame [Suspicious Detail]
@@ -1658,8 +1658,8 @@ VALUES (
   'is_idigbo_frame or is_idigbo_sash',
   'SPEAK TO NATHAN BEFORE QUOTING THIS JOB',
   NULL,
-  false,
-  'missing variable: is_idigbo_frame, is_idigbo_sash'
+  true,
+  NULL
 );
 
 -- Rule 104: (unnamed) [Recommendation]
@@ -1850,8 +1850,8 @@ VALUES (
   'encapsulated_leaded_light_qty >= 1',
   'No pricing has been allowed for encapsulated leaded lights. This must be worked out and specified by you.',
   NULL,
-  false,
-  'missing variable: encapsulated_leaded_light_qty'
+  true,
+  NULL
 );
 
 -- Rule 116: Bay Type [Recommendation]
@@ -2299,7 +2299,7 @@ VALUES (
   'LTW',
   NULL,
   false,
-  'missing variable: is_survey_drawing, bi_fold_door_leaf_qty'
+  'missing variable: bi_fold_door_leaf_qty'
 );
 
 -- Rule 144: LTW [Factory]
@@ -2315,7 +2315,7 @@ VALUES (
   'LTW',
   NULL,
   false,
-  'missing variable: is_survey_drawing, bi_fold_door_leaf_qty'
+  'missing variable: bi_fold_door_leaf_qty'
 );
 
 -- Rule 145: NFJ [Factory]
@@ -2331,7 +2331,7 @@ VALUES (
   'NFJ',
   NULL,
   false,
-  'missing variable: is_survey_drawing, sash_with_curved_head_qty, frame_with_curved_inner_head_qty'
+  'missing variable: sash_with_curved_head_qty, frame_with_curved_inner_head_qty'
 );
 
 -- Rule 146: NFJ/PSJ [Factory]
@@ -2347,7 +2347,7 @@ VALUES (
   'NFJ/PSJ',
   NULL,
   false,
-  'missing variable: is_survey_drawing, sash_with_curved_head_qty, frame_with_curved_inner_head_qty'
+  'missing variable: sash_with_curved_head_qty, frame_with_curved_inner_head_qty'
 );
 
 -- Rule 147: NFJ [Factory]
@@ -2363,7 +2363,7 @@ VALUES (
   'NFJ',
   NULL,
   false,
-  'missing variable: is_survey_drawing, sash_with_curved_head_qty'
+  'missing variable: sash_with_curved_head_qty'
 );
 
 -- Rule 148: Surrounds not allowed [To Be Checked]

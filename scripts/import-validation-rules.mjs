@@ -72,8 +72,11 @@ const PRODUCT_NOT_OFFERED_GROUPS = new Set([
 function extractReturnBlockVariables() {
   const src = readFileSync(COMPUTE_VARS, 'utf-8')
 
-  // Find the return { ... } block at end of function
-  const returnIdx = src.lastIndexOf('return {')
+  // Find the return { ... } block inside the computeVariables function.
+  // Look for the marker comment that precedes the main return block.
+  const markerIdx = src.indexOf('Return flat object with all variables')
+  const searchFrom = markerIdx !== -1 ? markerIdx : 0
+  const returnIdx = src.indexOf('return {', searchFrom)
   if (returnIdx === -1) throw new Error('Could not find return { in computeVariables.js')
 
   // Find matching closing brace
@@ -117,7 +120,7 @@ console.log(`Extracted ${computeVars.size} variables from computeVariables.js re
 // than "missing variable" when the real issue is something else.
 const EXTRA_ITEM_LEVEL_VARS = [
   'sash_thickness',                // sash_replacement_thickness alias
-  'is_lambs_tongue_moulding',      // moulding flag (NEEDS-DATA in computeVariables)
+  'is_lambs_tongue_moulding',      // moulding flag
   'gb_qty',                        // glazing bar quantity
   'gb_width',                      // glazing bar width
   'is_docl',                       // alias for is_doc_l
@@ -127,6 +130,40 @@ const EXTRA_ITEM_LEVEL_VARS = [
   'is_heritage',                   // heritage flag (used for product-not-offered check)
 ]
 for (const v of EXTRA_ITEM_LEVEL_VARS) computeVars.add(v)
+
+// Quote-level variables from computeQuoteVariables()
+const QUOTE_LEVEL_VARS = [
+  'item_qty',
+  'item_installed_by_us_qty',
+  'item_qty_with_solid_utile_hardwood_cill',
+  'item_qty_with_solid_redwood_cill',
+  'item_qty_with_accoya_cill',
+  'item_qty_with_oak_cill',
+  'item_qty_with_idigbo_cill',
+  'item_qty_with_douglas_fir_cill',
+  'item_qty_with_white_warm_edge_spacer',
+  'item_qty_with_black_warm_edge_spacer',
+  'item_qty_with_brown_warm_edge_spacer',
+  'item_qty_with_bronze_aluminium_spacer',
+  'item_qty_with_4mm_spacer',
+  'item_qty_with_6mm_spacer',
+  'item_qty_with_8mm_spacer',
+  'item_qty_with_10mm_spacer',
+  'item_qty_with_12mm_spacer',
+  'item_qty_with_14mm_spacer',
+  'item_qty_with_16mm_spacer',
+  'installation_labour_time',
+  'quote_margin',
+  'is_open_quote',
+  'quote_pricefile_no',
+  'latest_pricefile_no',
+  'is_pricefile_retired',
+  'user_can_access_all_quotes',
+  'new_frame_qty',
+  'new_sliding_sash_qty',
+  'item_with_onsite_decoration_by_us_qty_excl_free_items',
+]
+for (const v of QUOTE_LEVEL_VARS) computeVars.add(v)
 
 // ── Per-part variables available in loop contexts ────────────────────────────
 
