@@ -317,17 +317,30 @@ export default function Settings() {
       account_no: bd.account_no ?? BANK_DETAILS.account_no,
     })
 
-    // H&S opt-in: load reference options for Landing Access and External Access
+    // H&S opt-in: load reference options for ALL H&S and access categories
+    const hsCategories = [
+      'fire_egress', 'internal_hazard', 'access_internal', 'landing_access',
+      'access_external', 'access_hazard_below', 'access_cable_alarm', 'access_dormer',
+    ]
+    const categoryLabels = {
+      fire_egress: 'Fire Egress', internal_hazard: 'Internal Hazard',
+      access_internal: 'Internal Access', landing_access: 'Landing Access',
+      access_external: 'External Access', access_hazard_below: 'Hazard Below',
+      access_cable_alarm: 'Cable/Alarm', access_dormer: 'Dormer Issue',
+    }
+    const defaultTicks = ['Internal Scaffold by Customer', 'Scaffold by Customer']
     const { data: refOpts } = await supabase
       .from('reference_options')
       .select('category, code, label')
-      .in('category', ['landing_access', 'external_access'])
+      .in('category', hsCategories)
       .eq('is_active', true)
-    const savedOptin = dbSettings.quote_hs_optin || HS_OPTIN_VALUES
-    const categoryMap = { landing_access: 'Landing Access', external_access: 'External Access' }
+      .order('sort_order')
+    const savedOptin = dbSettings.quote_hs_optin || null
     const optinChecks = (refOpts || []).map(opt => {
-      const group = categoryMap[opt.category] || opt.category
-      const isChecked = savedOptin.some(s => s.group === group && s.value === opt.label)
+      const group = categoryLabels[opt.category] || opt.category
+      const isChecked = savedOptin
+        ? savedOptin.some(s => s.group === group && s.value === opt.label)
+        : defaultTicks.includes(opt.label)
       return { group, value: opt.label, code: opt.code, checked: isChecked }
     })
     setHsOptinDraft(optinChecks.length > 0 ? optinChecks : HS_OPTIN_VALUES.map(v => ({ ...v, checked: true })))
@@ -1137,21 +1150,36 @@ export default function Settings() {
                         Ticked values will appear on quote PDFs when the item has a matching access note.
                         Default ticks: "Internal Scaffold by Customer" and "Scaffold by Customer".
                       </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {hsOptinDraft.map((opt, idx) => (
-                          <label key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
-                            <input
-                              type="checkbox"
-                              checked={opt.checked}
-                              onChange={e => {
-                                setHsOptinDraft(prev => prev.map((v, i) => i === idx ? { ...v, checked: e.target.checked } : v))
-                                setQuoteSaved(false)
-                              }}
-                            />
-                            <span style={{ color: '#888', fontWeight: 500, minWidth: 130 }}>{opt.group}</span>
-                            <span>{opt.value}</span>
-                          </label>
-                        ))}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {(() => {
+                          // Group by category, preserving order
+                          const groups = []
+                          const seen = new Set()
+                          for (const opt of hsOptinDraft) {
+                            if (!seen.has(opt.group)) { groups.push(opt.group); seen.add(opt.group) }
+                          }
+                          return groups.map(group => (
+                            <div key={group} style={{ marginBottom: 8 }}>
+                              <div style={{ fontSize: 11, fontWeight: 600, color: '#555', marginBottom: 4, borderBottom: '1px solid #f0eeea', paddingBottom: 3 }}>{group}</div>
+                              {hsOptinDraft.filter(o => o.group === group).map((opt, j) => {
+                                const idx = hsOptinDraft.indexOf(opt)
+                                return (
+                                  <label key={j} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer', padding: '2px 0 2px 8px' }}>
+                                    <input
+                                      type="checkbox"
+                                      checked={opt.checked}
+                                      onChange={e => {
+                                        setHsOptinDraft(prev => prev.map((v, i) => i === idx ? { ...v, checked: e.target.checked } : v))
+                                        setQuoteSaved(false)
+                                      }}
+                                    />
+                                    <span>{opt.value}</span>
+                                  </label>
+                                )
+                              })}
+                            </div>
+                          ))
+                        })()}
                       </div>
                     </div>
                   )}

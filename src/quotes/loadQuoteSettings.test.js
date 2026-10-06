@@ -289,3 +289,26 @@ describe('flattenBackCoverLetter', () => {
     expect(flattenBackCoverLetter(null)).toBe('')
   })
 })
+
+// ── H&S categories ──────────────────────────────────────────────────────────
+
+describe('Settings Notes — all H&S categories', () => {
+  it('Settings.jsx loads all 8 H&S/access categories, not just 2', async () => {
+    const fs = await import('fs')
+    const source = fs.readFileSync('src/pages/Settings.jsx', 'utf-8')
+    const expected = [
+      'fire_egress', 'internal_hazard', 'access_internal', 'landing_access',
+      'access_external', 'access_hazard_below', 'access_cable_alarm', 'access_dormer',
+    ]
+    for (const cat of expected) {
+      expect(source).toContain(cat)
+    }
+  })
+
+  it('default ticks are "Internal Scaffold by Customer" and "Scaffold by Customer"', async () => {
+    const fs = await import('fs')
+    const source = fs.readFileSync('src/pages/Settings.jsx', 'utf-8')
+    expect(source).toContain("'Internal Scaffold by Customer'")
+    expect(source).toContain("'Scaffold by Customer'")
+  })
+})
