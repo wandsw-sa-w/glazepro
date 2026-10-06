@@ -5,6 +5,9 @@ import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { useUnmatchedCount } from '../hooks/useUnmatchedCount'
 import { validateDrawing, validateQuote, countBySeverity } from '../validation/validate.js'
+import { computeDerived } from '../drawingBoard/computeDerived.js'
+import { computeVariables, computeQuoteVariables } from '../pricing/computeVariables.js'
+import { loadDrawingParts } from '../drawingBoard/api.js'
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -78,9 +81,39 @@ export default function ValidationRules() {
   // ── Test Record state ──────────────────────────────────────────────────────
   const [testQuoteId, setTestQuoteId] = useState('')
   const [testResults, setTestResults] = useState(null)
+  const [testRunning, setTestRunning] = useState(false)
+  const [quoteOptions, setQuoteOptions] = useState([]) // [{id, label}]
+  const [quoteSearch, setQuoteSearch] = useState('')
+  const [quoteDropdownOpen, setQuoteDropdownOpen] = useState(false)
 
   // ── Load data ──────────────────────────────────────────────────────────────
   useEffect(() => { loadData() }, [])
+
+  // ── Load quote options when Test tab is active ────────────────────────────
+  useEffect(() => {
+    if (activeTab !== 'test') return
+    let cancelled = false
+    async function loadQuotes() {
+      const { data: rows, error } = await supabase
+        .from('quotes')
+        .select('id, quote_number, lead_id, leads!inner(lead_number)')
+        .order('created_at', { ascending: false })
+        .limit(200)
+      if (cancelled || error) return
+      const opts = (rows || []).map(r => ({
+        id: r.id,
+        label: `${r.leads?.lead_number || '?'} / ${r.quote_number}`,
+      }))
+      setQuoteOptions(opts)
+      // Default to L507712 Q1 if it exists and nothing selected yet
+      if (!testQuoteId) {
+        const defaultOpt = opts.find(o => o.label.includes('L507712') && o.label.includes('Q1'))
+        if (defaultOpt) setTestQuoteId(defaultOpt.id)
+      }
+    }
+    loadQuotes()
+    return () => { cancelled = true }
+  }, [activeTab]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadData() {
     setLoading(true)
@@ -217,16 +250,73 @@ export default function ValidationRules() {
     setEditingRule(null)
   }
 
-  // ── Test Record (simplified) ───────────────────────────────────────────────
+  // ── Test Record ────────────────────────────────────────────────────────────
   async function runTestRecord() {
     if (!testQuoteId) return
-    // For now, test with empty variables to show rule evaluation
-    // A full implementation would load the quote's drawings and compute variables
-    const itemRules = rules.filter(r => r.level === 'item' && r.is_active)
-    const quoteRules = rules.filter(r => r.level === 'quote' && r.is_active)
-    const itemResults = validateDrawing(null, {}, itemRules, listsMap)
-    const quoteResults = validateQuote({}, itemResults, quoteRules, listsMap)
-    setTestResults([...itemResults, ...quoteResults])
+    setTestRunning(true)
+    setTestResults(null)
+    try {
+      // Load the quote's selected drawings
+      const { data: qdRows, error: qdErr } = await supabase
+        .from('quote_drawings')
+        .select('job_item_id, drawing_id')
+        .eq('quote_id', testQuoteId)
+      if (qdErr) throw qdErr
+
+      const drawingIds = (qdRows || []).map(r => r.drawing_id).filter(Boolean)
+
+      // Load item info for labels
+      const jobItemIds = (qdRows || []).map(r => r.job_item_id).filter(Boolean)
+      let jobItemMap = {}
+      if (jobItemIds.length > 0) {
+        const { data: jiRows } = await supabase
+          .from('job_items')
+          .select('id, item_number')
+          .in('id', jobItemIds)
+        for (const ji of (jiRows || [])) jobItemMap[ji.id] = ji
+      }
+
+      // Build a drawingId→itemNumber map
+      const drawingItemLabel = {}
+      for (const qd of (qdRows || [])) {
+        const ji = jobItemMap[qd.job_item_id]
+        drawingItemLabel[qd.drawing_id] = ji ? `Item ${ji.item_number}` : `Item ?`
+      }
+
+      const itemRules = rules.filter(r => r.level === 'item' && r.is_active)
+      const quoteRules = rules.filter(r => r.level === 'quote' && r.is_active)
+
+      const allResults = []
+      const itemVarsList = []
+
+      for (const dwgId of drawingIds) {
+        let tree = null
+        try { tree = await loadDrawingParts(dwgId) } catch { /* skip */ }
+        if (!tree) continue
+
+        const derived = computeDerived(tree)
+        const vars = computeVariables(tree, derived) || {}
+        itemVarsList.push(vars)
+        const results = validateDrawing(tree, vars, itemRules, listsMap)
+        // Tag each result with the item label
+        for (const r of results) {
+          r._itemLabel = drawingItemLabel[dwgId] || `Drawing ${dwgId}`
+        }
+        allResults.push(...results)
+      }
+
+      // Quote-level rules
+      const quoteVars = computeQuoteVariables(itemVarsList)
+      const quoteResults = validateQuote(quoteVars, allResults, quoteRules, listsMap)
+      for (const r of quoteResults) r._itemLabel = 'Quote'
+      allResults.push(...quoteResults)
+
+      setTestResults(allResults)
+    } catch (e) {
+      console.error('runTestRecord error:', e)
+      setTestResults([])
+    }
+    setTestRunning(false)
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -535,33 +625,83 @@ export default function ValidationRules() {
           <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
             <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 16 }}>Test Record</div>
             <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center' }}>
-              <input
-                type="text"
-                placeholder="Enter quote ID..."
-                value={testQuoteId}
-                onChange={e => setTestQuoteId(e.target.value)}
-                style={{ ...inputStyle, width: 300 }}
-              />
+              {/* Searchable quote dropdown */}
+              <div style={{ position: 'relative', width: 300 }}>
+                <input
+                  type="text"
+                  placeholder="Search quotes (e.g. L507712 / Q1)..."
+                  value={quoteSearch}
+                  onChange={e => { setQuoteSearch(e.target.value); setQuoteDropdownOpen(true) }}
+                  onFocus={() => setQuoteDropdownOpen(true)}
+                  style={{ ...inputStyle, width: '100%' }}
+                />
+                {testQuoteId && !quoteSearch && (
+                  <div style={{ position: 'absolute', top: 7, left: 11, fontSize: 13, color: '#333', pointerEvents: 'none' }}>
+                    {quoteOptions.find(o => o.id === testQuoteId)?.label || testQuoteId}
+                  </div>
+                )}
+                {quoteDropdownOpen && (
+                  <div style={{
+                    position: 'absolute', top: '100%', left: 0, width: '100%', zIndex: 20,
+                    background: '#fff', border: '1px solid #d8d5cf', borderRadius: 8,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.12)', maxHeight: 200, overflowY: 'auto', marginTop: 2,
+                  }}>
+                    {quoteOptions
+                      .filter(o => !quoteSearch || o.label.toLowerCase().includes(quoteSearch.toLowerCase()))
+                      .slice(0, 30)
+                      .map(o => (
+                        <div
+                          key={o.id}
+                          onClick={() => { setTestQuoteId(o.id); setQuoteSearch(''); setQuoteDropdownOpen(false) }}
+                          style={{
+                            padding: '6px 10px', fontSize: 12, cursor: 'pointer',
+                            background: o.id === testQuoteId ? '#f0eefc' : 'transparent',
+                            fontWeight: o.id === testQuoteId ? 600 : 400,
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.background = '#f5f4f0'}
+                          onMouseLeave={e => e.currentTarget.style.background = o.id === testQuoteId ? '#f0eefc' : 'transparent'}
+                        >
+                          {o.label}
+                        </div>
+                      ))}
+                    {quoteOptions.filter(o => !quoteSearch || o.label.toLowerCase().includes(quoteSearch.toLowerCase())).length === 0 && (
+                      <div style={{ padding: '6px 10px', fontSize: 11, color: '#aaa' }}>No matches</div>
+                    )}
+                  </div>
+                )}
+              </div>
               <button
                 onClick={runTestRecord}
+                disabled={testRunning || !testQuoteId}
                 style={{
                   fontSize: 12, fontWeight: 600, padding: '7px 16px', borderRadius: 7,
-                  border: 'none', background: '#3d35a8', color: '#fff', cursor: 'pointer',
+                  border: 'none', background: testRunning || !testQuoteId ? '#c4c0e8' : '#3d35a8',
+                  color: '#fff', cursor: testRunning || !testQuoteId ? 'default' : 'pointer',
                 }}
               >
-                Run
+                {testRunning ? 'Running...' : 'Run'}
               </button>
             </div>
+
+            {/* Click-away listener for dropdown */}
+            {quoteDropdownOpen && (
+              <div style={{ position: 'fixed', inset: 0, zIndex: 10 }} onClick={() => setQuoteDropdownOpen(false)} />
+            )}
 
             {testResults && (
               <div>
                 {(() => {
-                  const counts = countBySeverity(testResults)
+                  const fired = testResults.filter(r => r.status === 'fired')
+                  const counts = countBySeverity(fired)
+                  const passed = testResults.filter(r => r.status === 'passed').length
+                  const uneval = testResults.filter(r => r.status === 'unevaluable').length
                   return (
                     <div style={{ display: 'flex', gap: 16, marginBottom: 16, fontSize: 12 }}>
                       <span style={{ color: '#dc2626', fontWeight: 600 }}>{counts.errors} error{counts.errors !== 1 ? 's' : ''}</span>
                       <span style={{ color: '#f59e0b', fontWeight: 600 }}>{counts.warnings} warning{counts.warnings !== 1 ? 's' : ''}</span>
                       <span style={{ color: '#3b82f6', fontWeight: 600 }}>{counts.info} info</span>
+                      <span style={{ color: '#15803d', fontWeight: 500 }}>{passed} passed</span>
+                      {uneval > 0 && <span style={{ color: '#92400e', fontWeight: 500 }}>{uneval} could not evaluate</span>}
                     </div>
                   )
                 })()}
@@ -579,8 +719,18 @@ export default function ValidationRules() {
                         <span style={{ fontWeight: 600, color: r.status === 'fired' ? sev.color : '#555' }}>
                           {ruleDef?.name || `Rule #${r.rule_id}`}
                         </span>
-                        <span style={{ fontSize: 10, color: '#999' }}>
-                          [{r.status}]
+                        {r._itemLabel && (
+                          <span style={{ fontSize: 10, color: '#888', background: '#f0eefc', padding: '1px 5px', borderRadius: 3 }}>
+                            {r._itemLabel}
+                          </span>
+                        )}
+                        {r.part_label && (
+                          <span style={{ fontSize: 10, color: '#888' }}>
+                            {r.part_label}
+                          </span>
+                        )}
+                        <span style={{ fontSize: 10, color: r.status === 'fired' ? sev.color : r.status === 'unevaluable' ? '#92400e' : '#15803d', fontWeight: 500 }}>
+                          {r.status === 'fired' ? 'Fired' : r.status === 'unevaluable' ? 'Could not evaluate' : 'Passed'}
                         </span>
                       </div>
                       {r.status === 'fired' && <div style={{ color: sev.color }}>{r.message}</div>}
