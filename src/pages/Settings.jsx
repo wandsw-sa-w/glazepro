@@ -23,6 +23,7 @@ import {
   HS_OPTIN_VALUES,
   ITEM_HEADING_WORDING,
 } from '../quotes/pdf/quoteContent.js'
+import { buildQuoteSnapshot } from '../quotes/buildSnapshot.js'
 
 const EXAMPLE_VALUES = {
   '[username]': 'John Smith',
@@ -51,6 +52,41 @@ const QUOTE_SUB_TABS = [
   ['lead_times', 'Lead Times'],
   ['bank_details', 'Bank Details'],
 ]
+
+// Default PDF page section order
+const DEFAULT_PDF_SECTIONS = [
+  { id: 'front_cover_page', label: 'Front Cover Page', enabled: true },
+  { id: 'front_cover_letter', label: 'Front Cover Letter', enabled: true },
+  { id: 'financial_summary', label: 'Financial Summary', enabled: true },
+  { id: 'item_details', label: 'Item Details', enabled: true },
+  { id: 'back_cover_letter', label: 'Back Cover Letter', enabled: true },
+]
+
+// Financial summary row keys
+const SUMMARY_ROW_KEYS = [
+  { id: 'sub_total', label: 'Sub Total' },
+  { id: 'vat', label: 'VAT' },
+  { id: 'discount_pct', label: 'Discount %' },
+  { id: 'total_incl_vat', label: 'Total incl. VAT' },
+  { id: 'deposit', label: 'Deposit' },
+  { id: 'interim', label: 'Interim' },
+  { id: 'balance', label: 'Balance' },
+]
+
+// Default spec section order for Output Config
+const DEFAULT_SPEC_SECTIONS = SPEC_SECTION_ORDER.map(id => ({
+  id,
+  label: id.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+  enabled: true,
+}))
+
+function moveItem(arr, index, direction) {
+  const newArr = [...arr]
+  const targetIndex = index + direction
+  if (targetIndex < 0 || targetIndex >= newArr.length) return newArr
+  ;[newArr[index], newArr[targetIndex]] = [newArr[targetIndex], newArr[index]]
+  return newArr
+}
 
 function resolvePreview(text) {
   let result = text
@@ -101,6 +137,37 @@ export default function Settings() {
   const [hsOptinDraft, setHsOptinDraft] = useState(HS_OPTIN_VALUES.map(v => ({ ...v, checked: true })))
   const [leadTimesDraft, setLeadTimesDraft] = useState({ ...LEAD_TIMES })
   const [bankDetailsDraft, setBankDetailsDraft] = useState({ ...BANK_DETAILS })
+
+  // PDF page section order draft
+  const [pdfSectionsDraft, setPdfSectionsDraft] = useState(DEFAULT_PDF_SECTIONS.map(s => ({ ...s })))
+
+  // Output config extended draft fields
+  const [summaryRowsDraft, setSummaryRowsDraft] = useState(
+    SUMMARY_ROW_KEYS.reduce((acc, r) => ({ ...acc, [r.id]: true }), {})
+  )
+  const [stageLabelsDraft, setStageLabelsDraft] = useState({
+    deposit: 'Deposit With Order',
+    interim: 'Interim',
+    balance: 'Balance on Completion',
+  })
+  const [showSpacerDim, setShowSpacerDim] = useState(true)
+  const [showUValue, setShowUValue] = useState(true)
+  const [draughtSealWording, setDraughtSealWording] = useState('Including Draught Proofing')
+  const [specSectionsDraft, setSpecSectionsDraft] = useState(DEFAULT_SPEC_SECTIONS.map(s => ({ ...s })))
+
+  // Header & Footer extra fields
+  const [documentTitle, setDocumentTitle] = useState('Quotation')
+  const [eoeText, setEoeText] = useState('E&OE')
+  const [logoUrl, setLogoUrl] = useState('')
+  const [coverImageUrl, setCoverImageUrl] = useState('')
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [uploadingCover, setUploadingCover] = useState(false)
+
+  // Preview with test quote
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewError, setPreviewError] = useState(null)
+  const [previewQuotes, setPreviewQuotes] = useState([])
+  const [selectedPreviewQuoteId, setSelectedPreviewQuoteId] = useState('')
 
   useEffect(() => { fetchSignature() }, [])
 
@@ -199,6 +266,43 @@ export default function Settings() {
       default_layout: oc.default_layout ?? '1 item with int & ext view, ironmongery & cover',
     })
 
+    // Summary row toggles
+    if (oc.summary_rows) {
+      setSummaryRowsDraft(prev => ({ ...prev, ...oc.summary_rows }))
+    }
+    // Stage labels
+    if (oc.stage_labels) {
+      setStageLabelsDraft(prev => ({ ...prev, ...oc.stage_labels }))
+    }
+    setShowSpacerDim(oc.show_spacer_dim !== false)
+    setShowUValue(oc.show_u_value !== false)
+    setDraughtSealWording(oc.draught_seal_wording ?? 'Including Draught Proofing')
+
+    // Spec section order for output config
+    if (oc.spec_sections) {
+      setSpecSectionsDraft(oc.spec_sections.map(s => ({
+        id: s.id,
+        label: s.label || s.id.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+        enabled: s.enabled !== false,
+      })))
+    }
+
+    // PDF page section order
+    const ps = dbSettings.quote_pdf_sections || null
+    if (ps && Array.isArray(ps)) {
+      setPdfSectionsDraft(ps.map(s => ({
+        id: s.id,
+        label: s.label || s.id.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+        enabled: s.enabled !== false,
+      })))
+    }
+
+    // Header/footer extended
+    setDocumentTitle(ft.document_title ?? 'Quotation')
+    setEoeText(ft.eoe_text ?? 'E&OE')
+    setLogoUrl(ft.logo_url ?? '')
+    setCoverImageUrl(ft.cover_image_url ?? '')
+
     const lt = dbSettings.quote_lead_times || {}
     setLeadTimesDraft({
       ds_lead_time: lt.ds_lead_time ?? LEAD_TIMES.ds_lead_time,
@@ -237,6 +341,18 @@ export default function Settings() {
       .limit(50)
     setSettingsHistory(historyRows || [])
 
+    // Load recently published quotes for preview picker
+    const { data: recentQuotes } = await supabase
+      .from('quotes')
+      .select('id, quote_number, lead_id, leads!inner(lead_number, customer_name)')
+      .eq('status', 'Published')
+      .order('published_at', { ascending: false })
+      .limit(20)
+    setPreviewQuotes(recentQuotes || [])
+    if ((recentQuotes || []).length > 0 && !selectedPreviewQuoteId) {
+      setSelectedPreviewQuoteId(String(recentQuotes[0].id))
+    }
+
     setQuoteLoading(false)
   }
 
@@ -267,16 +383,42 @@ export default function Settings() {
           back_cover_letter: parseBackCoverLetter(lettersDraft.back_cover_letter_text),
         }
         description = 'Updated cover letters'
+
+        // Also save PDF section order
+        const { error: secError } = await saveQuoteSetting(
+          supabase, 'quote_pdf_sections',
+          pdfSectionsDraft.map(s => ({ id: s.id, label: s.label, enabled: s.enabled })),
+          user.email, 'Updated PDF section order'
+        )
+        if (secError) {
+          setQuoteError(`Failed to save section order: ${secError.message}`)
+          setQuoteSaving(false)
+          return
+        }
         break
       }
       case 'header_footer':
         key = 'quote_footer'
-        value = { ...footerDraft }
+        value = {
+          ...footerDraft,
+          document_title: documentTitle,
+          eoe_text: eoeText,
+          logo_url: logoUrl,
+          cover_image_url: coverImageUrl,
+        }
         description = 'Updated header & footer'
         break
       case 'output_config':
         key = 'quote_output_config'
-        value = { ...outputConfigDraft }
+        value = {
+          ...outputConfigDraft,
+          summary_rows: { ...summaryRowsDraft },
+          stage_labels: { ...stageLabelsDraft },
+          show_spacer_dim: showSpacerDim,
+          show_u_value: showUValue,
+          draught_seal_wording: draughtSealWording,
+          spec_sections: specSectionsDraft.map(s => ({ id: s.id, label: s.label, enabled: s.enabled })),
+        }
         description = 'Updated output configuration'
         break
       case 'notes': {
@@ -316,6 +458,88 @@ export default function Settings() {
         .limit(50)
       setSettingsHistory(historyRows || [])
     }
+  }
+
+  async function handlePreviewTestQuote() {
+    if (!selectedPreviewQuoteId) return
+    setPreviewLoading(true)
+    setPreviewError(null)
+    try {
+      const selectedQ = previewQuotes.find(q => String(q.id) === selectedPreviewQuoteId)
+      if (!selectedQ) throw new Error('Quote not found')
+
+      const snapshot = await buildQuoteSnapshot({
+        quoteId: selectedQ.id,
+        leadId: selectedQ.lead_id,
+        userId: user?.id,
+        userName: user?.user_metadata?.full_name || user?.email?.split('@')[0],
+        supabase,
+      })
+
+      // Override content with unsaved settings on screen
+      snapshot.content = {
+        ...snapshot.content,
+        front_cover_letter: lettersDraft.front_cover_letter,
+        back_cover_letter: parseBackCoverLetter(lettersDraft.back_cover_letter_text),
+        lead_times: { ...leadTimesDraft },
+        bank_details: { ...bankDetailsDraft },
+        footer: {
+          ...footerDraft,
+          document_title: documentTitle,
+          eoe_text: eoeText,
+          logo_url: logoUrl,
+          cover_image_url: coverImageUrl,
+        },
+        hs_optin_values: hsOptinDraft.filter(v => v.checked).map(v => ({ group: v.group, value: v.value })),
+        spec_section_order: specSectionsDraft.filter(s => s.enabled).map(s => s.id),
+      }
+      // Override output config
+      snapshot.quote_settings = {
+        ...snapshot.quote_settings,
+        item_layout: outputConfigDraft.default_layout,
+      }
+
+      const { renderQuotePdf } = await import('../quotes/pdf/renderQuotePdf.js')
+      const blob = await renderQuotePdf(snapshot, { watermark: true })
+      const url = URL.createObjectURL(blob)
+      window.open(url, '_blank')
+    } catch (e) {
+      console.error('Preview error:', e)
+      setPreviewError(e.message || 'Failed to generate preview')
+    } finally {
+      setPreviewLoading(false)
+    }
+  }
+
+  async function handleUploadImage(type) {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/png,image/jpeg,image/svg+xml'
+    input.onchange = async (e) => {
+      const file = e.target.files?.[0]
+      if (!file) return
+      const setter = type === 'logo' ? setUploadingLogo : setUploadingCover
+      const urlSetter = type === 'logo' ? setLogoUrl : setCoverImageUrl
+      setter(true)
+      setQuoteError('')
+      const fileName = `${type}_${Date.now()}_${file.name}`
+      const { error } = await supabase.storage
+        .from('quote-assets')
+        .upload(fileName, file, { upsert: true })
+      setter(false)
+      if (error) {
+        setQuoteError(`Upload failed: ${error.message}`)
+        return
+      }
+      const { data: urlData } = supabase.storage
+        .from('quote-assets')
+        .getPublicUrl(fileName)
+      if (urlData?.publicUrl) {
+        urlSetter(urlData.publicUrl)
+        setQuoteSaved(false)
+      }
+    }
+    input.click()
   }
 
   async function saveSignature() {
@@ -566,8 +790,33 @@ export default function Settings() {
                 Configure the content, layout and output of quote PDFs. Changes apply to previews and newly published quotes only.
               </div>
 
+              {/* Preview with test quote */}
+              <div style={{ background: '#f5f4f0', borderRadius: 10, padding: '14px 18px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: '#555' }}>Preview with test quote</span>
+                <select
+                  value={selectedPreviewQuoteId}
+                  onChange={e => setSelectedPreviewQuoteId(e.target.value)}
+                  style={{ fontSize: 12, padding: '6px 10px', border: '1px solid #d8d5cf', borderRadius: 7, outline: 'none', minWidth: 260 }}
+                >
+                  {previewQuotes.length === 0 && <option value="">No published quotes</option>}
+                  {previewQuotes.map(q => (
+                    <option key={q.id} value={String(q.id)}>
+                      {q.leads?.lead_number} Q{q.quote_number} {q.leads?.customer_name ? `- ${q.leads.customer_name}` : ''}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={handlePreviewTestQuote}
+                  disabled={previewLoading || !selectedPreviewQuoteId}
+                  style={{ fontSize: 12, padding: '7px 16px', border: 'none', borderRadius: 7, background: previewLoading ? '#9993d4' : '#3d35a8', color: '#fff', cursor: previewLoading ? 'default' : 'pointer', fontWeight: 500 }}
+                >
+                  {previewLoading ? 'Generating...' : 'Preview PDF'}
+                </button>
+                {previewError && <span style={{ fontSize: 12, color: '#c00' }}>{previewError}</span>}
+              </div>
+
               {/* Sub-tab bar */}
-              <div style={{ display: 'flex', gap: 2, marginBottom: 16, borderBottom: '1px solid #e8e6e0' }}>
+              <div style={{ display: 'flex', gap: 2, marginBottom: 16, borderBottom: '1px solid #e8e6e0', flexWrap: 'wrap' }}>
                 {QUOTE_SUB_TABS.map(([id, label]) => (
                   <div
                     key={id}
@@ -586,6 +835,45 @@ export default function Settings() {
                   {/* ── Content Editor ── */}
                   {quoteSubTab === 'content_editor' && (
                     <div>
+                      {/* PDF Section Order */}
+                      <div style={{ marginBottom: 24 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>PDF Section Order</div>
+                        <div style={{ fontSize: 11, color: '#888', marginBottom: 10 }}>
+                          Toggle sections on/off and reorder with arrows. Disabled sections will not appear in the PDF.
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          {pdfSectionsDraft.map((section, idx) => (
+                            <div key={section.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: section.enabled ? '#fff' : '#faf9f7', border: '1px solid #e8e6e0', borderRadius: 7 }}>
+                              <input
+                                type="checkbox"
+                                checked={section.enabled}
+                                onChange={e => {
+                                  setPdfSectionsDraft(prev => prev.map((s, i) => i === idx ? { ...s, enabled: e.target.checked } : s))
+                                  setQuoteSaved(false)
+                                }}
+                              />
+                              <span style={{ flex: 1, fontSize: 12, color: section.enabled ? '#333' : '#aaa' }}>{section.label}</span>
+                              <button
+                                onClick={() => { setPdfSectionsDraft(prev => moveItem(prev, idx, -1)); setQuoteSaved(false) }}
+                                disabled={idx === 0}
+                                style={{ fontSize: 11, padding: '2px 6px', border: '1px solid #d8d5cf', borderRadius: 4, background: '#fff', cursor: idx === 0 ? 'default' : 'pointer', color: idx === 0 ? '#ccc' : '#555' }}
+                                title="Move up"
+                              >
+                                Up
+                              </button>
+                              <button
+                                onClick={() => { setPdfSectionsDraft(prev => moveItem(prev, idx, 1)); setQuoteSaved(false) }}
+                                disabled={idx === pdfSectionsDraft.length - 1}
+                                style={{ fontSize: 11, padding: '2px 6px', border: '1px solid #d8d5cf', borderRadius: 4, background: '#fff', cursor: idx === pdfSectionsDraft.length - 1 ? 'default' : 'pointer', color: idx === pdfSectionsDraft.length - 1 ? '#ccc' : '#555' }}
+                                title="Move down"
+                              >
+                                Down
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 230px', gap: 20, alignItems: 'start', marginBottom: 20 }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                           <label style={{ fontSize: 12, fontWeight: 500, color: '#555' }}>Front Cover Letter</label>
@@ -626,13 +914,56 @@ export default function Settings() {
                   {/* ── Header & Footer ── */}
                   {quoteSubTab === 'header_footer' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                      {/* Document title */}
+                      <div>
+                        <label style={{ fontSize: 12, fontWeight: 500, color: '#555', display: 'block', marginBottom: 4 }}>Document title</label>
+                        <input
+                          value={documentTitle}
+                          onChange={e => { setDocumentTitle(e.target.value); setQuoteSaved(false) }}
+                          style={{ fontSize: 12, padding: '8px 12px', border: '1px solid #d8d5cf', borderRadius: 8, outline: 'none', width: 300, boxSizing: 'border-box' }}
+                        />
+                      </div>
+
+                      {/* Logo upload */}
+                      <div>
+                        <label style={{ fontSize: 12, fontWeight: 500, color: '#555', display: 'block', marginBottom: 4 }}>Logo</label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          {logoUrl && (
+                            <img src={logoUrl} alt="Logo" style={{ maxHeight: 50, maxWidth: 180, objectFit: 'contain', border: '1px solid #e8e6e0', borderRadius: 6, padding: 4 }} />
+                          )}
+                          <button
+                            onClick={() => handleUploadImage('logo')}
+                            disabled={uploadingLogo}
+                            style={{ fontSize: 12, padding: '7px 14px', border: '1px solid #d8d5cf', borderRadius: 7, background: '#fff', cursor: uploadingLogo ? 'default' : 'pointer', color: '#555' }}
+                          >
+                            {uploadingLogo ? 'Uploading...' : logoUrl ? 'Replace logo' : 'Upload logo'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Cover image upload */}
+                      <div>
+                        <label style={{ fontSize: 12, fontWeight: 500, color: '#555', display: 'block', marginBottom: 4 }}>Cover image</label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          {coverImageUrl && (
+                            <img src={coverImageUrl} alt="Cover" style={{ maxHeight: 70, maxWidth: 200, objectFit: 'contain', border: '1px solid #e8e6e0', borderRadius: 6, padding: 4 }} />
+                          )}
+                          <button
+                            onClick={() => handleUploadImage('cover')}
+                            disabled={uploadingCover}
+                            style={{ fontSize: 12, padding: '7px 14px', border: '1px solid #d8d5cf', borderRadius: 7, background: '#fff', cursor: uploadingCover ? 'default' : 'pointer', color: '#555' }}
+                          >
+                            {uploadingCover ? 'Uploading...' : coverImageUrl ? 'Replace cover image' : 'Upload cover image'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Footer lines */}
                       {[
-                        ['company', 'Company name'],
-                        ['address', 'Address'],
-                        ['contact', 'Contact line'],
-                        ['continue_text', 'Continue text'],
-                        ['left', 'Footer left (page info)'],
-                        ['right', 'Footer right'],
+                        ['company', 'Footer line 1 (company)'],
+                        ['address', 'Footer line 2 (address)'],
+                        ['contact', 'Footer line 3 (contact)'],
+                        ['continue_text', 'Footer line 4 (continue text)'],
                       ].map(([key, label]) => (
                         <div key={key}>
                           <label style={{ fontSize: 12, fontWeight: 500, color: '#555', display: 'block', marginBottom: 4 }}>{label}</label>
@@ -643,6 +974,18 @@ export default function Settings() {
                           />
                         </div>
                       ))}
+
+                      {/* E&OE text */}
+                      <div>
+                        <label style={{ fontSize: 12, fontWeight: 500, color: '#555', display: 'block', marginBottom: 4 }}>E&OE text</label>
+                        <input
+                          value={eoeText}
+                          onChange={e => { setEoeText(e.target.value); setQuoteSaved(false) }}
+                          style={{ fontSize: 12, padding: '8px 12px', border: '1px solid #d8d5cf', borderRadius: 8, outline: 'none', width: 300, boxSizing: 'border-box' }}
+                        />
+                      </div>
+
+                      {/* Footer background colour */}
                       <div>
                         <label style={{ fontSize: 12, fontWeight: 500, color: '#555', display: 'block', marginBottom: 4 }}>Footer background colour</label>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -660,7 +1003,45 @@ export default function Settings() {
 
                   {/* ── Output Config ── */}
                   {quoteSubTab === 'output_config' && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                      {/* Financial Summary Rows */}
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Financial Summary Rows</div>
+                        <div style={{ fontSize: 11, color: '#888', marginBottom: 10 }}>Show or hide individual rows on the financial summary page.</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {SUMMARY_ROW_KEYS.map(row => (
+                            <label key={row.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
+                              <input
+                                type="checkbox"
+                                checked={summaryRowsDraft[row.id] !== false}
+                                onChange={e => { setSummaryRowsDraft(d => ({ ...d, [row.id]: e.target.checked })); setQuoteSaved(false) }}
+                              />
+                              {row.label}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Stage Labels */}
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Payment Stage Labels</div>
+                        {[
+                          ['deposit', 'Deposit label'],
+                          ['interim', 'Interim label'],
+                          ['balance', 'Balance label'],
+                        ].map(([key, label]) => (
+                          <div key={key} style={{ marginBottom: 8 }}>
+                            <label style={{ fontSize: 12, fontWeight: 500, color: '#555', display: 'block', marginBottom: 4 }}>{label}</label>
+                            <input
+                              value={stageLabelsDraft[key] || ''}
+                              onChange={e => { setStageLabelsDraft(d => ({ ...d, [key]: e.target.value })); setQuoteSaved(false) }}
+                              style={{ fontSize: 12, padding: '8px 12px', border: '1px solid #d8d5cf', borderRadius: 8, outline: 'none', width: 300, boxSizing: 'border-box' }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Salesperson label + default layout */}
                       <div>
                         <label style={{ fontSize: 12, fontWeight: 500, color: '#555', display: 'block', marginBottom: 4 }}>Salesperson label</label>
                         <input
@@ -683,6 +1064,68 @@ export default function Settings() {
                           <option value="3 items per page (no ironmongery images)">3 items per page (no ironmongery images)</option>
                         </select>
                       </div>
+
+                      {/* Spacer dimension + U-value toggles */}
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Item Display Options</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
+                            <input type="checkbox" checked={showSpacerDim} onChange={e => { setShowSpacerDim(e.target.checked); setQuoteSaved(false) }} />
+                            Show spacer dimension
+                          </label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
+                            <input type="checkbox" checked={showUValue} onChange={e => { setShowUValue(e.target.checked); setQuoteSaved(false) }} />
+                            Show U-value
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* Draught-seal wording */}
+                      <div>
+                        <label style={{ fontSize: 12, fontWeight: 500, color: '#555', display: 'block', marginBottom: 4 }}>Draught-seal wording</label>
+                        <input
+                          value={draughtSealWording}
+                          onChange={e => { setDraughtSealWording(e.target.value); setQuoteSaved(false) }}
+                          style={{ fontSize: 12, padding: '8px 12px', border: '1px solid #d8d5cf', borderRadius: 8, outline: 'none', width: 400, boxSizing: 'border-box' }}
+                        />
+                      </div>
+
+                      {/* Spec section order */}
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Spec Section Order</div>
+                        <div style={{ fontSize: 11, color: '#888', marginBottom: 10 }}>Toggle and reorder the specification sections that print on each item page.</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          {specSectionsDraft.map((section, idx) => (
+                            <div key={section.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: section.enabled ? '#fff' : '#faf9f7', border: '1px solid #e8e6e0', borderRadius: 7 }}>
+                              <input
+                                type="checkbox"
+                                checked={section.enabled}
+                                onChange={e => {
+                                  setSpecSectionsDraft(prev => prev.map((s, i) => i === idx ? { ...s, enabled: e.target.checked } : s))
+                                  setQuoteSaved(false)
+                                }}
+                              />
+                              <span style={{ flex: 1, fontSize: 12, color: section.enabled ? '#333' : '#aaa' }}>{section.label}</span>
+                              <button
+                                onClick={() => { setSpecSectionsDraft(prev => moveItem(prev, idx, -1)); setQuoteSaved(false) }}
+                                disabled={idx === 0}
+                                style={{ fontSize: 11, padding: '2px 6px', border: '1px solid #d8d5cf', borderRadius: 4, background: '#fff', cursor: idx === 0 ? 'default' : 'pointer', color: idx === 0 ? '#ccc' : '#555' }}
+                                title="Move up"
+                              >
+                                Up
+                              </button>
+                              <button
+                                onClick={() => { setSpecSectionsDraft(prev => moveItem(prev, idx, 1)); setQuoteSaved(false) }}
+                                disabled={idx === specSectionsDraft.length - 1}
+                                style={{ fontSize: 11, padding: '2px 6px', border: '1px solid #d8d5cf', borderRadius: 4, background: '#fff', cursor: idx === specSectionsDraft.length - 1 ? 'default' : 'pointer', color: idx === specSectionsDraft.length - 1 ? '#ccc' : '#555' }}
+                                title="Move down"
+                              >
+                                Down
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   )}
 
@@ -692,6 +1135,7 @@ export default function Settings() {
                       <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Health & Safety / Access values</div>
                       <div style={{ fontSize: 12, color: '#888', marginBottom: 14, lineHeight: 1.5 }}>
                         Ticked values will appear on quote PDFs when the item has a matching access note.
+                        Default ticks: "Internal Scaffold by Customer" and "Scaffold by Customer".
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                         {hsOptinDraft.map((opt, idx) => (

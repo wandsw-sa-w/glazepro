@@ -182,6 +182,60 @@ describe('validateMergeFields', () => {
     const { valid } = validateMergeFields('Plain text with no fields')
     expect(valid).toBe(true)
   })
+
+  it('rejects a single unknown field and names it', () => {
+    const { valid, unknownFields } = validateMergeFields(
+      'Hello [customer_forename], your ref is [order_number].'
+    )
+    expect(valid).toBe(false)
+    expect(unknownFields).toEqual(['order_number'])
+  })
+
+  it('rejects mixed known and unknown fields, returning only the unknown ones', () => {
+    const { valid, unknownFields } = validateMergeFields(
+      '[customer_forename] [bad_one] [nj_lead_time] [also_bad]'
+    )
+    expect(valid).toBe(false)
+    expect(unknownFields).toEqual(['bad_one', 'also_bad'])
+    expect(unknownFields).not.toContain('customer_forename')
+    expect(unknownFields).not.toContain('nj_lead_time')
+  })
+})
+
+// ── Section order persistence via mergeQuoteContent ────────────────────────
+
+describe('mergeQuoteContent — section order changes', () => {
+  it('persists a reordered spec section order from DB settings', () => {
+    const customOrder = ['ironmongery', 'paint_finish', 'double_glazing']
+    const content = mergeQuoteContent({
+      quote_sections: customOrder,
+    })
+    expect(content.spec_section_order).toEqual(customOrder)
+    // Verify it is not the default order
+    expect(content.spec_section_order).not.toEqual(SPEC_SECTION_ORDER)
+  })
+
+  it('persists a section order with removed sections', () => {
+    const trimmed = ['repair', 'moulding']
+    const content = mergeQuoteContent({ quote_sections: trimmed })
+    expect(content.spec_section_order).toEqual(trimmed)
+    expect(content.spec_section_order).toHaveLength(2)
+  })
+
+  it('uses default spec section order when quote_sections is not set', () => {
+    const content = mergeQuoteContent({})
+    expect(content.spec_section_order).toEqual(SPEC_SECTION_ORDER)
+  })
+
+  it('section order change does not affect other content fields', () => {
+    const content = mergeQuoteContent({
+      quote_sections: ['notes'],
+      quote_lead_times: { nj_lead_time: '6-8' },
+    })
+    expect(content.spec_section_order).toEqual(['notes'])
+    expect(content.lead_times.nj_lead_time).toBe('6-8')
+    expect(content.front_cover_letter).toBe(FRONT_COVER_LETTER)
+  })
 })
 
 // ── parseBackCoverLetter ────────────────────────────────────────────────────

@@ -147,6 +147,7 @@ export const QUOTE_SETTINGS_KEYS = [
   'quote_output_config',
   'quote_hs_optin',
   'quote_item_wording',
+  'quote_pdf_sections',
 ]
 
 /**
