@@ -68,7 +68,6 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
   const [refOptions, setRefOptions] = useState({})
   const [leadHistory, setLeadHistory] = useState([])
   const [costByDrawing, setCostByDrawing] = useState({})
-  const [installHours, setInstallHours] = useState(null)
   const [quoteItemCounts, setQuoteItemCounts] = useState({}) // quoteId → count
   const [quoteApportionment, setQuoteApportionment] = useState({}) // drawingId → sales total from latest quote pricing run
   const [profileDefaultsByDrawing, setProfileDefaultsByDrawing] = useState({}) // drawingId → { 'partType.property': value }
@@ -170,13 +169,6 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
         const costMap = {}   // drawing_id → total cost (drawing-level + quote apportioned)
         for (const [dId, rp] of Object.entries(runPrices)) {
           if (rp.cost != null) costMap[dId] = rp.cost
-        }
-        if (runIds.length > 0) {
-          // Install hours from the latest runs' variable snapshots
-          const { data: vars } = await supabase.from('drawing_pricing_variables').select('pricing_run_id, drawing_id, variables').in('pricing_run_id', runIds)
-          let totalMinutes = 0
-          for (const v of (vars || [])) totalMinutes += Number(v.variables?.total_install_minutes) || 0
-          setInstallHours(totalMinutes / 60)
         }
 
         // Load latest quote-level apportionment for this quote
@@ -667,13 +659,40 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
 
       {/* ── Validation strip ── */}
       {isLive && (
-        <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 10, padding: '10px 16px', marginBottom: 16, display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'center', fontSize: 12 }}>
-          <span style={{ fontWeight: 600 }}>Estimated installation hours: {installHours != null ? installHours.toFixed(2) : '—'}</span>
-          {validationCounts.errors > 0 && <span style={{ color: '#dc2626', fontWeight: 600 }}>{validationCounts.errors} validation error{validationCounts.errors !== 1 ? 's' : ''}</span>}
-          {validationCounts.warnings > 0 && <span style={{ color: '#f59e0b', fontWeight: 600 }}>{validationCounts.warnings} warning{validationCounts.warnings !== 1 ? 's' : ''}</span>}
-          {validationCounts.info > 0 && <span style={{ color: '#3b82f6', fontWeight: 600 }}>{validationCounts.info} info</span>}
-          {staleCount > 0 && <span style={{ color: '#b45309', fontWeight: 600 }}>{staleCount} drawing(s) need pricing</span>}
-          {poaCount > 0 && <span style={{ color: '#b45309', fontWeight: 600 }}>{poaCount} POA item(s)</span>}
+        <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 10, padding: '10px 16px', marginBottom: 16, fontSize: 12 }}>
+          {/* Summary counts */}
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center', marginBottom: validationResults.length > 0 ? 8 : 0 }}>
+            <span style={{ fontWeight: 600 }}>Validation</span>
+            {validationCounts.errors > 0 && <span style={{ color: '#dc2626', fontWeight: 600 }}>{validationCounts.errors} error{validationCounts.errors !== 1 ? 's' : ''}</span>}
+            {validationCounts.warnings > 0 && <span style={{ color: '#f59e0b', fontWeight: 600 }}>{validationCounts.warnings} warning{validationCounts.warnings !== 1 ? 's' : ''}</span>}
+            {validationCounts.info > 0 && <span style={{ color: '#3b82f6', fontWeight: 600 }}>{validationCounts.info} info</span>}
+            {validationCounts.errors === 0 && validationCounts.warnings === 0 && validationCounts.info === 0 && <span style={{ color: '#15803d', fontWeight: 500 }}>No issues</span>}
+            {staleCount > 0 && <span style={{ color: '#b45309', fontWeight: 600 }}>{staleCount} drawing(s) need pricing</span>}
+            {poaCount > 0 && <span style={{ color: '#b45309', fontWeight: 600 }}>{poaCount} POA item(s)</span>}
+          </div>
+          {/* Individual messages grouped by severity: quote-level first, then per-item */}
+          {validationResults.length > 0 && (() => {
+            const quoteResults = validationResults.filter(r => r._isQuoteLevel)
+            const itemResults = validationResults.filter(r => !r._isQuoteLevel)
+            const severityOrder = { error: 0, warning: 1, information: 2 }
+            const sortBySev = (a, b) => (severityOrder[a.severity] ?? 3) - (severityOrder[b.severity] ?? 3)
+            const sevColor = { error: '#dc2626', warning: '#f59e0b', information: '#3b82f6' }
+            const sevBg = { error: '#fef2f2', warning: '#fffbeb', information: '#eff6ff' }
+            const sorted = [...quoteResults.sort(sortBySev), ...itemResults.sort(sortBySev)]
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                {sorted.map((r, idx) => (
+                  <div key={idx} style={{ padding: '3px 8px', borderRadius: 4, background: sevBg[r.severity] || '#f5f4f0', color: sevColor[r.severity] || '#555', display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <span style={{ fontSize: 10, fontWeight: 600, flexShrink: 0 }}>
+                      {r._isQuoteLevel ? 'Quote' : r._itemNumber != null ? `Item ${r._itemNumber}` : ''}
+                    </span>
+                    {r.part_label && <span style={{ fontSize: 10, color: '#888', flexShrink: 0 }}>{r.part_label}</span>}
+                    <span>{r.message}</span>
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
         </div>
       )}
 
