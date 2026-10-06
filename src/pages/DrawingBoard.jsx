@@ -1,6 +1,7 @@
 import { Component, useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
+import { useAuth } from '../context/AuthContext'
 import { Layout } from '../components/Layout'
 import {
   loadFieldDefinitions, loadProfile, loadProfileValues,
@@ -437,7 +438,7 @@ function IronmongeryPanel({ node, tree, derived, refOptions, onChangeField, onAu
 
 // ── PropertyEditor ────────────────────────────────────────────────────────────
 
-function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, onAutoApplyDefaults, onPrev, onNext, prevDisabled, nextDisabled, hiddenFields, tree, ironmongeryRules, ironmongeryProducts }) {
+function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, onAutoApplyDefaults, onPrev, onNext, prevDisabled, nextDisabled, prevLabel, nextLabel, hiddenFields, tree, ironmongeryRules, ironmongeryProducts }) {
   if (!node) {
     return (
       <div style={{ padding: 16, color: '#aaa', fontSize: 12, textAlign: 'center', paddingTop: 48 }}>
@@ -460,10 +461,10 @@ function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, o
         </div>
         <div style={{ display: 'flex', gap: 4 }}>
           <button onClick={onPrev} disabled={prevDisabled} style={{ flex: 1, fontSize: 11, padding: '4px 0', border: '1px solid #d8d5cf', borderRadius: 6, background: '#fff', cursor: prevDisabled ? 'default' : 'pointer', color: prevDisabled ? '#ccc' : '#555' }}>
-            ← Prev
+            {prevLabel ? `\u2039 ${prevLabel}` : '\u2039 Part'}
           </button>
           <button onClick={onNext} disabled={nextDisabled} style={{ flex: 1, fontSize: 11, padding: '4px 0', border: '1px solid #d8d5cf', borderRadius: 6, background: '#fff', cursor: nextDisabled ? 'default' : 'pointer', color: nextDisabled ? '#ccc' : '#555' }}>
-            Next →
+            {nextLabel ? `${nextLabel} \u203A` : 'Part \u203A'}
           </button>
         </div>
       </div>
@@ -877,13 +878,175 @@ function removeNode(tree, key) {
 
 // ── Unsaved-changes navigation guard ─────────────────────────────────────────
 // useBlocker requires a data router; BrowserRouter doesn't support it.
-// Instead we wrap navigate so any in-app navigation while dirty asks first.
+// Instead we wrap navigate so any in-app navigation while dirty asks first
+// using an in-page confirm dialog (no window.confirm).
 
 function useUnsavedChangesGuard(dirty, navigate) {
-  return useCallback((to, opts) => {
-    if (dirty && !window.confirm('You have unsaved changes. Leave anyway?')) return
+  const [pending, setPending] = useState(null) // { to, opts } when waiting for confirm
+
+  const guardedNavigate = useCallback((to, opts) => {
+    if (dirty) {
+      setPending({ to, opts })
+      return
+    }
     navigate(to, opts)
   }, [dirty, navigate])
+
+  const confirm = useCallback(() => {
+    if (pending) {
+      navigate(pending.to, pending.opts)
+      setPending(null)
+    }
+  }, [pending, navigate])
+
+  const cancel = useCallback(() => { setPending(null) }, [])
+
+  return { guardedNavigate, pending, confirm, cancel }
+}
+
+// ── ConfirmDialog ────────────────────────────────────────────────────────
+// In-page confirm dialog (no window.confirm / alert)
+
+function ConfirmDialog({ title, message, confirmLabel = 'Continue', cancelLabel = 'Cancel', onConfirm, onCancel, danger }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onCancel}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: 24, width: 380, boxShadow: '0 8px 32px rgba(0,0,0,.18)' }}>
+        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 10, color: '#1a1a1a' }}>{title}</div>
+        <div style={{ fontSize: 13, color: '#555', marginBottom: 20, lineHeight: 1.5 }}>{message}</div>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button onClick={onCancel} style={{ fontSize: 12, padding: '6px 16px', border: '1px solid #d8d5cf', borderRadius: 7, background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>{cancelLabel}</button>
+          <button onClick={onConfirm} style={{ fontSize: 12, padding: '6px 16px', border: 'none', borderRadius: 7, background: danger ? '#dc2626' : '#3d35a8', color: '#fff', cursor: 'pointer', fontWeight: 600, fontFamily: 'inherit' }}>{confirmLabel}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── PhotosDrawer ─────────────────────────────────────────────────────────
+// Side drawer showing lead_uploads thumbnails, large view, and upload.
+
+function PhotosDrawer({ leadId, user, onClose }) {
+  const [uploads, setUploads] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [largeUrl, setLargeUrl] = useState(null)
+  const [uploading, setUploading] = useState(false)
+
+  useEffect(() => {
+    fetchUploads()
+  }, [leadId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function fetchUploads() {
+    setLoading(true)
+    const { data, error } = await supabase
+      .from('lead_uploads')
+      .select('*')
+      .eq('lead_id', leadId)
+      .order('created_at', { ascending: false })
+    if (error) console.error('Failed to load uploads:', error.message)
+    setUploads(data || [])
+    setLoading(false)
+  }
+
+  async function handleUpload(e) {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+    setUploading(true)
+    for (const file of files) {
+      const ext = file.name.split('.').pop()
+      const filePath = `${leadId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+      const { error } = await supabase.storage.from('lead-files').upload(filePath, file)
+      if (error) { console.error('Upload failed:', error.message); continue }
+      const { error: insertErr } = await supabase.from('lead_uploads').insert([{
+        lead_id: leadId,
+        filename: file.name,
+        file_path: filePath,
+        uploaded_by: user?.email || null,
+        file_size: file.size || null,
+        created_at: new Date().toISOString(),
+      }])
+      if (insertErr) console.error('Insert failed:', insertErr.message)
+    }
+    await fetchUploads()
+    setUploading(false)
+    e.target.value = '' // reset file input
+  }
+
+  function getPublicUrl(filePath) {
+    return supabase.storage.from('lead-files').getPublicUrl(filePath).data.publicUrl
+  }
+
+  function isImage(filename) {
+    return /\.(jpe?g|png|gif|webp|bmp|svg)$/i.test(filename)
+  }
+
+  return (
+    <>
+      <div style={{
+        width: 320, borderLeft: '1px solid #e8e6e0', background: '#fff', display: 'flex',
+        flexDirection: 'column', flexShrink: 0, position: 'relative', zIndex: 2,
+      }}>
+        {/* Header */}
+        <div style={{ padding: '10px 14px', borderBottom: '1px solid #e8e6e0', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <div style={{ flex: 1, fontSize: 12, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: '.06em' }}>
+            Photos ({uploads.length})
+          </div>
+          <label style={{
+            fontSize: 11, padding: '3px 10px', border: '1px solid #3d35a8', borderRadius: 6,
+            background: '#f0eefc', color: '#3d35a8', cursor: uploading ? 'default' : 'pointer',
+            fontWeight: 500, opacity: uploading ? 0.6 : 1,
+          }}>
+            {uploading ? 'Uploading...' : 'Upload'}
+            <input type="file" multiple accept="image/*" onChange={handleUpload} style={{ display: 'none' }} disabled={uploading} />
+          </label>
+          <button onClick={onClose} style={{ fontSize: 14, padding: '2px 6px', border: 'none', background: 'none', cursor: 'pointer', color: '#888' }}>X</button>
+        </div>
+
+        {/* Thumbnails */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: 10 }}>
+          {loading && <div style={{ fontSize: 12, color: '#aaa', textAlign: 'center', padding: 20 }}>Loading...</div>}
+          {!loading && uploads.length === 0 && (
+            <div style={{ fontSize: 12, color: '#aaa', textAlign: 'center', padding: 20 }}>No photos yet</div>
+          )}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+            {uploads.filter(u => isImage(u.filename)).map(u => {
+              const url = getPublicUrl(u.file_path)
+              return (
+                <div
+                  key={u.id}
+                  onClick={() => setLargeUrl(url)}
+                  style={{
+                    cursor: 'pointer', borderRadius: 8, overflow: 'hidden',
+                    border: '1px solid #e8e6e0', aspectRatio: '1', background: '#f7f6f2',
+                  }}
+                >
+                  <img src={url} alt={u.filename} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                </div>
+              )
+            })}
+          </div>
+          {/* Non-image files */}
+          {uploads.filter(u => !isImage(u.filename)).map(u => (
+            <div key={u.id} style={{ fontSize: 11, padding: '6px 8px', borderBottom: '1px solid #f0ede6', color: '#555' }}>
+              <a href={getPublicUrl(u.file_path)} target="_blank" rel="noreferrer" style={{ color: '#3d35a8', textDecoration: 'none' }}>{u.filename}</a>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Large image overlay */}
+      {largeUrl && (
+        <div
+          onClick={() => setLargeUrl(null)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.8)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+          }}
+        >
+          <img src={largeUrl} alt="Large view" style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 8, boxShadow: '0 4px 24px rgba(0,0,0,.4)' }} />
+        </div>
+      )}
+    </>
+  )
 }
 
 // ── Error boundary ────────────────────────────────────────────────────────────
@@ -917,6 +1080,7 @@ class DrawingBoardErrorBoundary extends Component {
 function DrawingBoard() {
   const { drawingId } = useParams()
   const navigate      = useNavigate()
+  const { user }      = useAuth()
 
   // ── Data & loading ──────────────────────────────────────────────────────────
   const [drawingMeta, setDrawingMeta]   = useState(null)  // { drawing_number, window_type, job_item_id }
@@ -927,6 +1091,12 @@ function DrawingBoard() {
   const [hiddenFields, setHiddenFields] = useState(() => new Set())
   const [loading,     setLoading]       = useState(true)
   const [loadError,   setLoadError]     = useState(null)
+
+  // ── Lead / item / drawing navigation data ───────────────────────────────────
+  const [leadId,      setLeadId]        = useState(null)
+  const [leadNumber,  setLeadNumber]    = useState(null)
+  const [jobItems,    setJobItems]      = useState([])   // non-deleted, sorted
+  const [allDrawings, setAllDrawings]   = useState([])   // non-deleted, sorted
 
   // ── Editor state ────────────────────────────────────────────────────────────
   const [tree,        setTreeRaw]       = useState(null)
@@ -953,6 +1123,9 @@ function DrawingBoard() {
   const [templateSaving, setTemplateSaving] = useState(false)
   const [templateError, setTemplateError] = useState(null)
   const [templateGroups, setTemplateGroups] = useState([]) // existing group names for datalist
+  const [resetDialog, setResetDialog]   = useState(false)
+  const [photosOpen, setPhotosOpen]     = useState(false)
+  const [switchDrawingOpen, setSwitchDrawingOpen] = useState(false)
 
   // ── Ironmongery data (lazy-loaded when paintAndIronmongeryPart is selected) ──
   const [ironmongeryRules,    setIronmongeryRules]    = useState(null)
@@ -1028,7 +1201,7 @@ function DrawingBoard() {
   }, [selectedNode?.part_type, ironmongeryRules])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Guarded navigate (in-app links while dirty) ──────────────────────────────
-  const guardedNavigate = useUnsavedChangesGuard(dirty, navigate)
+  const { guardedNavigate, pending: navPending, confirm: navConfirm, cancel: navCancel } = useUnsavedChangesGuard(dirty, navigate)
 
   // Tab/window close warning
   useEffect(() => {
@@ -1063,6 +1236,56 @@ function DrawingBoard() {
           .maybeSingle()
         if (dwgErr) throw dwgErr
         if (dwg) setDrawingMeta(dwg)
+
+        // ── Load lead, job items, and all drawings for navigation ──
+        if (dwg?.job_item_id) {
+          // Get lead_id from the job_item
+          const { data: ji, error: jiErr } = await supabase
+            .from('job_items')
+            .select('lead_id')
+            .eq('id', dwg.job_item_id)
+            .maybeSingle()
+          if (jiErr) console.error('job_items lookup:', jiErr.message)
+          if (ji?.lead_id) {
+            setLeadId(ji.lead_id)
+
+            // Load lead number
+            const { data: leadRow, error: leadErr } = await supabase
+              .from('leads')
+              .select('lead_number')
+              .eq('id', ji.lead_id)
+              .maybeSingle()
+            if (leadErr) console.error('lead lookup:', leadErr.message)
+            if (leadRow) setLeadNumber(leadRow.lead_number)
+
+            // Load all non-deleted job items for this lead
+            const { data: items, error: itemsErr } = await supabase
+              .from('job_items')
+              .select('*')
+              .eq('lead_id', ji.lead_id)
+              .is('deleted_at', null)
+              .order('sort_order', { ascending: true, nullsFirst: false })
+              .order('item_number')
+            if (itemsErr) console.error('job_items load:', itemsErr.message)
+            setJobItems(items || [])
+
+            // Load all non-deleted drawings for items on this lead
+            const itemIds = (items || []).map(i => i.id)
+            if (itemIds.length > 0) {
+              const { data: dwgs, error: dwgsErr } = await supabase
+                .from('drawings')
+                .select('id, job_item_id, drawing_number, window_type, deleted_at')
+                .in('job_item_id', itemIds)
+                .is('deleted_at', null)
+                .order('sort_order', { ascending: true, nullsFirst: false })
+                .order('drawing_number')
+              if (dwgsErr) console.error('drawings load:', dwgsErr.message)
+              setAllDrawings(dwgs || [])
+            } else {
+              setAllDrawings([])
+            }
+          }
+        }
 
         // Load all reference data in parallel
         const [fDefs, profile, cont] = await Promise.all([
@@ -1130,6 +1353,50 @@ function DrawingBoard() {
     }
   }
 
+  // ── Reset ───────────────────────────────────────────────────────────────────
+  function handleReset() {
+    if (!savedTreeRef.current) return
+    undoStack.current = [...undoStack.current.slice(-49), tree]
+    redoStack.current = []
+    setTree(savedTreeRef.current)
+    setDirty(false)
+    setResetDialog(false)
+  }
+
+  // ── Item / Drawing navigation ──────────────────────────────────────────────
+  const currentItemId = drawingMeta?.job_item_id
+  const currentItemIdx = jobItems.findIndex(i => i.id === currentItemId)
+  const itemDrawings = allDrawings.filter(d => d.job_item_id === currentItemId)
+  const currentDrawingIdx = itemDrawings.findIndex(d => d.id === Number(drawingId))
+
+  function navigateToDrawing(id) {
+    guardedNavigate(`/drawing-board/${id}`)
+  }
+
+  function handlePrevItem() {
+    if (currentItemIdx <= 0) return
+    const prevItem = jobItems[currentItemIdx - 1]
+    const prevItemDrawings = allDrawings.filter(d => d.job_item_id === prevItem.id)
+    if (prevItemDrawings.length > 0) navigateToDrawing(prevItemDrawings[0].id)
+  }
+
+  function handleNextItem() {
+    if (currentItemIdx < 0 || currentItemIdx >= jobItems.length - 1) return
+    const nextItem = jobItems[currentItemIdx + 1]
+    const nextItemDrawings = allDrawings.filter(d => d.job_item_id === nextItem.id)
+    if (nextItemDrawings.length > 0) navigateToDrawing(nextItemDrawings[0].id)
+  }
+
+  function handlePrevDrawing() {
+    if (currentDrawingIdx <= 0) return
+    navigateToDrawing(itemDrawings[currentDrawingIdx - 1].id)
+  }
+
+  function handleNextDrawing() {
+    if (currentDrawingIdx < 0 || currentDrawingIdx >= itemDrawings.length - 1) return
+    navigateToDrawing(itemDrawings[currentDrawingIdx + 1].id)
+  }
+
   // ── Field change handler ──────────────────────────────────────────────────────
   const handleChangeField = useCallback((nodeKey, propertyName, newValue, fieldKey) => {
     if (!tree) return
@@ -1153,11 +1420,13 @@ function DrawingBoard() {
     setDirty(false)
   }, [tree])  // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Selection / prev-next ─────────────────────────────────────────────────────
+  // ── Selection / prev-next (part navigation) ─────────────────────────────────
   const siblingsOfType = selectedNode ? findAll(tree, selectedNode.part_type) : []
   const siblingIdx = siblingsOfType.findIndex(n => n.key === selectedKey)
   const prevDisabled = siblingIdx <= 0
   const nextDisabled = siblingIdx >= siblingsOfType.length - 1
+  const prevPartLabel = !prevDisabled ? partLabel(siblingsOfType[siblingIdx - 1]) : null
+  const nextPartLabel = !nextDisabled ? partLabel(siblingsOfType[siblingIdx + 1]) : null
 
   function handlePrev() {
     if (!prevDisabled) setSelectedKey(siblingsOfType[siblingIdx - 1].key)
@@ -1168,6 +1437,8 @@ function DrawingBoard() {
 
   // ── Dividers / bars / remove handlers ────────────────────────────────────────
 
+  const [dividerConfirmPending, setDividerConfirmPending] = useState(null) // { cols, rows }
+
   function handleApplyDividers(cols, rows) {
     if (!tree) return
     const frame = findFirst(tree, 'assemblyFramePart')
@@ -1177,10 +1448,16 @@ function DrawingBoard() {
     const currentRows = findAll(tree, 'transomPart').length + 1
     const shrinkingToSingle = cols === 1 && rows === 1 && (currentCols > 1 || currentRows > 1)
     if (shrinkingToSingle) {
-      const ok = window.confirm('Going back to 1 x 1 removes the dividers and the extra openings. Continue?')
-      if (!ok) return
+      setDividerConfirmPending({ cols, rows })
+      return
     }
 
+    applyDividersNow(cols, rows, frame)
+  }
+
+  function applyDividersNow(cols, rows, frameOverride) {
+    const frame = frameOverride || findFirst(tree, 'assemblyFramePart')
+    if (!frame) return
     const pair = findFirst(tree, 'sashPairPart')
     const pairD = pair ? (derived[pair.key] ?? {}) : {}
     const fv = frame.values ?? {}
@@ -1190,6 +1467,13 @@ function DrawingBoard() {
     const newTree = applyDividers(tree, frame.key, cols, rows, iW, iH)
     commit(newTree)
     setDividerDialog(false)
+  }
+
+  function handleDividerConfirm() {
+    if (dividerConfirmPending) {
+      applyDividersNow(dividerConfirmPending.cols, dividerConfirmPending.rows)
+      setDividerConfirmPending(null)
+    }
   }
 
   function handleApplyBars(cols, rows) {
@@ -1264,19 +1548,117 @@ function DrawingBoard() {
     )
   }
 
-  const topBarTitle = drawingMeta
-    ? `Drawing ${drawingMeta.drawing_number ?? drawingId}${drawingMeta.window_type ? ` — ${drawingMeta.window_type}` : ''}`
-    : `Drawing ${drawingId}`
+  // ── Helper function for item label in switch-drawing dropdown ──────────────
+  function itemDisplayLabel(item) {
+    return [item.floor_level, item.elevation, item.room_name].filter(Boolean).join(' \u00B7 ') || `Item ${item.item_number}`
+  }
 
-  // Drawing sub-bar: back, title, dirty indicator, undo/redo, save
+  const tbBtn = (active) => ({
+    fontSize: 11, padding: '3px 10px', border: `1px solid ${active ? '#3d35a8' : '#d8d5cf'}`,
+    borderRadius: 6, background: active ? '#f0eefc' : '#fff',
+    color: active ? '#3d35a8' : '#555', cursor: 'pointer', fontFamily: 'inherit',
+    fontWeight: active ? 600 : 400, textDecoration: 'none', whiteSpace: 'nowrap',
+  })
+  const tbSep = { width: 1, height: 20, background: '#e8e6e0', flexShrink: 0, margin: '0 2px' }
+  const navBtn = (disabled) => ({
+    fontSize: 12, padding: '2px 6px', border: '1px solid #d8d5cf', borderRadius: 5,
+    background: '#fff', cursor: disabled ? 'default' : 'pointer',
+    color: disabled ? '#ccc' : '#555', fontFamily: 'inherit',
+  })
+
+  // Drawing sub-bar: lead link, Overview, Matrix, Photos, Item nav, Drawing nav, Switch, Undo/Redo/Reset/Save
   const drawingSubBar = (
-    <div style={{ height: 40, background: '#fff', borderBottom: '1px solid #e8e6e0', display: 'flex', alignItems: 'center', padding: '0 14px', gap: 8, flexShrink: 0 }}>
-      <button onClick={() => guardedNavigate(-1)} style={{ fontSize: 12, padding: '4px 10px', border: '1px solid #d8d5cf', borderRadius: 7, background: '#fff', cursor: 'pointer', color: '#555', fontFamily: 'inherit' }}>
-        ← Back
-      </button>
-      <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: '#1a1a1a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-        {loading ? 'Loading…' : topBarTitle}
-      </div>
+    <div style={{ height: 40, background: '#fff', borderBottom: '1px solid #e8e6e0', display: 'flex', alignItems: 'center', padding: '0 10px', gap: 6, flexShrink: 0, overflowX: 'auto' }}>
+      {/* Lead number link */}
+      {leadId && leadNumber && (
+        <button onClick={() => guardedNavigate(`/leads/${leadId}`)} style={{ ...tbBtn(false), fontWeight: 600, color: '#3d35a8' }}>
+          {leadNumber}
+        </button>
+      )}
+
+      {/* Overview & Matrix links */}
+      {leadId && (
+        <>
+          <button onClick={() => guardedNavigate(`/leads/${leadId}`)} style={tbBtn(false)}>Overview</button>
+          <button onClick={() => guardedNavigate(`/leads/${leadId}/quotes`)} style={tbBtn(false)}>Matrix</button>
+        </>
+      )}
+
+      {/* Photos */}
+      {leadId && (
+        <button onClick={() => setPhotosOpen(o => !o)} style={tbBtn(photosOpen)}>Photos</button>
+      )}
+
+      <div style={tbSep} />
+
+      {/* Item navigation */}
+      {jobItems.length > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+          <button onClick={handlePrevItem} disabled={currentItemIdx <= 0} style={navBtn(currentItemIdx <= 0)}>{'\u2039'}</button>
+          <span style={{ fontSize: 11, color: '#555', whiteSpace: 'nowrap' }}>
+            Item {currentItemIdx >= 0 ? currentItemIdx + 1 : '?'} of {jobItems.length}
+          </span>
+          <button onClick={handleNextItem} disabled={currentItemIdx < 0 || currentItemIdx >= jobItems.length - 1} style={navBtn(currentItemIdx < 0 || currentItemIdx >= jobItems.length - 1)}>{'\u203A'}</button>
+        </div>
+      )}
+
+      {/* Drawing navigation (within item) */}
+      {itemDrawings.length > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+          <button onClick={handlePrevDrawing} disabled={currentDrawingIdx <= 0} style={navBtn(currentDrawingIdx <= 0)}>{'\u2039'}</button>
+          <span style={{ fontSize: 11, color: '#555', whiteSpace: 'nowrap' }}>
+            Drawing {currentDrawingIdx >= 0 ? currentDrawingIdx + 1 : '?'} of {itemDrawings.length}
+          </span>
+          <button onClick={handleNextDrawing} disabled={currentDrawingIdx < 0 || currentDrawingIdx >= itemDrawings.length - 1} style={navBtn(currentDrawingIdx < 0 || currentDrawingIdx >= itemDrawings.length - 1)}>{'\u203A'}</button>
+        </div>
+      )}
+
+      {/* Switch drawing dropdown */}
+      {allDrawings.length > 1 && (
+        <div style={{ position: 'relative', flexShrink: 0 }}>
+          <button onClick={() => setSwitchDrawingOpen(o => !o)} style={tbBtn(switchDrawingOpen)}>
+            Switch drawing {switchDrawingOpen ? '\u25B4' : '\u25BE'}
+          </button>
+          {switchDrawingOpen && (
+            <div style={{
+              position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 5000,
+              background: '#fff', border: '1px solid #d8d5cf', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,.12)',
+              minWidth: 240, maxHeight: 320, overflowY: 'auto', padding: '6px 0',
+            }}>
+              {jobItems.map(item => {
+                const itemDwgs = allDrawings.filter(d => d.job_item_id === item.id)
+                if (itemDwgs.length === 0) return null
+                return (
+                  <div key={item.id}>
+                    <div style={{ fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '.04em', padding: '6px 12px 2px' }}>
+                      Item {item.item_number} — {itemDisplayLabel(item)}
+                    </div>
+                    {itemDwgs.map(d => (
+                      <button
+                        key={d.id}
+                        onClick={() => { setSwitchDrawingOpen(false); navigateToDrawing(d.id) }}
+                        style={{
+                          display: 'block', width: '100%', textAlign: 'left', padding: '5px 12px 5px 20px',
+                          fontSize: 12, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                          background: d.id === Number(drawingId) ? '#f0eefc' : '#fff',
+                          color: d.id === Number(drawingId) ? '#3d35a8' : '#333',
+                          fontWeight: d.id === Number(drawingId) ? 600 : 400,
+                        }}
+                      >
+                        Drawing {d.drawing_number}{d.window_type ? ` — ${d.window_type}` : ''}
+                      </button>
+                    ))}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div style={{ flex: 1 }} />
+
+      {/* Status */}
       {dirty && saveStatus !== 'saving' && (
         <span style={{ fontSize: 11, color: '#92400e', background: '#fffbeb', border: '1px solid #fcd34d', padding: '2px 9px', borderRadius: 999, flexShrink: 0 }}>
           Unsaved
@@ -1287,34 +1669,41 @@ function DrawingBoard() {
           Saved
         </span>
       )}
-      <button onClick={undo} disabled={!undoStack.current.length} title="Undo (Ctrl+Z)" style={{ fontSize: 12, padding: '4px 9px', border: '1px solid #d8d5cf', borderRadius: 7, background: '#fff', cursor: undoStack.current.length ? 'pointer' : 'default', color: undoStack.current.length ? '#555' : '#ccc', fontFamily: 'inherit' }}>
-        ↩ Undo
+
+      {/* Undo / Redo / Reset / Save */}
+      <button onClick={undo} disabled={!undoStack.current.length} title="Undo (Ctrl+Z)" style={{ ...navBtn(!undoStack.current.length), fontSize: 11, padding: '3px 8px' }}>
+        Undo
       </button>
-      <button onClick={redo} disabled={!redoStack.current.length} title="Redo (Ctrl+Y)" style={{ fontSize: 12, padding: '4px 9px', border: '1px solid #d8d5cf', borderRadius: 7, background: '#fff', cursor: redoStack.current.length ? 'pointer' : 'default', color: redoStack.current.length ? '#555' : '#ccc', fontFamily: 'inherit' }}>
-        Redo ↪
+      <button onClick={redo} disabled={!redoStack.current.length} title="Redo (Ctrl+Y)" style={{ ...navBtn(!redoStack.current.length), fontSize: 11, padding: '3px 8px' }}>
+        Redo
+      </button>
+      <button
+        onClick={() => setResetDialog(true)}
+        disabled={!dirty}
+        title="Reset to last saved state"
+        style={{ ...navBtn(!dirty), fontSize: 11, padding: '3px 8px' }}
+      >
+        Reset
       </button>
       <button
         onClick={handleSave}
         disabled={!dirty || saveStatus === 'saving' || loading}
         style={{
-          fontSize: 12, padding: '4px 13px', border: 'none', borderRadius: 7, fontWeight: 600,
+          fontSize: 11, padding: '3px 12px', border: 'none', borderRadius: 6, fontWeight: 600,
           background: !dirty || saveStatus === 'saving' || loading ? '#c4c0e8' : '#3d35a8',
           color: '#fff', cursor: !dirty || saveStatus === 'saving' || loading ? 'default' : 'pointer',
           fontFamily: 'inherit',
         }}
       >
-        {saveStatus === 'saving' ? 'Saving…' : 'Save'}
+        {saveStatus === 'saving' ? 'Saving...' : 'Save'}
       </button>
       <button
         onClick={openTemplateDialog}
         disabled={!tree || loading}
-        style={{
-          fontSize: 12, padding: '4px 13px', border: '1px solid #d8d5cf', borderRadius: 7,
-          background: '#fff', color: !tree || loading ? '#ccc' : '#555',
-          cursor: !tree || loading ? 'default' : 'pointer', fontFamily: 'inherit',
-        }}
+        title="Save as template"
+        style={{ fontSize: 11, padding: '3px 8px', border: '1px solid #d8d5cf', borderRadius: 6, background: '#fff', color: !tree || loading ? '#ccc' : '#555', cursor: !tree || loading ? 'default' : 'pointer', fontFamily: 'inherit' }}
       >
-        Save as template
+        Template
       </button>
     </div>
   )
@@ -1352,6 +1741,8 @@ function DrawingBoard() {
               onNext={handleNext}
               prevDisabled={prevDisabled}
               nextDisabled={nextDisabled}
+              prevLabel={prevPartLabel}
+              nextLabel={nextPartLabel}
               hiddenFields={hiddenFields}
               tree={tree}
               ironmongeryRules={ironmongeryRules}
@@ -1452,6 +1843,11 @@ function DrawingBoard() {
               />
             </div>
           </div>
+
+          {/* Photos drawer (between centre and right panels) */}
+          {photosOpen && leadId && (
+            <PhotosDrawer leadId={leadId} user={user} onClose={() => setPhotosOpen(false)} />
+          )}
 
           {/* Right: Explorer + Summary */}
           <div style={{ width: 248, borderLeft: '1px solid #e8e6e0', background: '#fff', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
@@ -1554,6 +1950,51 @@ function DrawingBoard() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Divider shrink confirm dialog */}
+      {dividerConfirmPending && (
+        <ConfirmDialog
+          title="Remove dividers"
+          message="Going back to 1 x 1 removes the dividers and the extra openings. Continue?"
+          confirmLabel="Continue"
+          onConfirm={handleDividerConfirm}
+          onCancel={() => setDividerConfirmPending(null)}
+          danger
+        />
+      )}
+
+      {/* Reset confirm dialog */}
+      {resetDialog && (
+        <ConfirmDialog
+          title="Reset drawing"
+          message="This will discard all unsaved changes and restore the drawing to its last saved state. This cannot be undone."
+          confirmLabel="Reset"
+          onConfirm={handleReset}
+          onCancel={() => setResetDialog(false)}
+          danger
+        />
+      )}
+
+      {/* Unsaved-changes navigation confirm dialog */}
+      {navPending && (
+        <ConfirmDialog
+          title="Unsaved changes"
+          message="You have unsaved changes. Leave this drawing without saving?"
+          confirmLabel="Leave"
+          cancelLabel="Stay"
+          onConfirm={navConfirm}
+          onCancel={navCancel}
+          danger
+        />
+      )}
+
+      {/* Close switch-drawing dropdown on outside click */}
+      {switchDrawingOpen && (
+        <div
+          style={{ position: 'fixed', inset: 0, zIndex: 4999 }}
+          onClick={() => setSwitchDrawingOpen(false)}
+        />
       )}
 
     </Layout>
