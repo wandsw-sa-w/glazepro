@@ -13,8 +13,8 @@ import { publishQuote } from '../quotes/publishQuote.js'
 import { copyQuote } from '../quotes/copyQuote.js'
 import { FRONT_COVER_LETTER, BACK_COVER_LETTER } from '../quotes/pdf/quoteContent.js'
 import { useVersion } from '../context/VersionContext.jsx'
-import { validateDrawing, countBySeverity, hasErrors as hasValidationErrors } from '../validation/validate.js'
-import { computeVariables } from '../pricing/computeVariables.js'
+import { validateDrawing, validateQuote, countBySeverity, hasErrors as hasValidationErrors } from '../validation/validate.js'
+import { computeVariables, computeQuoteVariables } from '../pricing/computeVariables.js'
 import { computeDerived } from '../drawingBoard/computeDerived.js'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -351,7 +351,7 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
         { data: listData, error: lErr },
         { data: valData, error: vErr },
       ] = await Promise.all([
-        supabase.from('validation_rules').select('*').eq('is_active', true).eq('level', 'item').order('sort_order'),
+        supabase.from('validation_rules').select('*').eq('is_active', true).order('sort_order'),
         supabase.from('validation_lists').select('*'),
         supabase.from('validation_list_values').select('*'),
       ])
@@ -361,15 +361,46 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
       for (const l of (listData || [])) {
         listsMap[l.name] = (valData || []).filter(v => v.list_id === l.id).map(v => v.value)
       }
+      const itemRules = (ruleData || []).filter(r => r.level === 'item')
+      const quoteRules = (ruleData || []).filter(r => r.level === 'quote')
       const allResults = []
+      const itemVarsList = []
+
+      // Build a drawingId→itemNumber map for labelling results
+      const dwgItemMap = {}
+      for (const item of jobItems) {
+        const dwgId = selections[item.id]
+        if (dwgId) dwgItemMap[String(dwgId)] = item.item_number
+      }
+
       for (const dwgId of treeKeys) {
         const tree = trees[dwgId]
         if (!tree) continue
         const derived = computeDerived(tree)
         const vars = computeVariables(tree, derived) || {}
-        const results = validateDrawing(tree, vars, ruleData || [], listsMap)
-        allResults.push(...results.filter(r => r.status === 'fired'))
+        itemVarsList.push(vars)
+        const results = validateDrawing(tree, vars, itemRules, listsMap)
+        const itemNum = dwgItemMap[String(dwgId)]
+        for (const r of results) {
+          if (r.status === 'fired') {
+            r._itemNumber = itemNum
+            allResults.push(r)
+          }
+        }
       }
+
+      // Quote-level rules
+      if (quoteRules.length > 0) {
+        const quoteVars = computeQuoteVariables(itemVarsList)
+        const quoteResults = validateQuote(quoteVars, allResults, quoteRules, listsMap)
+        for (const r of quoteResults) {
+          if (r.status === 'fired') {
+            r._isQuoteLevel = true
+            allResults.push(r)
+          }
+        }
+      }
+
       if (cancelled) return
       setValidationResults(allResults)
       setValidationCounts(countBySeverity(allResults))
