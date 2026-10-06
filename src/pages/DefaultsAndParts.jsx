@@ -202,6 +202,20 @@ export default function DefaultsAndParts() {
     }
   }
 
+  async function handleInfoNoteBlur(field, newNote) {
+    const trimmed = (newNote || '').trim()
+    const current = field.info_note || ''
+    if (trimmed === current) return
+    const { error } = await supabase
+      .from('default_field_definitions')
+      .update({ info_note: trimmed || null, updated_at: new Date().toISOString() })
+      .eq('id', field.id)
+    if (!error) {
+      setFields(prev => prev.map(f => f.id === field.id ? { ...f, info_note: trimmed || null } : f))
+      showSaved(`note:${field.id}`)
+    }
+  }
+
   const filteredFields = fields.filter(f => {
     if (!search) return true
     const q = search.toLowerCase()
@@ -496,6 +510,7 @@ export default function DefaultsAndParts() {
                         savedKey={savedKey}
                         onValueBlur={handleValueBlur}
                         onVisibilityChange={handleVisibilityChange}
+                        onInfoNoteBlur={handleInfoNoteBlur}
                       />
                     : <ChildrenTab
                         allPartTypes={allPartTypes.filter(pt => pt.is_active)}
@@ -524,7 +539,7 @@ export default function DefaultsAndParts() {
 function FieldsTab({
   fields, allFields, profiles, values, search, onSearchChange,
   loadingFields, savedKey,
-  onValueBlur, onVisibilityChange,
+  onValueBlur, onVisibilityChange, onInfoNoteBlur,
 }) {
   return (
     <div style={{ padding: 20 }}>
@@ -565,6 +580,9 @@ function FieldsTab({
                 <th style={{ textAlign: 'left', padding: '8px 10px', fontWeight: 600, color: '#888', fontSize: 11, minWidth: 130 }}>
                   Visibility
                 </th>
+                <th style={{ textAlign: 'left', padding: '8px 10px', fontWeight: 600, color: '#888', fontSize: 11, minWidth: 160 }}>
+                  Info Note
+                </th>
                 {profiles.map(p => (
                   <th key={p.id} style={{ textAlign: 'left', padding: '8px 10px', fontWeight: 600, color: '#888', fontSize: 11, minWidth: 110, whiteSpace: 'nowrap' }}>
                     {p.label}
@@ -583,6 +601,7 @@ function FieldsTab({
                   isLast={idx === fields.length - 1}
                   onValueBlur={onValueBlur}
                   onVisibilityChange={onVisibilityChange}
+                  onInfoNoteBlur={onInfoNoteBlur}
                 />
               ))}
             </tbody>
@@ -595,7 +614,13 @@ function FieldsTab({
 
 // ─── FieldRow ──────────────────────────────────────────────────────────────────
 
-function FieldRow({ field, profiles, values, savedKey, isLast, onValueBlur, onVisibilityChange }) {
+function FieldRow({ field, profiles, values, savedKey, isLast, onValueBlur, onVisibilityChange, onInfoNoteBlur }) {
+  const [localNote, setLocalNote] = useState(field.info_note ?? '')
+
+  useEffect(() => {
+    setLocalNote(field.info_note ?? '')
+  }, [field.info_note])
+
   return (
     <tr style={{ borderBottom: isLast ? 'none' : '1px solid #f0eeeb' }}>
       {/* Field name */}
@@ -624,6 +649,26 @@ function FieldRow({ field, profiles, values, savedKey, isLast, onValueBlur, onVi
             <option value="hidden">Hidden</option>
           </select>
           <SavedIndicator show={savedKey === `vis:${field.id}`} />
+        </div>
+      </td>
+
+      {/* Info Note */}
+      <td style={{ padding: '6px 10px', verticalAlign: 'middle', minWidth: 160 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <textarea
+            value={localNote}
+            onChange={e => setLocalNote(e.target.value)}
+            onBlur={() => onInfoNoteBlur(field, localNote)}
+            placeholder="Help note..."
+            rows={2}
+            style={{
+              fontSize: 11, padding: '4px 6px', border: '1px solid #e8e6e0',
+              borderRadius: 6, outline: 'none', background: '#fff',
+              width: '100%', boxSizing: 'border-box', resize: 'vertical',
+              fontFamily: 'inherit', lineHeight: 1.4,
+            }}
+          />
+          <SavedIndicator show={savedKey === `note:${field.id}`} />
         </div>
       </td>
 

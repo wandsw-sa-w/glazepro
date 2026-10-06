@@ -11,6 +11,8 @@ import { buildNewBoxSash } from '../drawingBoard/buildTree.js'
 import { computeDerived } from '../drawingBoard/computeDerived.js'
 import { applyOperationDefaults } from '../drawingBoard/applyOperationDefaults.js'
 import { computeSashGeometry } from '../drawingBoard/sashGeometry.js'
+import { computeSashWeight } from '../pricing/sashWeight.js'
+import { loadDrawingRunPrices } from '../quotes/drawingRunPrice.js'
 import { SashElevation } from '../drawingBoard/renderElevation.jsx'
 import { applyDividers, applyBars } from '../drawingBoard/gridActions.js'
 import { saveAsTemplate, listTemplates } from '../drawingBoard/templates.js'
@@ -125,6 +127,36 @@ function partLabel(node) {
   return node.label_override || PART_LABELS[node.part_type] || node.part_type
 }
 
+// ── InfoNoteIcon ─────────────────────────────────────────────────────────────
+
+function InfoNoteIcon({ note }) {
+  const [show, setShow] = useState(false)
+  if (!note) return null
+  return (
+    <span
+      style={{ position: 'relative', display: 'inline-block', marginLeft: 4, cursor: 'pointer' }}
+      onMouseEnter={() => setShow(true)}
+      onMouseLeave={() => setShow(false)}
+      onClick={() => setShow(s => !s)}
+    >
+      <span style={{ fontSize: 12, color: '#3d35a8', fontWeight: 600, userSelect: 'none' }} title={note}>
+        {'\u24D8'}
+      </span>
+      {show && (
+        <div style={{
+          position: 'absolute', left: 0, top: '100%', zIndex: 100,
+          background: '#fff', border: '1px solid #d8d5cf', borderRadius: 8,
+          padding: '8px 12px', fontSize: 11, color: '#444', lineHeight: 1.5,
+          boxShadow: '0 4px 16px rgba(0,0,0,.12)', minWidth: 200, maxWidth: 340,
+          whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+        }}>
+          {note}
+        </div>
+      )}
+    </span>
+  )
+}
+
 // ── PropertyField ─────────────────────────────────────────────────────────────
 
 function PropertyField({ field, value, derivedValue, onChange, refOptions, required, partType }) {
@@ -136,6 +168,7 @@ function PropertyField({ field, value, derivedValue, onChange, refOptions, requi
       <div style={{ marginBottom: 10 }}>
         <label title={field.field_key} style={{ fontSize: 11, fontWeight: 500, color: '#aaa', display: 'block', marginBottom: 3 }}>
           {field.label} {field.unit ? <span style={{ fontWeight: 400 }}>({field.unit})</span> : null}
+          <InfoNoteIcon note={field.info_note} />
         </label>
         <div style={{ fontSize: 12, padding: '6px 8px', background: '#f7f6f2', borderRadius: 6, color: '#888', border: '1px solid #e8e6e0' }}>
           {derivedValue !== null && derivedValue !== undefined ? String(derivedValue) : '—'}
@@ -155,6 +188,7 @@ function PropertyField({ field, value, derivedValue, onChange, refOptions, requi
         </div>
         <label title={field.field_key} style={{ fontSize: 12, color: '#555', cursor: 'pointer', userSelect: 'none' }} onClick={() => onChange(!value)}>
           {field.label}
+          <InfoNoteIcon note={field.info_note} />
         </label>
       </div>
     )
@@ -166,6 +200,7 @@ function PropertyField({ field, value, derivedValue, onChange, refOptions, requi
         <label title={field.field_key} style={{ fontSize: 11, fontWeight: 500, color: '#666', display: 'block', marginBottom: 3 }}>
           {field.label}{field.is_required ? ' *' : ''}
           {field.unit ? <span style={{ fontWeight: 400, color: '#aaa' }}> ({field.unit})</span> : null}
+          <InfoNoteIcon note={field.info_note} />
         </label>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <input
@@ -204,6 +239,7 @@ function PropertyField({ field, value, derivedValue, onChange, refOptions, requi
       <div style={{ marginBottom: 10 }}>
         <label title={field.field_key} style={{ fontSize: 11, fontWeight: 500, color: '#666', display: 'block', marginBottom: 3 }}>
           {field.label}{field.is_required ? ' *' : ''}
+          <InfoNoteIcon note={field.info_note} />
         </label>
         <select
           value={value ?? ''}
@@ -231,6 +267,7 @@ function PropertyField({ field, value, derivedValue, onChange, refOptions, requi
       <div style={{ marginBottom: 10 }}>
         <label title={field.field_key} style={{ fontSize: 11, fontWeight: 500, color: '#666', display: 'block', marginBottom: 3 }}>
           {field.label}{field.is_required ? ' *' : ''}
+          <InfoNoteIcon note={field.info_note} />
         </label>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
           {opts.map(o => {
@@ -254,6 +291,7 @@ function PropertyField({ field, value, derivedValue, onChange, refOptions, requi
       <div style={{ marginBottom: 10 }}>
         <label title={field.field_key} style={{ fontSize: 11, fontWeight: 500, color: '#666', display: 'block', marginBottom: 3 }}>
           {field.label}{field.is_required ? ' *' : ''}
+          <InfoNoteIcon note={field.info_note} />
         </label>
         <input
           value={value ?? ''}
@@ -271,6 +309,7 @@ function PropertyField({ field, value, derivedValue, onChange, refOptions, requi
     <div style={{ marginBottom: 10 }}>
       <label title={field.field_key} style={{ fontSize: 11, fontWeight: 500, color: '#666', display: 'block', marginBottom: 3 }}>
         {field.label}{field.is_required ? ' *' : ''}
+        <InfoNoteIcon note={field.info_note} />
       </label>
       <input
         value={value ?? ''}
@@ -615,26 +654,65 @@ function DrawingPlaceholder({ tree, derived, refOptions }) {
 
 // ── Summary ───────────────────────────────────────────────────────────────────
 
-function Summary({ tree, fieldDefs, derived, refOptions, onSelectKey, drawingMeta, hiddenFields }) {
+function Summary({ tree, fieldDefs, derived, refOptions, onSelectKey, drawingMeta, hiddenFields, pricingInfo, sashWeights }) {
   const item  = findFirst(tree, 'drawingItemPart')
   const frame = findFirst(tree, 'assemblyFramePart')
 
   const towCode = item?.values?.typeOfWork
   const towLabel = towCode
     ? ((refOptions['type_of_work'] ?? []).find(o => o.code === towCode)?.label ?? towCode)
-    : '—'
+    : '\u2014'
 
   const frameW = frame?.values?.width
   const frameH = frame?.values?.height
-  const frameSize = frameW && frameH ? `${frameW} × ${frameH} mm` : '—'
+  const frameSize = frameW && frameH ? `${frameW} \u00d7 ${frameH} mm` : '\u2014'
 
   const requiredEmpty = findRequiredEmpty(tree, fieldDefs, hiddenFields)
+
+  // Format net price
+  const priceLabel = pricingInfo?.netPrice != null
+    ? `\u00a3${Number(pricingInfo.netPrice).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    : 'Not priced yet'
+
+  // Window type from drawingMeta
+  const windowType = drawingMeta?.window_type || '\u2014'
+
+  // Quantity from item
+  const qty = item?.values?.quantity ?? item?.values?.sheetQty ?? 1
+
+  // Total weight from sash weights
+  const totalWeight = sashWeights
+    ? Object.values(sashWeights).reduce((sum, w) => sum + (w?.weight_in_kg ?? 0), 0)
+    : null
 
   return (
     <div style={{ borderTop: '1px solid #e8e6e0', padding: '12px 14px' }}>
       <div style={{ fontSize: 11, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 10 }}>
         Summary
       </div>
+
+      {/* Price / Price File / Item Type / Quantity / Weight */}
+      <div style={{ fontSize: 12, color: '#555', marginBottom: 4 }}>
+        <span style={{ color: '#aaa' }}>Price (net): </span>
+        <span style={{ fontWeight: 600 }}>{priceLabel}</span>
+      </div>
+      <div style={{ fontSize: 12, color: '#555', marginBottom: 4 }}>
+        <span style={{ color: '#aaa' }}>Price File: </span>{pricingInfo?.priceFileName || '\u2014'}
+      </div>
+      <div style={{ fontSize: 12, color: '#555', marginBottom: 4 }}>
+        <span style={{ color: '#aaa' }}>Item Type: </span>{windowType}
+      </div>
+      <div style={{ fontSize: 12, color: '#555', marginBottom: 4 }}>
+        <span style={{ color: '#aaa' }}>Quantity: </span>{qty}
+      </div>
+      {totalWeight != null && totalWeight > 0 && (
+        <div style={{ fontSize: 12, color: '#555', marginBottom: 4 }}>
+          <span style={{ color: '#aaa' }}>Weight: </span>{totalWeight.toFixed(1)} kg
+        </div>
+      )}
+
+      <div style={{ borderTop: '1px solid #f0eeeb', marginTop: 8, paddingTop: 8 }} />
+
       <div style={{ fontSize: 12, color: '#555', marginBottom: 4 }}>
         <span style={{ color: '#aaa' }}>Range: </span>Box Sash
       </div>
@@ -656,14 +734,14 @@ function Summary({ tree, fieldDefs, derived, refOptions, onSelectKey, drawingMet
               onClick={() => onSelectKey(issue.key)}
               style={{ display: 'block', width: '100%', textAlign: 'left', fontSize: 11, padding: '3px 6px', marginBottom: 2, border: '1px solid #fca5a5', borderRadius: 5, background: '#fef2f2', color: '#b91c1c', cursor: 'pointer' }}
             >
-              {PART_LABELS[issue.partType] ?? issue.partType} → {issue.label}
+              {PART_LABELS[issue.partType] ?? issue.partType} \u2192 {issue.label}
             </button>
           ))}
         </div>
       )}
 
       {requiredEmpty.length === 0 && tree && (
-        <div style={{ fontSize: 11, color: '#15803d', fontWeight: 500 }}>✓ All required fields filled</div>
+        <div style={{ fontSize: 11, color: '#15803d', fontWeight: 500 }}>{'\u2713'} All required fields filled</div>
       )}
     </div>
   )
@@ -1240,6 +1318,9 @@ function DrawingBoard() {
   const [historyLoading,  setHistoryLoading]  = useState(false)
   const [historyWarning,  setHistoryWarning]  = useState(null)
 
+  // ── Pricing summary (loaded on mount + after save, no keystroke calls) ────
+  const [pricingInfo,  setPricingInfo]  = useState(null) // { netPrice, priceFileName }
+
   // ── Undo/Redo ──────────────────────────────────────────────────────────────
   const undoStack  = useRef([])
   const redoStack  = useRef([])
@@ -1280,6 +1361,19 @@ function DrawingBoard() {
   // ── Derived values (recompute whenever tree changes) ────────────────────────
   const derived  = tree ? computeDerived(tree) : {}
   const geometry = tree ? computeSashGeometry(tree, derived) : null
+
+  // ── Sash weights (recompute whenever tree changes) ─────────────────────────
+  const sashWeights = (() => {
+    if (!tree) return null
+    const result = {}
+    const topSash = findFirst(tree, 'topSashPart')
+    const botSash = findFirst(tree, 'bottomSashPart')
+    try {
+      if (topSash) result.top = computeSashWeight(topSash, tree)
+      if (botSash) result.bottom = computeSashWeight(botSash, tree)
+    } catch { /* weight is optional — don't break the board */ }
+    return (result.top || result.bottom) ? result : null
+  })()
 
   // ── Lazy-load ironmongery data when paintAndIronmongeryPart is first selected ─
   const selectedNode = selectedKey ? findNodeByKey(tree, selectedKey) : null
@@ -1443,6 +1537,9 @@ function DrawingBoard() {
         const hist = await loadDrawingHistory(Number(drawingId))
         setHistoryEntries(hist)
         setHistoryLoading(false)
+
+        // Load pricing summary (latest run — no new pricing call)
+        refreshPricingInfo()
       } catch (e) {
         setLoadError(e?.message ?? String(e))
       } finally {
@@ -1451,6 +1548,29 @@ function DrawingBoard() {
     }
     load()
   }, [drawingId])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Refresh pricing info (latest run — no new pricing call) ─────────────────
+  async function refreshPricingInfo() {
+    try {
+      const runPrices = await loadDrawingRunPrices([Number(drawingId)], supabase)
+      const runData = runPrices[String(drawingId)]
+      let priceFileName = null
+      if (runData?.priceFileId) {
+        const { data: pf, error: pfErr } = await supabase
+          .from('price_files')
+          .select('name')
+          .eq('id', runData.priceFileId)
+          .maybeSingle()
+        if (!pfErr && pf) priceFileName = pf.name
+      }
+      setPricingInfo({
+        netPrice: runData?.sales ?? null,
+        priceFileName,
+      })
+    } catch (e) {
+      console.warn('Failed to load pricing info:', e)
+    }
+  }
 
   // ── Save ─────────────────────────────────────────────────────────────────────
   async function handleSave() {
@@ -1493,6 +1613,9 @@ function DrawingBoard() {
         setHistoryWarning('Changes saved but history recording failed')
         setTimeout(() => setHistoryWarning(null), 5000)
       }
+
+      // Refresh pricing summary after save
+      refreshPricingInfo()
     } catch (e) {
       setSaveStatus('error')
       setSaveError(e?.message ?? String(e))
@@ -2020,6 +2143,8 @@ function DrawingBoard() {
               onSelectKey={setSelectedKey}
               drawingMeta={drawingMeta}
               hiddenFields={hiddenFields}
+              pricingInfo={pricingInfo}
+              sashWeights={sashWeights}
             />
             {/* Validation */}
             <ValidationPanel tree={tree} derived={derived} onSelectKey={setSelectedKey} />
