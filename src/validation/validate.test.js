@@ -404,6 +404,21 @@ describe('validateDrawing — part display labels', () => {
     expect(labels).toContain('Bottom Sash > Glazing')
   })
 
+  it('each loop result has a part_key for click-to-select', () => {
+    const rule = {
+      id: 'r3', name: 'test', condition: 'true', severity: 'warning',
+      message: 'test', is_active: true, level: 'item',
+      loop_target: 'glass_unit',
+    }
+    const results = validateDrawing(tree, {}, [rule], {})
+    const fired = results.filter(r => r.status === 'fired')
+    for (const r of fired) {
+      expect(r.part_key).toBeTruthy()
+      expect(r.part_label).toBeTruthy()
+      expect(r.part_label).not.toBe(r.part_key) // label is not the key
+    }
+  })
+
   it('sliding_sash results show "Top Sash" and "Bottom Sash"', () => {
     const rule = {
       id: 'r2', name: 'test', condition: 'true', severity: 'info',

@@ -747,6 +747,7 @@ function ValidationPanel({ tree, derived, onSelectKey }) {
                   cursor: clickable ? 'pointer' : 'default',
                 }}
               >
+                {r.part_label && <span style={{ fontWeight: 600, marginRight: 4, fontSize: 10 }}>[{r.part_label}]</span>}
                 {r.message}
               </div>
             )
