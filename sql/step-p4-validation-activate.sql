@@ -14,12 +14,8 @@ WHERE name = 'Reminder to Increase R Rumber in busy periods'
   AND condition LIKE '%quote_margin%'
   AND is_active = false;
 
--- Rule 2: item_qty, item_with_onsite_decoration_by_us_qty_excl_free_items, item_qty_with_solid_utile_hardwood_cill
-UPDATE public.validation_rules
-SET is_active = true, blocked_reason = NULL
-WHERE name = 'Single item fee'
-  AND condition LIKE '%item_qty%'
-  AND is_active = false;
+-- Rule 2 (Single item fee) is NOT activated: it needs
+-- item_with_onsite_decoration_by_us_qty_excl_free_items, which GlazePro does not compute yet.
 
 -- Rule 3: spacer colour counts
 UPDATE public.validation_rules

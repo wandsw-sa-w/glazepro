@@ -161,7 +161,6 @@ const QUOTE_LEVEL_VARS = [
   'user_can_access_all_quotes',
   'new_frame_qty',
   'new_sliding_sash_qty',
-  'item_with_onsite_decoration_by_us_qty_excl_free_items',
 ]
 for (const v of QUOTE_LEVEL_VARS) computeVars.add(v)
 

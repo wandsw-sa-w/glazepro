@@ -7,8 +7,8 @@ Generated: 2026-10-06
 | Metric | Value |
 |--------|-------|
 | Total rules parsed | 158 |
-| Active | 57 |
-| Blocked | 101 |
+| Active | 56 |
+| Blocked | 102 |
 
 ## Rules per Group
 
@@ -34,7 +34,6 @@ Generated: 2026-10-06
 ## Active Rules
 
 - Reminder to Increase R Rumber in busy periods [Quote Summary]
-- Single item fee [Quote Summary]
 - Mixed Spacer Colour [Quote Summary]
 - Mixed Spacer Dimension [Quote Summary]
 - Cill Timber Not matching [Quote Summary]
@@ -92,6 +91,10 @@ Generated: 2026-10-06
 - Overweight sash [Health & Safety]
 
 ## Blocked Rules by Reason
+
+### missing variable: item_with_onsite_decoration_by_us_qty_excl_free_items
+
+- Single item fee [Quote Summary]
 
 ### empty list: landvac_fineo
 
@@ -342,6 +345,7 @@ Generated: 2026-10-06
 | `is_door_mpls` | 2 |
 | `bi_fold_door_leaf_qty` | 2 |
 | `frame_with_curved_inner_head_qty` | 2 |
+| `item_with_onsite_decoration_by_us_qty_excl_free_items` | 1 |
 | `frame_jamb_profiled_left` | 1 |
 | `frame_jamb_profiled_right` | 1 |
 | `frame_jamb_right` | 1 |

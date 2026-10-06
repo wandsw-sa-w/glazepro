@@ -42,8 +42,8 @@ VALUES (
   'new_frame_qty == 0 and new_sliding_sash_qty <= 2 and item_qty == 1 and item_with_onsite_decoration_by_us_qty_excl_free_items == 0 and item_qty_with_solid_utile_hardwood_cill == 0',
   'Add a ''Single Item Fee'' free text item for single SASH REPLACEMENT projects.',
   NULL,
-  true,
-  NULL
+  false,
+  'missing variable: item_with_onsite_decoration_by_us_qty_excl_free_items'
 );
 
 -- Rule 3: Mixed Spacer Colour [Quote Summary]
