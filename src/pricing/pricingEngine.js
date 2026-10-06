@@ -161,10 +161,15 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
     const sightlineH = frameHeight != null
       ? (frameHeight - topRailH - botRailH - midrailH) / 2 : null
 
-    // Gross sash height = sightline + this-sash rail + midrail + horn
+    // Sash lip: the meeting-rail overhang that Integrate includes in
+    // gross_sash_height_in_mm ("sash height including sash lip & horn").
+    // Defaults to 0 for backward compat; fixtures set it from the sash profile.
+    const sashLip = pair?.values?.sashLip ?? 0
+
+    // Gross sash height = sightline + this-sash rail + midrail + horn + lip
     const railHeight = isTop ? topRailH : botRailH
     const gross_sash_height_in_mm = sightlineH != null
-      ? sightlineH + railHeight + midrailH + hornLength : null
+      ? sightlineH + railHeight + midrailH + hornLength + sashLip : null
 
     // Gross sash width = frame.width (Integrate: gross sash width = internal frame width)
     const gross_sash_width_in_mm = frameWidth

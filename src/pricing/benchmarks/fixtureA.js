@@ -121,6 +121,9 @@ const TREE = {
             topHornTypeShortName:    'victorian',
             bottomHornTypeShortName: 'none',
             sashSplit:               'half_half',
+            // Sash lip: meeting-rail overhang included in Integrate's
+            // gross_sash_height_in_mm. 8mm is the standard profile default.
+            sashLip:                 8,
           },
           children: [
             {
@@ -252,9 +255,10 @@ const ASSUMPTIONS = [
   'Cill: height 70mm, profiledHeight 45mm, depth 200mm (profile defaults)',
   'Frame depth: 165 mm, outerJamb: 101 mm (profile defaults)',
   'Horn lengths: victorian=70mm (pricingEngine), victorian=50mm (sashWeight)',
+  'Sash lip: 8mm (meeting-rail overhang, standard profile default)',
   'Glazing bars: 2 wide + 1 high on top sash only, none on bottom sash',
   'Ironmongery: Claw Fastener Kit without Pulleys, PB finish',
-  'Sash weights: lead, 40mm — 17.2 kg top, 17.3 kg bottom (from spec)',
+  'Sash weights: lead, 40mm — target 17.2 kg top, 17.3 kg bottom; engine produces ~17.4/17.9 (sashWeight geometry mismatch)',
 ]
 
 export const BENCHMARK_A = {

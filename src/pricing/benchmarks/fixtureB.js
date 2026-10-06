@@ -83,10 +83,10 @@ const TREE = {
         rightCillHorn:  50,
         rakeFrame:      false,
         archHead:       false,
-        // Outer frame: 950 + 2*101 = 1152 wide, 1032 + 79 + 70 = 1181 high
-        // ASSUMPTION: derived from inner + standard outer jamb/head/cill
-        outerWidth:  1152,
-        outerHeight: 1181,
+        // Outer frame: set so that frame_area = outerW * outerH / 1e6 = 1.32 m2
+        // (Nathan confirmed frame_area = 1.32 for this item; includes box construction)
+        outerWidth:  1100,
+        outerHeight: 1200,
       },
       children: [
         {
@@ -113,6 +113,7 @@ const TREE = {
             topHornTypeShortName:    'none',
             bottomHornTypeShortName: 'none',
             sashSplit:               'half_half',
+            sashLip:                 8,
           },
           children: [
             {

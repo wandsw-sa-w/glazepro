@@ -484,6 +484,8 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
 
     const frame_area_m2 = (frame_width != null && frame_height != null)
       ? (frame_width * frame_height) / 1e6 : null
+    // Integrate alias: frame_area = sum of frame m2 (used by DSO SqM Rate rule)
+    const frame_area = frame_area_m2
     const frame_perimeter_mm = (frame_width != null && frame_height != null)
       ? 2 * (frame_width + frame_height) : null
 
@@ -739,7 +741,7 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
       frame_width_in_mm, frame_height_in_mm, frame_depth_in_mm,
       frame_width_m, frame_height_m,
       overall_frame_width,
-      frame_area_m2, frame_perimeter_mm,
+      frame_area_m2, frame_area, frame_perimeter_mm,
       cill_length_in_mm,
       cill_profiled_height_in_mm,
 
