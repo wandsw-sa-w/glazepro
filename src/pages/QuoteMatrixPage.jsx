@@ -19,6 +19,7 @@ import { copyQuote } from '../quotes/copyQuote.js'
 import { computeVariables } from '../pricing/computeVariables.js'
 import { validateDrawing, countBySeverity } from '../validation/validate.js'
 import { listTemplates, createDrawingFromTemplate } from '../drawingBoard/templates.js'
+import { insertDrawingHistory } from '../drawingBoard/drawingHistory.js'
 import QuoteOverview from './QuoteOverview.jsx'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -462,6 +463,18 @@ export default function QuoteMatrixPage() {
       const tree = await loadDrawingParts(dwg.id)
       if (tree) await saveDrawingParts(newDwg.id, tree)
     } catch (e) { console.error('Copy drawing tree failed:', e) }
+    // Record 'copied' history event (non-blocking)
+    try {
+      const userId = (await supabase.auth.getUser()).data?.user?.id ?? null
+      await insertDrawingHistory({
+        drawingId: newDwg.id,
+        userId,
+        event: 'copied',
+        note: `Copied from drawing #${dwg.drawing_number ?? dwg.id}`,
+      })
+    } catch (histE) {
+      console.warn('History insert for copy failed:', histE)
+    }
     return newDwg
   }
 

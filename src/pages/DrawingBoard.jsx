@@ -14,6 +14,8 @@ import { computeSashGeometry } from '../drawingBoard/sashGeometry.js'
 import { SashElevation } from '../drawingBoard/renderElevation.jsx'
 import { applyDividers, applyBars } from '../drawingBoard/gridActions.js'
 import { saveAsTemplate, listTemplates } from '../drawingBoard/templates.js'
+import { diffTrees } from '../drawingBoard/diffTrees.js'
+import { insertDrawingHistory, loadDrawingHistory } from '../drawingBoard/drawingHistory.js'
 import { FALLBACK_PROFILE_CODE } from '../drawingBoard/defaultProfile.js'
 import { defaultIronmonger } from '../pricing/defaultIronmongery.js'
 import { computeVariables } from '../pricing/computeVariables.js'
@@ -761,6 +763,108 @@ function ValidationPanel({ tree, derived, onSelectKey }) {
   )
 }
 
+// ── HistoryPanel ─────────────────────────────────────────────────────────────
+
+function HistoryPanel({ entries, loading: historyLoading }) {
+  const [collapsed, setCollapsed] = useState(false)
+  const [expandedIds, setExpandedIds] = useState(new Set())
+
+  function toggleExpand(id) {
+    setExpandedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const EVENT_LABELS = {
+    created: 'Created',
+    saved: 'Saved',
+    created_from_template: 'Created from template',
+    copied: 'Copied',
+  }
+
+  function formatDateTime(iso) {
+    if (!iso) return ''
+    const d = new Date(iso)
+    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) +
+      ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+  }
+
+  function formatChange(c) {
+    if (c.field === '(added)') return `${c.part} added`
+    if (c.field === '(removed)') return `${c.part} removed`
+    const from = c.from ?? '(empty)'
+    const to = c.to ?? '(empty)'
+    return `${c.part} \u2014 ${c.field}: ${from} \u2192 ${to}`
+  }
+
+  return (
+    <div style={{ borderTop: '1px solid #e8e6e0', padding: '10px 14px' }}>
+      <div
+        onClick={() => setCollapsed(c => !c)}
+        style={{ fontSize: 11, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: collapsed ? 0 : 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+      >
+        <span style={{ fontSize: 9 }}>{collapsed ? '\u25B6' : '\u25BC'}</span>
+        History
+        {!historyLoading && entries.length > 0 && (
+          <span style={{ fontSize: 10, fontWeight: 500, color: '#888', marginLeft: 4 }}>{entries.length}</span>
+        )}
+      </div>
+      {!collapsed && (
+        <div style={{ maxHeight: 260, overflowY: 'auto' }}>
+          {historyLoading && <div style={{ fontSize: 11, color: '#aaa' }}>Loading...</div>}
+          {!historyLoading && entries.length === 0 && (
+            <div style={{ fontSize: 11, color: '#aaa' }}>No history yet</div>
+          )}
+          {!historyLoading && entries.map(entry => {
+            const changes = Array.isArray(entry.changes) ? entry.changes : []
+            const isExpanded = expandedIds.has(entry.id)
+            const COLLAPSE_LIMIT = 3
+            const needsCollapse = changes.length > COLLAPSE_LIMIT
+            const visibleChanges = isExpanded ? changes : changes.slice(0, COLLAPSE_LIMIT)
+
+            return (
+              <div key={entry.id} style={{ marginBottom: 6, padding: '4px 6px', background: '#fafaf8', borderRadius: 5, border: '1px solid #eeece6' }}>
+                <div style={{ fontSize: 10, color: '#888', marginBottom: 2 }}>
+                  {formatDateTime(entry.created_at)}
+                  {entry.user_email && <span style={{ marginLeft: 4 }}>{entry.user_email}</span>}
+                </div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#555', marginBottom: changes.length > 0 ? 3 : 0 }}>
+                  {EVENT_LABELS[entry.event] ?? entry.event}
+                  {entry.note && <span style={{ fontWeight: 400, color: '#888', marginLeft: 4 }}>{entry.note}</span>}
+                </div>
+                {visibleChanges.map((c, idx) => (
+                  <div key={idx} style={{ fontSize: 10, color: '#666', lineHeight: 1.5, paddingLeft: 4 }}>
+                    {formatChange(c)}
+                  </div>
+                ))}
+                {needsCollapse && !isExpanded && (
+                  <button
+                    onClick={() => toggleExpand(entry.id)}
+                    style={{ fontSize: 10, color: '#3d35a8', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', marginTop: 1 }}
+                  >
+                    show all ({changes.length})
+                  </button>
+                )}
+                {needsCollapse && isExpanded && (
+                  <button
+                    onClick={() => toggleExpand(entry.id)}
+                    style={{ fontSize: 10, color: '#3d35a8', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', marginTop: 1 }}
+                  >
+                    show less
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── GridPickerDialog ──────────────────────────────────────────────────────────
 // A 1-15 × 1-15 cell grid where the user hovers/clicks to choose N columns × M rows.
 // For mullion/transom: N cols × M rows → (N-1) vertical dividers + (M-1) horizontal dividers.
@@ -1131,7 +1235,12 @@ function DrawingBoard() {
   const [ironmongeryRules,    setIronmongeryRules]    = useState(null)
   const [ironmongeryProducts, setIronmongeryProducts] = useState(null)
 
-  // ── History ─────────────────────────────────────────────────────────────────
+  // ── Drawing history (audit trail) ──────────────────────────────────────────
+  const [historyEntries,  setHistoryEntries]  = useState([])
+  const [historyLoading,  setHistoryLoading]  = useState(false)
+  const [historyWarning,  setHistoryWarning]  = useState(null)
+
+  // ── Undo/Redo ──────────────────────────────────────────────────────────────
   const undoStack  = useRef([])
   const redoStack  = useRef([])
   // Snapshot of the last-saved (or initially loaded) tree for dirty comparison
@@ -1328,6 +1437,12 @@ function DrawingBoard() {
           setSelectedKey(newTree.key)
           setDirty(true)
         }
+
+        // Load drawing history
+        setHistoryLoading(true)
+        const hist = await loadDrawingHistory(Number(drawingId))
+        setHistoryEntries(hist)
+        setHistoryLoading(false)
       } catch (e) {
         setLoadError(e?.message ?? String(e))
       } finally {
@@ -1340,13 +1455,44 @@ function DrawingBoard() {
   // ── Save ─────────────────────────────────────────────────────────────────────
   async function handleSave() {
     if (!tree) return
-    setSaveStatus('saving'); setSaveError(null)
+    setSaveStatus('saving'); setSaveError(null); setHistoryWarning(null)
     try {
+      const previousTree = savedTreeRef.current
       await saveDrawingParts(Number(drawingId), tree)
       savedTreeRef.current = tree   // new clean baseline
       setDirty(false)
       setSaveStatus('saved')
       setTimeout(() => setSaveStatus(null), 2000)
+
+      // Record history (non-blocking — must not fail the save)
+      try {
+        const changes = previousTree
+          ? diffTrees(previousTree, tree, { fieldDefs, refOptions, partLabels: PART_LABELS })
+          : []
+        const event = previousTree ? 'saved' : 'created'
+        if (changes.length > 0 || !previousTree) {
+          const userId = (await supabase.auth.getUser()).data?.user?.id ?? null
+          const { error: histErr } = await insertDrawingHistory({
+            drawingId: Number(drawingId),
+            userId,
+            event,
+            changes,
+          })
+          if (histErr) {
+            console.warn('History insert failed:', histErr.message)
+            setHistoryWarning('Changes saved but history recording failed')
+            setTimeout(() => setHistoryWarning(null), 5000)
+          } else {
+            // Refresh history entries
+            const hist = await loadDrawingHistory(Number(drawingId))
+            setHistoryEntries(hist)
+          }
+        }
+      } catch (histE) {
+        console.warn('History recording error:', histE)
+        setHistoryWarning('Changes saved but history recording failed')
+        setTimeout(() => setHistoryWarning(null), 5000)
+      }
     } catch (e) {
       setSaveStatus('error')
       setSaveError(e?.message ?? String(e))
@@ -1877,6 +2023,13 @@ function DrawingBoard() {
             />
             {/* Validation */}
             <ValidationPanel tree={tree} derived={derived} onSelectKey={setSelectedKey} />
+            {/* History */}
+            <HistoryPanel entries={historyEntries} loading={historyLoading} />
+            {historyWarning && (
+              <div style={{ padding: '4px 14px', fontSize: 11, color: '#b45309', background: '#fffbeb', borderTop: '1px solid #fcd34d' }}>
+                {historyWarning}
+              </div>
+            )}
           </div>
 
         </div>

@@ -6,6 +6,7 @@
 
 import { supabase } from '../supabase.js'
 import { saveDrawingParts } from './api.js'
+import { insertDrawingHistory } from './drawingHistory.js'
 
 // ── Key regeneration ─────────────────────────────────────────────────────────
 
@@ -137,6 +138,19 @@ export async function createDrawingFromTemplate(jobItemId, template, nextDrawing
   // Copy the template tree with fresh keys and cleared values
   const freshTree = clearItemValues(regenerateKeys(template.tree))
   await saveDrawingParts(newDwg.id, freshTree)
+
+  // Record 'created_from_template' history event (non-blocking)
+  try {
+    const userId = (await supabase.auth.getUser()).data?.user?.id ?? null
+    await insertDrawingHistory({
+      drawingId: newDwg.id,
+      userId,
+      event: 'created_from_template',
+      note: `Template: ${template.name}`,
+    })
+  } catch (histE) {
+    console.warn('History insert for template creation failed:', histE)
+  }
 
   return newDwg
 }
