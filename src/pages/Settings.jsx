@@ -108,6 +108,12 @@ export default function Settings() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
+  // Users tab state
+  const [usersTabList, setUsersTabList] = useState([])
+  const [usersLoading, setUsersLoading] = useState(false)
+  const [usersSaving, setUsersSaving] = useState({})
+  const [usersSaved, setUsersSaved] = useState({})
+
   // Surveyor availability tab
   const [surveyors, setSurveyors] = useState([])
   const [availDraft, setAvailDraft] = useState({})   // { [userId]: { 1: 'full', ..., 7: 'full' } }
@@ -174,7 +180,35 @@ export default function Settings() {
   useEffect(() => {
     if (activeTab === 'surveyor_availability') fetchSurveyorAvailability()
     if (activeTab === 'quotes') fetchQuoteSettings()
+    if (activeTab === 'users') fetchUsersTab()
   }, [activeTab])
+
+  async function fetchUsersTab() {
+    setUsersLoading(true)
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, full_name, email, role, drawing_board_mode')
+      .order('full_name')
+    if (error) console.error('fetchUsersTab error:', error)
+    setUsersTabList(data || [])
+    setUsersLoading(false)
+  }
+
+  async function handleUserModeChange(userId, newMode) {
+    setUsersSaving(prev => ({ ...prev, [userId]: true }))
+    const { error } = await supabase
+      .from('users')
+      .update({ drawing_board_mode: newMode })
+      .eq('id', userId)
+    setUsersSaving(prev => ({ ...prev, [userId]: false }))
+    if (error) {
+      console.error('Error saving user mode:', error)
+    } else {
+      setUsersTabList(prev => prev.map(u => u.id === userId ? { ...u, drawing_board_mode: newMode } : u))
+      setUsersSaved(prev => ({ ...prev, [userId]: true }))
+      setTimeout(() => setUsersSaved(prev => ({ ...prev, [userId]: false })), 2500)
+    }
+  }
 
   async function fetchSignature() {
     setLoading(true)
@@ -655,7 +689,7 @@ export default function Settings() {
 
         {/* Tab bar */}
         <div style={{ display: 'flex', gap: 2, padding: '0 20px', background: '#fff', borderBottom: '1px solid #e8e6e0', flexShrink: 0 }}>
-          {[['email_signature', 'Email signature'], ['surveyor_availability', 'Surveyor availability'], ['quotes', 'Quotes']].map(([id, label]) => (
+          {[['email_signature', 'Email signature'], ['surveyor_availability', 'Surveyor availability'], ['quotes', 'Quotes'], ['users', 'Users']].map(([id, label]) => (
             <div
               key={id}
               onClick={() => setActiveTab(id)}
@@ -1267,6 +1301,57 @@ export default function Settings() {
                     </div>
                   )}
                 </>
+              )}
+            </div>
+          )}
+          {activeTab === 'users' && (
+            <div style={{ maxWidth: 900 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Users</div>
+              <div style={{ fontSize: 13, color: '#888', marginBottom: 20, lineHeight: 1.5 }}>
+                Set the drawing board mode for each user. Sales/Survey locks them to that mode; Switch lets them choose on the drawing board.
+              </div>
+
+              {usersLoading ? (
+                <div style={{ color: '#aaa', fontSize: 13, padding: '20px 0' }}>Loading...</div>
+              ) : usersTabList.length === 0 ? (
+                <div style={{ color: '#aaa', fontSize: 13 }}>No users found.</div>
+              ) : (
+                <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: '#faf9f7' }}>
+                      <th style={{ textAlign: 'left', padding: '8px 12px', color: '#888', borderBottom: '1px solid #eeece8', fontWeight: 500 }}>Name</th>
+                      <th style={{ textAlign: 'left', padding: '8px 12px', color: '#888', borderBottom: '1px solid #eeece8', fontWeight: 500 }}>Email</th>
+                      <th style={{ textAlign: 'left', padding: '8px 12px', color: '#888', borderBottom: '1px solid #eeece8', fontWeight: 500 }}>Role</th>
+                      <th style={{ textAlign: 'left', padding: '8px 12px', color: '#888', borderBottom: '1px solid #eeece8', fontWeight: 500 }}>Drawing board mode</th>
+                      <th style={{ width: 60, borderBottom: '1px solid #eeece8' }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {usersTabList.map(u => (
+                      <tr key={u.id} style={{ borderBottom: '1px solid #f5f4f0' }}>
+                        <td style={{ padding: '8px 12px' }}>{u.full_name || '--'}</td>
+                        <td style={{ padding: '8px 12px', color: '#888' }}>{u.email}</td>
+                        <td style={{ padding: '8px 12px' }}>{u.role || '--'}</td>
+                        <td style={{ padding: '8px 12px' }}>
+                          <select
+                            value={u.drawing_board_mode || 'switch'}
+                            onChange={e => handleUserModeChange(u.id, e.target.value)}
+                            disabled={usersSaving[u.id]}
+                            style={{ fontSize: 12, padding: '5px 8px', border: '1px solid #d8d5cf', borderRadius: 6, outline: 'none', background: '#fff' }}
+                          >
+                            <option value="sales">Sales</option>
+                            <option value="survey">Survey</option>
+                            <option value="switch">Switch</option>
+                          </select>
+                        </td>
+                        <td style={{ padding: '8px 12px' }}>
+                          {usersSaving[u.id] && <span style={{ fontSize: 11, color: '#888' }}>Saving...</span>}
+                          {usersSaved[u.id] && <span style={{ fontSize: 11, color: '#0a5a3c', fontWeight: 500 }}>Saved</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               )}
             </div>
           )}

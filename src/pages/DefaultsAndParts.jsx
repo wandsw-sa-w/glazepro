@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
@@ -67,8 +67,27 @@ export default function DefaultsAndParts() {
   const [children, setChildren] = useState([]) // rows from part_type_children
   const [childError, setChildError] = useState('')
 
+  // Page-level tab: 'defaults' (existing two-panel) | 'visibility' (field visibility grid)
+  const [pageTab, setPageTab] = useState('defaults')
+
+  // Field Visibility grid state
+  const [visFields, setVisFields]     = useState([])      // all active field defs
+  const [visProfiles, setVisProfiles] = useState([])       // profiles with display_name
+  const [visRows, setVisRows]         = useState({})       // { `${profileId}:${fieldKey}`: visibility }
+  const [visLoading, setVisLoading]   = useState(false)
+  const [visSavedKey, setVisSavedKey] = useState(null)
+  const [visErrorKey, setVisErrorKey] = useState(null)
+  const [visFilter, setVisFilter]     = useState('')
+  const [visPartFilter, setVisPartFilter] = useState('')   // '' = all
+  const [visOnlyDiff, setVisOnlyDiff] = useState(false)    // only fields that differ from 'shown'
+  const [visSelected, setVisSelected] = useState(new Set()) // selected field_keys for bulk action
+  const [visBulkProfile, setVisBulkProfile] = useState('')
+  const [visBulkValue, setVisBulkValue]     = useState('shown')
+  const visSavedTimerRef = useRef(null)
+
   useEffect(() => { fetchPartTypes() }, [])
   useEffect(() => { fetchProfiles() }, [])
+  useEffect(() => { if (pageTab === 'visibility') fetchVisibilityData() }, [pageTab])
 
   async function fetchPartTypes() {
     setLoadingParts(true)
@@ -94,6 +113,79 @@ export default function DefaultsAndParts() {
     // TODO: remove after diagnosing
     console.log('[fetchProfiles] result:', { rowCount: data?.length, rows: data, error })
     setProfiles(data || [])
+  }
+
+  // ── Field Visibility grid ─────────────────────────────────────────────────────
+
+  async function fetchVisibilityData() {
+    setVisLoading(true)
+    const [{ data: defs, error: defsErr }, { data: profs, error: profsErr }, { data: rows, error: rowsErr }] = await Promise.all([
+      supabase.from('default_field_definitions').select('part_type, field_key, label, is_required, role').eq('is_active', true).order('sort_order'),
+      supabase.from('default_profiles').select('id, code, display_name, label').eq('is_active', true).order('sort_order'),
+      supabase.from('field_visibility').select('profile_id, field_key, visibility'),
+    ])
+    if (defsErr || profsErr || rowsErr) {
+      console.error('fetchVisibilityData errors:', defsErr, profsErr, rowsErr)
+    }
+    setVisFields(defs || [])
+    setVisProfiles(profs || [])
+    const rowMap = {}
+    for (const r of (rows || [])) { rowMap[`${r.profile_id}:${r.field_key}`] = r.visibility }
+    setVisRows(rowMap)
+    setVisLoading(false)
+  }
+
+  async function handleVisCellChange(profileId, fieldKey, newValue) {
+    const key = `${profileId}:${fieldKey}`
+    setVisRows(prev => ({ ...prev, [key]: newValue }))
+    setVisSavedKey(null)
+    setVisErrorKey(null)
+
+    const { error } = newValue === 'shown'
+      ? await supabase.from('field_visibility').delete().eq('profile_id', profileId).eq('field_key', fieldKey)
+      : await supabase.from('field_visibility').upsert(
+          { profile_id: profileId, field_key: fieldKey, visibility: newValue, updated_at: new Date().toISOString(), updated_by: user?.email },
+          { onConflict: 'profile_id,field_key' }
+        )
+
+    if (error) {
+      console.error('handleVisCellChange error:', error)
+      setVisErrorKey(key)
+      setTimeout(() => setVisErrorKey(null), 3000)
+    } else {
+      setVisSavedKey(key)
+      if (visSavedTimerRef.current) clearTimeout(visSavedTimerRef.current)
+      visSavedTimerRef.current = setTimeout(() => setVisSavedKey(null), 2000)
+    }
+  }
+
+  async function handleVisBulkAction() {
+    if (!visBulkProfile || visSelected.size === 0) return
+    const profileId = visBulkProfile
+    const newValue = visBulkValue
+    setVisSavedKey(null)
+    setVisErrorKey(null)
+
+    for (const fieldKey of visSelected) {
+      const key = `${profileId}:${fieldKey}`
+      setVisRows(prev => ({ ...prev, [key]: newValue }))
+
+      const { error } = newValue === 'shown'
+        ? await supabase.from('field_visibility').delete().eq('profile_id', profileId).eq('field_key', fieldKey)
+        : await supabase.from('field_visibility').upsert(
+            { profile_id: profileId, field_key: fieldKey, visibility: newValue, updated_at: new Date().toISOString(), updated_by: user?.email },
+            { onConflict: 'profile_id,field_key' }
+          )
+
+      if (error) {
+        console.error('Bulk action error:', error)
+        setVisErrorKey(key)
+      }
+    }
+    setVisSavedKey('bulk')
+    if (visSavedTimerRef.current) clearTimeout(visSavedTimerRef.current)
+    visSavedTimerRef.current = setTimeout(() => setVisSavedKey(null), 2000)
+    setVisSelected(new Set())
   }
 
   async function selectPartType(pt) {
@@ -393,7 +485,21 @@ export default function DefaultsAndParts() {
           <div style={{ fontSize: 15, fontWeight: 600 }}>Defaults &amp; Parts</div>
         </div>
 
-        {/* Two-panel area */}
+        {/* Page-level tab bar */}
+        <div style={{ display: 'flex', gap: 2, padding: '0 20px', background: '#fff', borderBottom: '1px solid #e8e6e0', flexShrink: 0 }}>
+          {[['defaults', 'Defaults & Parts'], ['visibility', 'Field Visibility']].map(([id, label]) => (
+            <div
+              key={id}
+              onClick={() => setPageTab(id)}
+              style={{ padding: '10px 16px', fontSize: 13, color: pageTab === id ? '#3d35a8' : '#888', cursor: 'pointer', borderBottom: pageTab === id ? '2px solid #3d35a8' : '2px solid transparent', fontWeight: 500 }}
+            >
+              {label}
+            </div>
+          ))}
+        </div>
+
+        {pageTab === 'defaults' && (
+        /* Two-panel area */
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
           {/* ── Left panel – Part Types ────────────────────────────────── */}
@@ -529,9 +635,163 @@ export default function DefaultsAndParts() {
           </div>
 
         </div>
+        )}
+
+        {/* Field Visibility grid */}
+        {pageTab === 'visibility' && (
+          <div style={{ flex: 1, overflow: 'auto', padding: 20 }}>
+            {visLoading ? (
+              <div style={{ textAlign: 'center', color: '#aaa', padding: 48, fontSize: 13 }}>Loading...</div>
+            ) : (
+              <>
+                {/* Filters */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+                  <input
+                    value={visFilter}
+                    onChange={e => setVisFilter(e.target.value)}
+                    placeholder="Search field name..."
+                    style={{ fontSize: 13, padding: '6px 10px', border: '1px solid #d8d5cf', borderRadius: 8, outline: 'none', background: '#fff', width: 220, boxSizing: 'border-box' }}
+                  />
+                  <select
+                    value={visPartFilter}
+                    onChange={e => setVisPartFilter(e.target.value)}
+                    style={{ fontSize: 12, padding: '6px 10px', border: '1px solid #d8d5cf', borderRadius: 8, outline: 'none' }}
+                  >
+                    <option value="">All part types</option>
+                    {[...new Set(visFields.map(f => f.part_type))].map(pt => (
+                      <option key={pt} value={pt}>{pt}</option>
+                    ))}
+                  </select>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#555', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={visOnlyDiff} onChange={e => setVisOnlyDiff(e.target.checked)} />
+                    Only fields that differ from Shown
+                  </label>
+                </div>
+
+                {/* Bulk action */}
+                {visSelected.size > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '8px 12px', background: '#f5f4f0', borderRadius: 8 }}>
+                    <span style={{ fontSize: 12, fontWeight: 500, color: '#555' }}>{visSelected.size} field(s) selected</span>
+                    <select value={visBulkProfile} onChange={e => setVisBulkProfile(e.target.value)} style={{ fontSize: 12, padding: '4px 8px', border: '1px solid #d8d5cf', borderRadius: 6, outline: 'none' }}>
+                      <option value="">Select profile...</option>
+                      {visProfiles.map(p => <option key={p.id} value={p.id}>{p.display_name || p.label}</option>)}
+                    </select>
+                    <select value={visBulkValue} onChange={e => setVisBulkValue(e.target.value)} style={{ fontSize: 12, padding: '4px 8px', border: '1px solid #d8d5cf', borderRadius: 6, outline: 'none' }}>
+                      <option value="shown">Shown</option>
+                      <option value="hidden_sales">Sales hidden</option>
+                      <option value="hidden_survey">Survey hidden</option>
+                      <option value="hidden_always">Hidden</option>
+                    </select>
+                    <button onClick={handleVisBulkAction} disabled={!visBulkProfile} style={{ fontSize: 12, padding: '4px 12px', border: 'none', borderRadius: 6, background: visBulkProfile ? '#3d35a8' : '#ccc', color: '#fff', cursor: visBulkProfile ? 'pointer' : 'default', fontWeight: 500 }}>
+                      Apply
+                    </button>
+                    <button onClick={() => setVisSelected(new Set())} style={{ fontSize: 12, padding: '4px 8px', border: '1px solid #d8d5cf', borderRadius: 6, background: '#fff', cursor: 'pointer', color: '#555' }}>
+                      Clear
+                    </button>
+                    {visSavedKey === 'bulk' && <span style={{ fontSize: 11, color: '#2a7a40', fontWeight: 500 }}>Saved</span>}
+                  </div>
+                )}
+
+                {/* Grid */}
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ borderCollapse: 'collapse', fontSize: 12, width: '100%', minWidth: 600 }}>
+                    <thead>
+                      <tr style={{ background: '#faf9f7' }}>
+                        <th style={{ padding: '6px 8px', textAlign: 'left', color: '#888', borderBottom: '1px solid #e8e6e0', width: 30 }}>
+                          <input
+                            type="checkbox"
+                            checked={visSelected.size > 0 && visSelected.size === filteredVisFields().length}
+                            onChange={e => {
+                              if (e.target.checked) {
+                                setVisSelected(new Set(filteredVisFields().map(f => f.field_key)))
+                              } else {
+                                setVisSelected(new Set())
+                              }
+                            }}
+                          />
+                        </th>
+                        <th style={{ padding: '6px 8px', textAlign: 'left', color: '#888', borderBottom: '1px solid #e8e6e0', whiteSpace: 'nowrap' }}>Part Type</th>
+                        <th style={{ padding: '6px 8px', textAlign: 'left', color: '#888', borderBottom: '1px solid #e8e6e0' }}>Field</th>
+                        {visProfiles.map(p => (
+                          <th key={p.id} style={{ padding: '6px 8px', textAlign: 'center', color: '#888', borderBottom: '1px solid #e8e6e0', whiteSpace: 'nowrap', minWidth: 100 }}>
+                            {p.display_name || p.label}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredVisFields().map(f => (
+                        <tr key={f.field_key} style={{ borderBottom: '1px solid #f0eeea' }}>
+                          <td style={{ padding: '4px 8px' }}>
+                            <input
+                              type="checkbox"
+                              checked={visSelected.has(f.field_key)}
+                              onChange={e => {
+                                setVisSelected(prev => {
+                                  const next = new Set(prev)
+                                  if (e.target.checked) next.add(f.field_key); else next.delete(f.field_key)
+                                  return next
+                                })
+                              }}
+                            />
+                          </td>
+                          <td style={{ padding: '4px 8px', color: '#888', whiteSpace: 'nowrap' }}>{f.part_type}</td>
+                          <td style={{ padding: '4px 8px', fontWeight: 500 }}>{f.label}</td>
+                          {visProfiles.map(p => {
+                            const cellKey = `${p.id}:${f.field_key}`
+                            const val = visRows[cellKey] || 'shown'
+                            return (
+                              <td key={p.id} style={{ padding: '4px 6px', textAlign: 'center' }}>
+                                <select
+                                  value={val}
+                                  onChange={e => handleVisCellChange(p.id, f.field_key, e.target.value)}
+                                  style={{
+                                    fontSize: 11, padding: '2px 4px', border: '1px solid #d8d5cf', borderRadius: 4, outline: 'none', width: '100%',
+                                    background: visSavedKey === cellKey ? '#eaf6ee' : visErrorKey === cellKey ? '#fef2f2' : '#fff',
+                                    color: val === 'shown' ? '#888' : '#3d35a8',
+                                    fontWeight: val === 'shown' ? 400 : 600,
+                                  }}
+                                >
+                                  <option value="shown">Shown</option>
+                                  <option value="hidden_sales">Sales hidden</option>
+                                  <option value="hidden_survey">Survey hidden</option>
+                                  <option value="hidden_always">Hidden</option>
+                                </select>
+                              </td>
+                            )
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
+
+  function filteredVisFields() {
+    let result = visFields.filter(f => f.role !== 'config')
+    if (visFilter) {
+      const q = visFilter.toLowerCase()
+      result = result.filter(f => f.label.toLowerCase().includes(q) || f.field_key.toLowerCase().includes(q))
+    }
+    if (visPartFilter) {
+      result = result.filter(f => f.part_type === visPartFilter)
+    }
+    if (visOnlyDiff) {
+      result = result.filter(f => {
+        return visProfiles.some(p => {
+          const v = visRows[`${p.id}:${f.field_key}`]
+          return v && v !== 'shown'
+        })
+      })
+    }
+    return result
+  }
 }
 
 // ─── FieldsTab ─────────────────────────────────────────────────────────────────
