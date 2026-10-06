@@ -121,6 +121,17 @@ export async function listAllTemplates() {
  * @returns {Promise<object>} the new drawings row
  */
 export async function createDrawingFromTemplate(jobItemId, template, nextDrawingNumber) {
+  // Resolve profile id: use the template's, or fall back to the sash profile
+  // (same fallback as the quick "Sash" button — see defaultProfile.js)
+  let profileId = template.default_profile_id ?? null
+  if (!profileId) {
+    const { data: profiles } = await supabase
+      .from('default_profiles')
+      .select('id, code')
+      .eq('is_active', true)
+    profileId = (profiles || []).find(p => p.code === 'sash')?.id ?? null
+  }
+
   // Insert the drawings row
   const { data: newDwg, error } = await supabase
     .from('drawings')
@@ -129,7 +140,7 @@ export async function createDrawingFromTemplate(jobItemId, template, nextDrawing
       drawing_number: nextDrawingNumber,
       sort_order: nextDrawingNumber,
       window_type: template.window_type ?? 'Box Sash',
-      default_profile_id: template.default_profile_id ?? null,
+      default_profile_id: profileId,
     })
     .select()
     .single()

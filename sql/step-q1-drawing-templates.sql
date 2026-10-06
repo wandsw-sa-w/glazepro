@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS public.drawing_templates (
   family             text    NOT NULL CHECK (family IN ('sash', 'casement', 'door', 'free_text')),
   group_name         text    NOT NULL DEFAULT '',
   sort_order         int     NOT NULL DEFAULT 0,
-  default_profile_id uuid,
+  default_profile_id bigint,  -- corrected from uuid; step-r0 fixes existing databases
   window_type        text,
   tree               jsonb   NOT NULL DEFAULT '{}'::jsonb,
   is_active          boolean NOT NULL DEFAULT true,

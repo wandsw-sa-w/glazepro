@@ -1470,7 +1470,7 @@ function DrawingBoard() {
         // Fetch drawing metadata (for top bar)
         const { data: dwg, error: dwgErr } = await supabase
           .from('drawings')
-          .select('id, drawing_number, window_type, job_item_id')
+          .select('id, drawing_number, window_type, job_item_id, default_profile_id')
           .eq('id', Number(drawingId))
           .maybeSingle()
         if (dwgErr) throw dwgErr

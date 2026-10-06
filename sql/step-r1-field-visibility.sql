@@ -11,7 +11,7 @@ BEGIN;
 
 CREATE TABLE IF NOT EXISTS public.field_visibility (
   id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  profile_id  uuid        NOT NULL REFERENCES public.default_profiles(id) ON DELETE CASCADE,
+  profile_id  bigint      NOT NULL REFERENCES public.default_profiles(id) ON DELETE CASCADE,
   field_key   text        NOT NULL,
   visibility  text        NOT NULL DEFAULT 'shown'
                           CHECK (visibility IN ('shown','hidden_sales','hidden_survey','hidden_always')),

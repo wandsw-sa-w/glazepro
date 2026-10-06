@@ -166,3 +166,32 @@ describe('clearItemValues', () => {
     expect(clearItemValues(null)).toBeNull()
   })
 })
+
+// ── Template profile_id ─────────────────────────────────────────────────────
+
+describe('template profile_id handling', () => {
+  it('saveAsTemplate stores the drawing default_profile_id (source check)', async () => {
+    const fs = await import('fs')
+    const source = fs.readFileSync('src/drawingBoard/templates.js', 'utf-8')
+    // The insert must use drawingMeta.default_profile_id
+    expect(source).toContain('default_profile_id: drawingMeta?.default_profile_id')
+  })
+
+  it('DrawingBoard loads default_profile_id in drawingMeta (source check)', async () => {
+    const fs = await import('fs')
+    const source = fs.readFileSync('src/pages/DrawingBoard.jsx', 'utf-8')
+    // The select must include default_profile_id
+    expect(source).toMatch(/select\([^)]*default_profile_id/)
+  })
+
+  it('createDrawingFromTemplate falls back to sash profile when template has no profile (source check)', async () => {
+    const fs = await import('fs')
+    const source = fs.readFileSync('src/drawingBoard/templates.js', 'utf-8')
+    // The function must look up the sash profile as fallback
+    const fnBlock = source.slice(source.indexOf('async function createDrawingFromTemplate'))
+    expect(fnBlock).toContain("code === 'sash'")
+    // It must never insert null for default_profile_id — the profileId variable
+    // is set to the fallback before the insert
+    expect(fnBlock).toContain('default_profile_id: profileId')
+  })
+})
