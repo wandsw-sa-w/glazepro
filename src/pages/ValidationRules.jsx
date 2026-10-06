@@ -535,11 +535,16 @@ export default function ValidationRules() {
                         display: 'flex', gap: 10, alignItems: 'flex-start',
                       }}
                     >
-                      {/* Severity dot */}
-                      <div style={{
-                        width: 8, height: 8, borderRadius: 4,
-                        background: sev.dot, flexShrink: 0, marginTop: 5,
-                      }} />
+                      {/* Severity dot + label */}
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, flexShrink: 0, marginTop: 3, minWidth: 24 }}>
+                        <div style={{
+                          width: 8, height: 8, borderRadius: 4,
+                          background: sev.dot,
+                        }} />
+                        <span style={{ fontSize: 8, fontWeight: 600, color: sev.dot, textTransform: 'capitalize', lineHeight: 1 }}>
+                          {rule.severity === 'information' ? 'Information' : rule.severity === 'warning' ? 'Warning' : 'Error'}
+                        </span>
+                      </div>
 
                       <div style={{ flex: 1, minWidth: 0 }}>
                         {/* Name + active state */}
