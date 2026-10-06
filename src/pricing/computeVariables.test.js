@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { computeVariables } from './computeVariables.js'
+import { computeVariables, computeQuoteVariables } from './computeVariables.js'
 import { computeDerived } from '../drawingBoard/computeDerived.js'
 
 // ── Fixture helpers ───────────────────────────────────────────────────────────
@@ -447,5 +447,185 @@ describe('computeVariables — new_cill_qty for cill-only replacement', () => {
     const vars    = computeVariables(tree, derived)
     expect(vars.new_cill_qty).toBe(0)
     expect(vars.is_complete_new).toBe(true)
+  })
+})
+
+// ── New validation-unblocking variables ─────────────────────────────────────
+
+describe('computeVariables — is_solid_redwood_cill', () => {
+  it('is true when cillMaterialId is solid_redwood', () => {
+    const tree = makeBoxSashTree({ item: { cillMaterialId: 'solid_redwood' } })
+    const derived = computeDerived(tree)
+    const vars = computeVariables(tree, derived)
+    expect(vars.is_solid_redwood_cill).toBe(true)
+  })
+
+  it('is false when cillMaterialId is solid_utile_hardwood', () => {
+    const tree = makeBoxSashTree()
+    const derived = computeDerived(tree)
+    const vars = computeVariables(tree, derived)
+    expect(vars.is_solid_redwood_cill).toBe(false)
+  })
+})
+
+describe('computeVariables — glass_unit_thickness (item-level)', () => {
+  it('is 0 when no pane thicknesses are set', () => {
+    const tree = makeBoxSashTree()
+    const derived = computeDerived(tree)
+    const vars = computeVariables(tree, derived)
+    // No innerPaneThickness/outerPaneThickness/spacerHeight on glassPart
+    expect(vars.glass_unit_thickness).toBe(0)
+  })
+
+  it('computes correctly when pane thicknesses and spacer are set', () => {
+    const tree = makeBoxSashTree({
+      topGlass: { innerPaneThickness: 4, outerPaneThickness: 4, spacerHeight: 16 },
+    })
+    const derived = computeDerived(tree)
+    const vars = computeVariables(tree, derived)
+    expect(vars.glass_unit_thickness).toBe(24)  // 4 + 16 + 4
+  })
+})
+
+describe('computeVariables — frame_depth', () => {
+  it('comes from the frame part in metres', () => {
+    const tree = makeBoxSashTree()
+    const derived = computeDerived(tree)
+    const vars = computeVariables(tree, derived)
+    expect(vars.frame_depth).toBe(0.165)  // 165mm -> 0.165m
+  })
+})
+
+describe('computeVariables — is_docl alias', () => {
+  it('is false when doc_l not set', () => {
+    const tree = makeBoxSashTree()
+    const derived = computeDerived(tree)
+    const vars = computeVariables(tree, derived)
+    expect(vars.is_docl).toBe(false)
+    expect(vars.is_doc_l).toBe(false)
+  })
+
+  it('is true when item doc_l is true', () => {
+    const tree = makeBoxSashTree({ item: { doc_l: true } })
+    const derived = computeDerived(tree)
+    const vars = computeVariables(tree, derived)
+    expect(vars.is_docl).toBe(true)
+    expect(vars.is_doc_l).toBe(true)
+  })
+})
+
+describe('computeVariables — oak and idigbo material flags', () => {
+  it('detects oak cill', () => {
+    const tree = makeBoxSashTree({ item: { cillMaterialId: 'oak' } })
+    const vars = computeVariables(tree, computeDerived(tree))
+    expect(vars.is_oak_cill).toBe(true)
+  })
+
+  it('detects idigbo frame and sash', () => {
+    const tree = makeBoxSashTree({
+      item: { frameMaterialId: 'idigbo', sashMaterialId: 'idigbo' },
+    })
+    const vars = computeVariables(tree, computeDerived(tree))
+    expect(vars.is_idigbo_frame).toBe(true)
+    expect(vars.is_idigbo_sash).toBe(true)
+  })
+})
+
+describe('computeVariables — glass_unit_qty', () => {
+  it('counts glass parts in the tree', () => {
+    const tree = makeBoxSashTree()
+    const vars = computeVariables(tree, computeDerived(tree))
+    expect(vars.glass_unit_qty).toBe(2)  // 1 top + 1 bottom
+  })
+})
+
+describe('computeVariables — cill_depth and cill_height', () => {
+  it('computes cill dimensions in metres', () => {
+    const tree = makeBoxSashTree()
+    const vars = computeVariables(tree, computeDerived(tree))
+    expect(vars.cill_depth).toBe(0.2)   // 200mm -> 0.2m
+    expect(vars.cill_height).toBe(0.07) // 70mm -> 0.07m
+  })
+})
+
+describe('computeVariables — gb_qty alias', () => {
+  it('equals total_glazing_bar_count', () => {
+    const tree = makeBoxSashTree({
+      topGlass: { barsWide: 2, barsHigh: 1 },
+      botGlass: { barsWide: 2, barsHigh: 1 },
+    })
+    const vars = computeVariables(tree, computeDerived(tree))
+    expect(vars.gb_qty).toBe(vars.total_glazing_bar_count)
+    expect(vars.gb_qty).toBe(6)
+  })
+})
+
+describe('computeVariables — sash_thickness alias', () => {
+  it('equals sashThickness from pair', () => {
+    const tree = makeBoxSashTree()
+    const vars = computeVariables(tree, computeDerived(tree))
+    expect(vars.sash_thickness).toBe(45)
+  })
+})
+
+describe('computeVariables — new_sash_with_curved_head_qty', () => {
+  it('is 0 when no curved heads', () => {
+    const tree = makeBoxSashTree()
+    const vars = computeVariables(tree, computeDerived(tree))
+    expect(vars.new_sash_with_curved_head_qty).toBe(0)
+  })
+})
+
+describe('computeVariables — stub variables present', () => {
+  const tree = makeBoxSashTree()
+  const vars = computeVariables(tree, computeDerived(tree))
+
+  it('surround_row_qty is 0', () => expect(vars.surround_row_qty).toBe(0))
+  it('encapsulated_leaded_light_qty is 0', () => expect(vars.encapsulated_leaded_light_qty).toBe(0))
+  it('eq_glazing_is_out is false', () => expect(vars.eq_glazing_is_out).toBe(false))
+  it('is_survey_drawing is false', () => expect(vars.is_survey_drawing).toBe(false))
+  it('is_surveyor_specified is false', () => expect(vars.is_surveyor_specified).toBe(false))
+  it('has_unmodified_default_measurement is false', () => expect(vars.has_unmodified_default_measurement).toBe(false))
+  it('internal_finish and external_finish are set', () => {
+    expect(vars.internal_finish).toBe('clean_white')
+    expect(vars.external_finish).toBe('clean_white')
+  })
+})
+
+// ── Quote-level variables ───────────────────────────────────────────────────
+
+describe('computeQuoteVariables', () => {
+  it('counts items', () => {
+    const tree1 = makeBoxSashTree()
+    const tree2 = makeBoxSashTree({ item: { cillMaterialId: 'solid_redwood' } })
+    const vars1 = computeVariables(tree1, computeDerived(tree1))
+    const vars2 = computeVariables(tree2, computeDerived(tree2))
+    const qv = computeQuoteVariables([vars1, vars2])
+
+    expect(qv.item_qty).toBe(2)
+    expect(qv.item_installed_by_us_qty).toBe(2)
+    expect(qv.item_qty_with_solid_redwood_cill).toBe(1)
+    expect(qv.item_qty_with_solid_utile_hardwood_cill).toBe(1)
+  })
+
+  it('defaults quote_margin to 1000', () => {
+    const qv = computeQuoteVariables([])
+    expect(qv.quote_margin).toBe(1000)
+  })
+
+  it('uses quoteContext overrides', () => {
+    const qv = computeQuoteVariables([], {
+      status: 'draft',
+      pricefileNo: 30,
+      latestPricefileNo: 31,
+      isPricefileRetired: true,
+      quoteMargin: 1100,
+    })
+    expect(qv.is_open_quote).toBe(false)
+    expect(qv.quote_pricefile_no).toBe(30)
+    expect(qv.latest_pricefile_no).toBe(31)
+    expect(qv.is_pricefile_retired).toBe(true)
+    expect(qv.quote_margin).toBe(1100)
+    expect(qv.user_can_access_all_quotes).toBe(true)
   })
 })

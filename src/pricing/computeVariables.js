@@ -131,6 +131,14 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
     const is_cill_redwood                = cmat === 'solid_redwood'
     const is_solid_utile_hardwood_cill   = is_cill_hardwood
 
+    // Additional material flags needed by validation rules
+    const is_solid_redwood_cill   = cmat === 'solid_redwood'
+    const is_oak_cill             = cmat === 'oak'
+    const is_oak_sash             = smat === 'oak'
+    const is_oak_frame            = fmat === 'oak'
+    const is_idigbo_frame         = fmat === 'idigbo'
+    const is_idigbo_sash          = smat === 'idigbo'
+
     // Integrate aliases
     const is_accoya_frame = is_frame_accoya
     const is_accoya_sash  = is_sash_accoya
@@ -236,7 +244,8 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
 
     const cut_back_plaster                 = false  // NEEDS-DATA: notesPart.cutBackPlaster not yet mapped
     const has_trickle_vent                 = false  // NEEDS-DATA: not yet in parts tree
-    const is_doc_l                         = false  // NEEDS-DATA
+    const is_doc_l                         = item?.values?.doc_l === true
+    const is_docl                          = is_doc_l  // Integrate alias (rules use is_docl)
     const is_casement_window_bay           = false  // NEEDS-DATA
     const is_varnished_or_stained          = false  // NEEDS-DATA: finish codes not defined yet
     const sash_muntin_to_be_replaced_qty   = 0     // NEEDS-DATA: muntin data not yet captured
@@ -351,6 +360,74 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
         return cs + (bW + 1) * (bH + 1)
       }, 0), 0) || 1
     const total_pane_count = top_sash_pane_count + bottom_sash_pane_count
+
+    // ── GROUP 10b — Glass unit aggregates ───────────────────────────────────────
+    // glass_unit_qty: count of glassPart nodes in the tree
+    const glass_unit_qty = allGlassParts.length
+
+    // glass_unit_thickness (item-level): sum of layers for the first double-glazed unit.
+    // Per-unit values are computed in validate.js per-part loops.
+    // Item-level: use spacerHeight + pane thicknesses from glassPart values.
+    const _firstDGlass = allGlassParts.find(g => g.values?.glazingId === 'double_glazed')
+    const glass_unit_thickness = _firstDGlass
+      ? (Number(_firstDGlass.values?.innerPaneThickness ?? 0) +
+         Number(_firstDGlass.values?.spacerHeight ?? 0) +
+         Number(_firstDGlass.values?.outerPaneThickness ?? 0))
+      : 0
+
+    // ── GROUP 10c — Frame / cill dimensions in metres ─────────────────────────
+    // frame_depth: from assemblyFramePart.values.frameDepth, in metres
+    const frame_depth = frame?.values?.frameDepth != null
+      ? frame.values.frameDepth / 1000 : null
+
+    // cill_depth: from cillPart.values.depth, in metres
+    const cill_depth = cill?.values?.depth != null
+      ? cill.values.depth / 1000 : null
+
+    // cill_height: from cillPart.values.height, in metres
+    const cill_height = cill?.values?.height != null
+      ? cill.values.height / 1000 : null
+
+    // ── GROUP 10d — Moulding / glazing bar ────────────────────────────────────
+    const mouldingNode = findFirst(tree, 'mouldingPart')
+    const mouldingProfile = (mouldingNode?.values?.profile ?? '').toLowerCase()
+    const is_lambs_tongue_moulding = mouldingProfile === 'lambs_tongue'
+
+    // gb_qty: total glazing bar count (alias for total_glazing_bar_count)
+    const gb_qty = total_glazing_bar_count
+
+    // gb_width: glazing bar width from mouldingPart or first bar node
+    const _firstBar = allGlassParts.reduce((found, g) => {
+      if (found) return found
+      return (g.children ?? []).find(c =>
+        c.part_type === 'verticalGlazingBarPart' || c.part_type === 'horizontalGlazingBarPart')
+    }, null)
+    const gb_width = mouldingNode?.values?.glazingBarWidth ?? _firstBar?.values?.barWidth ?? 0
+
+    // ── GROUP 10e — Sash geometry aliases ─────────────────────────────────────
+    // sash_thickness: from sashPairPart.values.sashThickness (also sash_replacement_thickness)
+    const sash_thickness = pair?.values?.sashThickness ?? 0
+
+    // ── GROUP 10f — Curved head / special counts ──────────────────────────────
+    const new_sash_with_curved_head_qty = [...allTopSashes, ...allBotSashes].filter(
+      s => s.values?.curvedSashHead === true &&
+        (is_complete_new || s.values?.toBeReplaced === true)
+    ).length
+
+    // ── GROUP 10g — Finish raw codes ──────────────────────────────────────────
+    // internal_finish / external_finish: raw codes for validation
+    const internal_finish = internalFinish
+    const external_finish = externalFinish
+
+    // ── GROUP 10h — Stubs for features not yet built ──────────────────────────
+    const surround_row_qty = 0                      // surround allocation not built
+    const encapsulated_leaded_light_qty = 0          // leaded lights not built
+    const sliding_sash_with_restricted_travel_qty = 0 // travel calculation not built
+    const has_unmodified_default_measurement = false  // default measurement tracking not built
+    const unmodified_default_measurement_text = ''    // same
+    const eq_glazing_is_out = false                   // feature not built
+    const is_survey_drawing = false                   // survey mode not built
+    const is_surveyor_specified = false                // survey mode not built
 
     // ── GROUP 11 — Counts ─────────────────────────────────────────────────────
     const sliding_sash_qty  = allTopSashes.length + allBotSashes.length
@@ -560,6 +637,8 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
       is_sash_redwood, is_sash_accoya, is_solid_redwood_sash,
       is_solid_utile_hardwood_sash, is_sash_engineered_accoya,
       is_cill_hardwood, is_cill_accoya, is_cill_redwood, is_solid_utile_hardwood_cill,
+      is_solid_redwood_cill, is_oak_cill, is_oak_sash, is_oak_frame,
+      is_idigbo_frame, is_idigbo_sash,
       is_accoya_frame, is_accoya_sash,  // Integrate aliases
 
       // Group 4 — Jamb type
@@ -597,7 +676,7 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
       horn_length_in_mm, has_custom_horn_horn,
       is_double_box_sash_window, is_triple_box_sash_window, is_venetian_sash_window,
       cut_back_plaster, cut_out_brick_reveal,
-      has_trickle_vent, is_doc_l,
+      has_trickle_vent, is_doc_l, is_docl,
       is_casement_window_bay, is_varnished_or_stained,
       gb_to_be_replaced_qty, gb_cruciform_joint_to_be_replaced_qty,
       sash_muntin_to_be_replaced_qty,
@@ -621,6 +700,30 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
       top_sash_glazing_bar_count, bottom_sash_glazing_bar_count,
       total_glazing_bar_count, has_glazing_bars,
       top_sash_pane_count, bottom_sash_pane_count, total_pane_count,
+
+      // Group 10b — Glass unit aggregates
+      glass_unit_qty, glass_unit_thickness,
+
+      // Group 10c — Frame / cill dimensions (metres)
+      frame_depth, cill_depth, cill_height,
+
+      // Group 10d — Moulding / glazing bar
+      is_lambs_tongue_moulding, gb_qty, gb_width,
+
+      // Group 10e — Sash geometry aliases
+      sash_thickness,
+
+      // Group 10f — Curved head / special counts
+      new_sash_with_curved_head_qty,
+
+      // Group 10g — Finish raw codes (also in Group 9 as internalFinish/externalFinish)
+      internal_finish, external_finish,
+
+      // Group 10h — Stubs for unbuilt features
+      surround_row_qty, encapsulated_leaded_light_qty,
+      sliding_sash_with_restricted_travel_qty,
+      has_unmodified_default_measurement, unmodified_default_measurement_text,
+      eq_glazing_is_out, is_survey_drawing, is_surveyor_specified,
 
       // Group 11 — Counts
       sliding_sash_qty, new_sliding_sash_qty, fixed_sliding_sash_qty,
@@ -669,5 +772,120 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
   } catch (err) {
     console.error('[computeVariables] unexpected error:', err)
     return null
+  }
+}
+
+// ── Quote-level variables ───────────────────────────────────────────────────
+
+/**
+ * Compute quote-level variables from an array of item-level variable objects.
+ *
+ * @param {Object[]}  itemVarsList  - Array of per-item variable objects (from computeVariables)
+ * @param {Object}    quoteContext  - Optional quote-level context
+ *   { status, pricefileNo, latestPricefileNo, isPricefileRetired }
+ * @returns {Object} Quote-level variables for validation
+ */
+export function computeQuoteVariables(itemVarsList = [], quoteContext = {}) {
+  const items = itemVarsList.filter(Boolean)
+
+  const item_qty = items.length
+
+  // Count items with installation included
+  const item_installed_by_us_qty = items.filter(v => v.is_installation_included).length
+
+  // Count items with specific cill materials
+  const item_qty_with_solid_utile_hardwood_cill = items.filter(v => v.is_solid_utile_hardwood_cill).length
+  const item_qty_with_solid_redwood_cill = items.filter(v => v.is_solid_redwood_cill).length
+  const item_qty_with_accoya_cill = items.filter(v => v.is_cill_accoya).length
+  const item_qty_with_oak_cill = items.filter(v => v.is_oak_cill).length
+  const item_qty_with_idigbo_cill = items.filter(v => v.is_idigbo_sash).length  // idigbo cill uses sash flag match
+  const item_qty_with_douglas_fir_cill = 0  // douglas fir cill not offered
+
+  // Spacer colour counts — derive from first glass part's spacerDimId per item
+  // The spacerDimId encodes both dimension and colour, e.g. '16mm_white_warm_edge'
+  let item_qty_with_white_warm_edge_spacer = 0
+  let item_qty_with_black_warm_edge_spacer = 0
+  let item_qty_with_brown_warm_edge_spacer = 0
+  let item_qty_with_bronze_aluminium_spacer = 0
+
+  // Spacer dimension counts
+  let item_qty_with_4mm_spacer = 0
+  let item_qty_with_6mm_spacer = 0
+  let item_qty_with_8mm_spacer = 0
+  let item_qty_with_10mm_spacer = 0
+  let item_qty_with_12mm_spacer = 0
+  let item_qty_with_14mm_spacer = 0
+  let item_qty_with_16mm_spacer = 0
+
+  // These counts are passed at quote level from item data; we use quoteContext.spacerCounts if provided
+  // Otherwise we default to 0 (the data is on the tree, not on itemVars)
+  if (quoteContext.spacerCounts) {
+    const sc = quoteContext.spacerCounts
+    item_qty_with_white_warm_edge_spacer  = sc.white_warm_edge  ?? 0
+    item_qty_with_black_warm_edge_spacer  = sc.black_warm_edge  ?? 0
+    item_qty_with_brown_warm_edge_spacer  = sc.brown_warm_edge  ?? 0
+    item_qty_with_bronze_aluminium_spacer = sc.bronze_aluminium ?? 0
+    item_qty_with_4mm_spacer  = sc.dim_4  ?? 0
+    item_qty_with_6mm_spacer  = sc.dim_6  ?? 0
+    item_qty_with_8mm_spacer  = sc.dim_8  ?? 0
+    item_qty_with_10mm_spacer = sc.dim_10 ?? 0
+    item_qty_with_12mm_spacer = sc.dim_12 ?? 0
+    item_qty_with_14mm_spacer = sc.dim_14 ?? 0
+    item_qty_with_16mm_spacer = sc.dim_16 ?? 0
+  }
+
+  // Sum installation labour time across items
+  const installation_labour_time = items.reduce((sum, v) => sum + (v.installation_labour_time ?? 0), 0)
+
+  // Quote margin: default R number (configurable in Integrate, default 1000)
+  const quote_margin = quoteContext.quoteMargin ?? 1000
+
+  // Quote status flags
+  const is_open_quote = (quoteContext.status ?? 'open') === 'open'
+
+  // Price file tracking
+  const quote_pricefile_no = quoteContext.pricefileNo ?? null
+  const latest_pricefile_no = quoteContext.latestPricefileNo ?? null
+  const is_pricefile_retired = quoteContext.isPricefileRetired ?? false
+
+  // Access control (single org, no restrictions)
+  const user_can_access_all_quotes = true
+
+  // Sum new_frame_qty across items
+  const new_frame_qty = items.reduce((sum, v) => sum + (v.new_frame_qty ?? 0), 0)
+
+  // Count items with onsite decoration (excluding free items)
+  const item_with_onsite_decoration_by_us_qty_excl_free_items = items.filter(v => v.is_decoration_included).length
+
+  return {
+    item_qty,
+    item_installed_by_us_qty,
+    item_qty_with_solid_utile_hardwood_cill,
+    item_qty_with_solid_redwood_cill,
+    item_qty_with_accoya_cill,
+    item_qty_with_oak_cill,
+    item_qty_with_idigbo_cill,
+    item_qty_with_douglas_fir_cill,
+    item_qty_with_white_warm_edge_spacer,
+    item_qty_with_black_warm_edge_spacer,
+    item_qty_with_brown_warm_edge_spacer,
+    item_qty_with_bronze_aluminium_spacer,
+    item_qty_with_4mm_spacer,
+    item_qty_with_6mm_spacer,
+    item_qty_with_8mm_spacer,
+    item_qty_with_10mm_spacer,
+    item_qty_with_12mm_spacer,
+    item_qty_with_14mm_spacer,
+    item_qty_with_16mm_spacer,
+    installation_labour_time,
+    quote_margin,
+    is_open_quote,
+    quote_pricefile_no,
+    latest_pricefile_no,
+    is_pricefile_retired,
+    user_can_access_all_quotes,
+    new_frame_qty,
+    new_sliding_sash_qty: items.reduce((sum, v) => sum + (v.new_sliding_sash_qty ?? 0), 0),
+    item_with_onsite_decoration_by_us_qty_excl_free_items,
   }
 }

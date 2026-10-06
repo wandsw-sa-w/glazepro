@@ -150,6 +150,16 @@ function findAllParts(node, partType, acc = []) {
   return acc
 }
 
+function findParentPartType(node, childKey, parent = null) {
+  if (!node) return null
+  if (node.key === childKey) return parent?.part_type ?? null
+  for (const child of (node.children ?? [])) {
+    const found = findParentPartType(child, childKey, node)
+    if (found !== null) return found
+  }
+  return null
+}
+
 function findMatchingParts(tree, loopTarget) {
   if (!loopTarget || loopTarget === '-') return []
 
@@ -206,6 +216,45 @@ export function validateDrawing(tree, variables, rules, lists = {}) {
           part_key: part.key,
           is_top_sash: part.part_type === 'topSashPart',
           is_bottom_sash: part.part_type === 'bottomSashPart',
+        }
+
+        // glass_unit per-part variables
+        if (loopTarget === 'glass_unit') {
+          const pv = part.values || {}
+          const innerT = Number(pv.innerPaneThickness ?? 0)
+          const outerT = Number(pv.outerPaneThickness ?? 0)
+          const spacerH = Number(pv.spacerHeight ?? 0)
+          const singleT = Number(pv.singlePaneThickness ?? 0)
+          partVars.glass_unit_thickness = innerT + spacerH + outerT
+          partVars.spacer_dim = spacerH
+          partVars.single_pane_thickness = singleT
+          partVars.outer_pane_part_no = pv.externalGlassPartNo ?? ''
+          partVars.inner_pane_part_no = pv.internalGlassPartNo ?? ''
+          partVars.single_pane_part_no = pv.singleGlassPartNo ?? ''
+          partVars.is_inner_pane_toughened = pv.toughened_inner === true
+          partVars.is_outer_pane_toughened = pv.toughened_outer === true
+          partVars.is_single_pane_toughened = pv.toughened_single === true
+          partVars.is_filled_with_krypton = (pv.gasFillId ?? pv.gasType ?? '').toLowerCase() === 'krypton'
+          // is_direct_glazed_unit: glass is in a frame, not a sash
+          const parentType = findParentPartType(tree, part.key)
+          partVars.is_direct_glazed_unit = parentType === 'assemblyFramePart'
+          // unit_gb_qty: count of glazing bar children on this glass part
+          const barChildren = (part.children ?? []).filter(c =>
+            c.part_type === 'verticalGlazingBarPart' || c.part_type === 'horizontalGlazingBarPart')
+          partVars.unit_gb_qty = barChildren.length || (Number(pv.barsWide ?? 0) + Number(pv.barsHigh ?? 0))
+          // actual_width, actual_height: glass unit dimensions in mm
+          partVars.actual_width = Number(pv.actualWidth ?? pv.width ?? 0)
+          partVars.actual_height = Number(pv.actualHeight ?? pv.height ?? 0)
+          partVars.actual_area = partVars.actual_width * partVars.actual_height / 1e6
+        }
+
+        // sliding_sash / sash per-part variables
+        if (loopTarget === 'sliding_sash' || loopTarget === 'sash') {
+          const pv = part.values || {}
+          partVars.sash_thickness = Number(pv.sashThickness ?? vars.sash_thickness ?? 0)
+          partVars.gross_sash_height_in_mm = Number(pv.grossHeight ?? pv.height ?? 0)
+          partVars.gross_sash_head_height_in_mm = Number(pv.topHeight ?? 0)
+          partVars.weight_in_kg = Number(pv.weight_in_kg ?? 0)
         }
 
         const evalResult = tryEvaluateCondition(rule.condition, partVars, lists)
