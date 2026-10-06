@@ -23,6 +23,7 @@ import DrawingBoardTest        from './drawingBoard/DrawingBoardTest.jsx'
 import DrawingBoard            from './pages/DrawingBoard.jsx'
 import QuoteMatrixPage         from './pages/QuoteMatrixPage.jsx'
 import PricingBenchmark        from './pages/dev/PricingBenchmark.jsx'
+import ValidationRules         from './pages/ValidationRules.jsx'
 import './App.css'
 
 function AppRoutes() {
@@ -54,6 +55,7 @@ function AppRoutes() {
       <Route path="/pricing/:fileId/parts"       element={<PartsEditor />} />
       <Route path="/reference-data"               element={<ReferenceData />} />
       <Route path="/defaults"                     element={<DefaultsAndParts />} />
+      <Route path="/validation"                   element={<ValidationRules />} />
       <Route path="/drawing-board/:drawingId"      element={<DrawingBoard />} />
       <Route path="/dev/drawing-board-test"       element={<DrawingBoardTest />} />
       <Route path="/dev/pricing-benchmark"        element={<PricingBenchmark />} />
