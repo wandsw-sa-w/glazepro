@@ -12,6 +12,7 @@ import { applyOperationDefaults } from '../drawingBoard/applyOperationDefaults.j
 import { computeSashGeometry } from '../drawingBoard/sashGeometry.js'
 import { SashElevation } from '../drawingBoard/renderElevation.jsx'
 import { applyDividers, applyBars } from '../drawingBoard/gridActions.js'
+import { saveAsTemplate, listTemplates } from '../drawingBoard/templates.js'
 import { FALLBACK_PROFILE_CODE } from '../drawingBoard/defaultProfile.js'
 import { defaultIronmonger } from '../pricing/defaultIronmongery.js'
 import { computeVariables } from '../pricing/computeVariables.js'
@@ -947,6 +948,11 @@ function DrawingBoard() {
   // ── Dialog state ─────────────────────────────────────────────────────────────
   const [dividerDialog, setDividerDialog] = useState(false)
   const [barDialog,     setBarDialog]     = useState(false)
+  const [templateDialog, setTemplateDialog] = useState(false)
+  const [templateForm, setTemplateForm] = useState({ name: '', family: 'sash', group_name: '' })
+  const [templateSaving, setTemplateSaving] = useState(false)
+  const [templateError, setTemplateError] = useState(null)
+  const [templateGroups, setTemplateGroups] = useState([]) // existing group names for datalist
 
   // ── Ironmongery data (lazy-loaded when paintAndIronmongeryPart is selected) ──
   const [ironmongeryRules,    setIronmongeryRules]    = useState(null)
@@ -1206,6 +1212,40 @@ function DrawingBoard() {
     commit(newTree)
   }
 
+  // ── Save as template ─────────────────────────────────────────────────────────
+
+  async function openTemplateDialog() {
+    setTemplateForm({ name: '', family: 'sash', group_name: '' })
+    setTemplateError(null)
+    // Load existing group names for the datalist
+    try {
+      const all = await listTemplates()
+      const groups = [...new Set(all.map(t => t.group_name).filter(Boolean))].sort()
+      setTemplateGroups(groups)
+    } catch {
+      setTemplateGroups([])
+    }
+    setTemplateDialog(true)
+  }
+
+  async function handleSaveAsTemplate() {
+    if (!tree) return
+    if (!templateForm.name.trim()) { setTemplateError('Name is required'); return }
+    setTemplateSaving(true)
+    setTemplateError(null)
+    try {
+      await saveAsTemplate(drawingMeta, tree, {
+        name: templateForm.name.trim(),
+        family: templateForm.family,
+        group_name: templateForm.group_name.trim(),
+      })
+      setTemplateDialog(false)
+    } catch (e) {
+      setTemplateError(e?.message ?? String(e))
+    }
+    setTemplateSaving(false)
+  }
+
   // Determine what the selected node is so the toolbar can show relevant buttons
   const selType     = selectedNode?.part_type ?? null
   const canRemove   = ['mullionPart', 'transomPart', 'verticalGlazingBarPart', 'horizontalGlazingBarPart'].includes(selType)
@@ -1264,6 +1304,17 @@ function DrawingBoard() {
         }}
       >
         {saveStatus === 'saving' ? 'Saving…' : 'Save'}
+      </button>
+      <button
+        onClick={openTemplateDialog}
+        disabled={!tree || loading}
+        style={{
+          fontSize: 12, padding: '4px 13px', border: '1px solid #d8d5cf', borderRadius: 7,
+          background: '#fff', color: !tree || loading ? '#ccc' : '#555',
+          cursor: !tree || loading ? 'default' : 'pointer', fontFamily: 'inherit',
+        }}
+      >
+        Save as template
       </button>
     </div>
   )
@@ -1452,6 +1503,57 @@ function DrawingBoard() {
           onApply={handleApplyBars}
           onClose={() => setBarDialog(false)}
         />
+      )}
+
+      {/* Save as template dialog */}
+      {templateDialog && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9000, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setTemplateDialog(false)}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: 24, width: 380, boxShadow: '0 8px 32px rgba(0,0,0,.18)' }}>
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>Save as template</div>
+            <div style={{ marginBottom: 10 }}>
+              <label style={{ fontSize: 11, fontWeight: 500, color: '#666', display: 'block', marginBottom: 3 }}>Name *</label>
+              <input
+                value={templateForm.name}
+                onChange={e => setTemplateForm(f => ({ ...f, name: e.target.value }))}
+                autoFocus
+                style={{ ...SI, width: '100%' }}
+              />
+            </div>
+            <div style={{ marginBottom: 10 }}>
+              <label style={{ fontSize: 11, fontWeight: 500, color: '#666', display: 'block', marginBottom: 3 }}>Family</label>
+              <select
+                value={templateForm.family}
+                onChange={e => setTemplateForm(f => ({ ...f, family: e.target.value }))}
+                style={{ ...SI, width: '100%' }}
+              >
+                <option value="sash">Sash</option>
+                <option value="casement">Casement</option>
+                <option value="door">Door</option>
+                <option value="free_text">Other</option>
+              </select>
+            </div>
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: 11, fontWeight: 500, color: '#666', display: 'block', marginBottom: 3 }}>Group</label>
+              <input
+                value={templateForm.group_name}
+                onChange={e => setTemplateForm(f => ({ ...f, group_name: e.target.value }))}
+                list="template-groups-board"
+                placeholder="e.g. Single Box Sash Windows"
+                style={{ ...SI, width: '100%' }}
+              />
+              <datalist id="template-groups-board">
+                {templateGroups.map(g => <option key={g} value={g} />)}
+              </datalist>
+            </div>
+            {templateError && <div style={{ fontSize: 11, color: '#dc2626', marginBottom: 10 }}>{templateError}</div>}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => setTemplateDialog(false)} style={{ fontSize: 12, padding: '6px 16px', border: '1px solid #d8d5cf', borderRadius: 7, background: '#fff', cursor: 'pointer' }}>Cancel</button>
+              <button onClick={handleSaveAsTemplate} disabled={templateSaving} style={{ fontSize: 12, padding: '6px 16px', border: 'none', borderRadius: 7, background: '#3d35a8', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>
+                {templateSaving ? 'Saving...' : 'Save Template'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
     </Layout>

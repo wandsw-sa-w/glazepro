@@ -277,6 +277,7 @@ function Sidebar() {
         { label: 'Ironmongery', path: '/ironmongery' },
         { label: 'Reference Data', path: '/reference-data' },
         { label: 'Defaults & Parts', path: '/defaults' },
+        { label: 'Templates', path: '/templates' },
       ],
     },
     {

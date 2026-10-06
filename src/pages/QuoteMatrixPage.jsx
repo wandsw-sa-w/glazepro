@@ -18,6 +18,7 @@ import { publishQuote } from '../quotes/publishQuote.js'
 import { copyQuote } from '../quotes/copyQuote.js'
 import { computeVariables } from '../pricing/computeVariables.js'
 import { validateDrawing, countBySeverity } from '../validation/validate.js'
+import { listTemplates, createDrawingFromTemplate } from '../drawingBoard/templates.js'
 import QuoteOverview from './QuoteOverview.jsx'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -119,6 +120,111 @@ function ValidationMarker({ drawingId }) {
   )
 }
 
+// ── Template thumbnail — renders SashElevation from a template's stored tree ─
+
+function TemplateThumb({ tree }) {
+  if (!tree || !tree.part_type) {
+    return <div style={{ width: '100%', height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ccc', fontSize: 10, fontStyle: 'italic' }}>No preview</div>
+  }
+  try {
+    const derived = computeDerived(tree)
+    const geometry = computeSashGeometry(tree, derived)
+    return (
+      <div style={{ width: '100%', height: 80, overflow: 'hidden' }}>
+        <SashElevation tree={tree} geometry={geometry} refOptions={{}} viewMode="internal" />
+      </div>
+    )
+  } catch {
+    return <div style={{ width: '100%', height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ccc', fontSize: 10, fontStyle: 'italic' }}>Preview unavailable</div>
+  }
+}
+
+// ── Template picker dialog ──────────────────────────────────────────────────
+
+const TEMPLATE_FAMILIES = [
+  { key: 'sash', label: 'Sash' },
+  { key: 'casement', label: 'Casement' },
+  { key: 'door', label: 'Door' },
+  { key: 'free_text', label: 'Other' },
+]
+
+function TemplatePickerDialog({ templates, onSelect, onClose }) {
+  const [familyTab, setFamilyTab] = useState('sash')
+
+  const filtered = templates.filter(t => t.family === familyTab)
+  const groups = {}
+  for (const t of filtered) {
+    const g = t.group_name || '(ungrouped)'
+    if (!groups[g]) groups[g] = []
+    groups[g].push(t)
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, width: 620, maxHeight: '80vh', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 32px rgba(0,0,0,.18)' }}>
+        {/* Header + tabs */}
+        <div style={{ padding: '16px 20px 0', borderBottom: '1px solid #e8e6e0', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <span style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a' }}>Add drawing from template</span>
+            <button onClick={onClose} style={{ fontSize: 14, padding: '2px 8px', border: 'none', background: 'none', cursor: 'pointer', color: '#888' }}>X</button>
+          </div>
+          <div style={{ display: 'flex', gap: 4, paddingBottom: 10 }}>
+            {TEMPLATE_FAMILIES.map(f => (
+              <button
+                key={f.key}
+                onClick={() => setFamilyTab(f.key)}
+                style={{
+                  fontSize: 11, padding: '5px 14px', borderRadius: 6, cursor: 'pointer',
+                  border: familyTab === f.key ? '1px solid #3d35a8' : '1px solid #d8d5cf',
+                  background: familyTab === f.key ? '#f0eefc' : '#fff',
+                  color: familyTab === f.key ? '#3d35a8' : '#555',
+                  fontWeight: familyTab === f.key ? 600 : 400,
+                }}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Template cards */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+          {filtered.length === 0 ? (
+            <div style={{ textAlign: 'center', color: '#bbb', padding: 40, fontSize: 12 }}>No templates yet</div>
+          ) : (
+            Object.entries(groups).map(([groupName, items]) => (
+              <div key={groupName} style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 8 }}>
+                  {groupName}
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                  {items.map(t => (
+                    <div
+                      key={t.id}
+                      onClick={() => onSelect(t)}
+                      style={{
+                        width: 140, border: '1px solid #e0def0', borderRadius: 8, overflow: 'hidden', cursor: 'pointer',
+                        transition: 'border-color .1s, box-shadow .1s',
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = '#3d35a8'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(61,53,168,.15)' }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = '#e0def0'; e.currentTarget.style.boxShadow = 'none' }}
+                    >
+                      <TemplateThumb tree={t.tree} />
+                      <div style={{ padding: '5px 8px', fontSize: 11, fontWeight: 500, color: '#333', borderTop: '1px solid #f0eef8', textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {t.name}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Main page ────────────────────────────────────────────────────────────────
 
 export default function QuoteMatrixPage() {
@@ -144,6 +250,7 @@ export default function QuoteMatrixPage() {
   const [selectedItemIds, setSelectedItemIds] = useState(new Set())
   const [templatePickerFor, setTemplatePickerFor] = useState(null) // jobItemId
   const [priceFileModal, setPriceFileModal] = useState(false)
+  const [allTemplates, setAllTemplates] = useState([]) // drawing_templates rows
 
   const [panelOpen, setPanelOpen] = useState(true)
   const [panelDraft, setPanelDraft] = useState({})    // `${quoteId}_${jobItemId}` -> drawingId (uncommitted)
@@ -259,6 +366,9 @@ export default function QuoteMatrixPage() {
     }
 
     setLoading(false)
+
+    // Load templates (non-blocking)
+    listTemplates().then(setAllTemplates).catch(() => setAllTemplates([]))
   }
 
   // Keep the floating panel's local draft in sync with saved selections
@@ -409,6 +519,18 @@ export default function QuoteMatrixPage() {
       .insert({ job_item_id: item.id, drawing_number: nextNum, sort_order: nextNum, window_type: 'Box Sash', default_profile_id: defaultProfileId })
       .select().single()
     if (!error && newDwg) navigate(`/drawing-board/${newDwg.id}`)
+  }
+
+  async function addDrawingFromTemplate(item, template) {
+    const nextNum = Math.max(0, ...drawings.filter(d => d.job_item_id === item.id).map(d => d.drawing_number || 0)) + 1
+    try {
+      const newDwg = await createDrawingFromTemplate(item.id, template, nextNum)
+      setTemplatePickerFor(null)
+      if (newDwg) navigate(`/drawing-board/${newDwg.id}`)
+    } catch (e) {
+      console.error('Failed to create drawing from template:', e)
+      setTemplatePickerFor(null)
+    }
   }
 
   async function addDrawingFromProfile(item, profile) {
@@ -813,18 +935,7 @@ export default function QuoteMatrixPage() {
                                 <button disabled title="Coming soon" style={{ ...quickBtn(), opacity: 0.5, cursor: 'not-allowed' }}>Casement</button>
                                 <button disabled title="Coming soon" style={{ ...quickBtn(), opacity: 0.5, cursor: 'not-allowed' }}>Door</button>
                               </div>
-                              <button onClick={() => setTemplatePickerFor(templatePickerFor === item.id ? null : item.id)} style={{ ...miniBtn(), width: '100%' }}>More…</button>
-                              {templatePickerFor === item.id && (
-                                <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 10, marginTop: 4, width: 220, background: '#fff', border: '1px solid #e0def0', borderRadius: 8, boxShadow: '0 6px 20px rgba(0,0,0,0.12)', padding: 8, maxHeight: 220, overflowY: 'auto' }}>
-                                  {profiles.length === 0 ? (
-                                    <div style={{ fontSize: 11, color: '#aaa', padding: 6 }}>No templates found</div>
-                                  ) : profiles.map(p => (
-                                    <button key={p.id} onClick={() => addDrawingFromProfile(item, p)} style={{ display: 'block', width: '100%', textAlign: 'left', fontSize: 11, padding: '6px 8px', border: 'none', borderRadius: 5, background: 'transparent', cursor: 'pointer' }}>
-                                      {p.label}
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
+                              <button onClick={() => setTemplatePickerFor(item.id)} style={{ ...miniBtn(), width: '100%' }}>More…</button>
                             </div>
                           )}
                         </div>
@@ -941,6 +1052,18 @@ export default function QuoteMatrixPage() {
             </div>
           )}
         </div>
+      )}
+
+      {/* ── Template picker dialog ── */}
+      {templatePickerFor && (
+        <TemplatePickerDialog
+          templates={allTemplates}
+          onSelect={template => {
+            const item = jobItems.find(i => i.id === templatePickerFor)
+            if (item) addDrawingFromTemplate(item, template)
+          }}
+          onClose={() => setTemplatePickerFor(null)}
+        />
       )}
     </Layout>
   )
