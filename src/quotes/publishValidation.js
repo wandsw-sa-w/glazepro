@@ -31,8 +31,9 @@ export function isDrawingStale(quote, drawingId, latestRuns) {
  * @param {Array}    drawings        - drawings rows (need id, calculated_price, poa)
  * @param {object}   selections      - { `${quoteId}_${jobItemId}`: drawingId }
  * @param {object}   latestRuns      - { drawingId: {price_file_id, status} }
+ * @param {number}   [validationErrorCount=0] - count of fired validation errors
  */
-export function validatePublish(quote, jobItems, drawings, selections, latestRuns) {
+export function validatePublish(quote, jobItems, drawings, selections, latestRuns, validationErrorCount = 0) {
   const staleDwgIds = []
   const poaItemIndices = []
   let selectedCount = 0
@@ -66,6 +67,15 @@ export function validatePublish(quote, jobItems, drawings, selections, latestRun
       staleDwgIds,
       poaItemIndices,
       reason: `${staleDwgIds.length} drawing(s) need pricing before this quote can be published.`,
+    }
+  }
+
+  if (validationErrorCount > 0) {
+    return {
+      ok: false,
+      staleDwgIds: [],
+      poaItemIndices,
+      reason: `${validationErrorCount} validation error(s) must be resolved before publishing.`,
     }
   }
 

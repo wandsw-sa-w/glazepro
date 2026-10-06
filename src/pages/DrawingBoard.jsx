@@ -15,6 +15,7 @@ import { applyDividers, applyBars } from '../drawingBoard/gridActions.js'
 import { FALLBACK_PROFILE_CODE } from '../drawingBoard/defaultProfile.js'
 import { defaultIronmonger } from '../pricing/defaultIronmongery.js'
 import { computeVariables } from '../pricing/computeVariables.js'
+import { validateDrawing, countBySeverity } from '../validation/validate.js'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -660,6 +661,93 @@ function Summary({ tree, fieldDefs, derived, refOptions, onSelectKey, drawingMet
       {requiredEmpty.length === 0 && tree && (
         <div style={{ fontSize: 11, color: '#15803d', fontWeight: 500 }}>✓ All required fields filled</div>
       )}
+    </div>
+  )
+}
+
+// ── ValidationPanel ──────────────────────────────────────────────────────────
+
+function ValidationPanel({ tree, derived }) {
+  const [rules, setRules] = useState([])
+  const [lists, setLists] = useState({})
+  const [loading, setLoading] = useState(true)
+  const [collapsed, setCollapsed] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      const [
+        { data: ruleData, error: rErr },
+        { data: listData, error: lErr },
+        { data: valData, error: vErr },
+      ] = await Promise.all([
+        supabase.from('validation_rules').select('*').eq('is_active', true).eq('level', 'item').order('sort_order'),
+        supabase.from('validation_lists').select('*'),
+        supabase.from('validation_list_values').select('*'),
+      ])
+      if (cancelled) return
+      if (!rErr) setRules(ruleData || [])
+      if (!lErr && !vErr) {
+        const map = {}
+        for (const l of (listData || [])) {
+          map[l.name] = (valData || []).filter(v => v.list_id === l.id).map(v => v.value)
+        }
+        setLists(map)
+      }
+      setLoading(false)
+    }
+    load()
+    return () => { cancelled = true }
+  }, [])
+
+  const variables = tree ? (computeVariables(tree, derived || {}) || {}) : {}
+  const results = !loading && tree ? validateDrawing(tree, variables, rules, lists) : []
+  const firedResults = results.filter(r => r.status === 'fired')
+  const counts = countBySeverity(firedResults)
+
+  return (
+    <div style={{ borderTop: '1px solid #e8e6e0', padding: '10px 14px' }}>
+      <div
+        onClick={() => setCollapsed(c => !c)}
+        style={{ fontSize: 11, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: collapsed ? 0 : 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+      >
+        <span style={{ fontSize: 9 }}>{collapsed ? '\u25B6' : '\u25BC'}</span>
+        Validation
+        {!loading && firedResults.length > 0 && (
+          <span style={{ fontSize: 10, fontWeight: 600, marginLeft: 4 }}>
+            {counts.errors > 0 && <span style={{ color: '#dc2626', marginRight: 4 }}>{counts.errors}E</span>}
+            {counts.warnings > 0 && <span style={{ color: '#f59e0b', marginRight: 4 }}>{counts.warnings}W</span>}
+            {counts.info > 0 && <span style={{ color: '#3b82f6' }}>{counts.info}I</span>}
+          </span>
+        )}
+        {!loading && firedResults.length === 0 && (
+          <span style={{ fontSize: 10, color: '#15803d', fontWeight: 500, marginLeft: 4 }}>OK</span>
+        )}
+      </div>
+      {!collapsed && !loading && (
+        <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+          {firedResults.length === 0 && (
+            <div style={{ fontSize: 11, color: '#15803d', fontWeight: 500 }}>No validation issues</div>
+          )}
+          {firedResults.map((r, idx) => {
+            const colours = r.severity === 'error'
+              ? { bg: '#fef2f2', color: '#991b1b', border: '#fca5a5' }
+              : r.severity === 'warning'
+              ? { bg: '#fffbeb', color: '#92400e', border: '#fcd34d' }
+              : { bg: '#eff6ff', color: '#1e40af', border: '#93c5fd' }
+            return (
+              <div key={idx} style={{
+                fontSize: 11, padding: '4px 6px', marginBottom: 2, borderRadius: 4,
+                background: colours.bg, border: `1px solid ${colours.border}`, color: colours.color,
+                lineHeight: 1.4,
+              }}>
+                {r.message}
+              </div>
+            )
+          })}
+        </div>
+      )}
+      {loading && <div style={{ fontSize: 11, color: '#aaa' }}>Loading...</div>}
     </div>
   )
 }
@@ -1333,6 +1421,8 @@ function DrawingBoard() {
               drawingMeta={drawingMeta}
               hiddenFields={hiddenFields}
             />
+            {/* Validation */}
+            <ValidationPanel tree={tree} derived={derived} />
           </div>
 
         </div>

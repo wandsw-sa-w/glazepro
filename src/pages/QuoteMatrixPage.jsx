@@ -16,6 +16,8 @@ import { computeSashGeometry } from '../drawingBoard/sashGeometry.js'
 import { SashElevation } from '../drawingBoard/renderElevation.jsx'
 import { publishQuote } from '../quotes/publishQuote.js'
 import { copyQuote } from '../quotes/copyQuote.js'
+import { computeVariables } from '../pricing/computeVariables.js'
+import { validateDrawing, countBySeverity } from '../validation/validate.js'
 import QuoteOverview from './QuoteOverview.jsx'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -61,6 +63,59 @@ function DrawingThumb({ drawingId }) {
     <div style={{ width: '100%', height: 110, overflow: 'hidden' }}>
       <SashElevation tree={state.tree} geometry={state.geometry} refOptions={{}} viewMode="internal" />
     </div>
+  )
+}
+
+// ── Validation marker for drawing cards ──────────────────────────────────────
+
+function ValidationMarker({ drawingId }) {
+  const [counts, setCounts] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    async function run() {
+      const tree = await loadDrawingParts(drawingId).catch(() => null)
+      if (cancelled || !tree) return
+      const [
+        { data: ruleData, error: rErr },
+        { data: listData, error: lErr },
+        { data: valData, error: vErr },
+      ] = await Promise.all([
+        supabase.from('validation_rules').select('*').eq('is_active', true).eq('level', 'item').order('sort_order'),
+        supabase.from('validation_lists').select('*'),
+        supabase.from('validation_list_values').select('*'),
+      ])
+      if (cancelled || rErr || lErr || vErr) return
+      const listsMap = {}
+      for (const l of (listData || [])) {
+        listsMap[l.name] = (valData || []).filter(v => v.list_id === l.id).map(v => v.value)
+      }
+      try {
+        const derived = computeDerived(tree)
+        const vars = computeVariables(tree, derived) || {}
+        const results = validateDrawing(tree, vars, ruleData || [], listsMap)
+        const fired = results.filter(r => r.status === 'fired')
+        if (!cancelled) setCounts(countBySeverity(fired))
+      } catch {
+        // ignore validation errors
+      }
+    }
+    run()
+    return () => { cancelled = true }
+  }, [drawingId])
+
+  if (!counts) return null
+  if (counts.errors === 0 && counts.warnings === 0) return null
+
+  return (
+    <span style={{
+      fontSize: 9, padding: '1px 5px', borderRadius: 999, fontWeight: 700, marginLeft: 4, flexShrink: 0,
+      background: counts.errors > 0 ? '#fef2f2' : '#fffbeb',
+      color: counts.errors > 0 ? '#dc2626' : '#f59e0b',
+      border: `1px solid ${counts.errors > 0 ? '#fca5a5' : '#fcd34d'}`,
+    }}>
+      {counts.errors > 0 ? `${counts.errors}E` : ''}{counts.errors > 0 && counts.warnings > 0 ? ' ' : ''}{counts.warnings > 0 ? `${counts.warnings}W` : ''}
+    </span>
   )
 }
 
@@ -742,7 +797,7 @@ export default function QuoteMatrixPage() {
                                 <DrawingThumb drawingId={dwg.id} />
                                 <div style={{ padding: '6px 10px', fontSize: 10, color: '#888', borderTop: '1px solid #f0eef8', minHeight: 14 }}>{desc || '—'}</div>
                                 <div style={{ padding: '6px 10px', borderTop: '1px solid #f0eef8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
-                                  <span style={{ fontSize: 11, fontWeight: 600, color: '#333' }}>{cardLabel}</span>
+                                  <span style={{ fontSize: 11, fontWeight: 600, color: '#333', display: 'flex', alignItems: 'center' }}>{cardLabel}<ValidationMarker drawingId={dwg.id} /></span>
                                   {stale && <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 999, background: '#fffbeb', color: '#b45309', fontWeight: 700, border: '1px solid #fcd34d' }}>needs pricing</span>}
                                 </div>
                               </div>

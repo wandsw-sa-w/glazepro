@@ -13,6 +13,9 @@ import { publishQuote } from '../quotes/publishQuote.js'
 import { copyQuote } from '../quotes/copyQuote.js'
 import { FRONT_COVER_LETTER, BACK_COVER_LETTER } from '../quotes/pdf/quoteContent.js'
 import { useVersion } from '../context/VersionContext.jsx'
+import { validateDrawing, countBySeverity, hasErrors as hasValidationErrors } from '../validation/validate.js'
+import { computeVariables } from '../pricing/computeVariables.js'
+import { computeDerived } from '../drawingBoard/computeDerived.js'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -91,6 +94,8 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
   const [previewError, setPreviewError] = useState(null)
   const [generatingSow, setGeneratingSow] = useState(false)
   const [generatingDetail, setGeneratingDetail] = useState(false)
+  const [validationResults, setValidationResults] = useState([])
+  const [validationCounts, setValidationCounts] = useState({ errors: 0, warnings: 0, info: 0 })
 
   const isLive = quote?.status === 'Open'
 
@@ -331,6 +336,48 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
     setPaymentsDraft({ deposit_pct: quote.deposit_pct ?? 40, interim_pct: quote.interim_pct ?? 50 })
   }, [quote?.id])
 
+  // ── Validation: compute results when trees are loaded ───────────────────────
+  useEffect(() => {
+    let cancelled = false
+    async function runValidation() {
+      const treeKeys = Object.keys(trees).filter(k => trees[k])
+      if (treeKeys.length === 0) {
+        setValidationResults([])
+        setValidationCounts({ errors: 0, warnings: 0, info: 0 })
+        return
+      }
+      const [
+        { data: ruleData, error: rErr },
+        { data: listData, error: lErr },
+        { data: valData, error: vErr },
+      ] = await Promise.all([
+        supabase.from('validation_rules').select('*').eq('is_active', true).eq('level', 'item').order('sort_order'),
+        supabase.from('validation_lists').select('*'),
+        supabase.from('validation_list_values').select('*'),
+      ])
+      if (cancelled) return
+      if (rErr || lErr || vErr) return
+      const listsMap = {}
+      for (const l of (listData || [])) {
+        listsMap[l.name] = (valData || []).filter(v => v.list_id === l.id).map(v => v.value)
+      }
+      const allResults = []
+      for (const dwgId of treeKeys) {
+        const tree = trees[dwgId]
+        if (!tree) continue
+        const derived = computeDerived(tree)
+        const vars = computeVariables(tree, derived) || {}
+        const results = validateDrawing(tree, vars, ruleData || [], listsMap)
+        allResults.push(...results.filter(r => r.status === 'fired'))
+      }
+      if (cancelled) return
+      setValidationResults(allResults)
+      setValidationCounts(countBySeverity(allResults))
+    }
+    runValidation()
+    return () => { cancelled = true }
+  }, [trees])
+
   if (loading) return <div style={{ padding: 60, textAlign: 'center', color: '#aaa' }}>Loading…</div>
   if (!quote) return <div style={{ padding: 60, textAlign: 'center', color: '#aaa' }}>Quote not found</div>
 
@@ -448,6 +495,7 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
 
   async function doPublish() {
     if (isStale) { setPublishError('A new version of GlazePro is available — please reload the page before publishing.'); return }
+    if (validationCounts.errors > 0) { setPublishError(`${validationCounts.errors} validation error(s) must be resolved before publishing. Review the validation results above.`); return }
     if (staleCount > 0) { setPublishError(`${staleCount} drawing(s) need pricing before this quote can be published — price them from the Quote Matrix.`); return }
     if (poaCount > 0 && !window.confirm(`This quote contains ${poaCount} POA item(s). Publish anyway?`)) return
     setPublishing(true)
@@ -590,8 +638,11 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
       {isLive && (
         <div style={{ background: '#fff', border: '1px solid #e8e6e0', borderRadius: 10, padding: '10px 16px', marginBottom: 16, display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'center', fontSize: 12 }}>
           <span style={{ fontWeight: 600 }}>Estimated installation hours: {installHours != null ? installHours.toFixed(2) : '—'}</span>
-          {staleCount > 0 && <span style={{ color: '#b45309', fontWeight: 600 }}>⚠ {staleCount} drawing(s) need pricing</span>}
-          {poaCount > 0 && <span style={{ color: '#b45309', fontWeight: 600 }}>⚠ {poaCount} POA item(s)</span>}
+          {validationCounts.errors > 0 && <span style={{ color: '#dc2626', fontWeight: 600 }}>{validationCounts.errors} validation error{validationCounts.errors !== 1 ? 's' : ''}</span>}
+          {validationCounts.warnings > 0 && <span style={{ color: '#f59e0b', fontWeight: 600 }}>{validationCounts.warnings} warning{validationCounts.warnings !== 1 ? 's' : ''}</span>}
+          {validationCounts.info > 0 && <span style={{ color: '#3b82f6', fontWeight: 600 }}>{validationCounts.info} info</span>}
+          {staleCount > 0 && <span style={{ color: '#b45309', fontWeight: 600 }}>{staleCount} drawing(s) need pricing</span>}
+          {poaCount > 0 && <span style={{ color: '#b45309', fontWeight: 600 }}>{poaCount} POA item(s)</span>}
         </div>
       )}
 

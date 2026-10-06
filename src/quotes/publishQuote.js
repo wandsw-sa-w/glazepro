@@ -9,10 +9,15 @@
 import { buildQuoteSnapshot } from './buildSnapshot.js'
 
 /**
- * @param {{ quoteId, leadId, userId, userName, userEmail, leadNumber, quoteNumber, supabase }} opts
+ * @param {{ quoteId, leadId, userId, userName, userEmail, leadNumber, quoteNumber, supabase, validationErrorCount? }} opts
  * @returns {Promise<{ snapshot: object, pdfPath: string }>}
  */
-export async function publishQuote({ quoteId, leadId, userId, userName, userEmail, leadNumber, quoteNumber, supabase }) {
+export async function publishQuote({ quoteId, leadId, userId, userName, userEmail, leadNumber, quoteNumber, supabase, validationErrorCount }) {
+  // 0. Block if validation errors exist
+  if (validationErrorCount > 0) {
+    throw new Error(`${validationErrorCount} validation error(s) must be resolved before publishing.`)
+  }
+
   // 1. Build snapshot
   const snapshot = await buildQuoteSnapshot({ quoteId, leadId, userId, userName, supabase })
 
