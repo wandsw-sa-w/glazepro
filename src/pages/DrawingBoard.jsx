@@ -667,7 +667,7 @@ function Summary({ tree, fieldDefs, derived, refOptions, onSelectKey, drawingMet
 
 // ── ValidationPanel ──────────────────────────────────────────────────────────
 
-function ValidationPanel({ tree, derived }) {
+function ValidationPanel({ tree, derived, onSelectKey }) {
   const [rules, setRules] = useState([])
   const [lists, setLists] = useState({})
   const [loading, setLoading] = useState(true)
@@ -735,12 +735,18 @@ function ValidationPanel({ tree, derived }) {
               : r.severity === 'warning'
               ? { bg: '#fffbeb', color: '#92400e', border: '#fcd34d' }
               : { bg: '#eff6ff', color: '#1e40af', border: '#93c5fd' }
+            const clickable = r.part_key && onSelectKey
             return (
-              <div key={idx} style={{
-                fontSize: 11, padding: '4px 6px', marginBottom: 2, borderRadius: 4,
-                background: colours.bg, border: `1px solid ${colours.border}`, color: colours.color,
-                lineHeight: 1.4,
-              }}>
+              <div
+                key={idx}
+                onClick={clickable ? () => onSelectKey(r.part_key) : undefined}
+                style={{
+                  fontSize: 11, padding: '4px 6px', marginBottom: 2, borderRadius: 4,
+                  background: colours.bg, border: `1px solid ${colours.border}`, color: colours.color,
+                  lineHeight: 1.4,
+                  cursor: clickable ? 'pointer' : 'default',
+                }}
+              >
                 {r.message}
               </div>
             )
@@ -1422,7 +1428,7 @@ function DrawingBoard() {
               hiddenFields={hiddenFields}
             />
             {/* Validation */}
-            <ValidationPanel tree={tree} derived={derived} />
+            <ValidationPanel tree={tree} derived={derived} onSelectKey={setSelectedKey} />
           </div>
 
         </div>
