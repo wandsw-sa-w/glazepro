@@ -1902,7 +1902,7 @@ function DrawingBoard() {
                 return (
                   <div key={item.id}>
                     <div style={{ fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '.04em', padding: '6px 12px 2px' }}>
-                      Item {item.item_number} — {itemDisplayLabel(item)}
+                      Item {item.item_number}{[item.floor_level, item.elevation, item.room_name].filter(Boolean).length > 0 ? ` \u2014 ${[item.floor_level, item.elevation, item.room_name].filter(Boolean).join(' \u00B7 ')}` : ''}
                     </div>
                     {itemDwgs.map(d => (
                       <button
