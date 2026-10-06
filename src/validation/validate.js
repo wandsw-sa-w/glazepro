@@ -126,6 +126,54 @@ function interpolateMessage(message, variables) {
   })
 }
 
+// ── Display labels for part types ────────────────────────────────────────────
+
+const PART_DISPLAY_LABELS = {
+  drawingItemPart:         'Item',
+  paintAndIronmongeryPart: 'Finish & Ironmongery',
+  notesPart:               'Access & H&S',
+  pricePart:               'Price',
+  assemblyFramePart:       'Frame',
+  cillPart:                'Cill',
+  sashPairPart:            'Pair of Sashes',
+  topSashPart:             'Top Sash',
+  bottomSashPart:          'Bottom Sash',
+  glassPart:               'Glazing',
+  mullionPart:             'Mullion',
+  transomPart:             'Transom',
+  verticalGlazingBarPart:  'Vertical GB',
+  horizontalGlazingBarPart:'Horizontal GB',
+  casementSashPart:        'Casement Sash',
+  doorLeafPart:            'Door Leaf',
+  panelPart:               'Panel',
+  componentPart:           'Component',
+  surroundPart:            'Surround',
+}
+
+/**
+ * Build a display label for a part, including its parent for context.
+ * E.g. "Top Sash > Glazing" for a glassPart inside a topSashPart.
+ */
+function partDisplayLabel(tree, part) {
+  const label = PART_DISPLAY_LABELS[part.part_type] || part.part_type
+  const parent = findParent(tree, part.key)
+  if (parent && parent.part_type !== 'drawingItemPart') {
+    const parentLabel = PART_DISPLAY_LABELS[parent.part_type] || parent.part_type
+    return `${parentLabel} > ${label}`
+  }
+  return label
+}
+
+function findParent(node, targetKey, parent = null) {
+  if (!node) return null
+  if (node.key === targetKey) return parent
+  for (const child of (node.children ?? [])) {
+    const found = findParent(child, targetKey, node)
+    if (found) return found
+  }
+  return null
+}
+
 // ── Part type to loop target mapping ─────────────────────────────────────────
 
 const LOOP_TARGET_PART_TYPES = {
@@ -265,7 +313,7 @@ export function validateDrawing(tree, variables, rules, lists = {}) {
             severity: rule.severity,
             message: rule.message,
             part_key: part.key,
-            part_label: part.part_type,
+            part_label: partDisplayLabel(tree, part),
             status: 'unevaluable',
             missing: evalResult.missing,
           })
@@ -275,7 +323,7 @@ export function validateDrawing(tree, variables, rules, lists = {}) {
             severity: rule.severity,
             message: interpolateMessage(rule.message, partVars),
             part_key: part.key,
-            part_label: part.part_type,
+            part_label: partDisplayLabel(tree, part),
             status: 'fired',
             missing: [],
           })
@@ -285,7 +333,7 @@ export function validateDrawing(tree, variables, rules, lists = {}) {
             severity: rule.severity,
             message: rule.message,
             part_key: part.key,
-            part_label: part.part_type,
+            part_label: partDisplayLabel(tree, part),
             status: 'passed',
             missing: [],
           })

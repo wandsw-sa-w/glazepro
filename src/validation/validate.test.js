@@ -367,3 +367,55 @@ describe('step-p3 import SQL', () => {
     }
   })
 })
+
+// ── Part display labels ──────────────────────────────────────────────────────
+
+describe('validateDrawing — part display labels', () => {
+  const tree = {
+    key: 'item', part_type: 'drawingItemPart', values: {}, children: [
+      { key: 'frame', part_type: 'assemblyFramePart', values: {}, children: [
+        { key: 'pair', part_type: 'sashPairPart', values: {}, children: [
+          { key: 'top', part_type: 'topSashPart', values: { operation: 'cord_hung' }, children: [
+            { key: 'glass1', part_type: 'glassPart', values: {}, children: [] },
+          ] },
+          { key: 'bot', part_type: 'bottomSashPart', values: { operation: 'cord_hung' }, children: [
+            { key: 'glass2', part_type: 'glassPart', values: {}, children: [] },
+          ] },
+        ] },
+      ] },
+    ],
+  }
+
+  it('loop results show display label not internal part type', () => {
+    const rule = {
+      id: 'r1', name: 'test', condition: 'true', severity: 'warning',
+      message: 'test message', is_active: true, level: 'item',
+      loop_target: 'glass_unit',
+    }
+    const results = validateDrawing(tree, {}, [rule], {})
+    const fired = results.filter(r => r.status === 'fired')
+    expect(fired).toHaveLength(2)
+    // Labels should be display names with parent context, not "glassPart"
+    expect(fired[0].part_label).toContain('Glazing')
+    expect(fired[0].part_label).not.toBe('glassPart')
+    // One should be under Top Sash, the other under Bottom Sash
+    const labels = fired.map(r => r.part_label).sort()
+    expect(labels).toContain('Top Sash > Glazing')
+    expect(labels).toContain('Bottom Sash > Glazing')
+  })
+
+  it('sliding_sash results show "Top Sash" and "Bottom Sash"', () => {
+    const rule = {
+      id: 'r2', name: 'test', condition: 'true', severity: 'info',
+      message: 'test', is_active: true, level: 'item',
+      loop_target: 'sliding_sash',
+    }
+    const results = validateDrawing(tree, {}, [rule], {})
+    const fired = results.filter(r => r.status === 'fired')
+    expect(fired).toHaveLength(2)
+    const labels = fired.map(r => r.part_label).sort()
+    // Sashes are under sashPairPart, so labels include the parent
+    expect(labels.some(l => l.includes('Top Sash'))).toBe(true)
+    expect(labels.some(l => l.includes('Bottom Sash'))).toBe(true)
+  })
+})
