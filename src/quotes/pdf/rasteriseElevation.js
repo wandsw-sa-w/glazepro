@@ -20,10 +20,11 @@ const TIMEOUT_MS = 20_000
  * @param {object} derived    from computeDerived
  * @param {string} viewMode   'internal' | 'external'
  * @param {object} refOptions e.g. { sash_operation: [{code,label}] }
- * @returns {Promise<string|null>} data:image/png;base64,… or null
+ * @returns {Promise<string>} data:image/png;base64,…
+ * @throws {Error} on rasterisation failure (never resolves null)
  */
 export async function rasteriseElevation(tree, geometry, derived, viewMode, refOptions, settingsOverride) {
-  if (!tree) return null
+  if (!tree) throw new Error('Elevation cannot be rendered: no parts tree')
 
   const { SashElevation } = await import('../../drawingBoard/renderElevation.jsx')
 
@@ -35,8 +36,10 @@ export async function rasteriseElevation(tree, geometry, derived, viewMode, refO
       const { computeSashGeometry } = await import('../../drawingBoard/sashGeometry.js')
       derived = derived || computeDerived(tree)
       geometry = geometry || computeSashGeometry(tree, derived)
-    } catch { /* leave null — placeholder will show */ }
-    if (!geometry) return null
+    } catch (e) {
+      throw new Error(`Elevation geometry could not be computed: ${e.message}`)
+    }
+    if (!geometry) throw new Error('Elevation geometry could not be computed from the parts tree')
   }
 
   const settings = {
@@ -51,7 +54,7 @@ export async function rasteriseElevation(tree, geometry, derived, viewMode, refO
   }
 
   // Render SVG markup synchronously — no DOM, no animation frame
-  const svgMarkup = renderToStaticMarkup(createElement(SashElevation, {
+  let svgMarkup = renderToStaticMarkup(createElement(SashElevation, {
     tree, geometry, derived,
     refOptions: refOptions || {},
     viewMode,
@@ -59,7 +62,25 @@ export async function rasteriseElevation(tree, geometry, derived, viewMode, refO
     fontFamily: 'Helvetica, Arial, sans-serif',
   }))
 
-  if (!svgMarkup || !svgMarkup.includes('<svg')) return null
+  if (!svgMarkup || !svgMarkup.includes('<svg')) {
+    throw new Error(`Elevation SVG could not be rendered for ${viewMode} view`)
+  }
+
+  // renderToStaticMarkup omits xmlns (React treats SVG as HTML), and
+  // width="100%" gives the image no intrinsic size. Fix both: inject the
+  // xmlns attribute and replace percentage dimensions with pixel values
+  // derived from the viewBox.
+  if (!svgMarkup.includes('xmlns=')) {
+    svgMarkup = svgMarkup.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" ')
+  }
+  const vbMatch = svgMarkup.match(/viewBox="([^"]+)"/)
+  if (vbMatch) {
+    const parts = vbMatch[1].split(/\s+/).map(Number)
+    const vbW = parts[2] || TARGET_PX
+    const vbH = parts[3] || TARGET_PX
+    svgMarkup = svgMarkup.replace(/width="100%"/, `width="${Math.round(vbW)}"`)
+    svgMarkup = svgMarkup.replace(/height="100%"/, `height="${Math.round(vbH)}"`)
+  }
 
   // Rasterise SVG → PNG via an off-screen Image + Canvas, with a timeout
   const blob = new Blob([svgMarkup], { type: 'image/svg+xml;charset=utf-8' })
@@ -83,15 +104,15 @@ export async function rasteriseElevation(tree, geometry, derived, viewMode, refO
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
         URL.revokeObjectURL(url)
         resolve(canvas.toDataURL('image/png'))
-      } catch {
+      } catch (e) {
         URL.revokeObjectURL(url)
-        resolve(null)
+        reject(new Error(`Elevation canvas draw failed: ${e.message}`))
       }
     }
     img.onerror = () => {
       clearTimeout(timer)
       URL.revokeObjectURL(url)
-      resolve(null)
+      reject(new Error('Elevation SVG failed to load as an image — check the SVG markup is valid'))
     }
     img.src = url
   })

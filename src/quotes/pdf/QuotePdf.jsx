@@ -148,20 +148,16 @@ function ItemFull({ item, idx, elevationImages, showTiles, layout }) {
         <View style={s.itemLeft}>
           <Text style={s.elevationLabel}>Internal View</Text>
           <View style={s.elevationBox}>
-            {elevationImages?.[idx]?.internal ? (
+            {elevationImages?.[idx]?.internal && (
               <Image src={elevationImages[idx].internal} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-            ) : (
-              <Text style={{ fontSize: 7, color: '#ccc', textAlign: 'center', marginTop: 70 }}>Elevation not available</Text>
             )}
           </View>
           {!isCoverPhoto && (
             <>
               <Text style={s.elevationLabel}>External View</Text>
               <View style={s.elevationBox}>
-                {elevationImages?.[idx]?.external ? (
+                {elevationImages?.[idx]?.external && (
                   <Image src={elevationImages[idx].external} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                ) : (
-                  <Text style={{ fontSize: 7, color: '#ccc', textAlign: 'center', marginTop: 70 }}>Elevation not available</Text>
                 )}
               </View>
             </>
@@ -214,18 +210,14 @@ function ItemCompact({ item, idx, elevationImages, showTiles, perPage }) {
         <View style={s.itemCompactLeft}>
           <Text style={{ ...s.elevationLabel, fontSize: 6 }}>Internal View</Text>
           <View style={elevH}>
-            {elevationImages?.[idx]?.internal ? (
+            {elevationImages?.[idx]?.internal && (
               <Image src={elevationImages[idx].internal} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-            ) : (
-              <Text style={{ fontSize: 6, color: '#ccc', textAlign: 'center', marginTop: perPage === 3 ? 30 : 45 }}>Elevation not available</Text>
             )}
           </View>
           <Text style={{ ...s.elevationLabel, fontSize: 6 }}>External View</Text>
           <View style={elevH}>
-            {elevationImages?.[idx]?.external ? (
+            {elevationImages?.[idx]?.external && (
               <Image src={elevationImages[idx].external} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-            ) : (
-              <Text style={{ fontSize: 6, color: '#ccc', textAlign: 'center', marginTop: perPage === 3 ? 30 : 45 }}>Elevation not available</Text>
             )}
           </View>
         </View>

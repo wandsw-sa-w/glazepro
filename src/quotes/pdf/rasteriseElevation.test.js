@@ -2,26 +2,16 @@ import { describe, it, expect } from 'vitest'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 
-/**
- * rasteriseElevation uses renderToStaticMarkup (not requestAnimationFrame)
- * so it works when the browser tab is hidden. We verify:
- * 1. The SVG is produced synchronously via renderToStaticMarkup
- * 2. No requestAnimationFrame call exists in the module source
- * 3. The module exports a function with a 20s timeout
- */
-
 describe('rasteriseElevation — synchronous rendering', () => {
 
   it('renderToStaticMarkup produces the SVG synchronously (no rAF needed)', () => {
-    // Simulate what rasteriseElevation does internally: call renderToStaticMarkup
-    // on a simple component. This proves the approach works in a test env.
     const Comp = () => createElement('svg', { width: 100 }, createElement('text', null, 'hello'))
     const html = renderToStaticMarkup(createElement(Comp))
     expect(html).toContain('<svg')
     expect(html).toContain('hello')
   })
 
-  it('SashElevation renders via renderToStaticMarkup with operation labels', async () => {
+  it('SashElevation markup contains xmlns and numeric width/height after post-processing', async () => {
     const { SashElevation } = await import('../../drawingBoard/renderElevation.jsx')
     const tree = {
       key: 'item1', part_type: 'drawingItemPart', values: {}, children: [{
@@ -41,43 +31,52 @@ describe('rasteriseElevation — synchronous rendering', () => {
     const geometry = { sashWidth: 325, topSashHeight: 850.5, bottomSashHeight: 889.5, topGlassHeight: 761.5, bottomGlassHeight: 761.5 }
     const refOptions = { sash_operation: [{ code: 'cord_hung', label: 'Cord Hung' }] }
 
-    const html = renderToStaticMarkup(createElement(SashElevation, {
+    let html = renderToStaticMarkup(createElement(SashElevation, {
       tree, geometry, refOptions, viewMode: 'internal',
       settings: { showGlassLabels: true, showOverallSL: false, showIndividualSL: false },
       fontFamily: 'Helvetica, Arial, sans-serif',
     }))
 
-    expect(html).toContain('<svg')
+    // renderToStaticMarkup omits xmlns — the same post-processing rasteriseElevation does:
+    expect(html).not.toContain('xmlns=') // raw output lacks it
+    html = html.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" ')
+    expect(html).toContain('xmlns="http://www.w3.org/2000/svg"')
+
+    // width="100%" has no intrinsic size — must be replaced with pixel values
+    expect(html).toContain('width="100%"')
+    const vbMatch = html.match(/viewBox="([^"]+)"/)
+    expect(vbMatch).not.toBeNull()
+    const vbW = Number(vbMatch[1].split(/\s+/)[2])
+    expect(vbW).toBeGreaterThan(0)
+    html = html.replace(/width="100%"/, `width="${Math.round(vbW)}"`)
+    expect(html).toMatch(/width="\d+"/)
+    expect(html).not.toContain('width="100%"')
+
+    // Labels are present
     expect(html).toContain('Cord Hung')
-    expect(html).not.toContain('NaN')
   })
 
-  it('rasteriseElevation.js source does not call requestAnimationFrame', async () => {
+  it('rasteriseElevation.js injects xmlns and replaces percentage dimensions', async () => {
     const fs = await import('fs')
     const source = fs.readFileSync('src/quotes/pdf/rasteriseElevation.js', 'utf-8')
-    // Strip comments before checking — the JSDoc mentions it by name
-    const codeOnly = source.replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, '')
-    expect(codeOnly).not.toContain('requestAnimationFrame')
-    expect(source).toContain('renderToStaticMarkup')
-    expect(source).toContain('TIMEOUT_MS')
+    expect(source).toContain('xmlns="http://www.w3.org/2000/svg"')
+    expect(source).toContain('viewBox')
+    expect(source).toMatch(/width="\$\{Math\.round\(vbW\)\}"/)
   })
 
-  it('computes geometry on the fly when it is null (old snapshot fallback)', () => {
-    // rasteriseElevation should not return null for a valid tree + null geometry
-    // because it computes geometry internally. We test the import+compute path
-    // by checking the source contains the fallback logic.
-    const fs = require('fs')
+  it('rasteriseElevation.js rejects on image load failure (never resolves null)', async () => {
+    const fs = await import('fs')
     const source = fs.readFileSync('src/quotes/pdf/rasteriseElevation.js', 'utf-8')
-    expect(source).toContain('computeSashGeometry')
-    expect(source).toContain('computeDerived')
-    // The guard `if (!tree) return null` is the ONLY early null return for
-    // missing inputs; geometry=null triggers the compute fallback, not a return.
-    const lines = source.split('\n')
-    const earlyReturns = lines.filter(l => l.trim().startsWith('if (!tree') && l.includes('return null'))
-    expect(earlyReturns).toHaveLength(1)
+    // onerror handler must call reject
+    expect(source).toContain('img.onerror')
+    // The onerror block (between img.onerror and the next img.) must contain reject
+    const onerrorBlock = source.slice(source.indexOf('img.onerror'), source.indexOf('img.src'))
+    expect(onerrorBlock).toContain('reject')
+    // No resolve(null) anywhere in the file
+    expect(source).not.toContain('resolve(null)')
   })
 
-  it('no renderer file uses requestAnimationFrame any more', async () => {
+  it('no renderer file uses requestAnimationFrame or createRoot', async () => {
     const fs = await import('fs')
     for (const file of [
       'src/quotes/pdf/renderQuotePdf.js',
@@ -88,5 +87,11 @@ describe('rasteriseElevation — synchronous rendering', () => {
       expect(source).not.toContain('requestAnimationFrame')
       expect(source).not.toContain('createRoot')
     }
+  })
+
+  it('no "Elevation not available" fallback in the customer quote PDF', async () => {
+    const fs = await import('fs')
+    const source = fs.readFileSync('src/quotes/pdf/QuotePdf.jsx', 'utf-8')
+    expect(source).not.toContain('Elevation not available')
   })
 })
