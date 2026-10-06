@@ -141,10 +141,17 @@ export async function createDrawingFromTemplate(jobItemId, template, nextDrawing
 
   // Record 'created_from_template' history event (non-blocking)
   try {
-    const userId = (await supabase.auth.getUser()).data?.user?.id ?? null
+    const authUser = (await supabase.auth.getUser()).data?.user
+    // Look up the user's name by email (same pattern as useCurrentUser)
+    let userName = authUser?.email || null
+    if (authUser?.email) {
+      const { data: userRow } = await supabase.from('users').select('full_name').eq('email', authUser.email).maybeSingle()
+      if (userRow?.full_name) userName = userRow.full_name
+    }
     await insertDrawingHistory({
       drawingId: newDwg.id,
-      userId,
+      userId: authUser?.id ?? null,
+      userName,
       event: 'created_from_template',
       note: `Template: ${template.name}`,
     })

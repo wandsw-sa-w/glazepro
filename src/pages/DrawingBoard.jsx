@@ -19,6 +19,7 @@ import { saveAsTemplate, listTemplates } from '../drawingBoard/templates.js'
 import { diffTrees } from '../drawingBoard/diffTrees.js'
 import { insertDrawingHistory, loadDrawingHistory } from '../drawingBoard/drawingHistory.js'
 import { FALLBACK_PROFILE_CODE } from '../drawingBoard/defaultProfile.js'
+import { useCurrentUser } from '../hooks/useCurrentUser.js'
 import { defaultIronmonger } from '../pricing/defaultIronmongery.js'
 import { computeVariables } from '../pricing/computeVariables.js'
 import { validateDrawing, countBySeverity } from '../validation/validate.js'
@@ -843,7 +844,7 @@ function ValidationPanel({ tree, derived, onSelectKey }) {
 
 // ── HistoryPanel ─────────────────────────────────────────────────────────────
 
-function HistoryPanel({ entries, loading: historyLoading }) {
+function HistoryPanel({ entries, loading: historyLoading, error: historyError }) {
   const [collapsed, setCollapsed] = useState(false)
   const [expandedIds, setExpandedIds] = useState(new Set())
 
@@ -893,10 +894,13 @@ function HistoryPanel({ entries, loading: historyLoading }) {
       {!collapsed && (
         <div style={{ maxHeight: 260, overflowY: 'auto' }}>
           {historyLoading && <div style={{ fontSize: 11, color: '#aaa' }}>Loading...</div>}
-          {!historyLoading && entries.length === 0 && (
+          {!historyLoading && historyError && (
+            <div style={{ fontSize: 11, color: '#c00' }}>History could not be loaded: {historyError}</div>
+          )}
+          {!historyLoading && !historyError && entries != null && entries.length === 0 && (
             <div style={{ fontSize: 11, color: '#aaa' }}>No history yet</div>
           )}
-          {!historyLoading && entries.map(entry => {
+          {!historyLoading && !historyError && (entries ?? []).map(entry => {
             const changes = Array.isArray(entry.changes) ? entry.changes : []
             const isExpanded = expandedIds.has(entry.id)
             const COLLAPSE_LIMIT = 3
@@ -907,9 +911,7 @@ function HistoryPanel({ entries, loading: historyLoading }) {
               <div key={entry.id} style={{ marginBottom: 6, padding: '4px 6px', background: '#fafaf8', borderRadius: 5, border: '1px solid #eeece6' }}>
                 <div style={{ fontSize: 10, color: '#888', marginBottom: 2 }}>
                   {formatDateTime(entry.created_at)}
-                  {(entry.user_name || entry.user_email) && (
-                    <span style={{ marginLeft: 4 }}>{entry.user_name || entry.user_email}</span>
-                  )}
+                  <span style={{ marginLeft: 4 }}>{entry.user_name || 'Unknown user'}</span>
                 </div>
                 <div style={{ fontSize: 11, fontWeight: 600, color: '#555', marginBottom: changes.length > 0 ? 3 : 0 }}>
                   {EVENT_LABELS[entry.event] ?? entry.event}
@@ -1265,6 +1267,7 @@ function DrawingBoard() {
   const { drawingId } = useParams()
   const navigate      = useNavigate()
   const { user }      = useAuth()
+  const currentUser   = useCurrentUser()
 
   // ── Data & loading ──────────────────────────────────────────────────────────
   const [drawingMeta, setDrawingMeta]   = useState(null)  // { drawing_number, window_type, job_item_id }
@@ -1316,9 +1319,10 @@ function DrawingBoard() {
   const [ironmongeryProducts, setIronmongeryProducts] = useState(null)
 
   // ── Drawing history (audit trail) ──────────────────────────────────────────
-  const [historyEntries,  setHistoryEntries]  = useState([])
+  const [historyEntries,  setHistoryEntries]  = useState(null) // null = not loaded; [] = loaded empty
   const [historyLoading,  setHistoryLoading]  = useState(false)
   const [historyWarning,  setHistoryWarning]  = useState(null)
+  const [historyError,    setHistoryError]    = useState(null)
 
   // ── Pricing summary (loaded on mount + after save, no keystroke calls) ────
   const [pricingInfo,  setPricingInfo]  = useState(null) // { netPrice, priceFileName }
@@ -1536,8 +1540,9 @@ function DrawingBoard() {
 
         // Load drawing history
         setHistoryLoading(true)
-        const hist = await loadDrawingHistory(Number(drawingId))
+        const { data: hist, error: histLoadErr } = await loadDrawingHistory(Number(drawingId))
         setHistoryEntries(hist)
+        setHistoryError(histLoadErr)
         setHistoryLoading(false)
 
         // Load pricing summary (latest run — no new pricing call)
@@ -1593,10 +1598,11 @@ function DrawingBoard() {
           : []
         const event = previousTree ? 'saved' : 'created'
         if (changes.length > 0 || !previousTree) {
-          const userId = (await supabase.auth.getUser()).data?.user?.id ?? null
+          const authUser = (await supabase.auth.getUser()).data?.user
           const { error: histErr } = await insertDrawingHistory({
             drawingId: Number(drawingId),
-            userId,
+            userId: authUser?.id ?? null,
+            userName: currentUser?.full_name || authUser?.email || null,
             event,
             changes,
           })
@@ -1606,8 +1612,9 @@ function DrawingBoard() {
             setTimeout(() => setHistoryWarning(null), 5000)
           } else {
             // Refresh history entries
-            const hist = await loadDrawingHistory(Number(drawingId))
+            const { data: hist, error: histLoadErr } = await loadDrawingHistory(Number(drawingId))
             setHistoryEntries(hist)
+            setHistoryError(histLoadErr)
           }
         }
       } catch (histE) {
@@ -2151,7 +2158,7 @@ function DrawingBoard() {
             {/* Validation */}
             <ValidationPanel tree={tree} derived={derived} onSelectKey={setSelectedKey} />
             {/* History */}
-            <HistoryPanel entries={historyEntries} loading={historyLoading} />
+            <HistoryPanel entries={historyEntries} loading={historyLoading} error={historyError} />
             {historyWarning && (
               <div style={{ padding: '4px 14px', fontSize: 11, color: '#b45309', background: '#fffbeb', borderTop: '1px solid #fcd34d' }}>
                 {historyWarning}
