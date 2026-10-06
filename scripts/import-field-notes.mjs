@@ -46,10 +46,12 @@ function extractFieldKeys() {
     for (const m of content.matchAll(pattern)) keys.add(m[1])
   }
 
-  // Step SQL files
+  // Step SQL files — exclude this script's own output to avoid circular key inflation
   const sqlDir = resolve(PROJECT, 'sql')
+  const SELF_OUTPUT = 'step-q4b-field-notes-import.sql'
   for (const f of readdirSync(sqlDir)) {
     if (!f.endsWith('.sql')) continue
+    if (f === SELF_OUTPUT) continue
     const content = readFileSync(resolve(sqlDir, f), 'utf8')
     for (const m of content.matchAll(pattern)) keys.add(m[1])
   }

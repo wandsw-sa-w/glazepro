@@ -1,6 +1,10 @@
 -- ============================================================================
 -- step-q4b-field-notes-import.sql — Import field notes from Integrate schema
 -- Run order: after step-q4-field-notes.sql
+-- NOTE: The previous (incorrect) version of this file was already run.
+--       This regenerated version is for the record only — it contains the
+--       6 genuine field keys. The 20 keys from the old run that don't exist
+--       in the schema are harmless (UPDATE...WHERE matches 0 rows).
 -- Rollback: DELETE is safe (sets info_note back to NULL)
 -- ============================================================================
 
@@ -8,22 +12,9 @@
 -- Source: docs/integrate-drawingboard-schema.txt
 -- Real field keys source: supabase/migrations/ + sql/step-*.sql
 -- Date: 2026-10-06
--- Imported: 26, Skipped (no field): 8, Skipped (empty): 0
+-- Imported: 6, Skipped (no field): 28, Skipped (empty): 0
 
 BEGIN;
-
-UPDATE public.default_field_definitions
-  SET info_note = '0 = solid timber panel with no insulation
-Insulation is subtracted from panel thickness for timber volume and weight calculation.'
-  WHERE field_key = 'panelPart.insulationThickness';
-
-UPDATE public.default_field_definitions
-  SET info_note = 'Cill Back Depth — Depth of cill under frame without nosing. Setting this value to -1, will dynamically set the cill back depth to the value of the frame depth'
-  WHERE field_key = 'cillPart.cillBackDepth';
-
-UPDATE public.default_field_definitions
-  SET info_note = 'Cill Depth — Cill depth is total cill dimension from front to back, cill back + nosing'
-  WHERE field_key = 'assemblyFramePart.cillDepth';
 
 UPDATE public.default_field_definitions
   SET info_note = 'Mullion Stop Size — Stop sizes are dynamically labelled on the drawingboard based on the jamb type specified on the frame. The table belows shows the labels for each jamb type.'
@@ -47,74 +38,6 @@ UPDATE public.default_field_definitions
 
 UPDATE public.default_field_definitions
   SET info_note = 'Internal Bottom Rail Height — Calculation converts between int. & ext. based on angle and/or shape. Specify default either for int. or ext., not for both. When only the external height is set as the default be sure to set constantSideOnHeightCalculation to external_height'
-  WHERE field_key = 'casementSashPart.bottomHeight';
-
-UPDATE public.default_field_definitions
-  SET info_note = 'External Bottom Rail Height — Calculation converts between int. & ext. based on angle and/or shape. Specify default either for int. or ext., not for both. When only the external height is set as the default be sure to set constantSideOnHeightCalculation to external_height'
-  WHERE field_key = 'casementSashPart.bottomHeightExternal';
-
-UPDATE public.default_field_definitions
-  SET info_note = 'Internal Bottom Rail Height — Calculation converts between int. & ext. based on angle and/or shape. Specify default either for int. or ext., not for both. When only the external height is set as the default be sure to set constantSideOnHeightCalculation to external_height'
-  WHERE field_key = 'doorLeafPart.bottomHeight';
-
-UPDATE public.default_field_definitions
-  SET info_note = 'External Bottom Rail Height — Calculation converts between int. & ext. based on angle and/or shape. Specify default either for int. or ext., not for both. When only the external height is set as the default be sure to set constantSideOnHeightCalculation to external_height'
-  WHERE field_key = 'doorLeafPart.bottomHeightExternal';
-
-UPDATE public.default_field_definitions
-  SET info_note = 'Internal Bottom Rail Height — Calculation converts between int. & ext. based on angle and/or shape. Specify default either for int. or ext., not for both. When only the external height is set as the default be sure to set constantSideOnHeightCalculation to external_height'
   WHERE field_key = 'bottomSashPart.bottomHeight';
-
-UPDATE public.default_field_definitions
-  SET info_note = 'External Bottom Rail Height — Calculation converts between int. & ext. based on angle and/or shape. Specify default either for int. or ext., not for both. When only the external height is set as the default be sure to set constantSideOnHeightCalculation to external_height'
-  WHERE field_key = 'bottomSashPart.bottomHeightExternal';
-
-UPDATE public.default_field_definitions
-  SET info_note = 'Internal Bottom Rail Height — Calculation converts between int. & ext. based on angle and/or shape. Specify default either for int. or ext., not for both. When only the external height is set as the default be sure to set constantSideOnHeightCalculation to external_height'
-  WHERE field_key = 'rightFrenchCasementSashPart.bottomHeight';
-
-UPDATE public.default_field_definitions
-  SET info_note = 'External Bottom Rail Height — Calculation converts between int. & ext. based on angle and/or shape. Specify default either for int. or ext., not for both. When only the external height is set as the default be sure to set constantSideOnHeightCalculation to external_height'
-  WHERE field_key = 'rightFrenchCasementSashPart.bottomHeightExternal';
-
-UPDATE public.default_field_definitions
-  SET info_note = 'Internal Bottom Rail Height — Calculation converts between int. & ext. based on angle and/or shape. Specify default either for int. or ext., not for both. When only the external height is set as the default be sure to set constantSideOnHeightCalculation to external_height'
-  WHERE field_key = 'leftFrenchCasementSashPart.bottomHeight';
-
-UPDATE public.default_field_definitions
-  SET info_note = 'External Bottom Rail Height — Calculation converts between int. & ext. based on angle and/or shape. Specify default either for int. or ext., not for both. When only the external height is set as the default be sure to set constantSideOnHeightCalculation to external_height'
-  WHERE field_key = 'leftFrenchCasementSashPart.bottomHeightExternal';
-
-UPDATE public.default_field_definitions
-  SET info_note = 'Internal Bottom Rail Height — Calculation converts between int. & ext. based on angle and/or shape. Specify default either for int. or ext., not for both. When only the external height is set as the default be sure to set constantSideOnHeightCalculation to external_height'
-  WHERE field_key = 'leftFrenchDoorLeafPart.bottomHeight';
-
-UPDATE public.default_field_definitions
-  SET info_note = 'External Bottom Rail Height — Calculation converts between int. & ext. based on angle and/or shape. Specify default either for int. or ext., not for both. When only the external height is set as the default be sure to set constantSideOnHeightCalculation to external_height'
-  WHERE field_key = 'leftFrenchDoorLeafPart.bottomHeightExternal';
-
-UPDATE public.default_field_definitions
-  SET info_note = 'Internal Bottom Rail Height — Calculation converts between int. & ext. based on angle and/or shape. Specify default either for int. or ext., not for both. When only the external height is set as the default be sure to set constantSideOnHeightCalculation to external_height'
-  WHERE field_key = 'rightFrenchDoorLeafPart.bottomHeight';
-
-UPDATE public.default_field_definitions
-  SET info_note = 'External Bottom Rail Height — Calculation converts between int. & ext. based on angle and/or shape. Specify default either for int. or ext., not for both. When only the external height is set as the default be sure to set constantSideOnHeightCalculation to external_height'
-  WHERE field_key = 'rightFrenchDoorLeafPart.bottomHeightExternal';
-
-UPDATE public.default_field_definitions
-  SET info_note = 'Internal Bottom Rail Height — Calculation converts between int. & ext. based on angle and/or shape. Specify default either for int. or ext., not for both. When only the external height is set as the default be sure to set constantSideOnHeightCalculation to external_height'
-  WHERE field_key = 'bottomStableDoorLeafPart.bottomHeight';
-
-UPDATE public.default_field_definitions
-  SET info_note = 'External Bottom Rail Height — Calculation converts between int. & ext. based on angle and/or shape. Specify default either for int. or ext., not for both. When only the external height is set as the default be sure to set constantSideOnHeightCalculation to external_height'
-  WHERE field_key = 'bottomStableDoorLeafPart.bottomHeightExternal';
-
-UPDATE public.default_field_definitions
-  SET info_note = 'Internal Bottom Rail Height — Calculation converts between int. & ext. based on angle and/or shape. Specify default either for int. or ext., not for both. When only the external height is set as the default be sure to set constantSideOnHeightCalculation to external_height'
-  WHERE field_key = 'bottomFloatingTransomCasementSashPart.bottomHeight';
-
-UPDATE public.default_field_definitions
-  SET info_note = 'External Bottom Rail Height — Calculation converts between int. & ext. based on angle and/or shape. Specify default either for int. or ext., not for both. When only the external height is set as the default be sure to set constantSideOnHeightCalculation to external_height'
-  WHERE field_key = 'bottomFloatingTransomCasementSashPart.bottomHeightExternal';
 
 COMMIT;
