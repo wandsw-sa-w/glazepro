@@ -294,6 +294,44 @@ describe('hasErrors', () => {
   })
 })
 
+// ── Publish-blocking validation scenario ────────────────────────────────────
+
+describe('publish-blocking: softwood cill error', () => {
+  it('fires an error rule when is_solid_redwood_cill is true', () => {
+    // Simulates the "Softwood Cill" validation rule: cill material is solid
+    // redwood, which is an error that should block publishing.
+    const rules = [makeRule({
+      id: 99,
+      severity: 'error',
+      condition: 'is_solid_redwood_cill',
+      message: 'Softwood cill selected — use hardwood or Accoya',
+      level: 'item',
+    })]
+    const vars = { is_solid_redwood_cill: true }
+    const results = validateDrawing(null, vars, rules, {})
+    expect(results).toHaveLength(1)
+    expect(results[0].status).toBe('fired')
+    expect(results[0].severity).toBe('error')
+    expect(results[0].message).toBe('Softwood cill selected — use hardwood or Accoya')
+    expect(hasErrors(results)).toBe(true)
+  })
+
+  it('does not fire the softwood cill rule for accoya cill', () => {
+    const rules = [makeRule({
+      id: 99,
+      severity: 'error',
+      condition: 'is_solid_redwood_cill',
+      message: 'Softwood cill selected — use hardwood or Accoya',
+      level: 'item',
+    })]
+    const vars = { is_solid_redwood_cill: false }
+    const results = validateDrawing(null, vars, rules, {})
+    expect(results).toHaveLength(1)
+    expect(results[0].status).toBe('passed')
+    expect(hasErrors(results)).toBe(false)
+  })
+})
+
 // ── Import SQL verification ─────────────────────────────────────────────────
 
 describe('step-p3 import SQL', () => {
