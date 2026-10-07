@@ -18,6 +18,49 @@ import { supabase } from '../supabase.js'
 import { PriceTable, fmt } from '../pricing/PriceRuleTable.jsx'
 import { buildBreakdownLines, hasRecordedDetail } from '../quotes/runBreakdown.js'
 
+// ── RunVariables — the variables stored for the run, searchable ──────────────
+function RunVariables({ variables }) {
+  const [query, setQuery] = useState('')
+
+  if (variables == null) {
+    return (
+      <div style={{ padding: '6px 12px', background: '#fffbe6', border: '1px solid #e6c800', borderRadius: 6, marginTop: 12, fontSize: 12 }}>
+        No variables were stored for this run.
+      </div>
+    )
+  }
+
+  const q = query.trim().toLowerCase()
+  const entries = Object.entries(variables)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .filter(([key, val]) => !q || key.toLowerCase().includes(q) || String(val).toLowerCase().includes(q))
+
+  return (
+    <details style={{ marginTop: 12 }}>
+      <summary style={{ cursor: 'pointer', fontWeight: 'bold', padding: '4px 0' }}>
+        Variables stored for this run ({Object.keys(variables).length})
+      </summary>
+      <input
+        value={query}
+        onChange={e => setQuery(e.target.value)}
+        placeholder="Search variables…"
+        style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', fontSize: 12, border: '1px solid #d8d5cf', borderRadius: 6, margin: '6px 0' }}
+      />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '2px 16px', fontSize: 12, maxHeight: 400, overflowY: 'auto', padding: 8, background: '#f9f9f9', border: '1px solid #ddd' }}>
+        {entries.length === 0 && <span style={{ color: '#aaa' }}>No variables match "{query}"</span>}
+        {entries.map(([key, val]) => (
+          <div key={key} style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+            <span style={{ color: '#555' }}>{key}</span>
+            <span style={{ fontWeight: 'bold', color: '#222' }}>
+              {val === null ? 'null' : val === true ? 'true' : val === false ? 'false' : String(val)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </details>
+  )
+}
+
 export function PriceBreakdown({ drawingId, onClose }) {
   const [state, setState] = useState({ status: 'loading', error: null, data: null })
 
@@ -71,7 +114,9 @@ export function PriceBreakdown({ drawingId, onClose }) {
           priceFileName = pf?.name ?? null
         }
 
-        // 5. Who ran it
+        // 5. Who ran it (created_by holds the public.users id; runs recorded
+        //    before the created_by fix hold an auth uid that matches no users
+        //    row and show "—")
         let runBy = null
         if (run.created_by) {
           const { data: u, error: uErr } = await supabase
@@ -79,6 +124,15 @@ export function PriceBreakdown({ drawingId, onClose }) {
           if (uErr) throw new Error(`users: ${uErr.message}`)
           runBy = u?.full_name ?? null
         }
+
+        // 6. Variables stored for this run (drawing_pricing_variables)
+        const { data: varRows, error: varErr } = await supabase
+          .from('drawing_pricing_variables')
+          .select('variables')
+          .eq('pricing_run_id', run.id)
+          .limit(1)
+        if (varErr) throw new Error(`drawing_pricing_variables: ${varErr.message}`)
+        const variables = varRows?.[0]?.variables ?? null
 
         if (cancelled) return
         setState({
@@ -91,6 +145,7 @@ export function PriceBreakdown({ drawingId, onClose }) {
             lines: buildBreakdownLines(resultRows ?? [], rulesById),
             detailRecorded: hasRecordedDetail(resultRows ?? []),
             warnings: Array.isArray(run.warnings) ? run.warnings : null,
+            variables,
           },
         })
       } catch (err) {
@@ -166,6 +221,9 @@ export function PriceBreakdown({ drawingId, onClose }) {
 
             {/* The shared benchmark table — stored lines, no targets */}
             <PriceTable lines={data.lines} />
+
+            {/* Variables stored with the run — searchable */}
+            <RunVariables variables={data.variables} />
           </>
         )}
       </div>

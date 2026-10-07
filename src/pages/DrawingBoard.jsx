@@ -1415,6 +1415,7 @@ function DrawingBoard() {
   // ── Pricing summary (loaded on mount + after save, no keystroke calls) ────
   const [pricingInfo,  setPricingInfo]  = useState(null) // { netPrice, priceFileName }
   const [breakdownOpen, setBreakdownOpen] = useState(false) // Price breakdown dialog
+  const [copyDataStatus, setCopyDataStatus] = useState(null) // 'copied' | 'failed' | null
 
   // ── Undo/Redo ──────────────────────────────────────────────────────────────
   const undoStack  = useRef([])
@@ -2075,6 +2076,26 @@ function DrawingBoard() {
           <input type="checkbox" checked={showHidden} onChange={e => setShowHidden(e.target.checked)} />
           Show hidden
         </label>
+      )}
+      {/* Copy drawing data — the SAVED parts tree as JSON, for capturing real
+          trees (switch-mode users only) */}
+      {currentUser?.drawing_board_mode === 'switch' && (
+        <button
+          onClick={async () => {
+            try {
+              await navigator.clipboard.writeText(JSON.stringify(savedTreeRef.current, null, 2))
+              setCopyDataStatus('copied')
+            } catch (e) {
+              console.error('Copy drawing data failed:', e)
+              setCopyDataStatus('failed')
+            }
+            setTimeout(() => setCopyDataStatus(null), 2500)
+          }}
+          title="Copy the saved parts tree (as last saved — not unsaved edits) to the clipboard as JSON"
+          style={tbBtn(false)}
+        >
+          {copyDataStatus === 'copied' ? 'Copied ✓' : copyDataStatus === 'failed' ? 'Copy failed' : 'Copy drawing data'}
+        </button>
       )}
 
       <div style={{ flex: 1 }} />

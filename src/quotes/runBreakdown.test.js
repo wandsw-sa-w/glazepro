@@ -105,4 +105,17 @@ describe('Source-level — one table component, stored data only', () => {
     expect(engineSource).toMatch(/warnings:\s+engineResults\.warnings \?\? \[\]/)
     expect(engineSource).toMatch(/created_by:\s+runUserId/)
   })
+
+  it('created_by is the public.users id resolved by email, not the auth uid', () => {
+    // public.users.id ≠ auth uid (users rows are matched by email throughout
+    // the app) — storing the auth uid made "Run by" show "—".
+    expect(engineSource).toContain(".from('users').select('id').eq('email', authEmail)")
+    expect(engineSource).not.toMatch(/created_by:\s+authData\?\.user\?\.id/)
+  })
+
+  it('the breakdown shows the stored run variables, searchable', () => {
+    expect(breakdownSource).toContain("from('drawing_pricing_variables')")
+    expect(breakdownSource).toContain('RunVariables')
+    expect(breakdownSource).toContain('Search variables')
+  })
 })

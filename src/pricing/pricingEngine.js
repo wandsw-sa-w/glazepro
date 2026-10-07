@@ -824,11 +824,24 @@ export async function priceDrawing(drawingId, supabase, { priceFileId } = {}) {
     // ── 5. Create pricing_runs row ────────────────────────────────────────────
     const currentTreeHash = treeHash(tree)
 
-    // Who ran it — shown in the Price breakdown view. A missing auth user is
-    // recorded as null, never invented.
-    const { data: authData, error: authErr } = await supabase.auth.getUser()
-    if (authErr) console.warn('[priceDrawing] auth.getUser failed:', authErr.message)
-    const runUserId = authData?.user?.id ?? null
+    // Who ran it — shown in the Price breakdown view. public.users rows are
+    // matched by EMAIL throughout the app (useCurrentUser, templates.js,
+    // QuoteMatrixPage): public.users.id is NOT the auth uid, which is why a
+    // created_by recorded as the auth uid resolved to no users row and the
+    // breakdown showed "Run by: —". Store the public.users id; when there is
+    // no matching row, record null — never invent one.
+    let runUserId = null
+    {
+      const { data: authData, error: authErr } = await supabase.auth.getUser()
+      if (authErr) console.warn('[priceDrawing] auth.getUser failed:', authErr.message)
+      const authEmail = authData?.user?.email ?? null
+      if (authEmail) {
+        const { data: userRow, error: userErr } = await supabase
+          .from('users').select('id').eq('email', authEmail).maybeSingle()
+        if (userErr) console.warn('[priceDrawing] users lookup failed:', userErr.message)
+        runUserId = userRow?.id ?? null
+      }
+    }
 
     const { data: pricingRun, error: runErr } = await supabase
       .from('pricing_runs')
