@@ -112,6 +112,34 @@ describe('Benchmark B — DSO variables are correct', () => {
   })
 })
 
+describe('Step V — glass sightline from the drawn sash sizes, cut rule unchanged', () => {
+  // Cut size = sightline + 2 × (rebate 14 − tolerance 2) per axis;
+  // rounded_area = max(round(area, 2), 0.30) — unchanged.
+  const PROBE = [{
+    id: 'probe', rule_family: 'price', level: 'item', is_active: true,
+    group_name: 'glass_done', loop_target: 'glass_unit',
+    name: 'probe_rounded_area', condition: 'true',
+    quantity: 'rounded_area', value: '1', markup: 1, sort_order: 1,
+  }]
+  const PV = { defaultDoubleGlazingRebateWidthForSash: 14, defaultDoubleGlazingTolerance: 2 }
+
+  function roundedAreas(tree) {
+    const res = runPricingOnTree(tree, PROBE, PF_VARIABLES, { profileValues: PV })
+    return res.price.lines.filter(l => l.fires && !l.error).map(l => l.quantity)
+  }
+
+  it('L34046: every unit prices at 0.75 m² — Integrate’s Square Glass Cost qty (stage-4)', () => {
+    // sash 1075, stile 50.75 → sightline 973.5 × 726.5; cut 997.5 × 750.5
+    // → 0.75 (the SAME under the alternative 1255 × 1775 frame reading)
+    expect(roundedAreas(BENCHMARK_L34046.tree)).toEqual([0.75, 0.75])
+  })
+
+  it('Benchmark A: every unit prices at 0.65 m² — Integrate’s qty', () => {
+    // sash 900, stile 50.75 → sightline 798.5 × 761.5; cut 822.5 × 785.5 → 0.65
+    expect(roundedAreas(BENCHMARK_A.tree)).toEqual([0.65, 0.65])
+  })
+})
+
 describe('Step V — fixture sash sizes equal Integrate’s drawn labels', () => {
   // Evidence table in docs/step-v-geometry-brief.md (read from Integrate's
   // drawing board, 7 Oct 2026)
