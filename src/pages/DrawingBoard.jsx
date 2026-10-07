@@ -24,6 +24,7 @@ import { useCurrentUser } from '../hooks/useCurrentUser.js'
 import { defaultIronmonger } from '../pricing/defaultIronmongery.js'
 import { computeVariables } from '../pricing/computeVariables.js'
 import { validateDrawing, countBySeverity } from '../validation/validate.js'
+import { PriceBreakdown } from '../components/PriceBreakdown.jsx'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -497,7 +498,7 @@ function IronmongeryPanel({ node, tree, derived, refOptions, onChangeField, onAu
 
 // ── PropertyEditor ────────────────────────────────────────────────────────────
 
-function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, onAutoApplyDefaults, onPrev, onNext, prevDisabled, nextDisabled, prevLabel, nextLabel, visibilityMap, boardMode, showHidden, tree, ironmongeryRules, ironmongeryProducts }) {
+function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, onAutoApplyDefaults, onPrev, onNext, prevDisabled, nextDisabled, prevLabel, nextLabel, visibilityMap, boardMode, showHidden, tree, ironmongeryRules, ironmongeryProducts, onShowPriceBreakdown }) {
   if (!node) {
     return (
       <div style={{ padding: 16, color: '#aaa', fontSize: 12, textAlign: 'center', paddingTop: 48 }}>
@@ -530,6 +531,15 @@ function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, o
 
       {/* Fields */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px' }}>
+        {/* Price breakdown for pricePart — shows the latest STORED pricing run */}
+        {node.part_type === 'pricePart' && onShowPriceBreakdown && (
+          <button
+            onClick={onShowPriceBreakdown}
+            style={{ width: '100%', marginBottom: 12, fontSize: 12, padding: '6px 0', border: '1px solid #d6d0f5', borderRadius: 6, background: '#f3f1fc', color: '#3d35a8', fontWeight: 600, cursor: 'pointer' }}
+          >
+            {'£'} Price breakdown
+          </button>
+        )}
         {/* Ironmongery panel for paintAndIronmongeryPart */}
         {node.part_type === 'paintAndIronmongeryPart' && (
           <IronmongeryPanel
@@ -1356,6 +1366,7 @@ function DrawingBoard() {
 
   // ── Pricing summary (loaded on mount + after save, no keystroke calls) ────
   const [pricingInfo,  setPricingInfo]  = useState(null) // { netPrice, priceFileName }
+  const [breakdownOpen, setBreakdownOpen] = useState(false) // Price breakdown dialog
 
   // ── Undo/Redo ──────────────────────────────────────────────────────────────
   const undoStack  = useRef([])
@@ -2111,6 +2122,7 @@ function DrawingBoard() {
               tree={tree}
               ironmongeryRules={ironmongeryRules}
               ironmongeryProducts={ironmongeryProducts}
+              onShowPriceBreakdown={() => setBreakdownOpen(true)}
             />
           </div>
 
@@ -2370,6 +2382,11 @@ function DrawingBoard() {
           style={{ position: 'fixed', inset: 0, zIndex: 4999 }}
           onClick={() => setSwitchDrawingOpen(false)}
         />
+      )}
+
+      {/* Price breakdown dialog (latest stored pricing run) */}
+      {breakdownOpen && (
+        <PriceBreakdown drawingId={Number(drawingId)} onClose={() => setBreakdownOpen(false)} />
       )}
 
     </Layout>

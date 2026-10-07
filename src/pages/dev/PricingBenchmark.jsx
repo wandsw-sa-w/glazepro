@@ -13,6 +13,7 @@ import { supabase } from '../../supabase.js'
 import { runPricingOnTree } from '../../pricing/pricingEngine.js'
 import { computeDerived } from '../../drawingBoard/computeDerived.js'
 import { loadPricingContext, resolveIronmongeryLines } from '../../pricing/loadPricingContext.js'
+import { PriceTable, fmt, costPriceMatch } from '../../pricing/PriceRuleTable.jsx'
 import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_B } from '../../pricing/benchmarks/index.js'
 
 const ALL_BENCHMARKS = [BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_B]
@@ -65,153 +66,8 @@ const S = {
   },
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function fmt(n, decimals = 2) {
-  if (n == null) return '\u2014'
-  return Number(n).toFixed(decimals)
-}
-
-function costPriceMatch(actualCost, actualPrice, targets) {
-  const costDiff  = actualCost  - targets.total_cost
-  const priceDiff = actualPrice - targets.total_price
-  const costOk    = Math.abs(costDiff)  < 0.02
-  const priceOk   = Math.abs(priceDiff) < 0.02
-  return { costOk, priceOk, costDiff, priceDiff }
-}
-
-// ── Price rules table (parameterised) ─────────────────────────────────────────
-
-function PriceTable({ lines, targets }) {
-  if (!lines || lines.length === 0) return <p style={{ color: '#aaa' }}>No rules.</p>
-
-  const groups = {}
-  for (const line of lines) {
-    const g = line.group_name ?? '(ungrouped)'
-    if (!groups[g]) groups[g] = { lines: [], cost: 0, price: 0 }
-    groups[g].lines.push(line)
-    if (line.fires && !line.error) {
-      groups[g].cost  += line.line_cost
-      groups[g].price += line.line_total
-    }
-  }
-
-  const totalCost  = Object.values(groups).reduce((s, g) => s + g.cost,  0)
-  const totalPrice = Object.values(groups).reduce((s, g) => s + g.price, 0)
-  const groupTargets = targets.groups ?? targets.group_cost ?? {}
-
-  return (
-    <>
-      {/* Per-group summary */}
-      <table style={{ ...S.table, width: 'auto', minWidth: '600px', marginBottom: '16px' }}>
-        <thead>
-          <tr>
-            <th style={S.th}>Group</th>
-            <th style={S.th}>Cost</th>
-            <th style={S.th}>Price</th>
-            <th style={S.th}>vs Target</th>
-          </tr>
-        </thead>
-        <tbody>
-          {Object.entries(groups).map(([group, g]) => {
-            const gt = groupTargets[group]
-            // Support both { cost, price } and flat cost number
-            const targetCost  = gt != null ? (typeof gt === 'number' ? gt : gt.cost) : null
-            const targetPrice = gt != null ? (typeof gt === 'number' ? null : gt.price) : null
-            const costDiff  = targetCost  != null ? g.cost  - targetCost  : null
-            const priceDiff = targetPrice != null ? g.price - targetPrice : null
-            const costOk    = costDiff  != null && Math.abs(costDiff)  < 0.02
-            const priceOk   = priceDiff != null && Math.abs(priceDiff) < 0.02
-            return (
-              <tr key={group} style={S.fired}>
-                <td style={S.td}><strong>{group}</strong></td>
-                <td style={S.td}>{'\u00A3'}{fmt(g.cost)}</td>
-                <td style={S.td}>{'\u00A3'}{fmt(g.price)}</td>
-                <td style={S.td}>
-                  {costDiff == null
-                    ? <span style={{ color: '#aaa' }}>{'\u2014'}</span>
-                    : <>
-                        <span style={costOk ? S.hit : S.miss}>
-                          {costOk ? `C: ok` : `C: diff \u00A3${fmt(costDiff)}`}
-                        </span>
-                        {priceDiff != null && <>
-                          {' '}
-                          <span style={priceOk ? S.hit : S.miss}>
-                            {priceOk ? `P: ok` : `P: diff \u00A3${fmt(priceDiff)}`}
-                          </span>
-                        </>}
-                      </>
-                  }
-                </td>
-              </tr>
-            )
-          })}
-          <tr style={{ fontWeight: 'bold', background: '#f0f0f0' }}>
-            <td style={S.td}>TOTAL</td>
-            <td style={S.td}>{'\u00A3'}{fmt(totalCost)}</td>
-            <td style={S.td}>{'\u00A3'}{fmt(totalPrice)}</td>
-            <td style={S.td}>
-              {(() => {
-                const m = costPriceMatch(totalCost, totalPrice, targets)
-                return (
-                  <>
-                    <span style={m.costOk ? S.hit : S.miss}>
-                      Cost: {m.costOk ? 'ok' : `diff \u00A3${fmt(m.costDiff)}`} (target {'\u00A3'}{fmt(targets.total_cost)})
-                    </span>
-                    {' | '}
-                    <span style={m.priceOk ? S.hit : S.miss}>
-                      Price: {m.priceOk ? 'ok' : `diff \u00A3${fmt(m.priceDiff)}`} (target {'\u00A3'}{fmt(targets.total_price)})
-                    </span>
-                  </>
-                )
-              })()}
-            </td>
-          </tr>
-        </tbody>
-      </table>
-
-      {/* Detailed rule lines per group */}
-      {Object.entries(groups).map(([group, g]) => (
-        <details key={group} style={{ marginBottom: '12px' }}>
-          <summary style={{ ...S.summary, fontSize: '12px', color: '#555' }}>
-            {group} {'\u2014'} cost {'\u00A3'}{fmt(g.cost)} / price {'\u00A3'}{fmt(g.price)}
-          </summary>
-          <table style={S.table}>
-            <thead>
-              <tr>
-                <th style={S.th}>Rule</th>
-                <th style={S.th}>Loop Part</th>
-                <th style={S.th}>Qty</th>
-                <th style={S.th}>Value</th>
-                <th style={S.th}>Markup</th>
-                <th style={S.th}>Cost</th>
-                <th style={S.th}>Price</th>
-              </tr>
-            </thead>
-            <tbody>
-              {g.lines.map((line, i) => {
-                const rowStyle = line.error ? S.errRow : (line.fires ? S.fired : S.noFire)
-                const lineCost  = line.fires && !line.error ? line.line_cost : null
-                const linePrice = line.fires && !line.error ? line.line_total : null
-                return (
-                  <tr key={i} style={rowStyle}>
-                    <td style={S.td}>{line.alloc_label ?? line.name}</td>
-                    <td style={S.td}>{line.alloc_part_code ?? line.part_type ?? '\u2014'}</td>
-                    <td style={S.td}>{line.error ? <span style={{ color: '#c00' }}>{line.error}</span> : fmt(line.quantity, 4)}</td>
-                    <td style={S.td}>{!line.error && fmt(line.value, 4)}</td>
-                    <td style={S.td}>{!line.error && fmt(line.markup, 3)}</td>
-                    <td style={S.td}>{lineCost != null ? <strong>{'\u00A3'}{fmt(lineCost)}</strong> : (!line.error ? '\u2014' : '')}</td>
-                    <td style={S.td}>{linePrice != null ? <strong>{'\u00A3'}{fmt(linePrice)}</strong> : (!line.error ? '\u2014' : '')}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </details>
-      ))}
-    </>
-  )
-}
+// The price-rule table, fmt and costPriceMatch live in src/pricing/PriceRuleTable.jsx,
+// shared with the Price breakdown view for real drawings so the two cannot drift.
 
 // ── Variables panel ───────────────────────────────────────────────────────────
 

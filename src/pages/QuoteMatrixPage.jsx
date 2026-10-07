@@ -20,6 +20,7 @@ import { computeVariables } from '../pricing/computeVariables.js'
 import { validateDrawing, countBySeverity } from '../validation/validate.js'
 import { listTemplates, createDrawingFromTemplate } from '../drawingBoard/templates.js'
 import { insertDrawingHistory } from '../drawingBoard/drawingHistory.js'
+import { PriceBreakdown } from '../components/PriceBreakdown.jsx'
 import QuoteOverview from './QuoteOverview.jsx'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -250,6 +251,7 @@ export default function QuoteMatrixPage() {
   const [selectMode, setSelectMode] = useState(false)
   const [selectedItemIds, setSelectedItemIds] = useState(new Set())
   const [templatePickerFor, setTemplatePickerFor] = useState(null) // jobItemId
+  const [breakdownDrawingId, setBreakdownDrawingId] = useState(null) // Price breakdown dialog
   const [priceFileModal, setPriceFileModal] = useState(false)
   const [allTemplates, setAllTemplates] = useState([]) // drawing_templates rows
 
@@ -939,7 +941,10 @@ export default function QuoteMatrixPage() {
                                 <div style={{ padding: '6px 10px', fontSize: 10, color: '#888', borderTop: '1px solid #f0eef8', minHeight: 14 }}>{desc || '—'}</div>
                                 <div style={{ padding: '6px 10px', borderTop: '1px solid #f0eef8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
                                   <span style={{ fontSize: 11, fontWeight: 600, color: '#333', display: 'flex', alignItems: 'center' }}>{cardLabel}<ValidationMarker drawingId={dwg.id} /></span>
-                                  {stale && <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 999, background: '#fffbeb', color: '#b45309', fontWeight: 700, border: '1px solid #fcd34d' }}>needs pricing</span>}
+                                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    {stale && <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 999, background: '#fffbeb', color: '#b45309', fontWeight: 700, border: '1px solid #fcd34d' }}>needs pricing</span>}
+                                    <button onClick={() => setBreakdownDrawingId(dwg.id)} title="Price breakdown" style={{ fontSize: 9, padding: '1px 6px', borderRadius: 999, background: '#f3f1fc', color: '#3d35a8', fontWeight: 700, border: '1px solid #d6d0f5', cursor: 'pointer' }}>{'£'} breakdown</button>
+                                  </span>
                                 </div>
                               </div>
                             )
@@ -1083,6 +1088,10 @@ export default function QuoteMatrixPage() {
           }}
           onClose={() => setTemplatePickerFor(null)}
         />
+      )}
+
+      {breakdownDrawingId && (
+        <PriceBreakdown drawingId={breakdownDrawingId} onClose={() => setBreakdownDrawingId(null)} />
       )}
     </Layout>
   )

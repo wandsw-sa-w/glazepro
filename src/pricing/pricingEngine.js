@@ -812,6 +812,12 @@ export async function priceDrawing(drawingId, supabase, { priceFileId } = {}) {
     // ── 5. Create pricing_runs row ────────────────────────────────────────────
     const currentTreeHash = treeHash(tree)
 
+    // Who ran it — shown in the Price breakdown view. A missing auth user is
+    // recorded as null, never invented.
+    const { data: authData, error: authErr } = await supabase.auth.getUser()
+    if (authErr) console.warn('[priceDrawing] auth.getUser failed:', authErr.message)
+    const runUserId = authData?.user?.id ?? null
+
     const { data: pricingRun, error: runErr } = await supabase
       .from('pricing_runs')
       .insert({
@@ -820,6 +826,7 @@ export async function priceDrawing(drawingId, supabase, { priceFileId } = {}) {
         status:        'in_progress',
         tree_hash:     currentTreeHash,
         created_at:    new Date().toISOString(),
+        created_by:    runUserId,
       })
       .select('id')
       .single()
@@ -966,6 +973,13 @@ export async function priceDrawing(drawingId, supabase, { priceFileId } = {}) {
         cost:             l.quantity * l.value,
         sales:            l.line_total,
         markup_applied:   l.markup,
+        // Detail for the Price breakdown view (sql/step-t1-price-breakdown.sql).
+        // Same values the benchmark table displays: quantity, value, the
+        // per-line label (component alloc label) and the loop part reference.
+        quantity:         l.quantity,
+        value:            l.value,
+        part_label:       l.alloc_label ?? null,
+        part_code:        l.alloc_part_code ?? l.alloc_iron_part_code ?? l.part_type ?? null,
       }))
 
     if (priceResultRows.length > 0) {
@@ -1008,6 +1022,9 @@ export async function priceDrawing(drawingId, supabase, { priceFileId } = {}) {
         status:      'complete',
         total_cost:  engineResults.price.total_cost,
         total_sales: engineResults.price.total,
+        // Warnings are stored with the run so the Price breakdown view can
+        // show exactly what this run reported, not a fresh calculation.
+        warnings:    engineResults.warnings ?? [],
       })
       .eq('id', pricingRunId)
 
