@@ -470,12 +470,20 @@ export default function PricingBenchmark() {
 
         // Run each benchmark
         const benchmarkResults = ALL_BENCHMARKS.map(benchmark => {
-          // Compute ironmongery lines for this benchmark's tree
+          // Compute ironmongery lines for this benchmark's tree.
+          // Prefer defaultIronmonger (DB rules); fall back to the tree's
+          // saved ironmongeryLines (paintAndIronmongeryPart.values.ironmongeryLines)
+          // which mirrors how DrawingBoard stores them.
           let ironmongeryLines = []
           if (ironRules.length > 0) {
             const derived  = computeDerived(benchmark.tree)
             const itemVars = computeVariables(benchmark.tree, derived, pfVariables) ?? {}
             ironmongeryLines = defaultIronmonger(benchmark.tree, { ...pfVariables, ...itemVars }, ironRules)
+          }
+          if (ironmongeryLines.length === 0) {
+            // Fall back to tree-stored lines (same path DrawingBoard.jsx uses)
+            const paintNode = (benchmark.tree.children ?? []).find(c => c.part_type === 'paintAndIronmongeryPart')
+            ironmongeryLines = paintNode?.values?.ironmongeryLines ?? []
           }
 
           const results = runPricingOnTree(benchmark.tree, rules || [], pfVariables, {

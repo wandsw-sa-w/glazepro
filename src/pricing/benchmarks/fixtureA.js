@@ -59,6 +59,9 @@ const TREE = {
         cillFinish:        'clean_white',
         cutOutBrickReveal: false,
         ironmongeryFinish: 'PB',
+        ironmongeryLines: [
+          { product_short_name: 'z-claw_fastener_kit_wopulleys', finish_code: 'PB', qty: 1, source: 'default' },
+        ],
       },
       children: [],
     },
@@ -269,11 +272,11 @@ const ASSUMPTIONS = [
 // This fixture provides the pre-resolved ironmongery lines and catalogue
 // so the engine can price them without the DB.
 const IRONMONGERY_LINES = [
-  { product_short_name: 'claw_fastener_kit_square_without_pulleys', finish_code: 'PB', qty: 1 },
+  { product_short_name: 'z-claw_fastener_kit_wopulleys', finish_code: 'PB', qty: 1, source: 'default' },
 ]
 
 const IRONMONGERY_CATALOGUE = {
-  'claw_fastener_kit_square_without_pulleys:PB': {
+  'z-claw_fastener_kit_wopulleys:PB': {
     cost: 13,   // round(13*1, 0) * 1.05 = 13 * 1.05 = 13.65
     parts: [],  // kit lines not broken out; cost used directly
   },

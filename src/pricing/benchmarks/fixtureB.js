@@ -54,6 +54,9 @@ const TREE = {
         cillFinish:        'clean_white',
         cutOutBrickReveal: false,
         ironmongeryFinish: 'PB',
+        ironmongeryLines: [
+          { product_short_name: 'z-brighton_fastener_kit_wpulleys', finish_code: 'PB', qty: 1, source: 'default' },
+        ],
       },
       children: [],
     },
@@ -252,11 +255,11 @@ const ASSUMPTIONS = [
 // ── Ironmongery fixture data ─────────────────────────────────────────────────
 // Benchmark B: 1 x Brighton Fastener Kit without Pulleys, PB finish.
 const IRONMONGERY_LINES = [
-  { product_short_name: 'brighton_fastener_kit_square_without_pulleys', finish_code: 'PB', qty: 1 },
+  { product_short_name: 'z-brighton_fastener_kit_wpulleys', finish_code: 'PB', qty: 1, source: 'default' },
 ]
 
 const IRONMONGERY_CATALOGUE = {
-  'brighton_fastener_kit_square_without_pulleys:PB': {
+  'z-brighton_fastener_kit_wpulleys:PB': {
     cost: 12,   // round(12*1, 0) * 1.05 = 12 * 1.05 = 12.60
     parts: [],
   },

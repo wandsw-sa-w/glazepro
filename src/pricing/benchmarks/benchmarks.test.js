@@ -367,12 +367,19 @@ const SASH_WINDOW_ALLOC_RULES = [
  * Helper: run a benchmark through the full PF30 engine and return results.
  */
 function runBenchmark(benchmark, rules = PF30_RULES_S4) {
+  // Ironmongery: prefer fixture export, fall back to tree-stored lines
+  // (paintAndIronmongeryPart.values.ironmongeryLines, same as DrawingBoard).
+  let ironmongeryLines = benchmark.ironmongeryLines ?? []
+  if (ironmongeryLines.length === 0) {
+    const paintNode = (benchmark.tree.children ?? []).find(c => c.part_type === 'paintAndIronmongeryPart')
+    ironmongeryLines = paintNode?.values?.ironmongeryLines ?? []
+  }
   return runPricingOnTree(benchmark.tree, rules, PF_VARIABLES, {
     testMode: true,  // PF30 rules are is_active=false (draft import)
     glassCatalogue: benchmark.glassCatalogue ?? {},
     partAllocationRules: SASH_WINDOW_ALLOC_RULES,
     partCostMap: benchmark.partCostMap ?? {},
-    ironmongeryLines: benchmark.ironmongeryLines ?? [],
+    ironmongeryLines,
     ironmongeryCatalogue: benchmark.ironmongeryCatalogue ?? {},
   })
 }
