@@ -21,31 +21,29 @@ const PART_COST_MAP = {
 }
 
 // ── Fixture tree ─────────────────────────────────────────────────────────────
-// Vocabulary and shape follow a real saved drawing
-// (src/pricing/benchmarks/real-trees/L507712-drawing1.raw.json): real
-// timber_species codes ('softwood'/'utile'), real glazing_type codes
-// ('double_glazing'), spacer as spacerDimId/spacerColourId codes, glazing
-// bars as child parts. EXCEPTION, flagged in docs/pricing-vocabulary-audit.md
-// §shape: outerWidth/outerHeight stay on the frame although a saved drawing
-// does not store them — the weight calibration (19.4/20.4 kg) depends on the
-// outer dimensions and the board/engine width-semantics conflict is an open
-// decision.
+// Step X: EVERY value comes from Integrate's own saved drawing for this
+// benchmark — docs/integrate-L34046-item7-tree.txt (fact, read 7 Oct 2026) —
+// expressed with GlazePro's real keys and codes (as a saved GlazePro drawing
+// stores them). No field a saved GlazePro drawing does not store. Integrate
+// values with no GlazePro field (range, isSecuredByDesign, installByUs /
+// deliveryByUs, hasHeadDrip, cill width, per-unit glazing rebate/tolerance,
+// bar thickness/nib) are listed in the Step X report, not invented here.
+// Integrate's numeric staffBeadTypeId 0 / partingBeadTypeId 280 /
+// mouldingTypeId 0 map to GlazePro codes 'small' / 'standard' / (unset).
+// The paint finishes, ironmongery finish and spacer codes are from the
+// original L34046 Item 7 spec (not in the Integrate geometry read).
 const TREE = {
   key: 'item1',
   part_type: 'drawingItemPart',
   values: {
-    typeOfWork:          'complete_new',
-    frameMaterialId:     'softwood',          // timber_species: Integrate "Solid Redwood"
-    sashMaterialId:      'softwood',
-    cillMaterialId:      'utile',             // timber_species: Integrate "Solid Utile Hardwood"
+    typeOfWork:          'complete_new',      // Integrate: newSashes + newFrame
+    isDocL:              true,                // Integrate: isDocL true
+    frameMaterialId:     'softwood',          // Integrate 38 = Solid Redwood
+    sashMaterialId:      'softwood',          // Integrate 38 = Solid Redwood
+    cillMaterialId:      'utile',             // Integrate 44 = Solid Utile Hardwood
     staffBeadTypeId:     'small',
     partingBeadTypeId:   'standard',
-    fitToPreparedOpening: false,
-    decoration:          false,
-    floorLevel:          'ground_floor',
-    bayFullyCoupledFrames: false,
-    frameInKitForm:      false,
-    bayPoleRequired:     false,
+    floorLevel:          'ground_floor',      // original L34046 spec (not in the Integrate geometry read)
   },
   children: [
     {
@@ -72,37 +70,34 @@ const TREE = {
       key: 'frame1',
       part_type: 'assemblyFramePart',
       values: {
-        // OVERALL frame — OPEN CHOICE for the reviewer (step-v brief: the
-        // L34046 drawing has not been read in Integrate). The original
-        // fixture transcribed an inner opening of 1075 x 1630 and ASSUMED
-        // outer 1255 x 1775. 1245 x 1779 is used here because it preserves
-        // the transcribed interior exactly (1245−85−85 = 1075,
-        // 1779−79−70 = 1630), so every sightline-driven quantity is
-        // unchanged. The alternative reading, overall 1255 x 1775
-        // (interior 1085 x 1626), shifts every sash/glass quantity by
-        // 10/−4 mm — both results are quantified in the Step V report.
+        // All from Integrate's saved drawing (the Step V open choice is
+        // settled: overall 1245 x 1779)
         width:          1245,
         height:         1779,
         topHeight:      79,
+        bottomHeight:   70,
         leftWidth:      85,
         rightWidth:     85,
-        frameDepth:     165,
-        jambType:       'solid_profiled',
-        leftOuterJamb:  101,
-        rightOuterJamb: 101,
-        leftCillHorn:   50,
-        rightCillHorn:  50,
-        rakeFrame:      false,
-        archHead:       false,
+        frameDepth:     140,
+        jambType:       'hollow_box_for_sash',   // Integrate 'hollow_box'
+        // Integrate: outer jamb extensions 0 → outer jamb = inner jamb (85)
+        leftOuterJamb:  85,
+        rightOuterJamb: 85,
+        // Integrate: cill horn lengths 0 / 0
+        frameHeadStopSize:  16,
+        frameStileStopSize: 16,
+        cillStopSize:       16,
       },
       children: [
         {
           key: 'cill1',
           part_type: 'cillPart',
           values: {
+            // Integrate CillPart: height 70, depth 140. profiledHeight is
+            // NOT a stored field in Integrate — removed (the old 45 was an
+            // invention; cill height 70 is the truth).
             height: 70,
-            depth:  200,
-            profiledHeight: 45,
+            depth:  140,
           },
           children: [],
         },
@@ -112,16 +107,16 @@ const TREE = {
           values: {
             sashThickness:             45,
             midrailHeight:             40,
-            // Zero like A and B (Integrate shows no side clearance on the
-            // drawings it was read from); keeps the drawn sash width equal
-            // to the interior 1075 the engine always used for this item
-            mechanicalClearanceLeft:   0,
-            mechanicalClearanceRight:  0,
+            // Integrate: clearances 2.5 / 2.5 → drawn sash width 1070
+            mechanicalClearanceLeft:   2.5,
+            mechanicalClearanceRight:  2.5,
             mechanicalClearanceTop:    0,
             mechanicalClearanceBottom: 0,
-            topHornTypeShortName:    'victorian',
-            bottomHornTypeShortName: 'none',
-            sashSplit:               'half_half',
+            topHornTypeShortName:    'victorian',   // Integrate 'victorian_style_horn'
+            topHornLength:           75,
+            bottomHornTypeShortName: 'no_horn',
+            bottomHornLength:        0,
+            sashSplit:               'half_half',   // equal shoulder heights 726.5 / 726.5
           },
           children: [
             {
@@ -129,11 +124,11 @@ const TREE = {
               part_type: 'topSashPart',
               values: {
                 topHeight:    49,
-                leftWidth:    50.75,
-                rightWidth:   50.75,
+                // Integrate: stiles 49 (the old 50.75 was an assumption)
+                leftWidth:    49,
+                rightWidth:   49,
                 operation:    'cord_hung',
-                toBeReplaced: null,
-                archHead:     false,
+                toBeReplaced: true,   // Integrate: toBeReplaced true
               },
               children: [
                 {
@@ -162,11 +157,12 @@ const TREE = {
               part_type: 'bottomSashPart',
               values: {
                 bottomHeight: 88,
-                leftWidth:    50.75,
-                rightWidth:   50.75,
+                leftWidth:    49,
+                rightWidth:   49,
                 operation:    'cord_hung',
-                toBeReplaced: null,
-                archHead:     false,
+                toBeReplaced: true,   // Integrate: toBeReplaced true
+                btmRailShapeId: 'chamfered',
+                chamferedBottomRailAngle: 9,
               },
               children: [
                 {
@@ -207,16 +203,18 @@ const TARGETS = {
 }
 
 // ── Assumptions ──────────────────────────────────────────────────────────────
+// Geometry is now FACT from docs/integrate-L34046-item7-tree.txt; only the
+// entries below remain assumption/spec-sourced.
 const ASSUMPTIONS = [
-  'Overall frame: 1245x1779 mm (OPEN CHOICE — preserves the transcribed interior 1075x1630; reviewer to read the real drawing; alternative reading 1255x1775)',
-  'Stile width: 50.75 mm (gross stile incl. sash lip = 47 + 3.75 mm)',
-  'Top rail: 49 mm, bottom rail: 88 mm, midrail: 40 mm (profile defaults)',
-  'Cill profiled height: 45 mm (height excluding frame stop)',
+  'Geometry: Integrate’s saved drawing (overall 1245x1779, sash 1070, stiles 49, cill 1245x70x140, horn 75/0) — fact, step-x brief',
   'Glass: GL100010 (4mm Clear Pilkington K Toughened), GL100080 (4mm Clear Toughened)',
-  'Ironmongery finish: ABs (Antique Brass)',
+  'Ironmongery finish: ABs (Antique Brass); finishes clean white; floor ground (original L34046 spec, not in the geometry read)',
+  'Spacer: 16mm White Warm Edge (original spec, not in the geometry read)',
 ]
 
-// Sash profile values for glass cut size (rebate width 14, tolerance 2 → cover 12mm per edge)
+// Sash profile values for glass cut size (rebate width 14, tolerance 2 → cover
+// 12mm per edge). Integrate stores rebate/tolerance PER GLASS UNIT (14/2 on
+// both units of this drawing); GlazePro reads them from the profile.
 const PROFILE_VALUES = {
   defaultDoubleGlazingRebateWidthForSash: 14,
   defaultDoubleGlazingTolerance: 2,
