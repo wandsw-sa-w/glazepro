@@ -20,6 +20,10 @@
  * geometry fix: assemblyFramePart.width/height are the OVERALL frame and
  * sash/glass/weight sizes come from the drawn geometry (derivedGeometry.js)
  * — version-3 runs over-priced every frame-size rule on real drawings.
+ * Version 5 is the Step W measured sash-weight model (timber from drawn
+ * sizes without the horn, glass at CUT size, bars at 0.302 kg/m, item
+ * weight 1.1 × sashes for sash replacements): version-4 runs under-
+ * weighted every cord-hung sash and mis-sized its counterweights.
  */
 
-export const PRICING_ENGINE_VERSION = 4
+export const PRICING_ENGINE_VERSION = 5
