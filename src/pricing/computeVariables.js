@@ -152,6 +152,21 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
     const is_hollow_box_jamb            = jambType === 'hollow_box_for_sash'
     const is_solid_redwood_frame_with_cord_jamb = is_solid_redwood_frame && !is_solid_spiral_jamb
 
+    // ── GROUP 4b — Staff bead type ────────────────────────────────────────────
+    const staffBeadTypeId = (item?.values?.staffBeadTypeId ?? 'small').toLowerCase()
+    const is_small_staff_bead = staffBeadTypeId === 'small'
+    const is_large_staff_bead = staffBeadTypeId === 'large'
+
+    // ── GROUP 4c — Profiled frame interior dimensions ─────────────────────────
+    // These are the internal opening dimensions of the frame (width/height
+    // on assemblyFramePart), used by part allocation rules for bead lengths.
+    const profiled_frame_interior_width_in_mm  = frame?.values?.width  ?? null
+    const profiled_frame_interior_height_in_mm = frame?.values?.height ?? null
+
+    // interior_qty: always 1 (the part allocation rules loop per sliding_sash
+    // and multiply by interior_qty to control how many bead lengths per sash)
+    const interior_qty = 1
+
     // ── GROUP 5 — Sash operations ─────────────────────────────────────────────
     const topOp = (topSash?.values?.operation ?? '').toLowerCase()
     const botOp = (botSash?.values?.operation ?? '').toLowerCase()
@@ -652,6 +667,14 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
       is_solid_profiled_jamb, is_solid_with_plant_on_stop,
       is_solid_spiral_jamb, is_hollow_box_jamb,
       is_solid_redwood_frame_with_cord_jamb,
+
+      // Group 4b — Staff bead type
+      is_small_staff_bead, is_large_staff_bead,
+
+      // Group 4c — Profiled frame interior dimensions
+      profiled_frame_interior_width_in_mm,
+      profiled_frame_interior_height_in_mm,
+      interior_qty,
 
       // Group 5 — Sash operations
       is_top_sash_cord_hung, is_top_sash_spiral_hung, is_top_sash_fixed,

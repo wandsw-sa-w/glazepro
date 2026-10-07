@@ -44,6 +44,7 @@ const TREE = {
     fitToPreparedOpening: false,
     decoration:          false,
     floorLevel:          'third_floor',
+    staffBeadTypeId:     'small',
     bayFullyCoupledFrames: false,
     frameInKitForm:      false,
     bayPoleRequired:     false,

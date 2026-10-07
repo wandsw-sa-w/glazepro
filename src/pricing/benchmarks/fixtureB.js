@@ -38,6 +38,7 @@ const TREE = {
     fitToPreparedOpening: false,
     decoration:          false,
     floorLevel:          'first_floor',
+    staffBeadTypeId:     'small',
     bayFullyCoupledFrames: false,
     frameInKitForm:      false,
     bayPoleRequired:     false,
@@ -170,8 +171,8 @@ const TARGETS = {
     { group: 'installation_materials', name: 'Ironmongery: Brighton Fastener Kit', qty: 12.60, value: 1.00, cost: 12.60, markup: 2.00, price: 25.20 },
     { group: 'installation_materials', name: 'Component: Small staff bead width', qty: 2.59, value: 2.20, cost: 5.70, markup: 2.00, price: 11.40 },
     { group: 'installation_materials', name: 'Component: Small staff bead height', qty: 2.59, value: 2.40, cost: 6.22, markup: 2.00, price: 12.43 },
-    { group: 'installation_materials', name: 'Component: Standard parting bead height', qty: 2.22, value: 1.10, cost: 2.44, markup: 2.00, price: 4.88 },
-    { group: 'installation_materials', name: 'Component: Standard parting bead width', qty: 2.22, value: 2.40, cost: 5.33, markup: 2.00, price: 10.66 },
+    { group: 'installation_materials', name: 'Component: Standard parting bead width', qty: 2.22, value: 1.10, cost: 2.44, markup: 2.00, price: 4.88 },
+    { group: 'installation_materials', name: 'Component: Standard parting bead height', qty: 2.22, value: 2.40, cost: 5.33, markup: 2.00, price: 10.66 },
     // Labour
     { group: 'labour', name: 'Labour', qty: 4.00, value: 40.21, cost: 160.84, markup: 2.00, price: 321.68 },
     // Extra Profits
@@ -210,8 +211,8 @@ const TARGETS_UNCORRECTED = {
     { group: 'installation_materials', name: 'Ironmongery: Brighton Fastener Kit', qty: 12.60, value: 1.00, cost: 12.60, markup: 2.00, price: 25.20 },
     { group: 'installation_materials', name: 'Component: Small staff bead width', qty: 2.59, value: 2.20, cost: 5.70, markup: 2.00, price: 11.40 },
     { group: 'installation_materials', name: 'Component: Small staff bead height', qty: 2.59, value: 2.40, cost: 6.22, markup: 2.00, price: 12.43 },
-    { group: 'installation_materials', name: 'Component: Standard parting bead height', qty: 2.22, value: 1.10, cost: 2.44, markup: 2.00, price: 4.88 },
-    { group: 'installation_materials', name: 'Component: Standard parting bead width', qty: 2.22, value: 2.40, cost: 5.33, markup: 2.00, price: 10.66 },
+    { group: 'installation_materials', name: 'Component: Standard parting bead width', qty: 2.22, value: 1.10, cost: 2.44, markup: 2.00, price: 4.88 },
+    { group: 'installation_materials', name: 'Component: Standard parting bead height', qty: 2.22, value: 2.40, cost: 5.33, markup: 2.00, price: 10.66 },
     // Labour
     { group: 'labour', name: 'Labour', qty: 4.00, value: 40.21, cost: 160.84, markup: 2.00, price: 321.68 },
     // Manufacture Materials (INTEGRATE ERROR: these fire on DSO even though no sash is made)
