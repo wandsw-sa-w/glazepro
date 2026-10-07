@@ -72,8 +72,17 @@ const TREE = {
       key: 'frame1',
       part_type: 'assemblyFramePart',
       values: {
-        width:          1075,
-        height:         1630,
+        // OVERALL frame — OPEN CHOICE for the reviewer (step-v brief: the
+        // L34046 drawing has not been read in Integrate). The original
+        // fixture transcribed an inner opening of 1075 x 1630 and ASSUMED
+        // outer 1255 x 1775. 1245 x 1779 is used here because it preserves
+        // the transcribed interior exactly (1245−85−85 = 1075,
+        // 1779−79−70 = 1630), so every sightline-driven quantity is
+        // unchanged. The alternative reading, overall 1255 x 1775
+        // (interior 1085 x 1626), shifts every sash/glass quantity by
+        // 10/−4 mm — both results are quantified in the Step V report.
+        width:          1245,
+        height:         1779,
         topHeight:      79,
         leftWidth:      85,
         rightWidth:     85,
@@ -85,8 +94,6 @@ const TREE = {
         rightCillHorn:  50,
         rakeFrame:      false,
         archHead:       false,
-        outerWidth:  1255,
-        outerHeight: 1775,
       },
       children: [
         {
@@ -105,8 +112,11 @@ const TREE = {
           values: {
             sashThickness:             45,
             midrailHeight:             40,
-            mechanicalClearanceLeft:   2.5,
-            mechanicalClearanceRight:  2.5,
+            // Zero like A and B (Integrate shows no side clearance on the
+            // drawings it was read from); keeps the drawn sash width equal
+            // to the interior 1075 the engine always used for this item
+            mechanicalClearanceLeft:   0,
+            mechanicalClearanceRight:  0,
             mechanicalClearanceTop:    0,
             mechanicalClearanceBottom: 0,
             topHornTypeShortName:    'victorian',
@@ -198,7 +208,7 @@ const TARGETS = {
 
 // ── Assumptions ──────────────────────────────────────────────────────────────
 const ASSUMPTIONS = [
-  'Outer frame: 1255x1775 mm (set explicitly; inner opening is 1075x1630)',
+  'Overall frame: 1245x1779 mm (OPEN CHOICE — preserves the transcribed interior 1075x1630; reviewer to read the real drawing; alternative reading 1255x1775)',
   'Stile width: 50.75 mm (gross stile incl. sash lip = 47 + 3.75 mm)',
   'Top rail: 49 mm, bottom rail: 88 mm, midrail: 40 mm (profile defaults)',
   'Cill profiled height: 45 mm (height excluding frame stop)',

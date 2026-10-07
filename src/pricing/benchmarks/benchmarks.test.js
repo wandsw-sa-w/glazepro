@@ -112,6 +112,28 @@ describe('Benchmark B — DSO variables are correct', () => {
   })
 })
 
+describe('Step V — fixture sash sizes equal Integrate’s drawn labels', () => {
+  // Evidence table in docs/step-v-geometry-brief.md (read from Integrate's
+  // drawing board, 7 Oct 2026)
+  it('Benchmark B: 1120 × 1181 → sash 950, top 516.5, bottom 555.5', () => {
+    const d = computeDerived(BENCHMARK_B.tree)
+    const pair = BENCHMARK_B.tree.children.find(c => c.part_type === 'assemblyFramePart')
+      .children.find(c => c.part_type === 'sashPairPart')
+    expect(d[pair.key].sashWidth).toBe(950)
+    expect(d[pair.key].topSashHeight).toBe(516.5)
+    expect(d[pair.key].bottomSashHeight).toBe(555.5)
+  })
+
+  it('Benchmark A: 1070 × 1849 → sash 900, top 850.5, bottom 889.5', () => {
+    const d = computeDerived(BENCHMARK_A.tree)
+    const pair = BENCHMARK_A.tree.children.find(c => c.part_type === 'assemblyFramePart')
+      .children.find(c => c.part_type === 'sashPairPart')
+    expect(d[pair.key].sashWidth).toBe(900)
+    expect(d[pair.key].topSashHeight).toBe(850.5)
+    expect(d[pair.key].bottomSashHeight).toBe(889.5)
+  })
+})
+
 describe('Benchmark A — sash replacement variables are correct', () => {
   it('to_be_replaced=true for sashes, frame_to_be_replaced=false', () => {
     const { tree } = BENCHMARK_A

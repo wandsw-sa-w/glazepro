@@ -73,9 +73,12 @@ const TREE = {
       key: 'frame1',
       part_type: 'assemblyFramePart',
       values: {
-        // Internal opening: 900 x 1700 (Integrate "Sash width" x "Sash height")
-        width:          900,
-        height:         1700,
+        // OVERALL frame 1070 x 1849 — read from Integrate's drawing labels
+        // (docs/step-v-geometry-brief.md): sash width 900 = 1070 − 85 − 85,
+        // overall sash height 1700 = 1849 − 79 − 70. The previous
+        // outerWidth 1102 was a guess and was wrong.
+        width:          1070,
+        height:         1849,
         // ASSUMPTION: profile defaults for rail/jamb sizes
         topHeight:      79,
         leftWidth:      85,
@@ -88,13 +91,6 @@ const TREE = {
         rightCillHorn:  50,
         rakeFrame:      false,
         archHead:       false,
-        // Outer frame dimensions — sash replacement: frame stays, so outer dimensions
-        // are those of the existing frame. Derived: inner + 2*outerJamb for width,
-        // inner + head + cillHeight for height.
-        // ASSUMPTION: outerWidth = 900 + 2*101 = 1102 (not used in pricing for sash replacement)
-        // ASSUMPTION: outerHeight = 1700 + 79 + 70 = 1849 (not used in pricing for sash replacement)
-        outerWidth:  1102,
-        outerHeight: 1849,
       },
       children: [
         {
@@ -114,8 +110,10 @@ const TREE = {
           values: {
             sashThickness:             45,
             midrailHeight:             40,
-            mechanicalClearanceLeft:   2.5,
-            mechanicalClearanceRight:  2.5,
+            // Integrate's drawn sash width is 900 = 1070 − 170: NO side
+            // clearance on this drawing (step-v brief evidence table)
+            mechanicalClearanceLeft:   0,
+            mechanicalClearanceRight:  0,
             mechanicalClearanceTop:    0,
             mechanicalClearanceBottom: 0,
             topHornTypeShortName:    'victorian',

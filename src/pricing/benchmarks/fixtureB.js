@@ -74,9 +74,12 @@ const TREE = {
       key: 'frame1',
       part_type: 'assemblyFramePart',
       values: {
-        // Frame 950 wide x 1032 high — these are the internal opening dimensions
-        width:          950,
-        height:         1032,
+        // OVERALL frame 1120 x 1181 — read from Integrate's drawing labels
+        // (docs/step-v-geometry-brief.md): sash width 950 = 1120 − 85 − 85,
+        // overall sash height 1032 = 1181 − 79 − 70.
+        // frame_area = round(1.120 * 1.181, 2) = 1.32 m2
+        width:          1120,
+        height:         1181,
         // ASSUMPTION: profile defaults for frame geometry
         topHeight:      79,
         leftWidth:      85,
@@ -89,10 +92,6 @@ const TREE = {
         rightCillHorn:  50,
         rakeFrame:      false,
         archHead:       false,
-        // Outer frame: derived from inner + jambs + head + cill:
-        //   outerWidth  = 950 + 85 + 85 = 1120 mm
-        //   outerHeight = 1032 + 79 + 70 = 1181 mm
-        //   frame_area  = round(1.120 * 1.181, 2) = 1.32 m2
       },
       children: [
         {
@@ -111,8 +110,10 @@ const TREE = {
           values: {
             sashThickness:             45,
             midrailHeight:             40,
-            mechanicalClearanceLeft:   2.5,
-            mechanicalClearanceRight:  2.5,
+            // Integrate's drawn sash width is 950 = 1120 − 170: NO side
+            // clearance on this drawing (step-v brief evidence table)
+            mechanicalClearanceLeft:   0,
+            mechanicalClearanceRight:  0,
             mechanicalClearanceTop:    0,
             mechanicalClearanceBottom: 0,
             // ASSUMPTION: no horns specified for DSO; default none/none
