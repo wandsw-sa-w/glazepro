@@ -66,7 +66,9 @@ export function readColumnValue(tree, column, profileDefaults) {
     return null
   }
   if (typeof column?.compute === 'function') {
-    try { return column.compute(tree) ?? null } catch { return null }
+    // Computed columns also get the profile defaults — the weight columns
+    // need the profile's glass rebate/tolerance (__shortProfileValues)
+    try { return column.compute(tree, profileDefaults) ?? null } catch { return null }
   }
   return null
 }
@@ -103,32 +105,35 @@ function computeTopSashHeight(tree) {
 // No glass catalogue is passed (grid context has no price file loaded), so
 // this is timber + a default glass estimate — close to, but not necessarily
 // identical to, the figure a priced run evaluated its rules against.
-function computeSashWeightKg(tree) {
+// A missing profile value must show as a VISIBLE warning in the cell,
+// never as "—" (step-x brief §4).
+const WEIGHT_PROFILE_WARNING = '⚠ profile missing glass rebate/tolerance'
+
+function computeSashWeightKg(tree, profileDefaults) {
   const topSash = findFirstPart(tree, 'topSashPart')
   if (!topSash) return null
-  // The grid context has no profile loaded; the measured weight model
-  // requires the profile rebate/tolerance and throws without them —
-  // show the column as absent rather than a wrong number.
+  const shortPV = profileDefaults?.__shortProfileValues ?? {}
   try {
-    const wt = computeSashWeight(topSash, tree, {})
+    const wt = computeSashWeight(topSash, tree, {}, shortPV)
     return wt?.weight_in_kg != null ? Math.round(wt.weight_in_kg * 10) / 10 : null
   } catch {
-    return null
+    return WEIGHT_PROFILE_WARNING
   }
 }
 
 // Item Weight: both sashes' weights added together.
-function computeItemWeightKg(tree) {
+function computeItemWeightKg(tree, profileDefaults) {
   const topSash = findFirstPart(tree, 'topSashPart')
   const botSash = findFirstPart(tree, 'bottomSashPart')
+  const shortPV = profileDefaults?.__shortProfileValues ?? {}
   let total = null
   for (const sash of [topSash, botSash]) {
     if (!sash) continue
     try {
-      const wt = computeSashWeight(sash, tree, {})
+      const wt = computeSashWeight(sash, tree, {}, shortPV)
       if (wt?.weight_in_kg != null) total = (total ?? 0) + wt.weight_in_kg
     } catch {
-      return null  // profile rebate/tolerance unavailable here — show absent
+      return WEIGHT_PROFILE_WARNING
     }
   }
   return total != null ? Math.round(total * 10) / 10 : null

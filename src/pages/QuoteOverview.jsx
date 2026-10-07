@@ -295,6 +295,18 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
                 defaults[fieldKey] = pv.default_value
             }
           }
+          // Full profile values keyed by short field name (numbers parsed) —
+          // the computed weight columns need the glass rebate/tolerance,
+          // which are profile values but not grid columns. Stored under a
+          // reserved key that cannot collide with 'partType.property' keys.
+          const shortMap = {}
+          for (const [fieldKey, pv] of Object.entries(pvMap)) {
+            if (pv?.default_value == null) continue
+            const key = fieldKey?.split('.')?.pop() ?? fieldKey
+            const n = Number(pv.default_value)
+            shortMap[key] = isNaN(n) ? pv.default_value : n
+          }
+          defaults.__shortProfileValues = shortMap
           pdMap[dwg.id] = defaults
         }
         setProfileDefaultsByDrawing(pdMap)

@@ -340,16 +340,27 @@ describe('sash_weight / item_weight columns', () => {
   const sashCol = GRID_COLUMNS.find(c => c.key === 'sash_weight')
   const itemCol = GRID_COLUMNS.find(c => c.key === 'item_weight')
 
-  it('sash_weight is absent (null) in the grid — the measured weight model needs profile values the grid does not load', () => {
-    // Step W: computeSashWeight requires the profile glass rebate/tolerance
-    // (missing value = error). The grid has no profile loaded, so the
-    // column shows "—" rather than a wrong number. Reported as a known
-    // gap — threading profile values into the grid is follow-up work.
-    expect(readColumnValue(makeTree(), sashCol)).toBeNull()
+  // Step X §4: the grid passes the drawing profile's values (short-keyed,
+  // under __shortProfileValues) so the measured weight model can run.
+  const PD = { __shortProfileValues: { defaultDoubleGlazingRebateWidthForSash: 14, defaultDoubleGlazingTolerance: 2 } }
+
+  it('sash_weight is a positive number when the profile values are supplied', () => {
+    const val = readColumnValue(makeTree(), sashCol, PD)
+    expect(typeof val).toBe('number')
+    expect(val).toBeGreaterThan(0)
   })
 
-  it('item_weight is likewise absent (null) without profile values', () => {
-    expect(readColumnValue(makeTree(), itemCol)).toBeNull()
+  it('item_weight is the sum of both sashes, so is larger than a single sash_weight', () => {
+    const sash = readColumnValue(makeTree(), sashCol, PD)
+    const item = readColumnValue(makeTree(), itemCol, PD)
+    expect(item).toBeGreaterThan(sash)
+  })
+
+  it('a missing profile value shows a VISIBLE warning, not "—"', () => {
+    const sash = readColumnValue(makeTree(), sashCol, {})
+    const item = readColumnValue(makeTree(), itemCol, {})
+    expect(sash).toBe('⚠ profile missing glass rebate/tolerance')
+    expect(item).toBe('⚠ profile missing glass rebate/tolerance')
   })
 
   it('returns null rather than throwing for a tree with no sashes', () => {
