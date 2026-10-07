@@ -375,6 +375,27 @@ export default function PricingBenchmark() {
         const { rules, pfVariables, glassCatalogue, partAllocationRules,
                 partCostMap, ironmongeryCatalogue } = ctx
 
+        // Load profile values for the Sash profile (glass rebate + tolerance)
+        let profileValuesMap = {}
+        const { data: sashProfile } = await supabase
+          .from('default_profiles')
+          .select('id')
+          .eq('code', 'sash')
+          .eq('is_active', true)
+          .maybeSingle()
+        if (sashProfile) {
+          const { data: pvRows, error: pvErr } = await supabase
+            .from('default_profile_values')
+            .select('field_key, default_value')
+            .eq('profile_id', sashProfile.id)
+          if (pvErr) warnings.push(`Profile values load failed: ${pvErr.message}`)
+          for (const pv of (pvRows || [])) {
+            const key = pv.field_key?.split('.')?.pop() ?? pv.field_key
+            const n = Number(pv.default_value)
+            profileValuesMap[key] = isNaN(n) ? pv.default_value : n
+          }
+        }
+
         // Run each benchmark
         const benchmarkResults = ALL_BENCHMARKS.map(benchmark => {
           // Ironmongery: resolveIronmongeryLines handles tree-saved vs defaults
@@ -396,6 +417,7 @@ export default function PricingBenchmark() {
             partCostMap: { ...partCostMap, ...(benchmark.partCostMap ?? {}) },
             ironmongeryLines,
             ironmongeryCatalogue,
+            profileValues: benchmark.profileValues ?? profileValuesMap,
           })
 
           return { benchmark, results, ironmongeryLines, ironWarnings }

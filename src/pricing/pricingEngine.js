@@ -269,8 +269,11 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
       : glazingId === 'triple_glazed' ? 'defaultTripleGlazingTolerance'
       : glazingId === 'heritage_glazed' ? 'defaultHeritageGlazingTolerance'
       : 'defaultDoubleGlazingTolerance'
-    const rebateWidth = profileValues[rebateKey] ?? 14
-    const tolerance   = profileValues[toleranceKey] ?? 2
+    const rebateWidth = profileValues[rebateKey]
+    const tolerance   = profileValues[toleranceKey]
+    if (rebateWidth == null || tolerance == null) {
+      throw new Error(`Missing profile values for glass cut size: ${rebateKey}=${rebateWidth}, ${toleranceKey}=${tolerance}. Check the drawing's profile has glassPart rebate and tolerance values.`)
+    }
     const cover       = rebateWidth - tolerance   // mm beyond sightline per edge
 
     const glassWidth  = sightlineWidth  + 2 * cover
@@ -777,6 +780,26 @@ export async function priceDrawing(drawingId, supabase, { priceFileId } = {}) {
     // ── 4. Resolve ironmongery lines ─────────────────────────────────────────
     const ironmongeryLines = resolveIronmongeryLines(tree, ctx)
 
+    // ── 4b. Load profile values for glass cut size (rebate width + tolerance) ─
+    const { data: drawingRow } = await supabase
+      .from('drawings')
+      .select('default_profile_id')
+      .eq('id', drawingId)
+      .maybeSingle()
+    let profileValues = {}
+    if (drawingRow?.default_profile_id) {
+      const { data: pvRows, error: pvErr } = await supabase
+        .from('default_profile_values')
+        .select('field_key, default_value')
+        .eq('profile_id', drawingRow.default_profile_id)
+      if (pvErr) throw new Error(`Failed to load profile values: ${pvErr.message}`)
+      for (const pv of (pvRows || [])) {
+        // Profile values are stored as strings; convert numeric ones
+        const n = Number(pv.default_value)
+        profileValues[pv.field_key?.split('.')?.pop() ?? pv.field_key] = isNaN(n) ? pv.default_value : n
+      }
+    }
+
     // ── 5. Create pricing_runs row ────────────────────────────────────────────
     const currentTreeHash = treeHash(tree)
 
@@ -805,6 +828,7 @@ export async function priceDrawing(drawingId, supabase, { priceFileId } = {}) {
       partCostMap,
       ironmongeryLines,
       ironmongeryCatalogue,
+      profileValues,
     })
 
     if (engineResults.error) {

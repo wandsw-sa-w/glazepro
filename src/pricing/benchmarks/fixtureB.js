@@ -265,12 +265,19 @@ const IRONMONGERY_CATALOGUE = {
   },
 }
 
+// DSO has no glass, but profileValues supplied for consistency
+const PROFILE_VALUES = {
+  defaultDoubleGlazingRebateWidthForSash: 14,
+  defaultDoubleGlazingTolerance: 2,
+}
+
 export const BENCHMARK_B = {
   name:   'Benchmark B — Draught seal (L31115 Item 2, corrected)',
   tree:   TREE,
   targets: TARGETS,
   glassCatalogue: {},
   partCostMap: PART_COST_MAP,
+  profileValues: PROFILE_VALUES,
   ironmongeryLines: IRONMONGERY_LINES,
   ironmongeryCatalogue: IRONMONGERY_CATALOGUE,
   assumptions: ASSUMPTIONS,

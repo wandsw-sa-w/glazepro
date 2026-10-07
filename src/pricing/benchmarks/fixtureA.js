@@ -278,11 +278,17 @@ const IRONMONGERY_CATALOGUE = {
   },
 }
 
+const PROFILE_VALUES = {
+  defaultDoubleGlazingRebateWidthForSash: 14,
+  defaultDoubleGlazingTolerance: 2,
+}
+
 export const BENCHMARK_A = {
   name:   'Benchmark A — Sash replacement (L31115 Item 1)',
   tree:   TREE,
   targets: TARGETS,
   partCostMap: PART_COST_MAP,
+  profileValues: PROFILE_VALUES,
   ironmongeryLines: IRONMONGERY_LINES,
   ironmongeryCatalogue: IRONMONGERY_CATALOGUE,
   assumptions: ASSUMPTIONS,

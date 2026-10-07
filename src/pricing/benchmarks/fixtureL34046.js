@@ -193,10 +193,19 @@ const ASSUMPTIONS = [
   'Ironmongery finish: ABs (Antique Brass)',
 ]
 
+// Sash profile values for glass cut size (rebate width 14, tolerance 2 → cover 12mm per edge)
+const PROFILE_VALUES = {
+  defaultDoubleGlazingRebateWidthForSash: 14,
+  defaultDoubleGlazingTolerance: 2,
+  defaultSingleGlazingRebateWidthForSash: 14,
+  defaultSingleGlazingTolerance: 2,
+}
+
 export const BENCHMARK_L34046 = {
   name:   'L34046 Item 7 — Complete new box sash',
   tree:   TREE,
   targets: TARGETS,
   partCostMap: PART_COST_MAP,
+  profileValues: PROFILE_VALUES,
   assumptions: ASSUMPTIONS,
 }

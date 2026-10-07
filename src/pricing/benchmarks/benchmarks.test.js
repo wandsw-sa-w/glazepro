@@ -271,6 +271,7 @@ describe('Glass rounded_area formula', () => {
     const tree = makeGlassTree(widthMm, heightMm)
     const res = runPricingOnTree(tree, PROBE_RULE, PF_VARIABLES, {
       glassCatalogue: GLASS_CAT,
+      profileValues: { defaultDoubleGlazingRebateWidthForSash: 14, defaultDoubleGlazingTolerance: 2 },
     })
     const fired = res.price.lines.find(l => l.name === 'probe_rounded_area' && l.fires)
     return fired?.quantity ?? null
@@ -386,6 +387,7 @@ function runBenchmark(benchmark, rules = PF30_RULES_S4) {
     partCostMap: benchmark.partCostMap ?? {},
     ironmongeryLines,
     ironmongeryCatalogue: benchmark.ironmongeryCatalogue ?? {},
+    profileValues: benchmark.profileValues ?? {},
   })
 }
 
