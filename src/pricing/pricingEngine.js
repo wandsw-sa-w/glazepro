@@ -38,6 +38,7 @@ import { computeDerived } from '../drawingBoard/computeDerived.js'
 import { computeSashWeight } from './sashWeight.js'
 import { allocateParts } from './partAllocator.js'
 import { treeHash } from './treeHash.js'
+import { loadPricingContext, resolveIronmongeryLines } from './loadPricingContext.js'
 
 // ── Tree helpers (local copies, same logic as computeDerived.js) ──────────────
 
@@ -551,11 +552,14 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
   }
   const componentParts = [...mergedMap.values()]
 
+  const pricingWarnings = []
+
   const results = {
     manufacture_labour: { total_minutes: 0, lines: [] },
     install_labour:     { total_minutes: 0, lines: [] },
     price:              { total: 0, lines: [] },
     allocated_parts:    allocatedParts,
+    warnings:           pricingWarnings,
   }
 
   // ── Pass 1 — manufacture_labour ───────────────────────────────────────────
@@ -698,6 +702,35 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
   results.price.total_cost = totalCost
   results.price.total      = totalPrice
 
+  // ── Warnings for missing catalogue codes ──────────────────────────────────
+  // Glass: check every glassPart's part numbers against the catalogue
+  const allGlassParts = findAll(tree, 'glassPart')
+  for (const gp of allGlassParts) {
+    const gv = gp.values ?? {}
+    if (gv.internalGlassPartNo && !glassCatalogue[gv.internalGlassPartNo]) {
+      pricingWarnings.push(`Glass code not found in catalogue: ${gv.internalGlassPartNo} (internal pane)`)
+    }
+    if (gv.externalGlassPartNo && !glassCatalogue[gv.externalGlassPartNo]) {
+      pricingWarnings.push(`Glass code not found in catalogue: ${gv.externalGlassPartNo} (external pane)`)
+    }
+    if (gv.singleGlassPartNo && !glassCatalogue[gv.singleGlassPartNo]) {
+      pricingWarnings.push(`Glass code not found in catalogue: ${gv.singleGlassPartNo} (single pane)`)
+    }
+  }
+  // Components: check allocated part codes against the cost map
+  for (const ap of componentParts) {
+    if (ap.part_code && !(ap.part_code in partCostMap)) {
+      pricingWarnings.push(`Part code not found in cost map: ${ap.part_code} (${ap.label || 'unknown'})`)
+    }
+  }
+  // Ironmongery: check each line's variant key against the catalogue
+  for (const il of ironmongeryLines) {
+    const key = `${il.product_short_name}:${il.finish_code}`
+    if (!ironmongeryCatalogue[key]) {
+      pricingWarnings.push(`Ironmongery product not found: ${il.product_short_name} (${il.finish_code})`)
+    }
+  }
+
   return results
 }
 
@@ -735,28 +768,13 @@ export async function priceDrawing(drawingId, supabase, { priceFileId } = {}) {
     }
     if (!resolvedPriceFileId) throw new Error('No price file found (is_current or published)')
 
-    const priceFile = { id: resolvedPriceFileId }
+    // ── 3. Load full pricing context via shared loader ───────────────────────
+    const ctx = await loadPricingContext(supabase, resolvedPriceFileId)
+    const { rules: allRules, pfVariables, glassCatalogue, partAllocationRules,
+            partCostMap, ironmongeryCatalogue } = ctx
 
-    // ── 3. Fetch price-file variables (scalars) ────────────────────────────────
-    const { data: pfVarRows, error: pfvErr } = await supabase
-      .from('price_file_variables')
-      .select('name, value_numeric, value_text')
-      .eq('price_file_id', priceFile.id)
-
-    if (pfvErr) throw new Error(`Failed to fetch price_file_variables: ${pfvErr.message}`)
-
-    const pfVariables = Object.fromEntries(
-      (pfVarRows || []).map(r => [r.name, r.value_numeric ?? r.value_text])
-    )
-
-    // ── 4. Fetch ALL rules in one query ────────────────────────────────────────
-    const { data: allRules, error: rulesErr } = await supabase
-      .from('price_rules')
-      .select('id, name, rule_family, level, condition, quantity, value, markup, part_code, loop_target, group_name, is_active, sort_order')
-      .eq('price_file_id', priceFile.id)
-      .order('sort_order')
-
-    if (rulesErr) throw new Error(`Failed to fetch price rules: ${rulesErr.message}`)
+    // ── 4. Resolve ironmongery lines ─────────────────────────────────────────
+    const ironmongeryLines = resolveIronmongeryLines(tree, ctx)
 
     // ── 5. Create pricing_runs row ────────────────────────────────────────────
     const currentTreeHash = treeHash(tree)
@@ -765,7 +783,7 @@ export async function priceDrawing(drawingId, supabase, { priceFileId } = {}) {
       .from('pricing_runs')
       .insert({
         drawing_id:    drawingId,
-        price_file_id: priceFile.id,
+        price_file_id: resolvedPriceFileId,
         status:        'in_progress',
         tree_hash:     currentTreeHash,
         created_at:    new Date().toISOString(),
@@ -780,7 +798,13 @@ export async function priceDrawing(drawingId, supabase, { priceFileId } = {}) {
     pricingRunId = pricingRun.id
 
     // ── 6. Run pricing engine ─────────────────────────────────────────────────
-    const engineResults = runPricingOnTree(tree, allRules, pfVariables)
+    const engineResults = runPricingOnTree(tree, allRules, pfVariables, {
+      glassCatalogue,
+      partAllocationRules,
+      partCostMap,
+      ironmongeryLines,
+      ironmongeryCatalogue,
+    })
 
     if (engineResults.error) {
       throw new Error(engineResults.error)
@@ -799,7 +823,7 @@ export async function priceDrawing(drawingId, supabase, { priceFileId } = {}) {
       .filter(l => l.fires && !l.error)
       .map(l => ({
         drawing_id:       drawingId,
-        price_file_id:    priceFile.id,
+        price_file_id:    resolvedPriceFileId,
         pricing_run_id:   pricingRunId,
         price_rule_id:    l.rule_id,
         loop_target_type: l.loop_target,
@@ -821,7 +845,7 @@ export async function priceDrawing(drawingId, supabase, { priceFileId } = {}) {
       .filter(l => l.fires && !l.error)
       .map(l => ({
         drawing_id:       drawingId,
-        price_file_id:    priceFile.id,
+        price_file_id:    resolvedPriceFileId,
         pricing_run_id:   pricingRunId,
         price_rule_id:    l.rule_id,
         loop_target_type: l.loop_target,
@@ -845,7 +869,7 @@ export async function priceDrawing(drawingId, supabase, { priceFileId } = {}) {
       const { data: pfParts, error: pfPartsErr } = await supabase
         .from('price_file_parts')
         .select('part_code, part_name, unit_cost')
-        .eq('price_file_id', priceFile.id)
+        .eq('price_file_id', resolvedPriceFileId)
 
       if (pfPartsErr) throw new Error(`Failed to fetch price_file_parts: ${pfPartsErr.message}`)
 
@@ -873,7 +897,7 @@ export async function priceDrawing(drawingId, supabase, { priceFileId } = {}) {
 
         allocatedRows.push({
           drawing_id:     drawingId,
-          price_file_id:  priceFile.id,
+          price_file_id:  resolvedPriceFileId,
           pricing_run_id: pricingRunId,
           price_rule_id:  rule.id,
           part_code:      part.part_code,
@@ -900,7 +924,7 @@ export async function priceDrawing(drawingId, supabase, { priceFileId } = {}) {
       .filter(l => l.fires && !l.error)
       .map(l => ({
         drawing_id:       drawingId,
-        price_file_id:    priceFile.id,
+        price_file_id:    resolvedPriceFileId,
         pricing_run_id:   pricingRunId,
         price_rule_id:    l.rule_id,
         loop_target_type: l.loop_target,
@@ -931,7 +955,7 @@ export async function priceDrawing(drawingId, supabase, { priceFileId } = {}) {
       .insert({
         pricing_run_id: pricingRunId,
         drawing_id:     drawingId,
-        price_file_id:  priceFile.id,
+        price_file_id:  resolvedPriceFileId,
         variables,
       })
 

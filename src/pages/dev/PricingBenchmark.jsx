@@ -12,23 +12,10 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../supabase.js'
 import { runPricingOnTree } from '../../pricing/pricingEngine.js'
 import { computeDerived } from '../../drawingBoard/computeDerived.js'
-import { defaultIronmonger } from '../../pricing/defaultIronmongery.js'
-import { computeVariables } from '../../pricing/computeVariables.js'
+import { loadPricingContext, resolveIronmongeryLines } from '../../pricing/loadPricingContext.js'
 import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_B } from '../../pricing/benchmarks/index.js'
 
 const ALL_BENCHMARKS = [BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_B]
-
-// Merge all part cost maps across benchmarks
-const MERGED_PART_COST_MAP = {}
-for (const b of ALL_BENCHMARKS) {
-  Object.assign(MERGED_PART_COST_MAP, b.partCostMap ?? {})
-}
-
-// Merge all glass catalogues (fixture fallback)
-const MERGED_GLASS_CATALOGUE = {}
-for (const b of ALL_BENCHMARKS) {
-  Object.assign(MERGED_GLASS_CATALOGUE, b.glassCatalogue ?? {})
-}
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
@@ -383,109 +370,15 @@ export default function PricingBenchmark() {
 
         if (!priceFile) throw new Error('No price file found (no is_current file and no file named "PF30").')
 
-        // Load price-file variables
-        const { data: pfVarRows, error: pfvErr } = await supabase
-          .from('price_file_variables')
-          .select('name, value_numeric, value_text')
-          .eq('price_file_id', priceFile.id)
-
-        if (pfvErr) throw new Error(`price_file_variables: ${pfvErr.message}`)
-        const pfVariables = Object.fromEntries((pfVarRows || []).map(r => [r.name, r.value_numeric ?? r.value_text]))
-
-        // Load all rules
-        const { data: rules, error: rulesErr } = await supabase
-          .from('price_rules')
-          .select('id, name, rule_family, level, condition, quantity, value, markup, loop_target, group_name, is_active, sort_order')
-          .eq('price_file_id', priceFile.id)
-          .order('sort_order')
-
-        if (rulesErr) throw new Error(`price_rules: ${rulesErr.message}`)
-
-        // Load glass catalogue
-        let glassCatalogue = MERGED_GLASS_CATALOGUE
-        try {
-          const { data: catalogueRows, error: catErr } = await supabase
-            .from('parts_catalogue')
-            .select('part_code, unit_cost, thickness_mm')
-            .eq('category', 'Glass')
-          if (catErr) throw catErr
-          const built = Object.fromEntries(
-            (catalogueRows || []).map(r => [r.part_code, { cost_per_m2: r.unit_cost, thickness_mm: r.thickness_mm }])
-          )
-          if (Object.keys(built).length > 0) glassCatalogue = built
-          else warnings.push('parts_catalogue returned no glass rows -- using fixture fallback')
-        } catch (err) {
-          warnings.push(`parts_catalogue query failed (${err.message}) -- using fixture fallback`)
-        }
-
-        // Load part allocation rules
-        let partAllocationRules = []
-        try {
-          const { data: allocRules, error: allocErr } = await supabase
-            .from('part_allocation_rules')
-            .select('id, rule_family, sort_order, group_name, loop_target, label, condition, qty_expr, part_code, measure_expr, is_active')
-            .eq('rule_family', 'part_allocator')
-            .order('sort_order')
-          if (allocErr) throw allocErr
-          partAllocationRules = allocRules || []
-        } catch (err) {
-          warnings.push(`part_allocation_rules query failed (${err.message})`)
-        }
-
-        // Load ironmongery data
-        let ironmongeryCatalogue = {}
-        let ironRules = []
-        try {
-          const [{ data: irData }, { data: ironVariants }, { data: ironKitLines }] = await Promise.all([
-            supabase
-              .from('part_allocation_rules')
-              .select('id, sort_order, group_name, loop_target, label, condition, qty_expr, product_short_name, finish_code, is_active')
-              .eq('rule_family', 'default_ironmongery')
-              .order('sort_order'),
-            supabase
-              .from('ironmongery_variants')
-              .select('id, finish_code, cost, ironmongery_products!inner(short_name)')
-              .eq('ironmongery_products.is_active', true),
-            supabase
-              .from('ironmongery_variant_parts')
-              .select('variant_id, part_code, quantity, parts_catalogue(part_name, unit_cost)'),
-          ])
-          ironRules = irData || []
-
-          const kitLinesByVariant = {}
-          for (const kl of (ironKitLines ?? [])) {
-            if (!kitLinesByVariant[kl.variant_id]) kitLinesByVariant[kl.variant_id] = []
-            kitLinesByVariant[kl.variant_id].push({
-              part_code: kl.part_code,
-              part_name: kl.parts_catalogue?.part_name ?? kl.part_code,
-              qty:       kl.quantity ?? 1,
-              unit_cost: kl.parts_catalogue?.unit_cost ?? null,
-            })
-          }
-
-          for (const v of (ironVariants ?? [])) {
-            const shortName = v.ironmongery_products?.short_name
-            if (!shortName) continue
-            ironmongeryCatalogue[`${shortName}:${v.finish_code}`] = {
-              cost:  v.cost ?? 0,
-              parts: kitLinesByVariant[v.id] ?? [],
-            }
-          }
-        } catch (err) {
-          warnings.push(`Ironmongery data failed (${err.message})`)
-        }
+        // Load full pricing context via shared loader
+        const ctx = await loadPricingContext(supabase, priceFile.id)
+        const { rules, pfVariables, glassCatalogue, partAllocationRules,
+                partCostMap, ironmongeryCatalogue } = ctx
 
         // Run each benchmark
         const benchmarkResults = ALL_BENCHMARKS.map(benchmark => {
-          // Ironmongery: tree-saved lines win; defaults apply only when
-          // the drawing has none — same precedence as DrawingBoard.jsx.
-          const paintNode = (benchmark.tree.children ?? []).find(c => c.part_type === 'paintAndIronmongeryPart')
-          let ironmongeryLines = paintNode?.values?.ironmongeryLines ?? []
-          if (ironmongeryLines.length === 0 && ironRules.length > 0) {
-            const derived  = computeDerived(benchmark.tree)
-            const itemVars = computeVariables(benchmark.tree, derived, pfVariables) ?? {}
-            ironmongeryLines = defaultIronmonger(benchmark.tree, { ...pfVariables, ...itemVars }, ironRules)
-          }
+          // Ironmongery: resolveIronmongeryLines handles tree-saved vs defaults
+          const ironmongeryLines = resolveIronmongeryLines(benchmark.tree, ctx)
 
           // Check for unresolved ironmongery products
           const ironWarnings = []
@@ -500,7 +393,7 @@ export default function PricingBenchmark() {
             testMode: false,
             glassCatalogue: { ...glassCatalogue, ...(benchmark.glassCatalogue ?? {}) },
             partAllocationRules,
-            partCostMap: { ...MERGED_PART_COST_MAP, ...(benchmark.partCostMap ?? {}) },
+            partCostMap: { ...partCostMap, ...(benchmark.partCostMap ?? {}) },
             ironmongeryLines,
             ironmongeryCatalogue,
           })
