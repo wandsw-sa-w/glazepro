@@ -16,7 +16,10 @@
  * loadPricingContext path feeding priceDrawing. Version 3 maps the real
  * stored option codes to engine flags (src/pricing/optionVocabulary.js):
  * runs priced under version 2 silently missed glass lines and the
- * softwood/utile material rules on real drawings.
+ * softwood/utile material rules on real drawings. Version 4 is the Step V
+ * geometry fix: assemblyFramePart.width/height are the OVERALL frame and
+ * sash/glass/weight sizes come from the drawn geometry (derivedGeometry.js)
+ * — version-3 runs over-priced every frame-size rule on real drawings.
  */
 
-export const PRICING_ENGINE_VERSION = 3
+export const PRICING_ENGINE_VERSION = 4
