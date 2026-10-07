@@ -10,6 +10,11 @@
  * Integrate aliases needed for rule evaluation, or null on error.
  */
 
+import {
+  timberFamily, glazingType, hornKind, operationKind,
+  glassSpacerMm, isLambsTongueMoulding,
+} from './optionVocabulary.js'
+
 // ── Tree helpers (mirrored from computeDerived.js) ───────────────────────────
 
 function findFirst(node, partType) {
@@ -110,34 +115,49 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
     const sash_replacement_thickness = pair?.values?.sashThickness ?? 0
 
     // ── GROUP 3 — Material codes ──────────────────────────────────────────────
+    // Real timber_species codes ('softwood', 'utile', …) map to engine
+    // families in optionVocabulary.js — the single source for these
+    // comparisons. An unrecognised code maps to no family and is reported
+    // by collectVocabularyWarnings() in the engine run.
     const fmat = item?.values?.frameMaterialId ?? ''
     const smat = item?.values?.sashMaterialId  ?? ''
     const cmat = item?.values?.cillMaterialId  ?? ''
 
-    const is_frame_redwood               = fmat === 'solid_redwood'
-    const is_frame_accoya                = fmat === 'accoya'
+    const fFam = timberFamily(fmat) ?? null
+    const sFam = timberFamily(smat) ?? null
+    const cFam = timberFamily(cmat) ?? null
+
+    const is_frame_redwood               = fFam === 'redwood'
+    const is_frame_accoya                = fFam === 'accoya'
     const is_solid_redwood_frame         = is_frame_redwood
-    const is_solid_utile_hardwood_frame  = fmat === 'solid_utile_hardwood'
-    const is_frame_engineered_accoya     = fmat === 'engineered_accoya'
+    const is_solid_utile_hardwood_frame  = fFam === 'utile_hardwood'
+    const is_frame_engineered_accoya     = false  // no live timber_species code for this (audit)
 
-    const is_sash_redwood                = smat === 'solid_redwood'
-    const is_sash_accoya                 = smat === 'accoya'
+    const is_sash_redwood                = sFam === 'redwood'
+    const is_sash_accoya                 = sFam === 'accoya'
     const is_solid_redwood_sash          = is_sash_redwood
-    const is_solid_utile_hardwood_sash   = smat === 'solid_utile_hardwood'
-    const is_sash_engineered_accoya      = smat === 'engineered_accoya'
+    const is_solid_utile_hardwood_sash   = sFam === 'utile_hardwood'
+    const is_sash_engineered_accoya      = false  // no live timber_species code for this (audit)
 
-    const is_cill_hardwood               = cmat === 'solid_utile_hardwood'
-    const is_cill_accoya                 = cmat === 'accoya'
-    const is_cill_redwood                = cmat === 'solid_redwood'
+    const is_cill_hardwood               = cFam === 'utile_hardwood'
+    const is_cill_accoya                 = cFam === 'accoya'
+    const is_cill_redwood                = cFam === 'redwood'
     const is_solid_utile_hardwood_cill   = is_cill_hardwood
 
     // Additional material flags needed by validation rules
-    const is_solid_redwood_cill   = cmat === 'solid_redwood'
-    const is_oak_cill             = cmat === 'oak'
-    const is_oak_sash             = smat === 'oak'
-    const is_oak_frame            = fmat === 'oak'
-    const is_idigbo_frame         = fmat === 'idigbo'
-    const is_idigbo_sash          = smat === 'idigbo'
+    const is_solid_redwood_cill   = is_cill_redwood
+    const is_oak_cill             = cFam === 'oak'
+    const is_oak_sash             = sFam === 'oak'
+    const is_oak_frame            = fFam === 'oak'
+    const is_idigbo_frame         = fFam === 'idigbo'
+    const is_idigbo_sash          = sFam === 'idigbo'
+    const is_douglas_fir_frame    = fFam === 'douglas_fir'
+    const is_douglas_fir_sash     = sFam === 'douglas_fir'
+    const is_douglas_fir_cill     = cFam === 'douglas_fir'
+    const is_meranti_frame        = fFam === 'meranti'
+    const is_meranti_sash         = sFam === 'meranti'
+    const is_meranti_cill         = cFam === 'meranti'
+    const is_idigbo_cill          = cFam === 'idigbo'
 
     // Integrate aliases
     const is_accoya_frame = is_frame_accoya
@@ -168,16 +188,16 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
     const interior_qty = 1
 
     // ── GROUP 5 — Sash operations ─────────────────────────────────────────────
-    const topOp = (topSash?.values?.operation ?? '').toLowerCase()
-    const botOp = (botSash?.values?.operation ?? '').toLowerCase()
+    const topOp = operationKind(topSash?.values?.operation)
+    const botOp = operationKind(botSash?.values?.operation)
 
-    const is_top_sash_cord_hung      = topOp.includes('cord')
-    const is_top_sash_spiral_hung    = topOp.includes('spiral')
-    const is_top_sash_fixed          = topOp === 'fix' || topOp.includes('fix')
+    const is_top_sash_cord_hung      = topOp === 'cord'
+    const is_top_sash_spiral_hung    = topOp === 'spiral'
+    const is_top_sash_fixed          = topOp === 'fix'
 
-    const is_bottom_sash_cord_hung   = botOp.includes('cord')
-    const is_bottom_sash_spiral_hung = botOp.includes('spiral')
-    const is_bottom_sash_fixed       = botOp === 'fix' || botOp.includes('fix')
+    const is_bottom_sash_cord_hung   = botOp === 'cord'
+    const is_bottom_sash_spiral_hung = botOp === 'spiral'
+    const is_bottom_sash_fixed       = botOp === 'fix'
 
     const has_cord_hung_sash         = is_top_sash_cord_hung   || is_bottom_sash_cord_hung
     const has_spiral_hung_sash       = is_top_sash_spiral_hung || is_bottom_sash_spiral_hung
@@ -189,11 +209,11 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
     const total_sash_count    = allTopSashes.length + allBotSashes.length
 
     // ── GROUP 6 — Horn type ───────────────────────────────────────────────────
-    const topHorn = (pair?.values?.topHornTypeShortName    ?? '').toLowerCase()
-    const botHorn = (pair?.values?.bottomHornTypeShortName ?? '').toLowerCase()
+    const topHorn = hornKind(pair?.values?.topHornTypeShortName)
+    const botHorn = hornKind(pair?.values?.bottomHornTypeShortName)
 
-    const is_top_sash_victorian_horn    = topHorn.includes('victorian')
-    const is_bottom_sash_victorian_horn = botHorn.includes('victorian')
+    const is_top_sash_victorian_horn    = topHorn === 'victorian'
+    const is_bottom_sash_victorian_horn = botHorn === 'victorian'
     const has_victorian_horn            = is_top_sash_victorian_horn || is_bottom_sash_victorian_horn
     const horn_count                    = (is_top_sash_victorian_horn ? 1 : 0) + (is_bottom_sash_victorian_horn ? 1 : 0)
 
@@ -246,8 +266,8 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
     const botHornLen      = pair?.values?.bottomHornLength ?? 0
     const horn_length_in_mm = Math.max(Number(topHornLen) || 0, Number(botHornLen) || 0)
     const has_custom_horn_horn =
-      (pair?.values?.topHornTypeShortName    ?? '').toLowerCase() === 'custom' ||
-      (pair?.values?.bottomHornTypeShortName ?? '').toLowerCase() === 'custom'
+      hornKind(pair?.values?.topHornTypeShortName)    === 'custom' ||
+      hornKind(pair?.values?.bottomHornTypeShortName) === 'custom'
 
     // Multi-frame sash variants
     // Only count mullions that are direct children of assemblyFramePart
@@ -259,7 +279,9 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
 
     const cut_back_plaster                 = false  // NEEDS-DATA: notesPart.cutBackPlaster not yet mapped
     const has_trickle_vent                 = false  // NEEDS-DATA: not yet in parts tree
-    const is_doc_l                         = item?.values?.doc_l === true
+    // The board stores isDocL (real tree) — the old read of `doc_l` matched
+    // nothing a drawing ever held (docs/pricing-vocabulary-audit.md).
+    const is_doc_l                         = item?.values?.isDocL === true
     const is_docl                          = is_doc_l  // Integrate alias (rules use is_docl)
     const is_casement_window_bay           = false  // NEEDS-DATA
     const is_varnished_or_stained          = false  // NEEDS-DATA: finish codes not defined yet
@@ -335,9 +357,10 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
     const is_standard_finish_internally_and_externally  = is_internal_clean_white && is_external_clean_white
 
     // ── GROUP 10 — Glazing type ───────────────────────────────────────────────
-    const is_double_glazed = allGlassParts.some(g => g.values?.glazingId === 'double_glazed')
-    const is_single_glazed = allGlassParts.some(g => g.values?.glazingId === 'single_glazed')
-    const is_triple_glazed = allGlassParts.some(g => g.values?.glazingId === 'triple_glazed')
+    // Real glazing_type codes ('double_glazing', …) via optionVocabulary.js.
+    const is_double_glazed = allGlassParts.some(g => glazingType(g.values?.glazingId) === 'double')
+    const is_single_glazed = allGlassParts.some(g => glazingType(g.values?.glazingId) === 'single')
+    const is_triple_glazed = allGlassParts.some(g => glazingType(g.values?.glazingId) === 'triple')
 
     // Helper: resolve bar counts for a glassPart — prefer actual bar parts, fall back to barsWide/barsHigh
     function glassBarCounts(g) {
@@ -383,10 +406,10 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
     // glass_unit_thickness (item-level): sum of layers for the first double-glazed unit.
     // Per-unit values are computed in validate.js per-part loops.
     // Item-level: use spacerHeight + pane thicknesses from glassPart values.
-    const _firstDGlass = allGlassParts.find(g => g.values?.glazingId === 'double_glazed')
+    const _firstDGlass = allGlassParts.find(g => glazingType(g.values?.glazingId) === 'double')
     const glass_unit_thickness = _firstDGlass
       ? (Number(_firstDGlass.values?.innerPaneThickness ?? 0) +
-         Number(_firstDGlass.values?.spacerHeight ?? 0) +
+         glassSpacerMm(_firstDGlass.values ?? {}) +
          Number(_firstDGlass.values?.outerPaneThickness ?? 0))
       : 0
 
@@ -404,9 +427,13 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
       ? cill.values.height / 1000 : null
 
     // ── GROUP 10d — Moulding / glazing bar ────────────────────────────────────
+    // The board stores the moulding profile on drawingItemPart.mouldingTypeId
+    // (real tree: 'ovolo'). The legacy mouldingPart node is kept as a
+    // fallback for part types that may still carry one.
     const mouldingNode = findFirst(tree, 'mouldingPart')
-    const mouldingProfile = (mouldingNode?.values?.profile ?? '').toLowerCase()
-    const is_lambs_tongue_moulding = mouldingProfile === 'lambs_tongue'
+    const is_lambs_tongue_moulding =
+      isLambsTongueMoulding(item?.values?.mouldingTypeId) ||
+      isLambsTongueMoulding(mouldingNode?.values?.profile)
 
     // gb_qty: total glazing bar count (alias for total_glazing_bar_count)
     const gb_qty = total_glazing_bar_count
@@ -660,7 +687,9 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
       is_solid_utile_hardwood_sash, is_sash_engineered_accoya,
       is_cill_hardwood, is_cill_accoya, is_cill_redwood, is_solid_utile_hardwood_cill,
       is_solid_redwood_cill, is_oak_cill, is_oak_sash, is_oak_frame,
-      is_idigbo_frame, is_idigbo_sash,
+      is_idigbo_frame, is_idigbo_sash, is_idigbo_cill,
+      is_douglas_fir_frame, is_douglas_fir_sash, is_douglas_fir_cill,
+      is_meranti_frame, is_meranti_sash, is_meranti_cill,
       is_accoya_frame, is_accoya_sash,  // Integrate aliases
 
       // Group 4 — Jamb type
@@ -828,7 +857,7 @@ export function computeQuoteVariables(itemVarsList = [], quoteContext = {}) {
   const item_qty_with_solid_redwood_cill = items.filter(v => v.is_solid_redwood_cill).length
   const item_qty_with_accoya_cill = items.filter(v => v.is_cill_accoya).length
   const item_qty_with_oak_cill = items.filter(v => v.is_oak_cill).length
-  const item_qty_with_idigbo_cill = items.filter(v => v.is_idigbo_sash).length  // idigbo cill uses sash flag match
+  const item_qty_with_idigbo_cill = items.filter(v => v.is_idigbo_cill).length
   const item_qty_with_douglas_fir_cill = 0  // douglas fir cill not offered
 
   // Spacer colour counts — derive from first glass part's spacerDimId per item

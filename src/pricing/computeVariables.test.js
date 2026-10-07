@@ -15,9 +15,9 @@ function makeBoxSashTree(overrides = {}) {
     part_type: 'drawingItemPart',
     values: {
       typeOfWork:       'complete_new',
-      frameMaterialId:  'solid_redwood',
-      sashMaterialId:   'solid_redwood',
-      cillMaterialId:   'solid_utile_hardwood',
+      frameMaterialId:  'softwood',
+      sashMaterialId:   'softwood',
+      cillMaterialId:   'utile',
       fitToPreparedOpening: false,
       decoration:       false,
       ...overrides.item,
@@ -94,7 +94,7 @@ function makeBoxSashTree(overrides = {}) {
                     key: 'glass1',
                     part_type: 'glassPart',
                     values: {
-                      glazingId:         'double_glazed',
+                      glazingId:         'double_glazing',
                       isIndividualPanes: false,
                       spacerDimId:       '16mm_white_warm_edge',
                       ...overrides.topGlass,
@@ -119,7 +119,7 @@ function makeBoxSashTree(overrides = {}) {
                     key: 'glass2',
                     part_type: 'glassPart',
                     values: {
-                      glazingId:         'double_glazed',
+                      glazingId:         'double_glazing',
                       isIndividualPanes: false,
                       spacerDimId:       '16mm_white_warm_edge',
                       ...overrides.botGlass,
@@ -240,7 +240,7 @@ describe('computeVariables — sash replacement, accoya frame', () => {
       typeOfWork:      'new_pair_of_sashes',
       frameMaterialId: 'accoya',
       sashMaterialId:  'accoya',
-      cillMaterialId:  'solid_utile_hardwood',
+      cillMaterialId:  'utile',
     },
     topSash: { toBeReplaced: true },
     botSash: { toBeReplaced: true },
@@ -456,7 +456,7 @@ describe('computeVariables — new_cill_qty for cill-only replacement', () => {
 
 describe('computeVariables — is_solid_redwood_cill', () => {
   it('is true when cillMaterialId is solid_redwood', () => {
-    const tree = makeBoxSashTree({ item: { cillMaterialId: 'solid_redwood' } })
+    const tree = makeBoxSashTree({ item: { cillMaterialId: 'softwood' } })
     const derived = computeDerived(tree)
     const vars = computeVariables(tree, derived)
     expect(vars.is_solid_redwood_cill).toBe(true)
@@ -499,7 +499,7 @@ describe('computeVariables — frame_depth', () => {
 })
 
 describe('computeVariables — is_docl alias', () => {
-  it('is false when doc_l not set', () => {
+  it('is false when isDocL not set', () => {
     const tree = makeBoxSashTree()
     const derived = computeDerived(tree)
     const vars = computeVariables(tree, derived)
@@ -507,8 +507,8 @@ describe('computeVariables — is_docl alias', () => {
     expect(vars.is_doc_l).toBe(false)
   })
 
-  it('is true when item doc_l is true', () => {
-    const tree = makeBoxSashTree({ item: { doc_l: true } })
+  it('is true when item isDocL is true (the key the board stores)', () => {
+    const tree = makeBoxSashTree({ item: { isDocL: true } })
     const derived = computeDerived(tree)
     const vars = computeVariables(tree, derived)
     expect(vars.is_docl).toBe(true)
@@ -599,7 +599,7 @@ describe('computeVariables — stub variables present', () => {
 describe('computeQuoteVariables', () => {
   it('counts items', () => {
     const tree1 = makeBoxSashTree()
-    const tree2 = makeBoxSashTree({ item: { cillMaterialId: 'solid_redwood' } })
+    const tree2 = makeBoxSashTree({ item: { cillMaterialId: 'softwood' } })
     const vars1 = computeVariables(tree1, computeDerived(tree1))
     const vars2 = computeVariables(tree2, computeDerived(tree2))
     const qv = computeQuoteVariables([vars1, vars2])

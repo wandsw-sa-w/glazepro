@@ -5,6 +5,8 @@
  * The PDF renderer (QuotePdf.jsx) consumes the model this produces.
  */
 
+import { glazingType } from '../../pricing/optionVocabulary.js'
+
 // ── Tree helpers ────────────────────────────────────────────────────────────
 
 function findFirst(node, partType) {
@@ -340,7 +342,8 @@ function glassLocation(tree, glassPart, index, total) {
 function formatGlassLine(glassPart, refLabels) {
   const v = glassPart?.values ?? {}
   const glassType = v.glassType || v.glazingId
-  if (!glassType || glassType === 'single_glazed') return null
+  // Real glazing_type code via the shared vocabulary ('single_glazing')
+  if (!glassType || glazingType(glassType) === 'single') return null
 
   // Inner pane
   let inner = v.innerPane || v.internalGlassPartNo || '4mm Clear'

@@ -40,6 +40,10 @@ import { allocateParts } from './partAllocator.js'
 import { treeHash } from './treeHash.js'
 import { loadPricingContext, resolveIronmongeryLines } from './loadPricingContext.js'
 import { PRICING_ENGINE_VERSION } from './engineVersion.js'
+import {
+  glazingType, hornKind, operationKind, glassSpacerMm,
+  isWarmEdgeSpacerColour, collectVocabularyWarnings,
+} from './optionVocabulary.js'
 
 // ── Tree helpers (local copies, same logic as computeDerived.js) ──────────────
 
@@ -127,9 +131,9 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
   const pt = partNode.part_type
   const v  = partNode.values ?? {}
 
-  const isCordHung   = op => (op ?? '').toLowerCase().includes('cord')
-  const isSpiralHung = op => (op ?? '').toLowerCase().includes('spiral')
-  const isFixed      = op => { const s = (op ?? '').toLowerCase(); return s === 'fix' || s.includes('fix') }
+  const isCordHung   = op => operationKind(op) === 'cord'
+  const isSpiralHung = op => operationKind(op) === 'spiral'
+  const isFixed      = op => operationKind(op) === 'fix'
 
   if (pt === 'topSashPart' || pt === 'bottomSashPart') {
     const isTop          = pt === 'topSashPart'
@@ -152,11 +156,11 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
     const botRailH    = botSashNode?.values?.bottomHeight ?? 88
     const midrailH    = pair?.values?.midrailHeight ?? 40
 
-    const hornKey    = isTop
-      ? (pair?.values?.topHornTypeShortName    ?? 'none').toLowerCase()
-      : (pair?.values?.bottomHornTypeShortName ?? 'none').toLowerCase()
-    const HORN_MM    = { victorian: 70, none: 0 }
-    const hornLength = HORN_MM[hornKey] ?? 0
+    const hornCode   = isTop
+      ? pair?.values?.topHornTypeShortName
+      : pair?.values?.bottomHornTypeShortName
+    // 'none' and 'no_horn' both mean no horn (optionVocabulary.js)
+    const hornLength = hornKind(hornCode) === 'victorian' ? 70 : 0
 
     // Sightline height: glass light height, equal for both sashes in half_half split.
     // = (frame.height − topRail − bottomRail − midrail) / 2
@@ -261,14 +265,15 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
 
     // Glass CUT SIZE: extends beyond the sightline by (rebateWidth - tolerance) per edge.
     // The rebate and tolerance come from profile values keyed by glazing type.
-    const glazingId = v.glazingId ?? ''
-    const rebateKey = glazingId === 'single_glazed' ? 'defaultSingleGlazingRebateWidthForSash'
-      : glazingId === 'triple_glazed' ? 'defaultTripleGlazingRebateWidthForSash'
-      : glazingId === 'heritage_glazed' ? 'defaultHeritageGlazingRebateWidthForSash'
+    // Real glazing_type codes ('double_glazing', …) via optionVocabulary.js.
+    const gType = glazingType(v.glazingId)
+    const rebateKey = gType === 'single' ? 'defaultSingleGlazingRebateWidthForSash'
+      : gType === 'triple' ? 'defaultTripleGlazingRebateWidthForSash'
+      : gType === 'heritage' ? 'defaultHeritageGlazingRebateWidthForSash'
       : 'defaultDoubleGlazingRebateWidthForSash'
-    const toleranceKey = glazingId === 'single_glazed' ? 'defaultSingleGlazingTolerance'
-      : glazingId === 'triple_glazed' ? 'defaultTripleGlazingTolerance'
-      : glazingId === 'heritage_glazed' ? 'defaultHeritageGlazingTolerance'
+    const toleranceKey = gType === 'single' ? 'defaultSingleGlazingTolerance'
+      : gType === 'triple' ? 'defaultTripleGlazingTolerance'
+      : gType === 'heritage' ? 'defaultHeritageGlazingTolerance'
       : 'defaultDoubleGlazingTolerance'
     const rebateWidth = profileValues[rebateKey]
     const tolerance   = profileValues[toleranceKey]
@@ -320,20 +325,22 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
     const middle_pane_thickness = v.middlePaneThickness ?? 0
     const single_pane_thickness = v.singlePaneThickness ?? 0
 
-    // glass_unit_thickness: inner + spacer + outer (mm)
-    const spacerHeight         = v.spacerHeight ?? 0
-    const glass_unit_thickness = inner_pane_thickness + spacerHeight + outer_pane_thickness
+    // glass_unit_thickness: inner + spacer + outer (mm).
+    // Spacer thickness comes from the stored spacerDimId code ('spacer_16'
+    // → 16); saved drawings never store a spacerHeight number.
+    const spacerMm             = glassSpacerMm(v)
+    const glass_unit_thickness = inner_pane_thickness + spacerMm + outer_pane_thickness
 
-    // Spacer type flags
-    const spacerDimId = v.spacerDimId ?? ''
-    const has_white_warm_edge_spacer = spacerDimId.toLowerCase().includes('warm_edge')
+    // Spacer type flags — the warm-edge flag reads the COLOUR code
+    // (spacerColourId 'white_warm_edge'); the dimension code never says it.
+    const has_white_warm_edge_spacer = isWarmEdgeSpacerColour(v.spacerColourId)
 
     return {
       actual_area,
       rounded_area,
-      is_single_glazed: glazingId === 'single_glazed',
-      is_double_glazed: glazingId === 'double_glazed',
-      is_triple_glazed: glazingId === 'triple_glazed',
+      is_single_glazed: gType === 'single',
+      is_double_glazed: gType === 'double',
+      is_triple_glazed: gType === 'triple',
       glass_unit_thickness,
       to_be_replaced,
       unit_gb_qty,
@@ -558,6 +565,10 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
   const componentParts = [...mergedMap.values()]
 
   const pricingWarnings = []
+
+  // Option codes the engine depends on but does not recognise must surface
+  // as warnings naming the field and the code — never a silent false.
+  pricingWarnings.push(...collectVocabularyWarnings(tree))
 
   const results = {
     manufacture_labour: { total_minutes: 0, lines: [] },

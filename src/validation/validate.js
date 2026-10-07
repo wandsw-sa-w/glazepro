@@ -9,6 +9,7 @@
  */
 
 import { Parser } from 'expr-eval'
+import { glassSpacerMm } from '../pricing/optionVocabulary.js'
 
 // ── Parser setup (mirrors evaluator.js but adds validation functions) ────────
 
@@ -271,7 +272,9 @@ export function validateDrawing(tree, variables, rules, lists = {}) {
           const pv = part.values || {}
           const innerT = Number(pv.innerPaneThickness ?? 0)
           const outerT = Number(pv.outerPaneThickness ?? 0)
-          const spacerH = Number(pv.spacerHeight ?? 0)
+          // Spacer thickness from the stored spacerDimId code ('spacer_16' →
+          // 16) — saved drawings never store a spacerHeight number.
+          const spacerH = glassSpacerMm(pv)
           const singleT = Number(pv.singlePaneThickness ?? 0)
           partVars.glass_unit_thickness = innerT + spacerH + outerT
           partVars.spacer_dim = spacerH

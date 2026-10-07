@@ -20,13 +20,12 @@
  *   Horn 'victorian' = 50 mm
  */
 
+import { timberFamily, TIMBER_FAMILY_DENSITIES, hornKind } from './optionVocabulary.js'
+
 // ── Timber density constants (kg/m³) — from Integrate Weight Calc page ────────
-export const TIMBER_DENSITIES = {
-  solid_redwood:        508.3,
-  accoya:               508.3,
-  solid_utile_hardwood: 780.1,
-  idigbo:               780.1,
-}
+// Kept as an alias of the vocabulary module's family densities so existing
+// imports keep working; the lookup itself goes code → family → density.
+export const TIMBER_DENSITIES = TIMBER_FAMILY_DENSITIES
 
 // ── Physical constants ─────────────────────────────────────────────────────────
 // Glass pane dimensions for weight use the SIGHTLINE, not the cut size.
@@ -130,10 +129,9 @@ export function computeSashWeight(sashNode, tree, glassCatalogue = {}) {
   const sightlineWidth = gross_sash_width - 2 * stileWidth
 
   // ── Gross sash height (includes horn) ────────────────────────────────────
-  const hornKey    = isTop
-    ? (pv.topHornTypeShortName    ?? 'none').toLowerCase()
-    : (pv.bottomHornTypeShortName ?? 'none').toLowerCase()
-  const hornLength = HORN_LENGTHS_MM[hornKey] ?? 0
+  // 'none' and 'no_horn' both mean no horn (optionVocabulary.js)
+  const hornCode   = isTop ? pv.topHornTypeShortName : pv.bottomHornTypeShortName
+  const hornLength = HORN_LENGTHS_MM[hornKind(hornCode) ?? 'none'] ?? 0
 
   const railHeight = isTop ? (sv.topHeight ?? 49) : (sv.bottomHeight ?? 88)
 
@@ -159,9 +157,12 @@ export function computeSashWeight(sashNode, tree, glassCatalogue = {}) {
 
   const total_timber_vol_mm3 = stiles_vol + rail_vol + midrail_vol + horiz_bar_vol + vert_bar_vol
 
-  // Timber density — look up sash material from item node
-  const sashMaterialId  = item?.values?.sashMaterialId ?? 'solid_redwood'
-  const density_kg_per_m3 = TIMBER_DENSITIES[sashMaterialId] ?? 508.3
+  // Timber density — real timber_species code → family → density.
+  // Families with no Integrate density fall back to the softwood figure;
+  // collectVocabularyWarnings() reports that case rather than hiding it.
+  const sashMaterialId    = item?.values?.sashMaterialId ?? 'softwood'
+  const family            = timberFamily(sashMaterialId)
+  const density_kg_per_m3 = TIMBER_FAMILY_DENSITIES[family] ?? 508.3
   const timber_kg = total_timber_vol_mm3 / 1e9 * density_kg_per_m3
 
   // ── Glass weight ─────────────────────────────────────────────────────────

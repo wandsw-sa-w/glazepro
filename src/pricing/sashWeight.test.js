@@ -10,7 +10,7 @@ const FIXTURE_TREE = {
   part_type: 'drawingItemPart',
   values: {
     typeOfWork:      'complete_new',
-    sashMaterialId:  'solid_redwood',
+    sashMaterialId:  'softwood',
   },
   children: [
     {
@@ -49,7 +49,7 @@ const FIXTURE_TREE = {
                   key: 'glass1',
                   part_type: 'glassPart',
                   values: {
-                    glazingId: 'double_glazed',
+                    glazingId: 'double_glazing',
                     barsWide:  2,
                     barsHigh:  1,
                     internalGlassPartNo: 'GL100010',
@@ -69,7 +69,7 @@ const FIXTURE_TREE = {
                   key: 'glass2',
                   part_type: 'glassPart',
                   values: {
-                    glazingId: 'double_glazed',
+                    glazingId: 'double_glazing',
                     barsWide:  2,
                     barsHigh:  1,
                     internalGlassPartNo: 'GL100010',
@@ -173,7 +173,7 @@ describe('computeSashWeight — catalogue fallback', () => {
 describe('computeSashWeight — material density', () => {
   it('utile sash is heavier than redwood sash (higher density)', () => {
     const utileTree = JSON.parse(JSON.stringify(FIXTURE_TREE))
-    utileTree.values.sashMaterialId = 'solid_utile_hardwood'
+    utileTree.values.sashMaterialId = 'utile'
 
     const redwoodResult = computeSashWeight(TOP_NODE, FIXTURE_TREE, GLASS_CATALOGUE)
     const utileResult   = computeSashWeight(
@@ -184,10 +184,10 @@ describe('computeSashWeight — material density', () => {
     expect(utileResult.weight_in_kg).toBeGreaterThan(redwoodResult.weight_in_kg)
   })
 
-  it('TIMBER_DENSITIES exports the four standard material codes', () => {
-    expect(TIMBER_DENSITIES.solid_redwood).toBe(508.3)
+  it('TIMBER_DENSITIES exports the four calibrated family densities', () => {
+    expect(TIMBER_DENSITIES.redwood).toBe(508.3)
     expect(TIMBER_DENSITIES.accoya).toBe(508.3)
-    expect(TIMBER_DENSITIES.solid_utile_hardwood).toBe(780.1)
+    expect(TIMBER_DENSITIES.utile_hardwood).toBe(780.1)
     expect(TIMBER_DENSITIES.idigbo).toBe(780.1)
   })
 })

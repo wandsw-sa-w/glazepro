@@ -13,6 +13,7 @@
 import { computeSashWeight } from './sashWeight.js'
 import { evaluateCondition, evaluateNumber, getExpressionVariables } from './evaluator.js'
 import { computeDerived } from '../drawingBoard/computeDerived.js'
+import { operationKind } from './optionVocabulary.js'
 
 // ── Tree helpers ──────────────────────────────────────────────────────────────
 
@@ -78,7 +79,7 @@ function computePartVars(partNode, tree, derived, baseVars, glassCatalogue) {
 
   if (pt === 'topSashPart' || pt === 'bottomSashPart') {
     const isTop           = pt === 'topSashPart'
-    const op              = (v.operation ?? '').toLowerCase()
+    const op              = operationKind(v.operation)
     const is_complete_new = baseVars.is_complete_new ?? false
     const to_be_replaced  = is_complete_new || v.toBeReplaced === true
 
@@ -95,10 +96,10 @@ function computePartVars(partNode, tree, derived, baseVars, glassCatalogue) {
       is_top_sash:    isTop,
       is_bottom_sash: !isTop,
       to_be_replaced,
-      is_cord_hung:    op.includes('cord'),
-      is_chain_hung:   op.includes('chain'),
-      is_spiral_hung:  op.includes('spiral'),
-      is_fixed_sash:   op === 'fix' || op.includes('fix'),
+      is_cord_hung:    op === 'cord',
+      is_chain_hung:   op === 'chain',
+      is_spiral_hung:  op === 'spiral',
+      is_fixed_sash:   op === 'fix',
       gross_sash_height_in_mm,
       gross_sash_width_in_mm,
       weight_in_kg:   weightData.weight_in_kg,
