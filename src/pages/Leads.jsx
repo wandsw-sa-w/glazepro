@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { useUsers } from '../hooks/useUsers'
 import { useCurrentUser } from '../hooks/useCurrentUser'
 import { Layout, LeadsSubNav, SearchOverlay } from '../components/Layout'
+import { fetchAllRows } from '../lib/fetchAllRows.js'
 
 const ACCENT = '#3d35a8'
 
@@ -429,15 +430,26 @@ export default function Leads() {
 
   async function fetchLeads() {
     setLoading(true)
-    const { data, error } = await supabase
-      .from('leads')
-      .select(`
-        *,
-        lead_contacts(id, is_main_contact, contact_id, contacts(title, first_name, last_name, phone, email)),
-        quotes(id, status, created_at)
-      `)
-      .order('created_at', { ascending: false })
-    if (!error) setLeads(data || [])
+    try {
+      // Paginated: leads is unbounded business data — the 1,000-row response
+      // cap would silently drop every lead past the newest 1,000
+      // (src/lib/fetchAllRows.js)
+      const data = await fetchAllRows(
+        () => supabase
+          .from('leads')
+          .select(`
+            *,
+            lead_contacts(id, is_main_contact, contact_id, contacts(title, first_name, last_name, phone, email)),
+            quotes(id, status, created_at)
+          `)
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false }),
+        'leads'
+      )
+      setLeads(data)
+    } catch (e) {
+      console.error('Failed to load leads:', e)
+    }
     setLoading(false)
   }
 

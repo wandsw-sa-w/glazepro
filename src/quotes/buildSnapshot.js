@@ -17,6 +17,7 @@ import { loadDrawingRunPrices, drawingQuoteItemNet } from './drawingRunPrice.js'
 import { computeQuoteTotals } from './quoteTotals.js'
 import { QUOTE_CONTENT } from './pdf/quoteContent.js'
 import { loadQuoteSettings, mergeQuoteContent } from './loadQuoteSettings.js'
+import { fetchAllRows } from '../lib/fetchAllRows.js'
 
 // ── Tree helper ─────────────────────────────────────────────────────────────
 
@@ -341,12 +342,18 @@ export async function buildQuoteSnapshot({ quoteId, leadId, userId, userName, su
   const drawingRunPricesMap = await loadDrawingRunPrices(drawingIds, supabase)
   const latestRunByDrawing = {}
   if (drawingIds.length > 0) {
-    const { data: runs } = await supabase
-      .from('pricing_runs')
-      .select('id, drawing_id, price_file_id, tree_hash, status, created_at')
-      .in('drawing_id', drawingIds)
-      .eq('status', 'complete')
-      .order('created_at', { ascending: false })
+    // Paginated: run history grows without bound, and a newest-1,000 cap
+    // could hide a drawing's latest run (src/lib/fetchAllRows.js)
+    const runs = await fetchAllRows(
+      () => supabase
+        .from('pricing_runs')
+        .select('id, drawing_id, price_file_id, tree_hash, status, created_at')
+        .in('drawing_id', drawingIds)
+        .eq('status', 'complete')
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false }),
+      'pricing_runs'
+    )
     for (const run of (runs || [])) {
       if (!latestRunByDrawing[run.drawing_id]) latestRunByDrawing[run.drawing_id] = run
     }
@@ -378,9 +385,14 @@ export async function buildQuoteSnapshot({ quoteId, leadId, userId, userName, su
   const ironmongeryByDrawing = {}
 
   // Load product name/category lookup for resolving tree-stored short_names
-  const { data: ironProducts } = await supabase
-    .from('ironmongery_products')
-    .select('id, name, short_name, category')
+  // (paginated: ~437 products today and growing — src/lib/fetchAllRows.js)
+  const ironProducts = await fetchAllRows(
+    () => supabase
+      .from('ironmongery_products')
+      .select('id, name, short_name, category')
+      .order('id'),
+    'ironmongery_products'
+  )
   const productByShortName = {}
   const productById = {}
   for (const p of (ironProducts || [])) {
@@ -388,10 +400,16 @@ export async function buildQuoteSnapshot({ quoteId, leadId, userId, userName, su
     productById[p.id] = p
   }
 
-  // Load variant finish lookup
-  const { data: ironVariants } = await supabase
-    .from('ironmongery_variants')
-    .select('id, product_id, finish_code, finish_name, photo_url')
+  // Load variant finish lookup (paginated: ironmongery_variants holds more
+  // than the 1,000-row response cap — an unpaginated read silently dropped
+  // the tail of the table)
+  const ironVariants = await fetchAllRows(
+    () => supabase
+      .from('ironmongery_variants')
+      .select('id, product_id, finish_code, finish_name, photo_url')
+      .order('id'),
+    'ironmongery_variants'
+  )
   const variantByProductFinish = {}
   for (const v of (ironVariants || [])) {
     variantByProductFinish[`${v.product_id}__${v.finish_code}`] = v
@@ -505,10 +523,15 @@ export async function buildQuoteSnapshot({ quoteId, leadId, userId, userName, su
     const labelMap = {}
     for (const p of (profileRows || [])) labelMap[p.id] = p.display_name || p.label
 
-    const { data: pvRows } = await supabase
-      .from('default_profile_values')
-      .select('profile_id, field_key, default_value')
-      .in('profile_id', profileIds)
+    // Paginated: ~263 values per profile — several profiles exceed the cap
+    const pvRows = await fetchAllRows(
+      () => supabase
+        .from('default_profile_values')
+        .select('profile_id, field_key, default_value')
+        .in('profile_id', profileIds)
+        .order('profile_id').order('field_key'),
+      'default_profile_values'
+    )
     const pvByProfile = {}
     for (const pv of (pvRows || [])) {
       if (!pvByProfile[pv.profile_id]) pvByProfile[pv.profile_id] = {}

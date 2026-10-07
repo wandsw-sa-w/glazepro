@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { loadDrawingParts, saveDrawingParts, loadReferenceOptions, loadFieldDefinitions, loadProfileValues } from '../drawingBoard/api.js'
 import { treeHash } from '../pricing/treeHash.js'
 import { isRunStale, pricedWithOlderEngine } from '../pricing/runStaleness.js'
+import { fetchAllRows } from '../lib/fetchAllRows.js'
 import { computeQuoteTotals } from '../quotes/quoteTotals.js'
 import { GRID_COLUMNS, readColumnValue, writeColumnValue } from '../quotes/gridColumns.js'
 import { loadDrawingRunPrices, drawingRunSales, drawingQuoteItemNet } from '../quotes/drawingRunPrice.js'
@@ -153,9 +154,15 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
 
       const drawingIds = Object.values(selMap)
       if (drawingIds.length > 0) {
-        const { data: runs } = await supabase
-          .from('pricing_runs').select('id, drawing_id, price_file_id, tree_hash, engine_version, status, created_at')
-          .in('drawing_id', drawingIds).eq('status', 'complete').order('created_at', { ascending: false })
+        // Paginated: run history grows without bound, and a newest-1,000 cap
+        // could hide a drawing's latest run (src/lib/fetchAllRows.js)
+        const runs = await fetchAllRows(
+          () => supabase
+            .from('pricing_runs').select('id, drawing_id, price_file_id, tree_hash, engine_version, status, created_at')
+            .in('drawing_id', drawingIds).eq('status', 'complete')
+            .order('created_at', { ascending: false }).order('id', { ascending: false }),
+          'pricing_runs'
+        )
         const runsMap = {}
         for (const run of (runs || [])) { if (!runsMap[run.drawing_id]) runsMap[run.drawing_id] = run }
         setLatestRuns(runsMap)

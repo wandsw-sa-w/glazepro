@@ -82,7 +82,7 @@ function buildQ1Handlers({ drawingId = DRAWING_ID, drawingNet = DRAWING_NET, typ
     },
 
     // 2. pricing_runs — latest run per drawing
-    'pricing_runs:select,in,eq,order': {
+    'pricing_runs:select,in,eq,order,order,range': {
       data: [{ id: RUN_ID, drawing_id: drawingId }],
       error: null,
     },
@@ -244,7 +244,7 @@ describe('priceQuote – cost uses latest run only', () => {
     const { handlers, written } = buildQ1Handlers()
 
     // Override pricing_runs to return two runs — latest first (order by created_at DESC)
-    handlers['pricing_runs:select,in,eq,order'] = {
+    handlers['pricing_runs:select,in,eq,order,order,range'] = {
       data: [
         { id: 'run2', drawing_id: DRAWING_ID },   // latest
         { id: 'run1', drawing_id: DRAWING_ID },   // older

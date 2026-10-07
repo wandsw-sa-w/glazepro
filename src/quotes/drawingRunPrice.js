@@ -14,6 +14,8 @@
 // the lead's Quote tab, the publish snapshot) reads the same number the
 // same way.
 
+import { fetchAllRows } from '../lib/fetchAllRows.js'
+
 /**
  * Load each drawing's drawing-level sales/cost from its latest completed
  * pricing run.
@@ -39,12 +41,20 @@ export async function loadDrawingRunPrices(drawingIds, supabase) {
   }
   if (ids.length === 0) return result
 
-  const { data: runs } = await supabase
-    .from('pricing_runs')
-    .select('id, drawing_id, price_file_id, total_cost, total_sales, created_at')
-    .in('drawing_id', ids)
-    .eq('status', 'complete')
-    .order('created_at', { ascending: false })
+  // Run history grows without bound (every Price quote / Re-price all adds
+  // rows), so this read is paginated — a 1,000-row cap on newest-first runs
+  // would silently hide the latest run of any drawing whose last pricing is
+  // older than the 1,000th-newest run in the set.
+  const runs = await fetchAllRows(
+    () => supabase
+      .from('pricing_runs')
+      .select('id, drawing_id, price_file_id, total_cost, total_sales, created_at')
+      .in('drawing_id', ids)
+      .eq('status', 'complete')
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false }),
+    'pricing_runs'
+  )
 
   const latestRun = {}
   for (const run of (runs || [])) {

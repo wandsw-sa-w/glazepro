@@ -44,6 +44,7 @@ import {
   glazingType, hornKind, operationKind, glassSpacerMm,
   isWarmEdgeSpacerColour, collectVocabularyWarnings,
 } from './optionVocabulary.js'
+import { fetchAllRows } from '../lib/fetchAllRows.js'
 
 // ── Tree helpers (local copies, same logic as computeDerived.js) ──────────────
 
@@ -1111,12 +1112,18 @@ export async function priceQuote(quoteId, supabase, { priceFileId } = {}) {
     const drawingLevelPrice = {} // String(drawingId) → sales total
 
     if (drawingIds.length > 0) {
-      const { data: runRows } = await supabase
-        .from('pricing_runs')
-        .select('id, drawing_id')
-        .in('drawing_id', drawingIds)
-        .eq('status', 'complete')
-        .order('created_at', { ascending: false })
+      // Paginated: run history grows without bound, and a newest-1,000 cap
+      // could hide a drawing's latest run (src/lib/fetchAllRows.js)
+      const runRows = await fetchAllRows(
+        () => supabase
+          .from('pricing_runs')
+          .select('id, drawing_id')
+          .in('drawing_id', drawingIds)
+          .eq('status', 'complete')
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false }),
+        'pricing_runs'
+      )
 
       const latestRunId = {}
       for (const r of (runRows || [])) {

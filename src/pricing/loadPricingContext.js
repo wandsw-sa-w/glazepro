@@ -9,25 +9,10 @@ import { computeDerived } from '../drawingBoard/computeDerived.js'
 import { computeVariables } from './computeVariables.js'
 import { defaultIronmonger } from './defaultIronmongery.js'
 
-// ── fetchAllRows ─────────────────────────────────────────────────────────────
-
-// Supabase (PostgREST) caps every response at 1,000 rows by default, and a
-// query that hits the cap returns the first 1,000 rows with NO error.
 // parts_catalogue, ironmongery_variants and ironmongery_variant_parts all
-// hold more than 1,000 rows, so an unpaginated select silently drops the
-// tail of the table. Every full-table read must go through this helper.
-// The query must carry a deterministic order() so pages don't overlap.
-const PAGE_SIZE = 1000
-
-async function fetchAllRows(makeQuery, label) {
-  const rows = []
-  for (let from = 0; ; from += PAGE_SIZE) {
-    const { data, error } = await makeQuery().range(from, from + PAGE_SIZE - 1)
-    if (error) throw new Error(`Failed to fetch ${label}: ${error.message}`)
-    rows.push(...(data ?? []))
-    if (!data || data.length < PAGE_SIZE) return rows
-  }
-}
+// hold more than 1,000 rows (the PostgREST response cap), so every
+// full-table read goes through the shared paginated reader.
+import { fetchAllRows } from '../lib/fetchAllRows.js'
 
 // ── loadPricingContext ───────────────────────────────────────────────────────
 

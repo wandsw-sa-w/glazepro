@@ -9,15 +9,28 @@ function fakeSupabase(tables) {
   return {
     from(table) {
       let rows = [...(tables[table] || [])]
+      const orders = []          // stacked multi-key sort, like PostgREST
+      let rangeArgs = null       // [from, to] from .range()
       const builder = {
         select() { return builder },
         in(col, vals) { rows = rows.filter(r => vals.includes(r[col])); return builder },
         eq(col, val) { rows = rows.filter(r => r[col] === val); return builder },
-        order(col, { ascending = true } = {}) {
-          rows = [...rows].sort((a, b) => (a[col] > b[col] ? 1 : a[col] < b[col] ? -1 : 0) * (ascending ? 1 : -1))
-          return builder
+        order(col, { ascending = true } = {}) { orders.push([col, ascending]); return builder },
+        range(from, to) { rangeArgs = [from, to]; return builder },
+        then(resolve) {
+          let out = [...rows]
+          if (orders.length > 0) {
+            out.sort((a, b) => {
+              for (const [col, asc] of orders) {
+                if (a[col] > b[col]) return asc ? 1 : -1
+                if (a[col] < b[col]) return asc ? -1 : 1
+              }
+              return 0
+            })
+          }
+          if (rangeArgs) out = out.slice(rangeArgs[0], rangeArgs[1] + 1)
+          resolve({ data: out, error: null })
         },
-        then(resolve) { resolve({ data: rows, error: null }) },
       }
       return builder
     },

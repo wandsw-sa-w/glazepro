@@ -24,6 +24,7 @@ import { PriceBreakdown } from '../components/PriceBreakdown.jsx'
 import { isRunStale, pricedWithOlderEngine } from '../pricing/runStaleness.js'
 import { PRICING_ENGINE_VERSION } from '../pricing/engineVersion.js'
 import { treeHash } from '../pricing/treeHash.js'
+import { fetchAllRows } from '../lib/fetchAllRows.js'
 import QuoteOverview from './QuoteOverview.jsx'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -316,12 +317,18 @@ export default function QuoteMatrixPage() {
     const drawingIds = (dwgs || []).map(d => d.id)
     const runsMap = {}
     if (drawingIds.length > 0) {
-      const { data: runs } = await supabase
-        .from('pricing_runs')
-        .select('drawing_id, price_file_id, status, created_at, tree_hash, engine_version')
-        .in('drawing_id', drawingIds)
-        .eq('status', 'complete')
-        .order('created_at', { ascending: false })
+      // Paginated: run history grows without bound, and a newest-1,000 cap
+      // could hide a drawing's latest run (src/lib/fetchAllRows.js)
+      const runs = await fetchAllRows(
+        () => supabase
+          .from('pricing_runs')
+          .select('id, drawing_id, price_file_id, status, created_at, tree_hash, engine_version')
+          .in('drawing_id', drawingIds)
+          .eq('status', 'complete')
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false }),
+        'pricing_runs'
+      )
       for (const run of (runs || [])) { if (!runsMap[run.drawing_id]) runsMap[run.drawing_id] = run }
     }
 
