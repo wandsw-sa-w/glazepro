@@ -263,11 +263,29 @@ const ASSUMPTIONS = [
   'Glazing Bead qty: target 3.13, engine gives 3.12; 5mm sightline sum gap (1560 vs ~1565mm), likely different stile/sightline convention in Integrate',
 ]
 
+// ── Ironmongery fixture data ─────────────────────────────────────────────────
+// Benchmark A: 1 x Claw Fastener Kit without Pulleys, PB finish.
+// The default_ironmongery rules allocate product_short_name based on conditions.
+// This fixture provides the pre-resolved ironmongery lines and catalogue
+// so the engine can price them without the DB.
+const IRONMONGERY_LINES = [
+  { product_short_name: 'claw_fastener_kit_square_without_pulleys', finish_code: 'PB', qty: 1 },
+]
+
+const IRONMONGERY_CATALOGUE = {
+  'claw_fastener_kit_square_without_pulleys:PB': {
+    cost: 13,   // round(13*1, 0) * 1.05 = 13 * 1.05 = 13.65
+    parts: [],  // kit lines not broken out; cost used directly
+  },
+}
+
 export const BENCHMARK_A = {
   name:   'Benchmark A — Sash replacement (L31115 Item 1)',
   tree:   TREE,
   targets: TARGETS,
   glassCatalogue: GLASS_CATALOGUE,
   partCostMap: PART_COST_MAP,
+  ironmongeryLines: IRONMONGERY_LINES,
+  ironmongeryCatalogue: IRONMONGERY_CATALOGUE,
   assumptions: ASSUMPTIONS,
 }

@@ -249,12 +249,27 @@ const ASSUMPTIONS = [
   'DSO Extra Profits: qty = sliding_sash_qty - fixed_sliding_sash_qty = 2, markup = 55',
 ]
 
+// ── Ironmongery fixture data ─────────────────────────────────────────────────
+// Benchmark B: 1 x Brighton Fastener Kit without Pulleys, PB finish.
+const IRONMONGERY_LINES = [
+  { product_short_name: 'brighton_fastener_kit_square_without_pulleys', finish_code: 'PB', qty: 1 },
+]
+
+const IRONMONGERY_CATALOGUE = {
+  'brighton_fastener_kit_square_without_pulleys:PB': {
+    cost: 12,   // round(12*1, 0) * 1.05 = 12 * 1.05 = 12.60
+    parts: [],
+  },
+}
+
 export const BENCHMARK_B = {
   name:   'Benchmark B — Draught seal (L31115 Item 2, corrected)',
   tree:   TREE,
   targets: TARGETS,
   glassCatalogue: {},
   partCostMap: PART_COST_MAP,
+  ironmongeryLines: IRONMONGERY_LINES,
+  ironmongeryCatalogue: IRONMONGERY_CATALOGUE,
   assumptions: ASSUMPTIONS,
 }
 
@@ -264,5 +279,7 @@ export const BENCHMARK_B_UNCORRECTED = {
   targets: TARGETS_UNCORRECTED,
   glassCatalogue: {},
   partCostMap: PART_COST_MAP,
+  ironmongeryLines: IRONMONGERY_LINES,
+  ironmongeryCatalogue: IRONMONGERY_CATALOGUE,
   assumptions: ASSUMPTIONS,
 }
