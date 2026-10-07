@@ -21,6 +21,9 @@ import { validateDrawing, countBySeverity } from '../validation/validate.js'
 import { listTemplates, createDrawingFromTemplate } from '../drawingBoard/templates.js'
 import { insertDrawingHistory } from '../drawingBoard/drawingHistory.js'
 import { PriceBreakdown } from '../components/PriceBreakdown.jsx'
+import { isRunStale, pricedWithOlderEngine } from '../pricing/runStaleness.js'
+import { PRICING_ENGINE_VERSION } from '../pricing/engineVersion.js'
+import { treeHash } from '../pricing/treeHash.js'
 import QuoteOverview from './QuoteOverview.jsx'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -315,7 +318,7 @@ export default function QuoteMatrixPage() {
     if (drawingIds.length > 0) {
       const { data: runs } = await supabase
         .from('pricing_runs')
-        .select('drawing_id, price_file_id, status, created_at')
+        .select('drawing_id, price_file_id, status, created_at, tree_hash, engine_version')
         .in('drawing_id', drawingIds)
         .eq('status', 'complete')
         .order('created_at', { ascending: false })
@@ -391,11 +394,13 @@ export default function QuoteMatrixPage() {
 
   const defaultPriceFile = priceFiles.find(p => p.is_current) || priceFiles.find(p => p.status === 'published')
 
+  // A drawing is re-priced when its tree hash, its price file, or the engine
+  // version differs from its latest successful run (src/pricing/runStaleness.js).
+  // The tree-hash part needs the drawing's parts tree, which the matrix does
+  // not hold — doPriceQuote loads trees for the cheap-check survivors.
   function isStale(drawingId) {
     const run = latestRuns[drawingId]
-    if (!run) return true
-    if (defaultPriceFile && run.price_file_id !== defaultPriceFile.id) return true
-    return false
+    return isRunStale(run, { expectedPriceFileId: defaultPriceFile?.id ?? null })
   }
 
   const visibleItems = jobItems.filter(i => showDeleted ? true : !i.deleted_at)
@@ -623,7 +628,7 @@ export default function QuoteMatrixPage() {
       const res = await priceDrawing(drawingId, supabase, { priceFileId })
       if (res.success) {
         setDrawings(prev => prev.map(d => d.id === drawingId ? { ...d, calculated_price: res.calculatedPrice } : d))
-        setLatestRuns(prev => ({ ...prev, [drawingId]: { price_file_id: priceFileId, status: 'complete' } }))
+        setLatestRuns(prev => ({ ...prev, [drawingId]: { price_file_id: priceFileId, status: 'complete', engine_version: PRICING_ENGINE_VERSION } }))
         pricedIds.push(drawingId)
       }
     }
@@ -654,14 +659,41 @@ export default function QuoteMatrixPage() {
     }
   }
 
-  async function doPriceQuote(quoteId) {
+  /**
+   * Price a quote's drawings. Without `repriceAll`, only stale drawings are
+   * priced — stale meaning the tree hash, price file, or engine version
+   * differs from the latest successful run. With `repriceAll` (the
+   * "Re-price all" button, open quotes only — published quotes are never
+   * re-priced and keep their snapshot) every selected drawing is re-priced.
+   */
+  async function doPriceQuote(quoteId, { repriceAll = false } = {}) {
     const q = quotes.find(q => q.id === quoteId)
     if (!q) return
+    if (q.status !== 'Open') return  // never re-price a published quote
     const priceFileId = q.price_file_id || undefined
-    const staleDrawingIds = jobItems
+    const candidateIds = jobItems
       .map(item => selections[`${quoteId}_${item.id}`])
       .filter(Boolean)
-      .filter(dwgId => isStale(dwgId))
+
+    let staleDrawingIds
+    if (repriceAll) {
+      staleDrawingIds = candidateIds
+    } else {
+      staleDrawingIds = []
+      for (const dwgId of candidateIds) {
+        if (isStale(dwgId)) { staleDrawingIds.push(dwgId); continue }
+        // Cheap checks passed — compare the stored tree hash with the
+        // current tree so a changed drawing is re-priced too.
+        const run = latestRuns[dwgId]
+        try {
+          const tree = await loadDrawingParts(Number(dwgId))
+          if (tree && run?.tree_hash && run.tree_hash !== treeHash(tree)) staleDrawingIds.push(dwgId)
+        } catch (e) {
+          console.warn(`Could not load parts for drawing ${dwgId} — re-pricing it:`, e?.message)
+          staleDrawingIds.push(dwgId)  // cannot verify: re-price rather than skip
+        }
+      }
+    }
 
     setPricing(prev => ({ ...prev, [quoteId]: { busy: true, error: null, progress: `Pricing ${staleDrawingIds.length} drawing(s)…` } }))
     const errors = []
@@ -671,7 +703,7 @@ export default function QuoteMatrixPage() {
       if (!res.success) errors.push(`Drawing ${drawingId}: ${res.error}`)
       else {
         setDrawings(prev => prev.map(d => d.id === drawingId ? { ...d, calculated_price: res.calculatedPrice } : d))
-        setLatestRuns(prev => ({ ...prev, [drawingId]: { price_file_id: priceFileId || null, status: 'complete' } }))
+        setLatestRuns(prev => ({ ...prev, [drawingId]: { price_file_id: priceFileId || null, status: 'complete', engine_version: PRICING_ENGINE_VERSION } }))
         pricedIds.push(drawingId)
       }
     }
@@ -921,6 +953,7 @@ export default function QuoteMatrixPage() {
                         <div style={{ flex: 1, display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4 }}>
                           {itemDwgs.map(dwg => {
                             const stale = isStale(dwg.id)
+                            const olderEngine = pricedWithOlderEngine(latestRuns[dwg.id])
                             const cardLabel = drawingCardLabel(dwg, priceFiles, latestRuns, drawingRunPrices)
                             const desc = [dwg.window_type, dwg.material_frame, dwg.finish_internal].filter(Boolean).join(' · ')
                             return (
@@ -942,7 +975,9 @@ export default function QuoteMatrixPage() {
                                 <div style={{ padding: '6px 10px', borderTop: '1px solid #f0eef8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
                                   <span style={{ fontSize: 11, fontWeight: 600, color: '#333', display: 'flex', alignItems: 'center' }}>{cardLabel}<ValidationMarker drawingId={dwg.id} /></span>
                                   <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                    {stale && <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 999, background: '#fffbeb', color: '#b45309', fontWeight: 700, border: '1px solid #fcd34d' }}>needs pricing</span>}
+                                    {olderEngine
+                                      ? <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 999, background: '#fef2f2', color: '#991b1b', fontWeight: 700, border: '1px solid #fca5a5' }}>Priced with an older version</span>
+                                      : stale && <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 999, background: '#fffbeb', color: '#b45309', fontWeight: 700, border: '1px solid #fcd34d' }}>needs pricing</span>}
                                     <button onClick={() => setBreakdownDrawingId(dwg.id)} title="Price breakdown" style={{ fontSize: 9, padding: '1px 6px', borderRadius: 999, background: '#f3f1fc', color: '#3d35a8', fontWeight: 700, border: '1px solid #d6d0f5', cursor: 'pointer' }}>{'£'} breakdown</button>
                                   </span>
                                 </div>
@@ -1044,6 +1079,9 @@ export default function QuoteMatrixPage() {
                         </button>
                         <button onClick={() => doPriceQuote(q.id)} disabled={pricing[q.id]?.busy} style={{ width: '100%', fontSize: 11, padding: '6px 0', border: '1px solid #d8d5cf', borderRadius: 6, background: '#fff', color: '#555', cursor: 'pointer', fontWeight: 500, marginBottom: 4 }}>
                           {pricing[q.id]?.busy ? 'Pricing…' : 'Price quote'}
+                        </button>
+                        <button onClick={() => doPriceQuote(q.id, { repriceAll: true })} disabled={pricing[q.id]?.busy} title="Re-price every drawing on this quote, even ones whose latest run looks current" style={{ width: '100%', fontSize: 11, padding: '6px 0', border: '1px solid #d8d5cf', borderRadius: 6, background: '#fff', color: '#555', cursor: 'pointer', fontWeight: 500, marginBottom: 4 }}>
+                          {pricing[q.id]?.busy ? 'Pricing…' : 'Re-price all'}
                         </button>
                         {pricing[q.id]?.error && <div style={{ fontSize: 10, color: '#c00' }}>{pricing[q.id].error}</div>}
                         <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>

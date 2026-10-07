@@ -4,6 +4,7 @@ import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { loadDrawingParts, saveDrawingParts, loadReferenceOptions, loadFieldDefinitions, loadProfileValues } from '../drawingBoard/api.js'
 import { treeHash } from '../pricing/treeHash.js'
+import { isRunStale, pricedWithOlderEngine } from '../pricing/runStaleness.js'
 import { computeQuoteTotals } from '../quotes/quoteTotals.js'
 import { GRID_COLUMNS, readColumnValue, writeColumnValue } from '../quotes/gridColumns.js'
 import { loadDrawingRunPrices, drawingRunSales, drawingQuoteItemNet } from '../quotes/drawingRunPrice.js'
@@ -153,7 +154,7 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
       const drawingIds = Object.values(selMap)
       if (drawingIds.length > 0) {
         const { data: runs } = await supabase
-          .from('pricing_runs').select('id, drawing_id, price_file_id, tree_hash, status, created_at')
+          .from('pricing_runs').select('id, drawing_id, price_file_id, tree_hash, engine_version, status, created_at')
           .in('drawing_id', drawingIds).eq('status', 'complete').order('created_at', { ascending: false })
         const runsMap = {}
         for (const run of (runs || [])) { if (!runsMap[run.drawing_id]) runsMap[run.drawing_id] = run }
@@ -419,14 +420,22 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
   const visibleItems = jobItems.filter(i => showDeleted ? true : !i.deleted_at)
   const defaultPriceFile = priceFiles.find(p => p.id === quote.price_file_id) || priceFiles.find(p => p.is_current)
 
+  // Stale = tree hash, price file, or engine version differs from the
+  // latest successful run (src/pricing/runStaleness.js). Published quotes
+  // are never re-priced; they keep their snapshot (isLive guard).
   function isDrawingStale(drawingId) {
     if (!isLive) return false
     const run = latestRuns[drawingId]
-    if (!run) return true
-    if (quote.price_file_id && run.price_file_id !== quote.price_file_id) return true
     const tree = trees[drawingId]
-    if (tree && run.tree_hash && run.tree_hash !== treeHash(tree)) return true
-    return false
+    return isRunStale(run, {
+      currentTreeHash: tree ? treeHash(tree) : null,
+      expectedPriceFileId: quote.price_file_id ?? null,
+    })
+  }
+
+  function isOlderEngine(drawingId) {
+    if (!isLive) return false
+    return pricedWithOlderEngine(latestRuns[drawingId])
   }
 
   const totalsInput = jobItems.map(item => {
@@ -449,6 +458,7 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
       } : null)
 
   const staleCount = isLive ? jobItems.filter(i => selections[i.id] && isDrawingStale(selections[i.id])).length : 0
+  const olderEngineCount = isLive ? jobItems.filter(i => selections[i.id] && isOlderEngine(selections[i.id])).length : 0
   const poaCount = jobItems.filter(i => { const d = drawings.find(d => d.id === selections[i.id]); return d?.poa }).length
   const totalCost = jobItems.reduce((sum, item) => sum + (costByDrawing[selections[item.id]] || 0), 0)
 
@@ -680,6 +690,7 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
             {validationCounts.info > 0 && <span style={{ color: '#3b82f6', fontWeight: 600 }}>{validationCounts.info} info</span>}
             {validationCounts.errors === 0 && validationCounts.warnings === 0 && validationCounts.info === 0 && <span style={{ color: '#15803d', fontWeight: 500 }}>No issues</span>}
             {staleCount > 0 && <span style={{ color: '#b45309', fontWeight: 600 }}>{staleCount} drawing(s) need pricing</span>}
+            {olderEngineCount > 0 && <span style={{ color: '#991b1b', fontWeight: 600 }}>{olderEngineCount} drawing(s) priced with an older version</span>}
             {poaCount > 0 && <span style={{ color: '#b45309', fontWeight: 600 }}>{poaCount} POA item(s)</span>}
           </div>
           {/* Individual messages grouped by severity: quote-level first, then per-item */}

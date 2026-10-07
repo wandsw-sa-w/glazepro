@@ -39,6 +39,7 @@ import { computeSashWeight } from './sashWeight.js'
 import { allocateParts } from './partAllocator.js'
 import { treeHash } from './treeHash.js'
 import { loadPricingContext, resolveIronmongeryLines } from './loadPricingContext.js'
+import { PRICING_ENGINE_VERSION } from './engineVersion.js'
 
 // ── Tree helpers (local copies, same logic as computeDerived.js) ──────────────
 
@@ -821,12 +822,13 @@ export async function priceDrawing(drawingId, supabase, { priceFileId } = {}) {
     const { data: pricingRun, error: runErr } = await supabase
       .from('pricing_runs')
       .insert({
-        drawing_id:    drawingId,
-        price_file_id: resolvedPriceFileId,
-        status:        'in_progress',
-        tree_hash:     currentTreeHash,
-        created_at:    new Date().toISOString(),
-        created_by:    runUserId,
+        drawing_id:     drawingId,
+        price_file_id:  resolvedPriceFileId,
+        status:         'in_progress',
+        tree_hash:      currentTreeHash,
+        created_at:     new Date().toISOString(),
+        created_by:     runUserId,
+        engine_version: PRICING_ENGINE_VERSION,
       })
       .select('id')
       .single()

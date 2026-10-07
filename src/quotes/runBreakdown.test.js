@@ -102,7 +102,7 @@ describe('Source-level — one table component, stored data only', () => {
   })
 
   it('priceDrawing stores run warnings and created_by', () => {
-    expect(engineSource).toContain('warnings:    engineResults.warnings ?? []')
-    expect(engineSource).toContain('created_by:    runUserId')
+    expect(engineSource).toMatch(/warnings:\s+engineResults\.warnings \?\? \[\]/)
+    expect(engineSource).toMatch(/created_by:\s+runUserId/)
   })
 })
