@@ -509,9 +509,29 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
     allocatedParts = allocateParts(tree, baseVars, partAllocationRules, glassCatalogue)
   }
 
-  // Component parts (non-weight groups) for the pricing component loop
+  // Component parts (non-weight groups) for the pricing component loop.
   // Weights are priced via the steel/lead sliding_sash price rules, not the component loop.
-  const componentParts = allocatedParts.filter(a => a.group !== 'sash_weights')
+  //
+  // Merge lines with the same (part_code, label): sum their measures,
+  // keep the highest qty.  The label encodes the dimension — e.g.
+  // "Parting bead for height" vs "Parting bead for width" — so width
+  // and height lines for the same part stay separate.
+  //
+  // Integrate merges identical lines before costing so one longer length
+  // is costed once (avoids per-line rounding differences).
+  const rawComponentParts = allocatedParts.filter(a => a.group !== 'sash_weights')
+  const mergedMap = new Map()
+  for (const p of rawComponentParts) {
+    const key = `${p.part_code}\x00${p.label}`
+    const existing = mergedMap.get(key)
+    if (existing) {
+      existing.measure += p.measure
+      if (p.qty > existing.qty) existing.qty = p.qty
+    } else {
+      mergedMap.set(key, { ...p })
+    }
+  }
+  const componentParts = [...mergedMap.values()]
 
   const results = {
     manufacture_labour: { total_minutes: 0, lines: [] },
