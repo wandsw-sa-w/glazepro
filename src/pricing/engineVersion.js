@@ -13,7 +13,10 @@
  * column existed (engine_version NULL), including runs from the old
  * incomplete path that priced real quotes with no glass catalogue, part
  * costs or ironmongery. Version 2 is the first version with the shared
- * loadPricingContext path feeding priceDrawing.
+ * loadPricingContext path feeding priceDrawing. Version 3 maps the real
+ * stored option codes to engine flags (src/pricing/optionVocabulary.js):
+ * runs priced under version 2 silently missed glass lines and the
+ * softwood/utile material rules on real drawings.
  */
 
-export const PRICING_ENGINE_VERSION = 2
+export const PRICING_ENGINE_VERSION = 3
