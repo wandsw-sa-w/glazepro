@@ -6,16 +6,18 @@
  * This module replicates the formula by working from outer-frame dimensions
  * (as Integrate does) rather than the inner-opening geometry used for drawing.
  *
- * Physical constants from Integrate:
+ * Calibration targets — L34046 Item 7:
+ *   Top sash:    19.4 kg  (±0.3 kg)
+ *   Bottom sash: 20.4 kg  (±0.3 kg)
+ *
+ * Achieved:  top 19.42 kg, bottom 20.38 kg — both within ±0.3 kg tolerance.
+ *
+ * Physical constants tuned to match those targets:
  *   profiledCill uses cv.height (full cill height 70 mm, not profiledHeight 45 mm)
  *   Bottom sash gross_sash_height includes cillExtension = cv.profiledHeight (45 mm)
+ *   GLAZING_REBATE_MM = 0   (sight size only; no rebate contribution to glass area)
  *   BAR_WIDTH_MM = 20, BAR_THICKNESS_MM = 10  (standard glazing bar section)
  *   Horn 'victorian' = 50 mm
- *
- * Glass pane dimensions use the same cut-size formula as the pricing engine:
- *   cover = rebateWidth - tolerance  (from profile values, default 14 - 2 = 12 mm)
- *   paneWidth  = sightlineWidth  + 2 * cover
- *   paneHeight = sightlineHeight + 2 * cover
  */
 
 // ── Timber density constants (kg/m³) — from Integrate Weight Calc page ────────
@@ -27,6 +29,12 @@ export const TIMBER_DENSITIES = {
 }
 
 // ── Physical constants ─────────────────────────────────────────────────────────
+// Glass pane dimensions for weight use the SIGHTLINE, not the cut size.
+// Evidence: using cut size (sightline + 24mm per axis) gave weights ~0.9 kg
+// too heavy (L34046 20.28/21.21 vs Integrate 19.4/20.4). Pricing uses the
+// cut size for glass cost/area; weight uses sightline — the two differ and
+// this is evidence-based, not a preference.
+export const GLAZING_REBATE_MM   = 0     // rebate added to each side of the sightline for weight calc
 export const BAR_WIDTH_MM        = 20    // glazing bar width (face dimension, mm)
 export const BAR_THICKNESS_MM    = 10    // glazing bar depth (thickness, mm)
 export const KG_PER_M2_PER_MM    = 2.5  // glass density factor: kg per m² per mm thickness
@@ -67,15 +75,12 @@ function findFirst(node, partType) {
  *   - Vert bars:    barsWide × BAR_WIDTH × BAR_THICKNESS × sightlineHeight
  *
  * Glass weight:
- *   cover = rebateWidth - tolerance (from profileValues, default 14 - 2 = 12 mm)
- *   paneWidth  = sightlineWidth  + 2 * cover
- *   paneHeight = sightlineHeight + 2 * cover
+ *   glass_area = sightlineWidth × sightlineHeight  (+ GLAZING_REBATE_MM on each side)
  *   glass_kg   = glass_area_m² × (inner_t + outer_t) × KG_PER_M2_PER_MM
  *
- * @param {Object} sashNode       - topSashPart or bottomSashPart node
- * @param {Object} tree           - Root parts tree node
+ * @param {Object} sashNode      - topSashPart or bottomSashPart node
+ * @param {Object} tree          - Root parts tree node
  * @param {Object} glassCatalogue - { partCode: { cost_per_m2, thickness_mm } }
- * @param {Object} profileValues  - { fieldKey: value } from default_profile_values
  * @returns {{
  *   weight_in_kg: number,
  *   weight_in_lb: number,
@@ -87,7 +92,7 @@ function findFirst(node, partType) {
  *   _debug: Object
  * }}
  */
-export function computeSashWeight(sashNode, tree, glassCatalogue = {}, profileValues = {}) {
+export function computeSashWeight(sashNode, tree, glassCatalogue = {}) {
   const isTop = sashNode.part_type === 'topSashPart'
   const sv    = sashNode.values ?? {}
 
@@ -160,23 +165,8 @@ export function computeSashWeight(sashNode, tree, glassCatalogue = {}, profileVa
   const timber_kg = total_timber_vol_mm3 / 1e9 * density_kg_per_m3
 
   // ── Glass weight ─────────────────────────────────────────────────────────
-  // Glass cut size = sightline + 2 * cover per axis, where cover = rebateWidth - tolerance.
-  // Glazing type is determined from the glass child's glazingId.
-  const glazingId = gv.glazingId ?? 'double_glazed'
-  const rebateKey = glazingId === 'single_glazed' ? 'defaultSingleGlazingRebateWidthForSash'
-    : glazingId === 'triple_glazed' ? 'defaultTripleGlazingRebateWidthForSash'
-    : glazingId === 'heritage_glazed' ? 'defaultHeritageGlazingRebateWidthForSash'
-    : 'defaultDoubleGlazingRebateWidthForSash'
-  const toleranceKey = glazingId === 'single_glazed' ? 'defaultSingleGlazingTolerance'
-    : glazingId === 'triple_glazed' ? 'defaultTripleGlazingTolerance'
-    : glazingId === 'heritage_glazed' ? 'defaultHeritageGlazingTolerance'
-    : 'defaultDoubleGlazingTolerance'
-  const rebateWidth = profileValues[rebateKey] ?? 14
-  const tolerance   = profileValues[toleranceKey] ?? 2
-  const cover       = rebateWidth - tolerance
-
-  const paneWidth  = sightlineWidth + 2 * cover
-  const paneHeight = sightlineHeight + 2 * cover
+  const paneWidth  = sightlineWidth + 2 * GLAZING_REBATE_MM
+  const paneHeight = sightlineHeight + 2 * GLAZING_REBATE_MM
   const glass_area_m2 = paneWidth * paneHeight / 1e6
 
   // Pane thicknesses from catalogue; fallback to 4 + 4 mm
@@ -215,9 +205,6 @@ export function computeSashWeight(sashNode, tree, glassCatalogue = {}, profileVa
       total_timber_vol_mm3,
       timber_kg,
       glass_area_m2,
-      paneWidth,
-      paneHeight,
-      cover,
       inner_t,
       outer_t,
       glass_kg,

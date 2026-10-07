@@ -108,9 +108,21 @@ const BASE_VARS = {
 
 // ── Minimal active rule set for testing ───────────────────────────────────────
 
-// Per-lb steel weight rules — bands updated for glass cut-size weights.
-// With cover=12mm: top sash ~20.3 kg (22lb band), bottom sash ~21.2 kg (23lb band).
+// Per-lb steel weight rules (21lb and 22lb bands that Item 7 should match)
 const STEEL_RULES_ITEM7 = [
+  // 21lb: 19.05 ≤ kg < 19.96 and height > 630
+  {
+    id: 'r170', sort_order: 170, group_name: 'sash_weights', loop_target: 'sliding_sash',
+    label: '21lb Steel', integrate_sort: 170,
+    condition: 'frame_to_be_replaced and is_cord_hung and weight_in_kg < 19.96 and weight_in_kg >= 19.05 and gross_sash_height_in_mm > 630',
+    qty_expr: '2', part_code: 'RLZ1927', measure_expr: '9.5', is_active: true,
+  },
+  {
+    id: 'r171', sort_order: 171, group_name: 'sash_weights', loop_target: 'sliding_sash',
+    label: '21lb Steel fallback',
+    condition: 'frame_to_be_replaced and is_cord_hung and weight_in_kg < 19.96 and weight_in_kg >= 19.05 and gross_sash_height_in_mm <= 630',
+    qty_expr: '2', part_code: 'LW100005', measure_expr: 'weight_in_kg / 2', is_active: true,
+  },
   // 22lb: 19.96 ≤ kg < 20.87 and height > 660
   {
     id: 'r175', sort_order: 175, group_name: 'sash_weights', loop_target: 'sliding_sash',
@@ -122,19 +134,6 @@ const STEEL_RULES_ITEM7 = [
     id: 'r176', sort_order: 176, group_name: 'sash_weights', loop_target: 'sliding_sash',
     label: '22lb Steel fallback',
     condition: 'frame_to_be_replaced and is_cord_hung and weight_in_kg < 20.87 and weight_in_kg >= 19.96 and gross_sash_height_in_mm <= 660',
-    qty_expr: '2', part_code: 'LW100005', measure_expr: 'weight_in_kg / 2', is_active: true,
-  },
-  // 23lb: 20.87 ≤ kg < 21.77 and height > 660
-  {
-    id: 'r180', sort_order: 180, group_name: 'sash_weights', loop_target: 'sliding_sash',
-    label: '23lb Steel',
-    condition: 'frame_to_be_replaced and is_cord_hung and weight_in_kg < 21.77 and weight_in_kg >= 20.87 and gross_sash_height_in_mm > 660',
-    qty_expr: '2', part_code: 'RLZ1929', measure_expr: '10.5', is_active: true,
-  },
-  {
-    id: 'r181', sort_order: 181, group_name: 'sash_weights', loop_target: 'sliding_sash',
-    label: '23lb Steel fallback',
-    condition: 'frame_to_be_replaced and is_cord_hung and weight_in_kg < 21.77 and weight_in_kg >= 20.87 and gross_sash_height_in_mm <= 660',
     qty_expr: '2', part_code: 'LW100005', measure_expr: 'weight_in_kg / 2', is_active: true,
   },
 ]
@@ -156,25 +155,23 @@ const SURROUNDS_RULES = [
 
 // ── Item 7: steel weight band ─────────────────────────────────────────────────
 
-describe('allocateParts — Item 7 steel weight allocation (glass cut size)', () => {
+describe('allocateParts — Item 7 steel weight allocation', () => {
   const rules = [...STEEL_RULES_ITEM7, ...SURROUNDS_RULES]
 
-  it('allocates RLZ1928 (22lb) for the top sash', () => {
-    // With glass cut size (cover=12), top sash ~20.3 kg -> 22lb band
+  it('allocates RLZ1927 (21lb) for the top sash', () => {
     const result = allocateParts(FIXTURE_TREE, BASE_VARS, rules, GLASS_CATALOGUE)
-    const topAlloc = result.filter(a => a.part_code === 'RLZ1928' && a.scope_part_type === 'topSashPart')
+    const topAlloc = result.filter(a => a.part_code === 'RLZ1927' && a.scope_part_type === 'topSashPart')
     expect(topAlloc).toHaveLength(1)
     expect(topAlloc[0].qty).toBe(2)
-    expect(topAlloc[0].measure).toBeCloseTo(10, 6)
+    expect(topAlloc[0].measure).toBeCloseTo(9.5, 6)
   })
 
-  it('allocates RLZ1929 (23lb) for the bottom sash', () => {
-    // With glass cut size (cover=12), bottom sash ~21.2 kg -> 23lb band
+  it('allocates RLZ1928 (22lb) for the bottom sash', () => {
     const result = allocateParts(FIXTURE_TREE, BASE_VARS, rules, GLASS_CATALOGUE)
-    const botAlloc = result.filter(a => a.part_code === 'RLZ1929' && a.scope_part_type === 'bottomSashPart')
+    const botAlloc = result.filter(a => a.part_code === 'RLZ1928' && a.scope_part_type === 'bottomSashPart')
     expect(botAlloc).toHaveLength(1)
     expect(botAlloc[0].qty).toBe(2)
-    expect(botAlloc[0].measure).toBeCloseTo(10.5, 6)
+    expect(botAlloc[0].measure).toBeCloseTo(10, 6)
   })
 
   it('does not allocate lead weights (LW100005) for either sash in complete new', () => {
@@ -323,9 +320,21 @@ describe('allocateParts — height boundary test', () => {
 // gross_sash_height_in_mm). This suite verifies that the allocator exposes the
 // correctly-named variable so steel rules fire instead of the lead fallback.
 
-// Updated for glass cut size: top ~20.3 kg (22lb band), bottom ~21.2 kg (23lb band)
 const STEEL_RULES_DB_FORMAT = [
-  // 22 lb  (19.96 ≤ kg < 20.87) — top sash with L34046 Item 7 dimensions
+  // 21 lb  (19.05 ≤ kg < 19.96) — top sash with L34046 Item 7 dimensions
+  {
+    id: 'r170db', sort_order: 170, group_name: 'sash_weights', loop_target: 'sliding_sash',
+    label: '21lb steel',
+    condition: 'to_be_replaced and is_cord_hung and weight_in_kg >= 19.05 and weight_in_kg < 19.96 and sash_height_in_mm > 630',
+    qty_expr: '2', part_code: 'RLZ1927', measure_expr: '9.5', is_active: true,
+  },
+  {
+    id: 'r171db', sort_order: 171, group_name: 'sash_weights', loop_target: 'sliding_sash',
+    label: '21lb fallback',
+    condition: 'to_be_replaced and is_cord_hung and weight_in_kg >= 19.05 and weight_in_kg < 19.96 and sash_height_in_mm <= 630',
+    qty_expr: '2', part_code: 'LW100005', measure_expr: 'weight_in_kg / 2', is_active: true,
+  },
+  // 22 lb  (19.96 ≤ kg < 20.87) — bottom sash with L34046 Item 7 dimensions
   {
     id: 'r175db', sort_order: 175, group_name: 'sash_weights', loop_target: 'sliding_sash',
     label: '22lb steel',
@@ -338,32 +347,19 @@ const STEEL_RULES_DB_FORMAT = [
     condition: 'to_be_replaced and is_cord_hung and weight_in_kg >= 19.96 and weight_in_kg < 20.87 and sash_height_in_mm <= 660',
     qty_expr: '2', part_code: 'LW100005', measure_expr: 'weight_in_kg / 2', is_active: true,
   },
-  // 23 lb  (20.87 ≤ kg < 21.77) — bottom sash with L34046 Item 7 dimensions
-  {
-    id: 'r180db', sort_order: 180, group_name: 'sash_weights', loop_target: 'sliding_sash',
-    label: '23lb steel',
-    condition: 'to_be_replaced and is_cord_hung and weight_in_kg >= 20.87 and weight_in_kg < 21.77 and sash_height_in_mm > 660',
-    qty_expr: '2', part_code: 'RLZ1929', measure_expr: '10.5', is_active: true,
-  },
-  {
-    id: 'r181db', sort_order: 181, group_name: 'sash_weights', loop_target: 'sliding_sash',
-    label: '23lb fallback',
-    condition: 'to_be_replaced and is_cord_hung and weight_in_kg >= 20.87 and weight_in_kg < 21.77 and sash_height_in_mm <= 660',
-    qty_expr: '2', part_code: 'LW100005', measure_expr: 'weight_in_kg / 2', is_active: true,
-  },
 ]
 
 describe('allocateParts — sash_height_in_mm reaches sash scope (DB rule format)', () => {
-  it('top sash allocates RLZ1928 (22lb) using sash_height_in_mm > 660', () => {
+  it('top sash allocates RLZ1927 (21lb) using sash_height_in_mm > 630 (not gross_sash_height_in_mm)', () => {
     const result = allocateParts(FIXTURE_TREE, BASE_VARS, STEEL_RULES_DB_FORMAT, GLASS_CATALOGUE)
-    const topAlloc = result.filter(a => a.part_code === 'RLZ1928' && a.scope_part_type === 'topSashPart')
+    const topAlloc = result.filter(a => a.part_code === 'RLZ1927' && a.scope_part_type === 'topSashPart')
     expect(topAlloc).toHaveLength(1)
     expect(topAlloc[0].qty).toBe(2)
   })
 
-  it('bottom sash allocates RLZ1929 (23lb) using sash_height_in_mm > 660', () => {
+  it('bottom sash allocates RLZ1928 (22lb) using sash_height_in_mm > 660', () => {
     const result = allocateParts(FIXTURE_TREE, BASE_VARS, STEEL_RULES_DB_FORMAT, GLASS_CATALOGUE)
-    const botAlloc = result.filter(a => a.part_code === 'RLZ1929' && a.scope_part_type === 'bottomSashPart')
+    const botAlloc = result.filter(a => a.part_code === 'RLZ1928' && a.scope_part_type === 'bottomSashPart')
     expect(botAlloc).toHaveLength(1)
     expect(botAlloc[0].qty).toBe(2)
   })

@@ -182,7 +182,8 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
     const sash_sightline_height_in_mm = sightlineH
 
     // Sash weight (uses outer-frame geometry for accurate physical weight)
-    const weightData = computeSashWeight(partNode, tree, glassCatalogue, profileValues)
+    // Weight uses SIGHTLINE glass size (not cut size) — see sashWeight.js comment
+    const weightData = computeSashWeight(partNode, tree, glassCatalogue)
     const sash_thickness = pair?.values?.sashThickness ?? 45
 
     return {
