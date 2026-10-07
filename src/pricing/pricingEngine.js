@@ -978,7 +978,13 @@ export async function priceDrawing(drawingId, supabase, { priceFileId } = {}) {
         price_rule_id:    l.rule_id,
         loop_target_type: l.loop_target,
         loop_index:       null,
-        cost:             l.quantity * l.value,
+        // line_cost is round(qty × value, 2) per line — the same per-line
+        // rounding pricing_runs.total_cost is summed from. Storing the raw
+        // product here made the breakdown table's TOTAL drift pennies from
+        // the run header (e.g. £920.64 vs £920.66): the header figure
+        // (pricing_runs.total_cost) is the one stored on the run, and rows
+        // now sum to it exactly.
+        cost:             l.line_cost,
         sales:            l.line_total,
         markup_applied:   l.markup,
         // Detail for the Price breakdown view (sql/step-t1-price-breakdown.sql).

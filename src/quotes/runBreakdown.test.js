@@ -101,6 +101,14 @@ describe('Source-level — one table component, stored data only', () => {
     expect(engineSource).toContain('part_code:        l.alloc_part_code ?? l.alloc_iron_part_code ?? l.part_type ?? null')
   })
 
+  it('row cost is the per-line ROUNDED line_cost, so rows sum to pricing_runs.total_cost', () => {
+    // The breakdown header (pricing_runs.total_cost, the figure stored on
+    // the run) and the table TOTAL disagreed by pennies because rows stored
+    // the unrounded qty × value.
+    expect(engineSource).toMatch(/cost:\s+l\.line_cost/)
+    expect(engineSource).not.toMatch(/cost:\s+l\.quantity \* l\.value/)
+  })
+
   it('priceDrawing stores run warnings and created_by', () => {
     expect(engineSource).toMatch(/warnings:\s+engineResults\.warnings \?\? \[\]/)
     expect(engineSource).toMatch(/created_by:\s+runUserId/)
