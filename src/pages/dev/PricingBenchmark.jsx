@@ -292,11 +292,14 @@ export default function PricingBenchmark() {
           error:     null,
           warnings,
           snapshotData: {
-            rules:                rules || [],
-            pfVariables,
-            partAllocationRules,
-            glassCatalogue,
-            ironmongeryCatalogue,
+            // Everything loadPricingContext returned (rules, pfVariables,
+            // glassCatalogue, partAllocationRules, partCostMap,
+            // ironmongeryRules, ironmongeryCatalogue, priceFileId) plus the
+            // profile values used — so the snapshot-based tests can price
+            // the benchmarks with no other hand-typed catalogue data.
+            ...ctx,
+            priceFileName: priceFile.name,
+            profileValues: profileValuesMap,
           },
         })
       } catch (err) {

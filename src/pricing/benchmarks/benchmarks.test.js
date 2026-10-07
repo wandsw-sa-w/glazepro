@@ -14,6 +14,11 @@ import { computeDerived } from '../../drawingBoard/computeDerived.js'
 import { computeVariables } from '../computeVariables.js'
 import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_B, BENCHMARK_B_UNCORRECTED } from './index.js'
 import { PF30_RULES } from './pf30Rules.js'
+import { resolveIronmongeryLines } from '../loadPricingContext.js'
+// The ONLY source of cost/price targets: figures read from Integrate.
+// Never edited to match GlazePro output — a failing test that tells the
+// truth is the right outcome when GlazePro disagrees with Integrate.
+import INTEGRATE from './integrate-targets.json'
 
 // ── Minimal price-file variables (PF30 scalars) ────────────────────────────
 const PF_VARIABLES = {
@@ -411,22 +416,36 @@ function groupTotals(results) {
   return groups
 }
 
+/**
+ * Helper: assert results against an integrate-targets.json entry
+ * ({ total_cost, total_price, groups: { name: { cost, price } } }).
+ */
+function expectMatchesIntegrate(results, target) {
+  expect(results.price.total_cost).toBeCloseTo(target.total_cost, 2)
+  expect(results.price.total).toBeCloseTo(target.total_price, 2)
+  const groups = groupTotals(results)
+  for (const [group, t] of Object.entries(target.groups ?? {})) {
+    expect(groups[group]?.cost  ?? 0, `${group} cost`).toBeCloseTo(t.cost,  1)
+    expect(groups[group]?.price ?? 0, `${group} price`).toBeCloseTo(t.price, 1)
+  }
+}
+
 describe('Item 1 — L34046 honest test against PF30 rules', () => {
   const results = runBenchmark(BENCHMARK_L34046)
 
   it('total cost matches target', () => {
-    expect(results.price.total_cost).toBeCloseTo(BENCHMARK_L34046.targets.total_cost, 2)
+    expect(results.price.total_cost).toBeCloseTo(INTEGRATE.L34046.total_cost, 2)
   })
 
   it('total price matches target', () => {
-    expect(results.price.total).toBeCloseTo(BENCHMARK_L34046.targets.total_price, 2)
+    expect(results.price.total).toBeCloseTo(INTEGRATE.L34046.total_price, 2)
   })
 
-  it('group cost totals match targets', () => {
+  it('group totals match targets', () => {
     const groups = groupTotals(results)
-    const targets = BENCHMARK_L34046.targets.group_cost
-    for (const [group, targetCost] of Object.entries(targets)) {
-      expect(groups[group]?.cost ?? 0).toBeCloseTo(targetCost, 1)
+    for (const [group, t] of Object.entries(INTEGRATE.L34046.groups)) {
+      expect(groups[group]?.cost  ?? 0, `${group} cost`).toBeCloseTo(t.cost,  1)
+      expect(groups[group]?.price ?? 0, `${group} price`).toBeCloseTo(t.price, 1)
     }
   })
 })
@@ -434,42 +453,16 @@ describe('Item 1 — L34046 honest test against PF30 rules', () => {
 describe('Item 1 — Benchmark A honest test against PF30 rules (S4 corrected)', () => {
   const results = runBenchmark(BENCHMARK_A)
 
-  it('total cost matches target', () => {
-    expect(results.price.total_cost).toBeCloseTo(BENCHMARK_A.targets.total_cost, 2)
-  })
-
-  it('total price matches target', () => {
-    expect(results.price.total).toBeCloseTo(BENCHMARK_A.targets.total_price, 2)
-  })
-
-  it('group totals match targets', () => {
-    const groups = groupTotals(results)
-    const targets = BENCHMARK_A.targets.groups
-    for (const [group, target] of Object.entries(targets)) {
-      expect(groups[group]?.cost  ?? 0).toBeCloseTo(target.cost,  1)
-      expect(groups[group]?.price ?? 0).toBeCloseTo(target.price, 1)
-    }
+  it('matches the Integrate targets', () => {
+    expectMatchesIntegrate(results, INTEGRATE.benchmarkA)
   })
 })
 
 describe('Item 1 — Benchmark B honest test against PF30 rules (S4 corrected)', () => {
   const results = runBenchmark(BENCHMARK_B)
 
-  it('total cost matches target', () => {
-    expect(results.price.total_cost).toBeCloseTo(BENCHMARK_B.targets.total_cost, 2)
-  })
-
-  it('total price matches target', () => {
-    expect(results.price.total).toBeCloseTo(BENCHMARK_B.targets.total_price, 2)
-  })
-
-  it('group totals match targets', () => {
-    const groups = groupTotals(results)
-    const targets = BENCHMARK_B.targets.groups
-    for (const [group, target] of Object.entries(targets)) {
-      expect(groups[group]?.cost  ?? 0).toBeCloseTo(target.cost,  1)
-      expect(groups[group]?.price ?? 0).toBeCloseTo(target.price, 1)
-    }
+  it('matches the Integrate targets (corrected)', () => {
+    expectMatchesIntegrate(results, INTEGRATE.benchmarkB_corrected)
   })
 })
 
@@ -485,6 +478,14 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const SNAPSHOT_PATH = resolve(__dirname, 'pf30-snapshot.json')
 const snapshotExists = existsSync(SNAPSHOT_PATH)
 
+// Without the snapshot file the snapshot-based tests cannot run; this suite
+// makes the skip visible in every test run instead of silently vanishing.
+describe.runIf(!snapshotExists)('Snapshot-based tests — SKIPPED', () => {
+  it('pf30-snapshot.json is absent — use "Download snapshot" on /dev/pricing-benchmark and save it to src/pricing/benchmarks/', () => {
+    expect(snapshotExists).toBe(false)
+  })
+})
+
 describe.skipIf(!snapshotExists)('Snapshot-based tests (pf30-snapshot.json)', () => {
   let snapshot
 
@@ -492,48 +493,51 @@ describe.skipIf(!snapshotExists)('Snapshot-based tests (pf30-snapshot.json)', ()
     snapshot = JSON.parse(readFileSync(SNAPSHOT_PATH, 'utf8'))
   })
 
+  /**
+   * Price a benchmark from the snapshot ALONE: rules, pf variables, glass
+   * catalogue, allocation rules, part costs, ironmongery rules + catalogue
+   * and profile values all come from the snapshot (everything
+   * loadPricingContext returned, as downloaded from the benchmark page).
+   * No hand-typed catalogue data, no S4 patching (the live PF30 rules are
+   * already corrected — sql/step-s4-sash-material-rules.sql has been run),
+   * and testMode false so only active rules fire, exactly like the page.
+   * Ironmongery lines resolve through the shared resolveIronmongeryLines:
+   * tree-saved lines win, defaults apply when the tree has none (L34046).
+   */
   function runFromSnapshot(benchmark) {
-    // Apply S4 correction to snapshot rules
-    const rules = (snapshot.rules || []).map(r => {
-      if (r.rule_family === 'price' && S4_SASH_MATERIAL_NAMES.includes(r.name)) {
-        return { ...r, condition: r.condition + ' and to_be_replaced' }
-      }
-      return r
-    })
-
-    let ironmongeryLines = benchmark.ironmongeryLines ?? []
-    if (ironmongeryLines.length === 0) {
-      const paintNode = (benchmark.tree.children ?? []).find(c => c.part_type === 'paintAndIronmongeryPart')
-      ironmongeryLines = paintNode?.values?.ironmongeryLines ?? []
-    }
-
-    return runPricingOnTree(benchmark.tree, rules, snapshot.pfVariables ?? PF_VARIABLES, {
-      testMode: true,
-      glassCatalogue:      snapshot.glassCatalogue ?? {},
-      partAllocationRules: snapshot.partAllocationRules ?? [],
-      partCostMap:         benchmark.partCostMap ?? {},
+    const ironmongeryLines = resolveIronmongeryLines(benchmark.tree, snapshot)
+    return runPricingOnTree(benchmark.tree, snapshot.rules ?? [], snapshot.pfVariables ?? {}, {
+      testMode: false,
+      glassCatalogue:       snapshot.glassCatalogue ?? {},
+      partAllocationRules:  snapshot.partAllocationRules ?? [],
+      partCostMap:          snapshot.partCostMap ?? {},
       ironmongeryLines,
       ironmongeryCatalogue: snapshot.ironmongeryCatalogue ?? {},
+      profileValues:        snapshot.profileValues ?? {},
     })
   }
 
-  it('Benchmark B total cost matches target', () => {
-    const results = runFromSnapshot(BENCHMARK_B)
-    expect(results.price.total_cost).toBeCloseTo(BENCHMARK_B.targets.total_cost, 1)
+  it('snapshot holds everything loadPricingContext returns plus profile values', () => {
+    for (const key of ['rules', 'pfVariables', 'glassCatalogue', 'partAllocationRules',
+                       'partCostMap', 'ironmongeryRules', 'ironmongeryCatalogue', 'profileValues']) {
+      expect(snapshot[key], `snapshot.${key}`).toBeDefined()
+    }
   })
 
-  it('Benchmark B total price matches target', () => {
-    const results = runFromSnapshot(BENCHMARK_B)
-    expect(results.price.total).toBeCloseTo(BENCHMARK_B.targets.total_price, 1)
+  // Expected with a current snapshot (handover, 7 Oct 2026): B passes;
+  // A fails on installation materials by the lead weight amount only;
+  // L34046 fails by 2p / 1p in Manufacture Materials only.
+  // Any other failure is new information — report it, never tune it away.
+
+  it('Benchmark B matches the Integrate targets (corrected)', () => {
+    expectMatchesIntegrate(runFromSnapshot(BENCHMARK_B), INTEGRATE.benchmarkB_corrected)
   })
 
-  it('Benchmark A total cost matches target', () => {
-    const results = runFromSnapshot(BENCHMARK_A)
-    expect(results.price.total_cost).toBeCloseTo(BENCHMARK_A.targets.total_cost, 1)
+  it('Benchmark A matches the Integrate targets', () => {
+    expectMatchesIntegrate(runFromSnapshot(BENCHMARK_A), INTEGRATE.benchmarkA)
   })
 
-  it('L34046 total cost matches target', () => {
-    const results = runFromSnapshot(BENCHMARK_L34046)
-    expect(results.price.total_cost).toBeCloseTo(BENCHMARK_L34046.targets.total_cost, 1)
+  it('L34046 matches the Integrate targets', () => {
+    expectMatchesIntegrate(runFromSnapshot(BENCHMARK_L34046), INTEGRATE.L34046)
   })
 })

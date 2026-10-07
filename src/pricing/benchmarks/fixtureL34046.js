@@ -4,6 +4,8 @@
  * Extracted from PricingBenchmark.jsx so page and tests share the same fixture.
  */
 
+import INTEGRATE_TARGETS from './integrate-targets.json'
+
 // ── Part cost map (from integrate-part-allocator.txt "Referenced parts") ──────
 const PART_COST_MAP = {
   TP68: 2.85,   // Ogee Architrave 20x70 MDF £2.85/m
@@ -167,20 +169,14 @@ const TREE = {
 }
 
 // ── Targets ──────────────────────────────────────────────────────────────────
-// Integrate targets — DO NOT EDIT to match GlazePro output.
-// See src/pricing/benchmarks/integrate-targets.json.
+// Totals and group targets come from integrate-targets.json — the single
+// Integrate fact file. DO NOT EDIT to match GlazePro output.
 const TARGETS = {
-  total_cost:  1241.58,
-  total_price: 2456.25,
+  ...INTEGRATE_TARGETS.L34046,
+  // Labour-minute targets from docs/integrate-benchmarks-stage4.txt
+  // (Production Time 22.28 h, Labour 7.50 h)
   manufacture_minutes: 1337,
   install_minutes:     450,
-  group_cost: {
-    manufacture:           549.42,
-    labour:                301.58,
-    manufacture_materials: 115.45,
-    glass_done:            136.66,
-    installation_materials: 138.45,
-  },
 }
 
 // ── Assumptions ──────────────────────────────────────────────────────────────

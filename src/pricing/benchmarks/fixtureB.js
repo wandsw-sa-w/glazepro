@@ -11,6 +11,8 @@
  *   BENCHMARK_B_UNCORRECTED — matches Integrate exactly (with the three erroneous lines)
  */
 
+import INTEGRATE_TARGETS from './integrate-targets.json'
+
 // ── Part cost map ────────────────────────────────────────────────────────────
 const PART_COST_MAP = {
   TP01: 2.59,   // Small staff bead 20x15 Redwood £2.59/m
@@ -159,14 +161,9 @@ const TREE = {
 
 // ── Targets (CORRECTED — after S4 fix) ───────────────────────────────────────
 const TARGETS = {
-  total_cost:  208.33,
-  total_price: 522.65,
-  groups: {
-    extra_services:         { cost:  13.20, price:  26.40 },
-    installation_materials: { cost:  32.29, price:  64.57 },
-    labour:                 { cost: 160.84, price: 321.68 },
-    extra_profits:          { cost:   2.00, price: 110.00 },
-  },
+  // Totals and group targets come from integrate-targets.json — the single
+  // Integrate fact file. DO NOT EDIT to match GlazePro output.
+  ...INTEGRATE_TARGETS.benchmarkB_corrected,
   lines: [
     // Extra Services
     { group: 'extra_services', name: 'DSO SqM Rate', qty: 1.32, value: 10.00, cost: 13.20, markup: 2.00, price: 26.40 },
@@ -198,15 +195,9 @@ const TARGETS = {
 
 // ── Targets (UNCORRECTED — matches Integrate with the three erroneous lines) ─
 const TARGETS_UNCORRECTED = {
-  total_cost:  233.79,
-  total_price: 573.55,
-  groups: {
-    extra_services:         { cost:  13.20, price:  26.40 },
-    installation_materials: { cost:  32.29, price:  64.57 },
-    labour:                 { cost: 160.84, price: 321.68 },
-    manufacture_materials:  { cost:  25.46, price:  50.90 },
-    extra_profits:          { cost:   2.00, price: 110.00 },
-  },
+  // Totals and group targets come from integrate-targets.json — the single
+  // Integrate fact file. DO NOT EDIT to match GlazePro output.
+  ...INTEGRATE_TARGETS.benchmarkB_uncorrected,
   lines: [
     // Extra Services
     { group: 'extra_services', name: 'DSO SqM Rate', qty: 1.32, value: 10.00, cost: 13.20, markup: 2.00, price: 26.40 },

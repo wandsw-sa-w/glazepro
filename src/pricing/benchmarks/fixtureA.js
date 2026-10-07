@@ -7,6 +7,8 @@
  *   Total cost £728.26   Total price £1,408.66
  */
 
+import INTEGRATE_TARGETS from './integrate-targets.json'
+
 // ── Part cost map ────────────────────────────────────────────────────────────
 const PART_COST_MAP = {
   TP01: 2.59,   // Small staff bead 20x15 Redwood £2.59/m
@@ -200,16 +202,9 @@ const TREE = {
 // Integrate targets — DO NOT EDIT to match GlazePro output.
 // See src/pricing/benchmarks/integrate-targets.json.
 const TARGETS = {
-  total_cost:  728.26,
-  total_price: 1408.66,
-  // Group targets from docs/integrate-benchmarks-stage4.txt
-  groups: {
-    glass_done:             { cost:  99.46, price: 198.90 },
-    installation_materials: { cost: 133.98, price: 220.15 },
-    manufacture:            { cost: 269.53, price: 539.07 },
-    labour:                 { cost: 191.00, price: 382.00 },
-    manufacture_materials:  { cost:  34.29, price:  68.54 },
-  },
+  // Totals and group targets come from integrate-targets.json — the single
+  // Integrate fact file. DO NOT EDIT to match GlazePro output.
+  ...INTEGRATE_TARGETS.benchmarkA,
   // Per-line targets from benchmark file
   lines: [
     // Glass _ Done
