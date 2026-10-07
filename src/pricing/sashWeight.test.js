@@ -2,8 +2,10 @@ import { describe, it, expect } from 'vitest'
 import { computeSashWeight, TIMBER_DENSITIES, HORN_LENGTHS_MM } from './sashWeight'
 
 // ── Fixture tree — L34046 Item 7 ─────────────────────────────────────────────
-// Complete new box sash, solid redwood, cord hung, 1255×1775mm outer frame,
-// 6-over-6 glazing pattern (barsWide=2, barsHigh=1), Victorian horn on top.
+// Complete new box sash, solid redwood ('softwood'), cord hung. Step V:
+// the frame stores the OVERALL size (1245×1779 → interior 1075×1630 →
+// drawn sashes 1075 wide, 815.5 / 854.5 high); weights come from those
+// drawn sizes via derivedGeometry.js.
 
 const FIXTURE_TREE = {
   key: 'item1',
@@ -17,9 +19,11 @@ const FIXTURE_TREE = {
       key: 'frame1',
       part_type: 'assemblyFramePart',
       values: {
-        outerWidth:     1255,
-        outerHeight:    1775,
+        width:          1245,
+        height:         1779,
         topHeight:      79,
+        leftWidth:      85,
+        rightWidth:     85,
         leftOuterJamb:  101,
         rightOuterJamb: 101,
       },
@@ -97,6 +101,10 @@ const GLASS_CATALOGUE = {
 }
 
 // ── Calibration tests (±0.3 kg) ───────────────────────────────────────────────
+// Integrate's weights for Item 7 are 19.4 / 20.4 kg (facts). Since Step V
+// derives weights from the DRAWN sash sizes, the model computes ~18.4 /
+// ~19.2 kg and these tests FAIL TRUTHFULLY — reported in the Step V
+// report, never pulled back with a constant.
 
 describe('computeSashWeight — L34046 Item 7 calibration', () => {
   it('top sash weight is 19.4 kg ±0.3 kg', () => {
@@ -126,22 +134,22 @@ describe('computeSashWeight — L34046 Item 7 calibration', () => {
 // ── Geometry outputs ──────────────────────────────────────────────────────────
 
 describe('computeSashWeight — geometry fields', () => {
-  it('gross_sash_width_in_mm = outerWidth - leftOuterJamb - rightOuterJamb', () => {
+  it('gross_sash_width_in_mm is the drawn sash width (interior, no clearances)', () => {
     const r = computeSashWeight(TOP_NODE, FIXTURE_TREE, GLASS_CATALOGUE)
-    expect(r.gross_sash_width_in_mm).toBe(1255 - 101 - 101)  // 1053
+    expect(r.gross_sash_width_in_mm).toBe(1245 - 85 - 85)  // 1075
   })
 
-  it('top sash gross_sash_height_in_mm includes victorian horn (50 mm)', () => {
+  it('top sash gross_sash_height_in_mm = drawn height + victorian horn (50 mm)', () => {
     const r = computeSashWeight(TOP_NODE, FIXTURE_TREE, GLASS_CATALOGUE)
-    // sightlineHeight = (1775 - 79 - 70 - 40) / 2 = 793  (profiledCill = cv.height = 70)
-    // top = 793 + 49 + 40 + 50 = 932
-    expect(r.gross_sash_height_in_mm).toBeCloseTo(932, 1)
+    // interior height 1779 − 79 − 70 = 1630; glass (1630 − 40 − 49 − 88)/2 = 726.5
+    // drawn top = 726.5 + 49 + 40 = 815.5; + 50 horn = 865.5
+    expect(r.gross_sash_height_in_mm).toBeCloseTo(865.5, 1)
   })
 
-  it('bottom sash gross_sash_height_in_mm includes cill extension', () => {
+  it('bottom sash gross_sash_height_in_mm is the drawn height (no horn, no cill extension)', () => {
     const r = computeSashWeight(BOT_NODE, FIXTURE_TREE, GLASS_CATALOGUE)
-    // 793 + 88 + 40 + 0 (horn) + 45 (cillExtension = cv.profiledHeight) = 966
-    expect(r.gross_sash_height_in_mm).toBeCloseTo(966, 1)
+    // drawn bottom = 726.5 + 88 + 40 = 854.5; the old tuned cill extension is gone
+    expect(r.gross_sash_height_in_mm).toBeCloseTo(854.5, 1)
   })
 
   it('sash_thickness comes from sashPairPart.values.sashThickness', () => {
@@ -193,6 +201,8 @@ describe('computeSashWeight — material density', () => {
 })
 
 // ── Band lookup (should fall in 21 lb / 22 lb band) ──────────────────────────
+// Integrate allocates 21 lb / 22 lb steel for Item 7 (facts). With drawn-size
+// weights (~18.4 / ~19.2 kg) these FAIL TRUTHFULLY — see the Step V report.
 
 describe('computeSashWeight — weight band verification for Item 7', () => {
   it('top sash falls in 21 lb steel band (19.05 ≤ kg < 19.96)', () => {

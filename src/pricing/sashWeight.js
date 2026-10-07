@@ -6,21 +6,24 @@
  * This module replicates the formula by working from outer-frame dimensions
  * (as Integrate does) rather than the inner-opening geometry used for drawing.
  *
- * Calibration targets — L34046 Item 7:
- *   Top sash:    19.4 kg  (±0.3 kg)
- *   Bottom sash: 20.4 kg  (±0.3 kg)
+ * Integrate's weight figures (facts): L34046 Item 7 top 19.4 / bottom
+ * 20.4 kg; Benchmark A top 17.2 / bottom 17.3 kg (before the 15% Lead
+ * Weight wastage).
  *
- * Achieved:  top 19.42 kg, bottom 20.38 kg — both within ±0.3 kg tolerance.
+ * Step V replaced the outer-frame derivation (and its tuned cill
+ * extension) with the DRAWN sash sizes from computeDerived. Where the
+ * computed weights now differ from Integrate's figures, the gap is
+ * reported — never pulled back with a constant.
  *
- * Physical constants tuned to match those targets:
- *   profiledCill uses cv.height (full cill height 70 mm, not profiledHeight 45 mm)
- *   Bottom sash gross_sash_height includes cillExtension = cv.profiledHeight (45 mm)
+ * Remaining physical constants:
  *   GLAZING_REBATE_MM = 0   (sight size only; no rebate contribution to glass area)
  *   BAR_WIDTH_MM = 20, BAR_THICKNESS_MM = 10  (standard glazing bar section)
- *   Horn 'victorian' = 50 mm
+ *   Horn 'victorian' = 50 mm (weight model; the pricing engine's gross
+ *   height uses 70 mm — a known, reported inconsistency)
  */
 
 import { timberFamily, TIMBER_FAMILY_DENSITIES, hornKind } from './optionVocabulary.js'
+import { sashSizes } from './derivedGeometry.js'
 
 // ── Timber density constants (kg/m³) — from Integrate Weight Calc page ────────
 // Kept as an alias of the vocabulary module's family densities so existing
@@ -60,11 +63,14 @@ function findFirst(node, partType) {
 // ── Main export ───────────────────────────────────────────────────────────────
 
 /**
- * Compute the weight of a single sliding sash using outer-frame geometry.
+ * Compute the weight of a single sliding sash from the DRAWN sash sizes.
  *
- * The calculation uses OUTER frame dimensions (outerWidth, outerHeight) rather
- * than the inner-opening dimensions that the drawing board uses for layout.
- * This matches Integrate's server-side weight engine.
+ * Step V (docs/step-v-geometry-brief.md): sash width and heights come from
+ * computeDerived / computeSashGeometry — the same sizes the board draws and
+ * Integrate labels on its drawings — via src/pricing/derivedGeometry.js.
+ * The earlier outer-frame derivation (outerWidth − 2 × outer jamb, plus a
+ * bottom-sash cill extension) is gone; the resulting weight changes are
+ * REPORTED, not pulled back with constants.
  *
  * Timber volume model:
  *   - Stiles:       2 × sashThickness × stileWidth × grossSashHeight  (horns incl.)
@@ -97,50 +103,29 @@ export function computeSashWeight(sashNode, tree, glassCatalogue = {}) {
 
   // ── Structural nodes ──────────────────────────────────────────────────────
   const item  = findFirst(tree, 'drawingItemPart')
-  const frame = findFirst(tree, 'assemblyFramePart')
-  const cill  = findFirst(tree, 'cillPart')
   const pair  = findFirst(tree, 'sashPairPart')
-
-  const fv = frame?.values ?? {}
-  const cv = cill?.values  ?? {}
-  const pv = pair?.values  ?? {}
-
-  // ── Outer frame geometry ──────────────────────────────────────────────────
-  const outerWidth      = fv.outerWidth  ?? fv.width  ?? 0
-  const outerHeight     = fv.outerHeight ?? fv.height ?? 0
-  const leftOuterJamb   = fv.leftOuterJamb  ?? 0
-  const rightOuterJamb  = fv.rightOuterJamb ?? leftOuterJamb
-
-  const profiledHead    = fv.topHeight  ?? 0         // outer head height (profiled section)
-  const profiledCill    = cv.height ?? cv.profiledHeight ?? 0   // full cill height (Integrate uses total cill height for sightline calc)
+  const pv    = pair?.values ?? {}
 
   const midrailHeight   = pv.midrailHeight  ?? 40
   const sashThickness   = pv.sashThickness  ?? 45
   const stileWidth      = sv.leftWidth ?? 47
 
-  // Gross sash width = outer frame width minus the two outer jamb housings
-  const gross_sash_width = outerWidth - leftOuterJamb - rightOuterJamb
+  // ── Drawn sash sizes (one geometry source — derivedGeometry.js) ──────────
+  const sz = sashSizes(tree)
 
-  // Sightline height = half of (internal height space minus meeting rail gap)
-  const internalHeightSpace = outerHeight - profiledHead - profiledCill
-  const sightlineHeight     = (internalHeightSpace - midrailHeight) / 2
+  const gross_sash_width  = sz.sashWidth ?? 0
+  const sightlineWidth    = gross_sash_width - 2 * stileWidth
+  const sightlineHeight   = (isTop ? sz.topGlassHeight : sz.bottomGlassHeight) ?? 0
 
-  // Sightline width = gross sash width minus both stiles
-  const sightlineWidth = gross_sash_width - 2 * stileWidth
-
-  // ── Gross sash height (includes horn) ────────────────────────────────────
+  // ── Gross sash height (drawn height + horn) ──────────────────────────────
   // 'none' and 'no_horn' both mean no horn (optionVocabulary.js)
   const hornCode   = isTop ? pv.topHornTypeShortName : pv.bottomHornTypeShortName
   const hornLength = HORN_LENGTHS_MM[hornKind(hornCode) ?? 'none'] ?? 0
 
   const railHeight = isTop ? (sv.topHeight ?? 49) : (sv.bottomHeight ?? 88)
 
-  // Bottom sash stiles extend into the cill pocket by the profiled cill height
-  // (the visible/profiled section of the cill that the sash sits into).
-  // This matches Integrate's weight calculation which accounts for the full
-  // physical stile length including the cill-seating extension.
-  const cillExtension   = isTop ? 0 : (cv?.profiledHeight ?? 0)
-  const gross_sash_height = sightlineHeight + railHeight + midrailHeight + hornLength + cillExtension
+  const drawnHeight = (isTop ? sz.topSashHeight : sz.bottomSashHeight) ?? 0
+  const gross_sash_height = drawnHeight + hornLength
 
   // ── Glazing bar info from glass child ────────────────────────────────────
   // Real drawings store bars as child parts; legacy barsWide/barsHigh counts

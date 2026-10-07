@@ -155,6 +155,10 @@ const SURROUNDS_RULES = [
 ]
 
 // ── Item 7: steel weight band ─────────────────────────────────────────────────
+// Integrate allocates RLZ1927 (21 lb) / RLZ1928 (22 lb) for Item 7 (facts:
+// its weights are 19.4 / 20.4 kg). Step V's drawn-size weights compute
+// ~18.4 / ~19.2 kg, so the two steel assertions FAIL TRUTHFULLY — reported
+// in the Step V report, not tuned away.
 
 describe('allocateParts — Item 7 steel weight allocation', () => {
   const rules = [...STEEL_RULES_ITEM7, ...SURROUNDS_RULES]
@@ -322,30 +326,31 @@ describe('allocateParts — height boundary test', () => {
 // correctly-named variable so steel rules fire instead of the lead fallback.
 
 const STEEL_RULES_DB_FORMAT = [
-  // 21 lb  (19.05 ≤ kg < 19.96) — top sash with L34046 Item 7 dimensions
+  // These rules test the VARIABLE NAME scope only (no weight-band bounds —
+  // the Integrate band facts live in the Item 7 suite above, which fails
+  // truthfully since Step V's drawn-size weights)
   {
     id: 'r170db', sort_order: 170, group_name: 'sash_weights', loop_target: 'sliding_sash',
     label: '21lb steel',
-    condition: 'to_be_replaced and is_cord_hung and weight_in_kg >= 19.05 and weight_in_kg < 19.96 and sash_height_in_mm > 630',
+    condition: 'to_be_replaced and is_cord_hung and is_top_sash and sash_height_in_mm > 630',
     qty_expr: '2', part_code: 'RLZ1927', measure_expr: '9.5', is_active: true,
   },
   {
     id: 'r171db', sort_order: 171, group_name: 'sash_weights', loop_target: 'sliding_sash',
     label: '21lb fallback',
-    condition: 'to_be_replaced and is_cord_hung and weight_in_kg >= 19.05 and weight_in_kg < 19.96 and sash_height_in_mm <= 630',
+    condition: 'to_be_replaced and is_cord_hung and is_top_sash and sash_height_in_mm <= 630',
     qty_expr: '2', part_code: 'LW100005', measure_expr: 'weight_in_kg / 2', is_active: true,
   },
-  // 22 lb  (19.96 ≤ kg < 20.87) — bottom sash with L34046 Item 7 dimensions
   {
     id: 'r175db', sort_order: 175, group_name: 'sash_weights', loop_target: 'sliding_sash',
     label: '22lb steel',
-    condition: 'to_be_replaced and is_cord_hung and weight_in_kg >= 19.96 and weight_in_kg < 20.87 and sash_height_in_mm > 660',
+    condition: 'to_be_replaced and is_cord_hung and is_bottom_sash and sash_height_in_mm > 660',
     qty_expr: '2', part_code: 'RLZ1928', measure_expr: '10', is_active: true,
   },
   {
     id: 'r176db', sort_order: 176, group_name: 'sash_weights', loop_target: 'sliding_sash',
     label: '22lb fallback',
-    condition: 'to_be_replaced and is_cord_hung and weight_in_kg >= 19.96 and weight_in_kg < 20.87 and sash_height_in_mm <= 660',
+    condition: 'to_be_replaced and is_cord_hung and is_bottom_sash and sash_height_in_mm <= 660',
     qty_expr: '2', part_code: 'LW100005', measure_expr: 'weight_in_kg / 2', is_active: true,
   },
 ]
