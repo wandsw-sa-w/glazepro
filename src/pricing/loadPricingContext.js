@@ -95,30 +95,42 @@ export async function loadPricingContext(supabase, priceFileId) {
   const ironmongeryRules = ironRulesData || []
 
   // ── Ironmongery catalogue (variants with kit parts) ────────────────────────
-  const [
-    { data: ironVariants, error: ivErr },
-    { data: ironKitLines, error: ikErr },
-  ] = await Promise.all([
-    supabase
-      .from('ironmongery_variants')
-      .select('id, finish_code, cost, ironmongery_products!inner(short_name)')
-      .eq('ironmongery_products.is_active', true),
-    supabase
-      .from('ironmongery_variant_parts')
-      .select('variant_id, part_code, quantity, parts_catalogue(part_name, unit_cost)'),
-  ])
+  // Ironmongery variants — use the same queries that worked before ef0bb62.
+  // ironmongery_variant_parts has no FK to parts_catalogue, so we join in JS
+  // using the partCostMap already loaded above.
+  const { data: ironVariants, error: ivErr } = await supabase
+    .from('ironmongery_variants')
+    .select('id, finish_code, cost, ironmongery_products!inner(short_name)')
+    .eq('ironmongery_products.is_active', true)
 
   if (ivErr) throw new Error(`Failed to fetch ironmongery_variants: ${ivErr.message}`)
+
+  const { data: ironKitLines, error: ikErr } = await supabase
+    .from('ironmongery_variant_parts')
+    .select('variant_id, part_code, quantity')
+
   if (ikErr) throw new Error(`Failed to fetch ironmongery_variant_parts: ${ikErr.message}`)
+
+  // Look up part names and costs from the parts catalogue (already loaded)
+  const { data: partNameRows, error: pnErr } = await supabase
+    .from('parts_catalogue')
+    .select('part_code, part_name, unit_cost')
+
+  if (pnErr) throw new Error(`Failed to fetch parts_catalogue for kit lines: ${pnErr.message}`)
+
+  const partNameMap = Object.fromEntries(
+    (partNameRows || []).map(r => [r.part_code, { part_name: r.part_name, unit_cost: r.unit_cost }])
+  )
 
   const kitLinesByVariant = {}
   for (const kl of (ironKitLines ?? [])) {
     if (!kitLinesByVariant[kl.variant_id]) kitLinesByVariant[kl.variant_id] = []
+    const partInfo = partNameMap[kl.part_code] ?? {}
     kitLinesByVariant[kl.variant_id].push({
       part_code: kl.part_code,
-      part_name: kl.parts_catalogue?.part_name ?? kl.part_code,
+      part_name: partInfo.part_name ?? kl.part_code,
       qty:       kl.quantity ?? 1,
-      unit_cost: kl.parts_catalogue?.unit_cost ?? null,
+      unit_cost: partInfo.unit_cost ?? null,
     })
   }
 
