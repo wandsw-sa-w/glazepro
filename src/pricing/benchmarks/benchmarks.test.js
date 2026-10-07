@@ -474,7 +474,85 @@ describe('Item 1 — Benchmark B honest test against PF30 rules (S4 corrected)',
 // When the snapshot file is absent these tests are clearly skipped.
 // ══════════════════════════════════════════════════════════════════════════════
 
+// ══════════════════════════════════════════════════════════════════════════════
+// Fourth case — the REAL saved tree (L507712 drawing 1, captured from the live
+// drawing board). No Integrate total exists for it; instead we assert that the
+// engine, fed the real vocabulary, fires the rules the live site missed and
+// produces no warnings.
+// ══════════════════════════════════════════════════════════════════════════════
+
 const __dirname = dirname(fileURLToPath(import.meta.url))
+
+describe('Real tree — L507712 drawing 1 prices with real vocabulary', () => {
+  const RAW_REAL_TREE = JSON.parse(readFileSync(
+    resolve(__dirname, 'real-trees', 'L507712-drawing1.raw.json'), 'utf8'))
+
+  // The capture predates sql/step-u1-glass-part-codes.sql, so its glass
+  // references are still NAMES. Apply the same name → part-code conversion
+  // that step-u1 performs, using the catalogue identities from
+  // sql/step-g1-parts-catalogue.sql (GL100010 / GL100080).
+  const GLASS_NAME_TO_CODE = {
+    '4mm Clear Pilkington K Toughened': 'GL100010',
+    '4mm Clear Toughened':              'GL100080',
+  }
+  function convertGlassNames(node) {
+    const copy = { ...node, values: { ...(node.values ?? {}) } }
+    if (copy.part_type === 'glassPart') {
+      for (const k of ['internalGlassPartNo', 'externalGlassPartNo', 'singleGlassPartNo']) {
+        const v = copy.values[k]
+        if (v != null && GLASS_NAME_TO_CODE[v]) copy.values[k] = GLASS_NAME_TO_CODE[v]
+      }
+    }
+    copy.children = (node.children ?? []).map(convertGlassNames)
+    return copy
+  }
+  const REAL_TREE = convertGlassNames(RAW_REAL_TREE)
+
+  // Glass costs/thicknesses from the step-g1 import SQL (repo facts, not
+  // tuned): GL100010 £32/m² 4mm, GL100080 £25.50/m² 4mm.
+  const REAL_GLASS_CAT = {
+    GL100010: { cost_per_m2: 32.0,  thickness_mm: 4 },
+    GL100080: { cost_per_m2: 25.5, thickness_mm: 4 },
+  }
+
+  const results = runPricingOnTree(REAL_TREE, PF30_RULES_S4, PF_VARIABLES, {
+    testMode: true,  // PF30 fixture rules are is_active=false (draft import)
+    glassCatalogue: REAL_GLASS_CAT,
+    // Sash profile rebate/tolerance (14/2 — decided facts, handover 7 Oct)
+    profileValues: {
+      defaultDoubleGlazingRebateWidthForSash: 14,
+      defaultDoubleGlazingTolerance: 2,
+    },
+  })
+
+  function firedLines(name) {
+    return results.price.lines.filter(l => l.name === name && l.fires && !l.error)
+  }
+
+  it('prices two Square Glass Cost lines', () => {
+    expect(firedLines('Square Glass Cost')).toHaveLength(2)
+  })
+
+  it('prices two All Glass Energy Surcharge lines', () => {
+    expect(firedLines('All Glass Energy Surcharge')).toHaveLength(2)
+  })
+
+  it('prices Laminated Softwood for Sashes, top and bottom', () => {
+    expect(firedLines('Laminated Softwood for Sashes (Top)')).toHaveLength(1)
+    expect(firedLines('Laminated Softwood for Sashes (Bottom)')).toHaveLength(1)
+  })
+
+  it('prices Softwood Box Frame Linings, Softwood Pulley Stiles and Head, Box Frame Utile Cill', () => {
+    expect(firedLines('Softwood Box Frame Linings').length).toBeGreaterThanOrEqual(1)
+    expect(firedLines('Softwood Pulley Stiles and Head').length).toBeGreaterThanOrEqual(1)
+    expect(firedLines('Box Frame Utile Cill').length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('produces no warnings', () => {
+    expect(results.warnings).toEqual([])
+  })
+})
+
 const SNAPSHOT_PATH = resolve(__dirname, 'pf30-snapshot.json')
 const snapshotExists = existsSync(SNAPSHOT_PATH)
 

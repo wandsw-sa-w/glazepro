@@ -34,9 +34,9 @@ const TREE = {
   part_type: 'drawingItemPart',
   values: {
     typeOfWork:          'new_pair_of_sashes',
-    frameMaterialId:     'solid_redwood',
-    sashMaterialId:      'solid_redwood',
-    cillMaterialId:      'solid_utile_hardwood',
+    frameMaterialId:     'softwood',
+    sashMaterialId:      'softwood',
+    cillMaterialId:      'utile',
     fitToPreparedOpening: false,
     decoration:          false,
     floorLevel:          'third_floor',
@@ -143,21 +143,23 @@ const TREE = {
                   key: 'glass1',
                   part_type: 'glassPart',
                   values: {
-                    glazingId:            'double_glazed',
+                    glazingId:            'double_glazing',
                     isIndividualPanes:    false,
-                    spacerDimId:          '16mm_white_warm_edge',
-                    // Glazing bars: "22 with 4 Nib" — one unit prices bars.
-                    // This sash has the bars: 2 vertical + 1 horizontal = 3 bars total.
-                    // ASSUMPTION: "22 with 4 Nib" means 2 wide + 2 high = 4 bars (or 2+1=3).
-                    // Integrate shows unit_gb_qty on this unit drives the "Square Glass Multiple GB" rule.
-                    // We use 2 wide + 1 high = 3 bars to match the other sash having no bars.
-                    barsWide:             2,
-                    barsHigh:             1,
+                    spacerDimId:          'spacer_16',
+                    spacerColourId:       'white_warm_edge',
                     internalGlassPartNo:  'GL100010',
                     externalGlassPartNo:  'GL100080',
-                    spacerHeight:         16,
                   },
-                  children: [],
+                  // Glazing bars: "22 with 4 Nib" — one unit prices bars.
+                  // This sash has the bars: 2 vertical + 1 horizontal = 3 bars,
+                  // stored as child parts the way real drawings store them.
+                  // Integrate shows unit_gb_qty on this unit drives the
+                  // "Square Glass Multiple GB" rule.
+                  children: [
+                    { key: 'glass1_vb1', part_type: 'verticalGlazingBarPart',   values: {}, children: [] },
+                    { key: 'glass1_vb2', part_type: 'verticalGlazingBarPart',   values: {}, children: [] },
+                    { key: 'glass1_hb1', part_type: 'horizontalGlazingBarPart', values: {}, children: [] },
+                  ],
                 },
               ],
             },
@@ -177,16 +179,14 @@ const TREE = {
                   key: 'glass2',
                   part_type: 'glassPart',
                   values: {
-                    glazingId:            'double_glazed',
+                    glazingId:            'double_glazing',
                     isIndividualPanes:    false,
-                    spacerDimId:          '16mm_white_warm_edge',
-                    // No bars on this sash
-                    barsWide:             0,
-                    barsHigh:             0,
+                    spacerDimId:          'spacer_16',
+                    spacerColourId:       'white_warm_edge',
                     internalGlassPartNo:  'GL100010',
                     externalGlassPartNo:  'GL100080',
-                    spacerHeight:         16,
                   },
+                  // No bars on this sash
                   children: [],
                 },
               ],

@@ -21,14 +21,25 @@ const PART_COST_MAP = {
 }
 
 // ── Fixture tree ─────────────────────────────────────────────────────────────
+// Vocabulary and shape follow a real saved drawing
+// (src/pricing/benchmarks/real-trees/L507712-drawing1.raw.json): real
+// timber_species codes ('softwood'/'utile'), real glazing_type codes
+// ('double_glazing'), spacer as spacerDimId/spacerColourId codes, glazing
+// bars as child parts. EXCEPTION, flagged in docs/pricing-vocabulary-audit.md
+// §shape: outerWidth/outerHeight stay on the frame although a saved drawing
+// does not store them — the weight calibration (19.4/20.4 kg) depends on the
+// outer dimensions and the board/engine width-semantics conflict is an open
+// decision.
 const TREE = {
   key: 'item1',
   part_type: 'drawingItemPart',
   values: {
     typeOfWork:          'complete_new',
-    frameMaterialId:     'solid_redwood',
-    sashMaterialId:      'solid_redwood',
-    cillMaterialId:      'solid_utile_hardwood',
+    frameMaterialId:     'softwood',          // timber_species: Integrate "Solid Redwood"
+    sashMaterialId:      'softwood',
+    cillMaterialId:      'utile',             // timber_species: Integrate "Solid Utile Hardwood"
+    staffBeadTypeId:     'small',
+    partingBeadTypeId:   'standard',
     fitToPreparedOpening: false,
     decoration:          false,
     floorLevel:          'ground_floor',
@@ -119,16 +130,20 @@ const TREE = {
                   key: 'glass1',
                   part_type: 'glassPart',
                   values: {
-                    glazingId:            'double_glazed',
+                    glazingId:            'double_glazing',
                     isIndividualPanes:    false,
-                    spacerDimId:          '16mm_white_warm_edge',
-                    barsWide:             2,
-                    barsHigh:             1,
+                    spacerDimId:          'spacer_16',
+                    spacerColourId:       'white_warm_edge',
                     internalGlassPartNo:  'GL100010',
                     externalGlassPartNo:  'GL100080',
-                    spacerHeight:         16,
                   },
-                  children: [],
+                  // 2 vertical + 1 horizontal glazing bars, as real drawings
+                  // store them (child parts, not barsWide/barsHigh counts)
+                  children: [
+                    { key: 'glass1_vb1', part_type: 'verticalGlazingBarPart',   values: {}, children: [] },
+                    { key: 'glass1_vb2', part_type: 'verticalGlazingBarPart',   values: {}, children: [] },
+                    { key: 'glass1_hb1', part_type: 'horizontalGlazingBarPart', values: {}, children: [] },
+                  ],
                 },
               ],
             },
@@ -148,16 +163,18 @@ const TREE = {
                   key: 'glass2',
                   part_type: 'glassPart',
                   values: {
-                    glazingId:            'double_glazed',
+                    glazingId:            'double_glazing',
                     isIndividualPanes:    false,
-                    spacerDimId:          '16mm_white_warm_edge',
-                    barsWide:             2,
-                    barsHigh:             1,
+                    spacerDimId:          'spacer_16',
+                    spacerColourId:       'white_warm_edge',
                     internalGlassPartNo:  'GL100010',
                     externalGlassPartNo:  'GL100080',
-                    spacerHeight:         16,
                   },
-                  children: [],
+                  children: [
+                    { key: 'glass2_vb1', part_type: 'verticalGlazingBarPart',   values: {}, children: [] },
+                    { key: 'glass2_vb2', part_type: 'verticalGlazingBarPart',   values: {}, children: [] },
+                    { key: 'glass2_hb1', part_type: 'horizontalGlazingBarPart', values: {}, children: [] },
+                  ],
                 },
               ],
             },

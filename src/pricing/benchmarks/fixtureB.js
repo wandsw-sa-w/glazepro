@@ -34,9 +34,9 @@ const TREE = {
   part_type: 'drawingItemPart',
   values: {
     typeOfWork:          'draught_seal',
-    frameMaterialId:     'solid_redwood',
-    sashMaterialId:      'solid_redwood',
-    cillMaterialId:      'solid_utile_hardwood',
+    frameMaterialId:     'softwood',
+    sashMaterialId:      'softwood',
+    cillMaterialId:      'utile',
     fitToPreparedOpening: false,
     decoration:          false,
     floorLevel:          'first_floor',

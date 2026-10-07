@@ -143,10 +143,15 @@ export function computeSashWeight(sashNode, tree, glassCatalogue = {}) {
   const gross_sash_height = sightlineHeight + railHeight + midrailHeight + hornLength + cillExtension
 
   // ── Glazing bar info from glass child ────────────────────────────────────
+  // Real drawings store bars as child parts; legacy barsWide/barsHigh counts
+  // are the fallback (same preference as the pricing engine).
   const glassNode = (sashNode.children ?? []).find(c => c.part_type === 'glassPart')
   const gv        = glassNode?.values ?? {}
-  const barsWide  = gv.barsWide ?? 0   // vertical bars (divide width)
-  const barsHigh  = gv.barsHigh ?? 0   // horizontal bars (divide height)
+  const vBarParts = (glassNode?.children ?? []).filter(c => c.part_type === 'verticalGlazingBarPart').length
+  const hBarParts = (glassNode?.children ?? []).filter(c => c.part_type === 'horizontalGlazingBarPart').length
+  const hasActualBars = vBarParts > 0 || hBarParts > 0
+  const barsWide  = hasActualBars ? vBarParts : (gv.barsWide ?? 0)   // vertical bars (divide width)
+  const barsHigh  = hasActualBars ? hBarParts : (gv.barsHigh ?? 0)   // horizontal bars (divide height)
 
   // ── Timber volumes (mm³) ─────────────────────────────────────────────────
   const stiles_vol      = 2 * sashThickness * stileWidth * gross_sash_height
