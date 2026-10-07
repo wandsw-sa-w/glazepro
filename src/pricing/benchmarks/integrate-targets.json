@@ -1,0 +1,37 @@
+{
+  "_DO_NOT_EDIT": "Figures read from Integrate. Never change these to match GlazePro output. If GlazePro disagrees, GlazePro is wrong or the gap is reported.",
+
+  "L34046": {
+    "total_cost": 1241.58,
+    "total_price": 2456.25,
+    "groups": {
+      "manufacture":           { "cost": 549.42, "price": 1098.84 },
+      "labour":                { "cost": 301.58, "price": 603.16 },
+      "manufacture_materials": { "cost": 115.45, "price": 230.86 },
+      "glass_done":            { "cost": 136.66, "price": 273.30 },
+      "installation_materials":{ "cost": 138.45, "price": 276.09 }
+    }
+  },
+
+  "benchmarkA": {
+    "total_cost": 728.26,
+    "total_price": 1408.66,
+    "groups": {
+      "glass_done":             { "cost":  99.46, "price": 198.90 },
+      "installation_materials": { "cost": 133.98, "price": 220.15 },
+      "manufacture":            { "cost": 269.53, "price": 539.07 },
+      "labour":                 { "cost": 191.00, "price": 382.00 },
+      "manufacture_materials":  { "cost":  34.29, "price":  68.54 }
+    }
+  },
+
+  "benchmarkB_uncorrected": {
+    "total_cost": 233.79,
+    "total_price": 573.55
+  },
+
+  "benchmarkB_corrected": {
+    "total_cost": 208.33,
+    "total_price": 522.65
+  }
+}

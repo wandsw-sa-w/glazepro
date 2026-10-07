@@ -197,18 +197,18 @@ const TREE = {
 }
 
 // ── Targets ──────────────────────────────────────────────────────────────────
-// Glass area now uses CUT SIZE (sightline + 2*cover per edge, cover = 12 mm).
-// This increases sash weight, which changes weight band pricing.
+// Integrate targets — DO NOT EDIT to match GlazePro output.
+// See src/pricing/benchmarks/integrate-targets.json.
 const TARGETS = {
-  total_cost:  747.23,
-  total_price: 1443.30,
-  // Group targets (cost / price from the benchmark file)
+  total_cost:  728.26,
+  total_price: 1408.66,
+  // Group targets from docs/integrate-benchmarks-stage4.txt
   groups: {
     glass_done:             { cost:  99.46, price: 198.90 },
-    installation_materials: { cost: 140.63, price: 230.13 },
-    manufacture:            { cost: 281.86, price: 563.73 },
+    installation_materials: { cost: 133.98, price: 220.15 },
+    manufacture:            { cost: 269.53, price: 539.07 },
     labour:                 { cost: 191.00, price: 382.00 },
-    manufacture_materials:  { cost:  34.28, price:  68.54 },
+    manufacture_materials:  { cost:  34.29, price:  68.54 },
   },
   // Per-line targets from benchmark file
   lines: [
@@ -278,18 +278,11 @@ const IRONMONGERY_CATALOGUE = {
   },
 }
 
-// ── Glass catalogue ──────────────────────────────────────────────────────────
-const GLASS_CATALOGUE = {
-  GL100010: { cost_per_m2: 32.00, thickness_mm: 4 },   // 4mm Clear Pilkington K Toughened
-  GL100080: { cost_per_m2: 25.50, thickness_mm: 4 },   // 4mm Clear Toughened
-}
-
 export const BENCHMARK_A = {
   name:   'Benchmark A — Sash replacement (L31115 Item 1)',
   tree:   TREE,
   targets: TARGETS,
   partCostMap: PART_COST_MAP,
-  glassCatalogue: GLASS_CATALOGUE,
   ironmongeryLines: IRONMONGERY_LINES,
   ironmongeryCatalogue: IRONMONGERY_CATALOGUE,
   assumptions: ASSUMPTIONS,

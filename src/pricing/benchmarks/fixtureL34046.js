@@ -167,20 +167,19 @@ const TREE = {
 }
 
 // ── Targets ──────────────────────────────────────────────────────────────────
-// Glass area now uses CUT SIZE (sightline + 2*cover per edge, cover = rebateWidth - tolerance = 12 mm).
-// This increases glass area, which increases sash weight, which changes weight band pricing.
-// Targets updated to match the cut-size-based engine output.
+// Integrate targets — DO NOT EDIT to match GlazePro output.
+// See src/pricing/benchmarks/integrate-targets.json.
 const TARGETS = {
-  total_cost:  1213.82,
-  total_price: 2399.57,
+  total_cost:  1241.58,
+  total_price: 2456.25,
   manufacture_minutes: 1337,
   install_minutes:     450,
   group_cost: {
-    manufacture:           574.08,
+    manufacture:           549.42,
     labour:                301.58,
-    manufacture_materials: 115.47,
+    manufacture_materials: 115.45,
     glass_done:            136.66,
-    installation_materials: 86.03,
+    installation_materials: 138.45,
   },
 }
 
@@ -194,17 +193,10 @@ const ASSUMPTIONS = [
   'Ironmongery finish: ABs (Antique Brass)',
 ]
 
-// ── Glass catalogue ──────────────────────────────────────────────────────────
-const GLASS_CATALOGUE = {
-  GL100010: { cost_per_m2: 32.00, thickness_mm: 4 },   // 4mm Clear Pilkington K Toughened
-  GL100080: { cost_per_m2: 25.50, thickness_mm: 4 },   // 4mm Clear Toughened
-}
-
 export const BENCHMARK_L34046 = {
   name:   'L34046 Item 7 — Complete new box sash',
   tree:   TREE,
   targets: TARGETS,
   partCostMap: PART_COST_MAP,
-  glassCatalogue: GLASS_CATALOGUE,
   assumptions: ASSUMPTIONS,
 }
