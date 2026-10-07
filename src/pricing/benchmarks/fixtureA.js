@@ -117,6 +117,7 @@ const TREE = {
             mechanicalClearanceTop:    0,
             mechanicalClearanceBottom: 0,
             topHornTypeShortName:    'victorian',
+            topHornLength:           75,  // Integrate drawing label (step-w brief §3); not in the weight
             bottomHornTypeShortName: 'none',
             sashSplit:               'half_half',
             // Sash lip: meeting-rail overhang included in Integrate's
@@ -129,9 +130,11 @@ const TREE = {
               part_type: 'topSashPart',
               values: {
                 topHeight:    49,
-                // ASSUMPTION: stile width from profile defaults (47mm functional + 3.75 lip)
-                leftWidth:    50.75,
-                rightWidth:   50.75,
+                // Stile 49 — read from Integrate's drawing (step-w brief §3). NOTE:
+                // Integrate's own stage-4 Glazing Bead qty (3.12) back-computes to a
+                // 50.75 pricing stile — drawn 49 vs priced 50.75 is reported, not fudged.
+                leftWidth:    49,
+                rightWidth:   49,
                 operation:    'cord_hung',
                 toBeReplaced: true,  // sash replacement: both sashes replaced
                 archHead:     false,
@@ -166,8 +169,8 @@ const TREE = {
               part_type: 'bottomSashPart',
               values: {
                 bottomHeight: 88,
-                leftWidth:    50.75,
-                rightWidth:   50.75,
+                leftWidth:    49,
+                rightWidth:   49,
                 operation:    'cord_hung',
                 toBeReplaced: true,  // sash replacement: both sashes replaced
                 archHead:     false,
@@ -243,7 +246,7 @@ const TARGETS = {
 const ASSUMPTIONS = [
   'Inner frame dimensions: 900 x 1700 mm (from spec "Sash width" x "Sash height")',
   'Outer frame: 1102 x 1849 mm (derived: inner + 2*outerJamb width, inner + head + cill)',
-  'Stile width: 50.75 mm (profile default: 47mm + 3.75mm lip)',
+  'Stile width: 49 mm (Integrate drawing label, step-w brief; stage-4 bead qty implies 50.75 in pricing — reported discrepancy)',
   'Top rail: 49 mm, bottom rail: 88 mm, midrail: 40 mm (profile defaults)',
   'Cill: height 70mm, profiledHeight 45mm, depth 200mm (profile defaults)',
   'Frame depth: 165 mm, outerJamb: 101 mm (profile defaults)',

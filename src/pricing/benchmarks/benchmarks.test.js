@@ -139,7 +139,9 @@ describe('Step V — glass sightline from the drawn sash sizes, cut rule unchang
   })
 
   it('Benchmark A: every unit prices at 0.65 m² — Integrate’s qty', () => {
-    // sash 900, stile 50.75 → sightline 798.5 × 761.5; cut 822.5 × 785.5 → 0.65
+    // sash 900, stile 49 (Integrate drawing label, step-w brief)
+    // → sightline 802 × 761.5; cut 826 × 785.5 → 0.65 — same as with the
+    // old 50.75 stile, as the brief requires
     expect(roundedAreas(BENCHMARK_A.tree)).toEqual([0.65, 0.65])
   })
 })
