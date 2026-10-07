@@ -263,7 +263,7 @@ function VariablesPanel({ tree }) {
 
 // ── Single benchmark section ─────────────────────────────────────────────────
 
-function BenchmarkSection({ benchmark, results, ironmongeryLines }) {
+function BenchmarkSection({ benchmark, results, ironmongeryLines, ironWarnings }) {
   const { targets, tree, assumptions } = benchmark
   const totalCost  = results.price.total_cost ?? 0
   const totalPrice = results.price.total ?? 0
@@ -283,6 +283,11 @@ function BenchmarkSection({ benchmark, results, ironmongeryLines }) {
       <h2 style={{ ...S.h2, fontSize: '17px', borderBottom: '2px solid #555' }}>
         {benchmark.name}
       </h2>
+      {(ironWarnings ?? []).length > 0 && (
+        <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 6, padding: '6px 10px', margin: '8px 0', fontSize: 12 }}>
+          {ironWarnings.map((w, i) => <div key={i} style={{ color: '#991b1b' }}>{'\u26A0'} {w}</div>)}
+        </div>
+      )}
 
       {/* Summary */}
       <table style={{ ...S.table, width: 'auto', minWidth: '400px' }}>
@@ -472,20 +477,23 @@ export default function PricingBenchmark() {
 
         // Run each benchmark
         const benchmarkResults = ALL_BENCHMARKS.map(benchmark => {
-          // Compute ironmongery lines for this benchmark's tree.
-          // Prefer defaultIronmonger (DB rules); fall back to the tree's
-          // saved ironmongeryLines (paintAndIronmongeryPart.values.ironmongeryLines)
-          // which mirrors how DrawingBoard stores them.
-          let ironmongeryLines = []
-          if (ironRules.length > 0) {
+          // Ironmongery: tree-saved lines win; defaults apply only when
+          // the drawing has none — same precedence as DrawingBoard.jsx.
+          const paintNode = (benchmark.tree.children ?? []).find(c => c.part_type === 'paintAndIronmongeryPart')
+          let ironmongeryLines = paintNode?.values?.ironmongeryLines ?? []
+          if (ironmongeryLines.length === 0 && ironRules.length > 0) {
             const derived  = computeDerived(benchmark.tree)
             const itemVars = computeVariables(benchmark.tree, derived, pfVariables) ?? {}
             ironmongeryLines = defaultIronmonger(benchmark.tree, { ...pfVariables, ...itemVars }, ironRules)
           }
-          if (ironmongeryLines.length === 0) {
-            // Fall back to tree-stored lines (same path DrawingBoard.jsx uses)
-            const paintNode = (benchmark.tree.children ?? []).find(c => c.part_type === 'paintAndIronmongeryPart')
-            ironmongeryLines = paintNode?.values?.ironmongeryLines ?? []
+
+          // Check for unresolved ironmongery products
+          const ironWarnings = []
+          for (const line of ironmongeryLines) {
+            const key = `${line.product_short_name}:${line.finish_code}`
+            if (!ironmongeryCatalogue[key]) {
+              ironWarnings.push(`Product not found: ${line.product_short_name} (${line.finish_code})`)
+            }
           }
 
           const results = runPricingOnTree(benchmark.tree, rules || [], pfVariables, {
@@ -497,7 +505,7 @@ export default function PricingBenchmark() {
             ironmongeryCatalogue,
           })
 
-          return { benchmark, results, ironmongeryLines }
+          return { benchmark, results, ironmongeryLines, ironWarnings }
         })
 
         if (cancelled) return
@@ -612,12 +620,13 @@ export default function PricingBenchmark() {
       </table>
 
       {/* Individual benchmark sections */}
-      {benchmarkResults.map(({ benchmark, results, ironmongeryLines }, i) => (
+      {benchmarkResults.map(({ benchmark, results, ironmongeryLines, ironWarnings }, i) => (
         <BenchmarkSection
           key={i}
           benchmark={benchmark}
           results={results}
           ironmongeryLines={ironmongeryLines}
+          ironWarnings={ironWarnings}
         />
       ))}
     </div>
