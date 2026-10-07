@@ -113,9 +113,9 @@ export function computeDerived(tree) {
     const fv = frame.values ?? {}
     entry(frame.key).jambDifference = sub(fv.leftOuterJamb, fv.leftWidth)
     if (fv.archHead === true) {
-      const w  = num(fv.width ?? fv.outerWidth)
+      const w  = num(fv.width)
       const h  = num(fv.archHeight)
-      const pH = num(fv.height ?? fv.outerHeight)
+      const pH = num(fv.height)
       const ag = archGeometry(w, h, pH)
       if (ag) {
         entry(frame.key).archRadius     = ag.archRadius

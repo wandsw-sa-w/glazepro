@@ -24,11 +24,12 @@ const FIXTURE_TREE = {
       key: 'frame1',
       part_type: 'assemblyFramePart',
       values: {
-        width: 1075, height: 1630, topHeight: 79,
+        // OVERALL frame (Step V): the architrave measures below (1875/1355,
+        // matching Integrate's stage-4 Ogee Architrave lines) derive from it
+        width: 1255, height: 1775, topHeight: 79,
         leftWidth: 85, rightWidth: 85, frameDepth: 165,
         leftOuterJamb: 101, rightOuterJamb: 101,
         leftCillHorn: 50, rightCillHorn: 50,
-        outerWidth: 1255, outerHeight: 1775,
       },
       children: [
         {
@@ -291,7 +292,7 @@ describe('allocateParts — height boundary test', () => {
       key: 'item', part_type: 'drawingItemPart', values: { typeOfWork: 'complete_new', sashMaterialId: 'solid_redwood' },
       children: [{
         key: 'f', part_type: 'assemblyFramePart',
-        values: { outerWidth: 500, outerHeight: 400, topHeight: 50, leftOuterJamb: 50, rightOuterJamb: 50 },
+        values: { width: 500, height: 400, topHeight: 50, leftOuterJamb: 50, rightOuterJamb: 50 },
         children: [{
           key: 'cill', part_type: 'cillPart', values: { height: 50, profiledHeight: 30 }, children: [],
         }, {

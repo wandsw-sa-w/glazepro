@@ -178,10 +178,13 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
     const is_large_staff_bead = staffBeadTypeId === 'large'
 
     // ── GROUP 4c — Profiled frame interior dimensions ─────────────────────────
-    // These are the internal opening dimensions of the frame (width/height
-    // on assemblyFramePart), used by part allocation rules for bead lengths.
-    const profiled_frame_interior_width_in_mm  = frame?.values?.width  ?? null
-    const profiled_frame_interior_height_in_mm = frame?.values?.height ?? null
+    // Interior = overall frame minus jambs / head / cill, taken from
+    // computeDerived (the drawing board's own derivation) — never
+    // recalculated here. Step V: assemblyFramePart.width/height are the
+    // OVERALL frame (docs/step-v-geometry-brief.md).
+    const pairDerived = derived[pair?.key] ?? {}
+    const profiled_frame_interior_width_in_mm  = pairDerived.internalWidth  ?? null
+    const profiled_frame_interior_height_in_mm = pairDerived.internalHeight ?? null
 
     // interior_qty: always 1 (the part allocation rules loop per sliding_sash
     // and multiply by interior_qty to control how many bead lengths per sash)
@@ -508,13 +511,12 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
     const panel_qty             = 0
 
     // ── GROUP 12 — Frame geometry (mm) ────────────────────────────────────────
-    // OUTER frame dimensions (Integrate: frame_width/height_in_mm = OUTER mm; width/height = OUTER metres)
-    // If outerWidth/outerHeight are not explicitly set on the frame, derive them:
-    //   outerWidth  = inner width  + leftWidth + rightWidth
-    //   outerHeight = inner height + topHeight + cill.height
+    // assemblyFramePart.width/height ARE the overall frame (Step V decision,
+    // matching Integrate's drawn labels and computeDerived). outerWidth /
+    // outerHeight were never stored by real drawings and are not read.
     const _fv = frame?.values ?? {}
-    const frame_width    = (_fv.outerWidth  ?? (_fv.width  != null ? _fv.width  + (_fv.leftWidth ?? 0) + (_fv.rightWidth ?? 0) : null)) ?? null
-    const frame_height   = (_fv.outerHeight ?? (_fv.height != null ? _fv.height + (_fv.topHeight ?? 0) + (cill?.values?.height ?? 0) : null)) ?? null
+    const frame_width    = _fv.width  ?? null
+    const frame_height   = _fv.height ?? null
     const frame_depth_in_mm = frame?.values?.frameDepth ?? null
 
     // Integrate names — OUTER dimensions
@@ -544,8 +546,7 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
     // cill_profiled_height_in_mm: cill height excluding the frame stop
     const cill_profiled_height_in_mm = cill?.values?.profiledHeight ?? cill?.values?.height ?? null
 
-    // ── GROUP 13 — Sash geometry from derived ─────────────────────────────────
-    const pairDerived    = derived[pair?.key] ?? {}
+    // ── GROUP 13 — Sash geometry from derived (pairDerived set in GROUP 4c) ──
     const sashWidth      = pairDerived.sashWidth       ?? null
     const topSashHeight  = pairDerived.topSashHeight   ?? null
     const bottomSashHeight = pairDerived.bottomSashHeight ?? null

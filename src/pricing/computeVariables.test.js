@@ -38,8 +38,9 @@ function makeBoxSashTree(overrides = {}) {
         key: 'frame1',
         part_type: 'assemblyFramePart',
         values: {
-          width:          1075,
-          height:         1630,
+          // OVERALL frame (Step V): interior 1075 × 1630 = 1245−85−85 × 1779−79−70
+          width:          1245,
+          height:         1779,
           topHeight:      79,
           leftWidth:      85,
           rightWidth:     85,
@@ -206,8 +207,7 @@ describe('computeVariables — box sash complete new (solid redwood / utile cill
   })
 
   it('has correct frame dimensions', () => {
-    // frame_width/height are OUTER dimensions: inner + leftWidth + rightWidth / inner + topHeight + cill.height
-    // 1075 + 85 + 85 = 1245, 1630 + 79 + 70 = 1779
+    // frame_width/height ARE the stored overall frame (Step V decision)
     expect(vars.frame_width).toBe(1245)
     expect(vars.frame_height).toBe(1779)
     expect(vars.frame_width_in_mm).toBe(1245)

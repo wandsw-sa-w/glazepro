@@ -45,6 +45,7 @@ import {
   isWarmEdgeSpacerColour, collectVocabularyWarnings,
 } from './optionVocabulary.js'
 import { fetchAllRows } from '../lib/fetchAllRows.js'
+import { sashSizes } from './derivedGeometry.js'
 
 // ── Tree helpers (local copies, same logic as computeDerived.js) ──────────────
 
@@ -142,20 +143,12 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
     const is_complete_new = baseVars.is_complete_new ?? false
     const to_be_replaced  = is_complete_new || v.toBeReplaced === true
 
-    const pair        = findFirst(tree, 'sashPairPart')
+    const pair = findFirst(tree, 'sashPairPart')
 
-    // Gross sash geometry — Integrate convention: frame.width/height are the internal
-    // frame dimensions (= gross sash size). Horn is added to gross_sash_height_in_mm.
-    const frameNode   = findFirst(tree, 'assemblyFramePart')
-    const fv          = frameNode?.values ?? {}
-    const frameWidth  = fv.width  ?? fv.outerWidth  ?? null
-    const frameHeight = fv.height ?? fv.outerHeight ?? null
-
-    const topSashNode = findFirst(tree, 'topSashPart')
-    const botSashNode = findFirst(tree, 'bottomSashPart')
-    const topRailH    = topSashNode?.values?.topHeight    ?? 49
-    const botRailH    = botSashNode?.values?.bottomHeight ?? 88
-    const midrailH    = pair?.values?.midrailHeight ?? 40
+    // Sash geometry from the drawing board's own derivation — ONE source
+    // (Step V: assemblyFramePart.width/height are the OVERALL frame; the
+    // drawn sash sizes come from computeDerived / computeSashGeometry).
+    const sz = sashSizes(tree, derived)
 
     const hornCode   = isTop
       ? pair?.values?.topHornTypeShortName
@@ -163,29 +156,24 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
     // 'none' and 'no_horn' both mean no horn (optionVocabulary.js)
     const hornLength = hornKind(hornCode) === 'victorian' ? 70 : 0
 
-    // Sightline height: glass light height, equal for both sashes in half_half split.
-    // = (frame.height − topRail − bottomRail − midrail) / 2
-    const sightlineH = frameHeight != null
-      ? (frameHeight - topRailH - botRailH - midrailH) / 2 : null
-
     // Sash lip: the meeting-rail overhang that Integrate includes in
     // gross_sash_height_in_mm ("sash height including sash lip & horn").
     // Defaults to 0 for backward compat; fixtures set it from the sash profile.
     const sashLip = pair?.values?.sashLip ?? 0
 
-    // Gross sash height = sightline + this-sash rail + midrail + horn + lip
-    const railHeight = isTop ? topRailH : botRailH
-    const gross_sash_height_in_mm = sightlineH != null
-      ? sightlineH + railHeight + midrailH + hornLength + sashLip : null
+    // Gross sash height = drawn sash height (glass + own rail + meeting
+    // rail — Integrate's drawn label, e.g. A: 850.5 / 889.5) + horn + lip
+    const drawnHeight = isTop ? sz.topSashHeight : sz.bottomSashHeight
+    const gross_sash_height_in_mm = drawnHeight != null
+      ? drawnHeight + hornLength + sashLip : null
 
-    // Gross sash width = frame.width (Integrate: gross sash width = internal frame width)
-    const gross_sash_width_in_mm = frameWidth
+    // Gross sash width = the drawn sash width (Integrate's "Sash width")
+    const gross_sash_width_in_mm = sz.sashWidth
 
     const stileWidth = v.leftWidth ?? 47
-    const sash_sightline_width_in_mm = frameWidth != null
-      ? frameWidth - 2 * stileWidth : null
-    // Sightline height is the same for both sashes (half_half split)
-    const sash_sightline_height_in_mm = sightlineH
+    const sash_sightline_width_in_mm = sz.sashWidth != null
+      ? sz.sashWidth - 2 * stileWidth : null
+    const sash_sightline_height_in_mm = isTop ? sz.topGlassHeight : sz.bottomGlassHeight
 
     // Sash weight (uses outer-frame geometry for accurate physical weight)
     // Weight uses SIGHTLINE glass size (not cut size) — see sashWeight.js comment
@@ -217,10 +205,9 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
   }
 
   if (pt === 'assemblyFramePart') {
-    // OUTER frame dimensions (Integrate convention: width/height = outer frame in metres)
-    // outerWidth/outerHeight set explicitly in fixture (derive from sash defaults is non-trivial)
-    const outerW = v.outerWidth  ?? v.width  ?? 0
-    const outerH = v.outerHeight ?? v.height ?? 0
+    // assemblyFramePart.width/height ARE the overall frame (Step V decision)
+    const outerW = v.width  ?? 0
+    const outerH = v.height ?? 0
 
     // Cill child part (assemblyFramePart > cillPart)
     const cillNode = (partNode.children ?? []).find(c => c.part_type === 'cillPart')
@@ -246,23 +233,17 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
   if (pt === 'glassPart') {
     // Glass area from sash geometry
     const parentSash  = findParentSash(tree, partNode.key)
-    const pair        = findFirst(tree, 'sashPairPart')
 
-    // Glass unit dimensions from frame geometry (Integrate convention).
-    // sightlineWidth  = frame.width − 2 × stileWidth
-    // sightlineHeight = (frame.height − topRail − bottomRail − midrail) / 2  (half_half split)
-    const glassFrameNode = findFirst(tree, 'assemblyFramePart')
-    const gfv            = glassFrameNode?.values ?? {}
-    const glassTopSash   = findFirst(tree, 'topSashPart')
-    const glassBotSash   = findFirst(tree, 'bottomSashPart')
-    const gTopRailH      = glassTopSash?.values?.topHeight    ?? 49
-    const gBotRailH      = glassBotSash?.values?.bottomHeight ?? 88
-    const gMidrailH      = pair?.values?.midrailHeight        ?? 40
-    const gStileWidth    = parentSash?.values?.leftWidth      ?? 47
-    const sightlineWidth  = (gfv.width ?? 0) - 2 * gStileWidth
-    const gFrameH        = gfv.height ?? 0
-    const sightlineHeight = gFrameH > 0
-      ? (gFrameH - gTopRailH - gBotRailH - gMidrailH) / 2 : 0
+    // Glass sightline from the same drawn sash sizes as everything else
+    // (Step V): sightlineWidth = sash width − 2 × stileWidth, sightline
+    // height = the parent sash's glass height from computeDerived.
+    const gsz         = sashSizes(tree, derived)
+    const gStileWidth = parentSash?.values?.leftWidth ?? 47
+    const sightlineWidth = gsz.sashWidth != null
+      ? gsz.sashWidth - 2 * gStileWidth : 0
+    const sightlineHeight = (parentSash?.part_type === 'bottomSashPart'
+      ? gsz.bottomGlassHeight
+      : gsz.topGlassHeight) ?? 0
 
     // Glass CUT SIZE: extends beyond the sightline by (rebateWidth - tolerance) per edge.
     // The rebate and tolerance come from profile values keyed by glazing type.

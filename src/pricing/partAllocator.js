@@ -124,8 +124,9 @@ function computePartVarsForAllocator(partNode, tree, derived, baseVars, glassCat
   }
 
   if (pt === 'assemblyFramePart') {
-    const outerW = v.outerWidth  ?? v.width  ?? 0
-    const outerH = v.outerHeight ?? v.height ?? 0
+    // assemblyFramePart.width/height ARE the overall frame (Step V decision)
+    const outerW = v.width  ?? 0
+    const outerH = v.height ?? 0
     return {
       to_be_replaced: baseVars.is_complete_new ?? false,
       width:          outerW / 1000,   // metres (Integrate convention)
