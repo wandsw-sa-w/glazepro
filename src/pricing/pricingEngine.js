@@ -260,9 +260,9 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
     const actual_area  = (glassWidth > 0 && glassHeight > 0)
       ? Math.round((glassWidth * glassHeight / 1e6) * 100) / 100
       : 0
-    // rounded_area: rounded up to nearest 0.25 m², minimum 0.3 m²
-    // (Integrate rounds to 0.25 m² increments then applies the 0.3 m² minimum)
-    const rounded_area = Math.max(0.3, Math.ceil(actual_area / 0.25) * 0.25)
+    // rounded_area: rounded up to nearest 0.05 m², minimum 0.3 m²
+    // (Integrate rounds to 0.05 m² increments then applies the 0.3 m² minimum)
+    const rounded_area = Math.max(0.3, Math.ceil(actual_area / 0.05) * 0.05)
 
     const glazingId = v.glazingId ?? ''
 
