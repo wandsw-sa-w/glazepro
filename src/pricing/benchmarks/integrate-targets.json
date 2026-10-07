@@ -1,19 +1,21 @@
 {
-  "_DO_NOT_EDIT": "Figures read from Integrate. Never change these to match GlazePro output. If GlazePro disagrees, GlazePro is wrong or the gap is reported.",
+  "_DO_NOT_EDIT": "Figures read from Integrate (Price File Editor > Test Quote, PF30) on 6 Oct 2026. Never change these to match GlazePro output. If GlazePro disagrees, GlazePro is wrong or the gap is reported. Source text: docs/integrate-benchmarks-stage4.txt",
 
   "L34046": {
-    "total_cost": 1241.58,
-    "total_price": 2456.25,
+    "source": "L34046 Quote 8, Item 7",
+    "total_cost": 1241.56,
+    "total_price": 2456.24,
     "groups": {
-      "manufacture":           { "cost": 549.42, "price": 1098.84 },
-      "labour":                { "cost": 301.58, "price": 603.16 },
-      "manufacture_materials": { "cost": 115.45, "price": 230.86 },
-      "glass_done":            { "cost": 136.66, "price": 273.30 },
-      "installation_materials":{ "cost": 138.45, "price": 276.09 }
+      "glass_done":             { "cost": 136.66, "price":  273.30 },
+      "installation_materials": { "cost": 138.45, "price":  250.04 },
+      "manufacture":            { "cost": 549.42, "price": 1098.85 },
+      "labour":                 { "cost": 301.58, "price":  603.15 },
+      "manufacture_materials":  { "cost": 115.45, "price":  230.90 }
     }
   },
 
   "benchmarkA": {
+    "source": "L31115 Quote 1, Item 1, Drawing 4 (sash replacement)",
     "total_cost": 728.26,
     "total_price": 1408.66,
     "groups": {
@@ -26,12 +28,27 @@
   },
 
   "benchmarkB_uncorrected": {
+    "source": "L31115 Quote 1, Item 2, Drawing 12 (draught seal), exactly as Integrate prices it",
     "total_cost": 233.79,
-    "total_price": 573.55
+    "total_price": 573.55,
+    "groups": {
+      "extra_services":         { "cost":  13.20, "price":  26.40 },
+      "installation_materials": { "cost":  32.29, "price":  64.57 },
+      "labour":                 { "cost": 160.84, "price": 321.68 },
+      "manufacture_materials":  { "cost":  25.46, "price":  50.90 },
+      "extra_profits":          { "cost":   2.00, "price": 110.00 }
+    }
   },
 
   "benchmarkB_corrected": {
+    "source": "As above with the agreed correction (docs/integrate-differences.md): sash timber and glazing bead rules need to_be_replaced. Derived by removing the three Manufacture Materials lines.",
     "total_cost": 208.33,
-    "total_price": 522.65
+    "total_price": 522.65,
+    "groups": {
+      "extra_services":         { "cost":  13.20, "price":  26.40 },
+      "installation_materials": { "cost":  32.29, "price":  64.57 },
+      "labour":                 { "cost": 160.84, "price": 321.68 },
+      "extra_profits":          { "cost":   2.00, "price": 110.00 }
+    }
   }
 }

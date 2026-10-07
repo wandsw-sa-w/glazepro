@@ -9,6 +9,26 @@ import { computeDerived } from '../drawingBoard/computeDerived.js'
 import { computeVariables } from './computeVariables.js'
 import { defaultIronmonger } from './defaultIronmongery.js'
 
+// ── fetchAllRows ─────────────────────────────────────────────────────────────
+
+// Supabase (PostgREST) caps every response at 1,000 rows by default, and a
+// query that hits the cap returns the first 1,000 rows with NO error.
+// parts_catalogue, ironmongery_variants and ironmongery_variant_parts all
+// hold more than 1,000 rows, so an unpaginated select silently drops the
+// tail of the table. Every full-table read must go through this helper.
+// The query must carry a deterministic order() so pages don't overlap.
+const PAGE_SIZE = 1000
+
+async function fetchAllRows(makeQuery, label) {
+  const rows = []
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await makeQuery().range(from, from + PAGE_SIZE - 1)
+    if (error) throw new Error(`Failed to fetch ${label}: ${error.message}`)
+    rows.push(...(data ?? []))
+    if (!data || data.length < PAGE_SIZE) return rows
+  }
+}
+
 // ── loadPricingContext ───────────────────────────────────────────────────────
 
 /**
@@ -49,16 +69,19 @@ export async function loadPricingContext(supabase, priceFileId) {
     (pfVarRows || []).map(r => [r.name, r.value_numeric ?? r.value_text])
   )
 
-  // ── Glass catalogue (from parts_catalogue where category = 'Glass') ────────
-  const { data: glassRows, error: glassErr } = await supabase
-    .from('parts_catalogue')
-    .select('part_code, unit_cost, thickness_mm')
-    .eq('category', 'Glass')
-
-  if (glassErr) throw new Error(`Failed to fetch glass catalogue: ${glassErr.message}`)
+  // ── Parts catalogue (single paginated read; feeds glass, costs and names) ─
+  const partRows = await fetchAllRows(
+    () => supabase
+      .from('parts_catalogue')
+      .select('part_code, part_name, unit_cost, thickness_mm, category')
+      .order('part_code'),
+    'parts_catalogue'
+  )
 
   const glassCatalogue = Object.fromEntries(
-    (glassRows || []).map(r => [r.part_code, { cost_per_m2: r.unit_cost, thickness_mm: r.thickness_mm }])
+    partRows
+      .filter(r => r.category === 'Glass')
+      .map(r => [r.part_code, { cost_per_m2: r.unit_cost, thickness_mm: r.thickness_mm }])
   )
 
   // ── Part allocation rules ──────────────────────────────────────────────────
@@ -72,15 +95,9 @@ export async function loadPricingContext(supabase, priceFileId) {
 
   const partAllocationRules = allocRules || []
 
-  // ── Part cost map (from parts_catalogue) ───────────────────────────────────
-  const { data: partRows, error: partErr } = await supabase
-    .from('parts_catalogue')
-    .select('part_code, unit_cost')
-
-  if (partErr) throw new Error(`Failed to fetch parts_catalogue: ${partErr.message}`)
-
+  // ── Part cost map (from the parts catalogue read above) ───────────────────
   const partCostMap = Object.fromEntries(
-    (partRows || []).map(r => [r.part_code, r.unit_cost])
+    partRows.map(r => [r.part_code, r.unit_cost])
   )
 
   // ── Ironmongery rules (default_ironmongery from part_allocation_rules) ─────
@@ -95,31 +112,28 @@ export async function loadPricingContext(supabase, priceFileId) {
   const ironmongeryRules = ironRulesData || []
 
   // ── Ironmongery catalogue (variants with kit parts) ────────────────────────
-  // Ironmongery variants — use the same queries that worked before ef0bb62.
   // ironmongery_variant_parts has no FK to parts_catalogue, so we join in JS
-  // using the partCostMap already loaded above.
-  const { data: ironVariants, error: ivErr } = await supabase
-    .from('ironmongery_variants')
-    .select('id, finish_code, cost, ironmongery_products!inner(short_name)')
-    .eq('ironmongery_products.is_active', true)
+  // using the parts catalogue already loaded above. Both tables exceed the
+  // 1,000-row response cap, so they are read page by page.
+  const ironVariants = await fetchAllRows(
+    () => supabase
+      .from('ironmongery_variants')
+      .select('id, finish_code, cost, ironmongery_products!inner(short_name)')
+      .eq('ironmongery_products.is_active', true)
+      .order('id'),
+    'ironmongery_variants'
+  )
 
-  if (ivErr) throw new Error(`Failed to fetch ironmongery_variants: ${ivErr.message}`)
-
-  const { data: ironKitLines, error: ikErr } = await supabase
-    .from('ironmongery_variant_parts')
-    .select('variant_id, part_code, quantity')
-
-  if (ikErr) throw new Error(`Failed to fetch ironmongery_variant_parts: ${ikErr.message}`)
-
-  // Look up part names and costs from the parts catalogue (already loaded)
-  const { data: partNameRows, error: pnErr } = await supabase
-    .from('parts_catalogue')
-    .select('part_code, part_name, unit_cost')
-
-  if (pnErr) throw new Error(`Failed to fetch parts_catalogue for kit lines: ${pnErr.message}`)
+  const ironKitLines = await fetchAllRows(
+    () => supabase
+      .from('ironmongery_variant_parts')
+      .select('id, variant_id, part_code, quantity')
+      .order('id'),
+    'ironmongery_variant_parts'
+  )
 
   const partNameMap = Object.fromEntries(
-    (partNameRows || []).map(r => [r.part_code, { part_name: r.part_name, unit_cost: r.unit_cost }])
+    partRows.map(r => [r.part_code, { part_name: r.part_name, unit_cost: r.unit_cost }])
   )
 
   const kitLinesByVariant = {}

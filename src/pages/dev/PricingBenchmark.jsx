@@ -256,6 +256,10 @@ function BenchmarkSection({ benchmark, results, ironmongeryLines, ironWarnings }
   const totalPrice = results.price.total ?? 0
   const m = costPriceMatch(totalCost, totalPrice, targets)
 
+  // Show the engine's own run warnings (missing glass/part/ironmongery costs)
+  // alongside the page-level unresolved-product warnings.
+  const allWarnings = [...(ironWarnings ?? []), ...(results.warnings ?? [])]
+
   // Must-not-fire analysis
   const firedNames = new Set(
     results.price.lines
@@ -270,9 +274,9 @@ function BenchmarkSection({ benchmark, results, ironmongeryLines, ironWarnings }
       <h2 style={{ ...S.h2, fontSize: '17px', borderBottom: '2px solid #555' }}>
         {benchmark.name}
       </h2>
-      {(ironWarnings ?? []).length > 0 && (
+      {allWarnings.length > 0 && (
         <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 6, padding: '6px 10px', margin: '8px 0', fontSize: 12 }}>
-          {ironWarnings.map((w, i) => <div key={i} style={{ color: '#991b1b' }}>{'\u26A0'} {w}</div>)}
+          {allWarnings.map((w, i) => <div key={i} style={{ color: '#991b1b' }}>{'\u26A0'} {w}</div>)}
         </div>
       )}
 

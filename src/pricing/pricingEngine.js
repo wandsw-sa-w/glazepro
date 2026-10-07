@@ -730,8 +730,17 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
   // Ironmongery: check each line's variant key against the catalogue
   for (const il of ironmongeryLines) {
     const key = `${il.product_short_name}:${il.finish_code}`
-    if (!ironmongeryCatalogue[key]) {
+    const variant = ironmongeryCatalogue[key]
+    if (!variant) {
       pricingWarnings.push(`Ironmongery product not found: ${il.product_short_name} (${il.finish_code})`)
+      continue
+    }
+    // A kit line whose part has no catalogue cost prices at 0 — that must
+    // surface as a warning, never as a silent zero.
+    for (const kl of (variant.parts ?? [])) {
+      if (kl.unit_cost == null) {
+        pricingWarnings.push(`Ironmongery part cost not found: ${kl.part_code} (${il.product_short_name})`)
+      }
     }
   }
 
