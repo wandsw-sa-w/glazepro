@@ -67,3 +67,15 @@ head horn lengths, plant-on fields, and glazing-bar `thickness`/`nib`
 (22/4 — GlazePro bar parts currently store no dimensions; the bar price and
 weight use counts and run lengths only).
 
+## Item 5 — why "Production Time" fires on benchmark B
+
+The PF30 rule (hand-typed from Integrate's own export) is:
+condition `"true"`, quantity `std_labour_time`, value
+`workshop_hourly_additional`. On a draught seal no manufacture_labour rule
+fires, so `std_labour_time` = 0 and the rule fires with qty 0 × £24.66 = £0 —
+which is why B's totals stay exact while the benchmark page's
+"must not fire" list flags it. Integrate's condition would NOT stop it:
+Integrate's exported condition IS `true`; Integrate simply doesn't display
+zero-value lines. The over-strict party is the fixture's `must_not_fire`
+expectation ('Production Time' in fixtureB.js), not the engine or the rule.
+No engine change.
