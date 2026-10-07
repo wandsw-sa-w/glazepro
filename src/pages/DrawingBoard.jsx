@@ -171,6 +171,55 @@ function HiddenBadge({ text }) {
   )
 }
 
+// ── PartSelect ────────────────────────────────────────────────────────────────
+// A data_type 'part' field stores the parts_catalogue PART CODE (permanent),
+// shown to the user by part name (an editable label). Options come from the
+// catalogue filtered by the field's part_category (e.g. 'Glass').
+function PartSelect({ value, onChange, partCategory, inputBorder }) {
+  const [state, setState] = useState({ parts: null, error: null })
+
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      let q = supabase.from('parts_catalogue').select('part_code, part_name').order('part_name')
+      if (partCategory) q = q.eq('category', partCategory)
+      const { data, error } = await q
+      if (cancelled) return
+      // A failed load must never be shown as an empty result
+      if (error) setState({ parts: [], error: error.message })
+      else setState({ parts: data ?? [], error: null })
+    }
+    load()
+    return () => { cancelled = true }
+  }, [partCategory])
+
+  const { parts, error } = state
+  if (parts === null) return <div style={{ fontSize: 11, color: '#aaa' }}>Loading parts…</div>
+
+  const known = value != null && parts.some(p => p.part_code === value)
+  return (
+    <>
+      <select
+        value={value ?? ''}
+        onChange={e => onChange(e.target.value || null)}
+        style={{ ...SI, border: inputBorder }}
+      >
+        <option value="">— none —</option>
+        {/* A stored value that is not a part code (e.g. a legacy glass NAME
+            not yet converted by sql/step-u1-glass-part-codes.sql) is shown
+            explicitly so it is never silently lost or reinterpreted. */}
+        {value != null && !known && (
+          <option value={value}>{value} (not a part code — re-select)</option>
+        )}
+        {parts.map(p => (
+          <option key={p.part_code} value={p.part_code}>{p.part_name} ({p.part_code})</option>
+        ))}
+      </select>
+      {error && <div style={{ fontSize: 10, color: '#b91c1c', marginTop: 2 }}>Parts failed to load: {error}</div>}
+    </>
+  )
+}
+
 function PropertyField({ field, value, derivedValue, onChange, refOptions, required, partType, hiddenTagText }) {
   const isRequired = required && (value === null || value === undefined || value === '')
   const inputBorder = isRequired ? '1px solid #e57373' : '1px solid #d8d5cf'
@@ -311,13 +360,12 @@ function PropertyField({ field, value, derivedValue, onChange, refOptions, requi
           <InfoNoteIcon note={field.info_note} />
           <HiddenBadge text={hiddenTagText} />
         </label>
-        <input
-          value={value ?? ''}
-          onChange={e => onChange(e.target.value || null)}
-          placeholder="Part number…"
-          style={{ ...SI, border: inputBorder }}
+        <PartSelect
+          value={value}
+          onChange={onChange}
+          partCategory={field.part_category}
+          inputBorder={inputBorder}
         />
-        <div style={{ fontSize: 10, color: '#aaa', marginTop: 2 }}>Parts catalogue not yet available</div>
       </div>
     )
   }
