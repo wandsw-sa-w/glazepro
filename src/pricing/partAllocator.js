@@ -78,7 +78,7 @@ function defaultMissingVars(exprs, vars) {
  * Only supplies what the part allocator rules actually need — a lightweight
  * subset of computePartVariables from pricingEngine.js.
  */
-function computePartVarsForAllocator(partNode, tree, derived, baseVars, glassCatalogue) {
+function computePartVarsForAllocator(partNode, tree, derived, baseVars, glassCatalogue, profileValues) {
   if (!partNode) return {}
   const pt = partNode.part_type
   const v  = partNode.values ?? {}
@@ -89,8 +89,8 @@ function computePartVarsForAllocator(partNode, tree, derived, baseVars, glassCat
     const is_complete_new = baseVars.is_complete_new ?? false
     const to_be_replaced  = is_complete_new || v.toBeReplaced === true
 
-    // Sash weight (uses outer-frame geometry)
-    const weightData = computeSashWeight(partNode, tree, glassCatalogue)
+    // Sash weight — measured model; needs the profile rebate/tolerance
+    const weightData = computeSashWeight(partNode, tree, glassCatalogue, profileValues)
 
     // Inner-geometry height (from derived) — used for height band tests (> 630, etc.)
     // These bands are all >> 630mm so both inner and outer geometry work; keeping
@@ -181,7 +181,7 @@ function computePartVarsForAllocator(partNode, tree, derived, baseVars, glassCat
  *   defaulted_vars:  string[],
  * }>}
  */
-export function allocateParts(tree, variables, rules, glassCatalogue = {}, includeInactive = false) {
+export function allocateParts(tree, variables, rules, glassCatalogue = {}, includeInactive = false, profileValues = {}) {
   const derived   = computeDerived(tree)
   const baseVars  = { ...variables }
   const allocated = []
@@ -200,7 +200,7 @@ export function allocateParts(tree, variables, rules, glassCatalogue = {}, inclu
     for (const partNode of loopParts) {
       // Build variable context for this loop iteration
       const partVars = partNode
-        ? computePartVarsForAllocator(partNode, tree, derived, baseVars, glassCatalogue)
+        ? computePartVarsForAllocator(partNode, tree, derived, baseVars, glassCatalogue, profileValues)
         : {}
       const iterVars = { ...baseVars, ...partVars }
 

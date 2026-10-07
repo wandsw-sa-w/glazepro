@@ -72,7 +72,7 @@ function defaultMissingVars(exprs, vars) {
 
 // ── Per-part contextual variables ─────────────────────────────────────────────
 
-function computePartVars(partNode, tree, derived, baseVars, glassCatalogue) {
+function computePartVars(partNode, tree, derived, baseVars, glassCatalogue, profileValues) {
   if (!partNode) return {}
   const pt = partNode.part_type
   const v  = partNode.values ?? {}
@@ -83,7 +83,7 @@ function computePartVars(partNode, tree, derived, baseVars, glassCatalogue) {
     const is_complete_new = baseVars.is_complete_new ?? false
     const to_be_replaced  = is_complete_new || v.toBeReplaced === true
 
-    const weightData = computeSashWeight(partNode, tree, glassCatalogue)
+    const weightData = computeSashWeight(partNode, tree, glassCatalogue, profileValues)
 
     const pair        = findFirst(tree, 'sashPairPart')
     const pairDerived = pair ? (derived[pair.key] ?? {}) : {}
@@ -174,7 +174,7 @@ function computePartVars(partNode, tree, derived, baseVars, glassCatalogue) {
  *   scope_part_id:      string|null,
  * }>}
  */
-export function defaultIronmonger(tree, variables, rules, glassCatalogue = {}) {
+export function defaultIronmonger(tree, variables, rules, glassCatalogue = {}, profileValues = {}) {
   const derived  = computeDerived(tree)
   const baseVars = { ...variables }
   const lines    = []
@@ -186,7 +186,7 @@ export function defaultIronmonger(tree, variables, rules, glassCatalogue = {}) {
 
     for (const partNode of loopParts) {
       const partVars = partNode
-        ? computePartVars(partNode, tree, derived, baseVars, glassCatalogue)
+        ? computePartVars(partNode, tree, derived, baseVars, glassCatalogue, profileValues)
         : {}
       const iterVars = { ...baseVars, ...partVars }
 

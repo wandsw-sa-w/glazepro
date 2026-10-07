@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { defaultIronmonger } from './defaultIronmongery'
+// Profile rebate/tolerance for the measured sash-weight glass cut (Sash profile: 14 / 2)
+const PV = { defaultDoubleGlazingRebateWidthForSash: 14, defaultDoubleGlazingTolerance: 2 }
 
 // ── Fixture tree — L34046 Item 7 (same as partAllocator.test.js) ──────────────
 const FIXTURE_TREE = {
@@ -133,7 +135,7 @@ const INACTIVE_RULE = {
 
 describe('defaultIronmonger — Item 7 (complete new, cord hung)', () => {
   it('allocates z-claw_fastener_kit_wpulleys PB with qty 1 (0.5 × 2 sashes)', () => {
-    const result = defaultIronmonger(FIXTURE_TREE, BASE_VARS, ITEM7_RULES)
+    const result = defaultIronmonger(FIXTURE_TREE, BASE_VARS, ITEM7_RULES, {}, PV)
     const claw = result.find(l => l.product_short_name === 'z-claw_fastener_kit_wpulleys')
     expect(claw).toBeDefined()
     expect(claw.finish_code).toBe('PB')
@@ -141,7 +143,7 @@ describe('defaultIronmonger — Item 7 (complete new, cord hung)', () => {
   })
 
   it('allocates trickle_vent_xr16 Wht with qty 1', () => {
-    const result = defaultIronmonger(FIXTURE_TREE, BASE_VARS, ITEM7_RULES)
+    const result = defaultIronmonger(FIXTURE_TREE, BASE_VARS, ITEM7_RULES, {}, PV)
     const vent = result.find(l => l.product_short_name === 'trickle_vent_xr16')
     expect(vent).toBeDefined()
     expect(vent.finish_code).toBe('Wht')
@@ -149,12 +151,12 @@ describe('defaultIronmonger — Item 7 (complete new, cord hung)', () => {
   })
 
   it('returns exactly two lines for Item 7', () => {
-    const result = defaultIronmonger(FIXTURE_TREE, BASE_VARS, ITEM7_RULES)
+    const result = defaultIronmonger(FIXTURE_TREE, BASE_VARS, ITEM7_RULES, {}, PV)
     expect(result).toHaveLength(2)
   })
 
   it('skips inactive rules', () => {
-    const result = defaultIronmonger(FIXTURE_TREE, BASE_VARS, [...ITEM7_RULES, INACTIVE_RULE])
+    const result = defaultIronmonger(FIXTURE_TREE, BASE_VARS, [...ITEM7_RULES, INACTIVE_RULE], {}, PV)
     const yorkshire = result.find(l => l.product_short_name === 'yorkshire_sash_kit')
     expect(yorkshire).toBeUndefined()
   })
@@ -163,14 +165,14 @@ describe('defaultIronmonger — Item 7 (complete new, cord hung)', () => {
 describe('defaultIronmonger — condition failures', () => {
   it('does not allocate claw fastener when is_complete_new is false', () => {
     const repairVars = { ...BASE_VARS, is_complete_new: false }
-    const result = defaultIronmonger(FIXTURE_TREE, repairVars, ITEM7_RULES)
+    const result = defaultIronmonger(FIXTURE_TREE, repairVars, ITEM7_RULES, {}, PV)
     const claw = result.find(l => l.product_short_name === 'z-claw_fastener_kit_wpulleys')
     expect(claw).toBeUndefined()
   })
 
   it('does not allocate trickle vent when is_front_door', () => {
     const doorVars = { ...BASE_VARS, is_front_door: true }
-    const result = defaultIronmonger(FIXTURE_TREE, doorVars, ITEM7_RULES)
+    const result = defaultIronmonger(FIXTURE_TREE, doorVars, ITEM7_RULES, {}, PV)
     const vent = result.find(l => l.product_short_name === 'trickle_vent_xr16')
     expect(vent).toBeUndefined()
   })

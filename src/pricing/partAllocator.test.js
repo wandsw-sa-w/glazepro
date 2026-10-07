@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { allocateParts } from './partAllocator'
+// Profile rebate/tolerance for the measured sash-weight glass cut (Sash profile: 14 / 2)
+const PV = { defaultDoubleGlazingRebateWidthForSash: 14, defaultDoubleGlazingTolerance: 2 }
 
 // ── Fixture tree — L34046 Item 7 ─────────────────────────────────────────────
 const FIXTURE_TREE = {
@@ -156,15 +158,14 @@ const SURROUNDS_RULES = [
 
 // ── Item 7: steel weight band ─────────────────────────────────────────────────
 // Integrate allocates RLZ1927 (21 lb) / RLZ1928 (22 lb) for Item 7 (facts:
-// its weights are 19.4 / 20.4 kg). Step V's drawn-size weights compute
-// ~18.4 / ~19.2 kg, so the two steel assertions FAIL TRUTHFULLY — reported
-// in the Step V report, not tuned away.
+// its weights are 19.4 / 20.4 kg). The Step W measured weight model puts
+// this tree back in those bands (19.70 / 20.67 kg for this test tree).
 
 describe('allocateParts — Item 7 steel weight allocation', () => {
   const rules = [...STEEL_RULES_ITEM7, ...SURROUNDS_RULES]
 
   it('allocates RLZ1927 (21lb) for the top sash', () => {
-    const result = allocateParts(FIXTURE_TREE, BASE_VARS, rules, GLASS_CATALOGUE)
+    const result = allocateParts(FIXTURE_TREE, BASE_VARS, rules, GLASS_CATALOGUE, false, PV)
     const topAlloc = result.filter(a => a.part_code === 'RLZ1927' && a.scope_part_type === 'topSashPart')
     expect(topAlloc).toHaveLength(1)
     expect(topAlloc[0].qty).toBe(2)
@@ -172,7 +173,7 @@ describe('allocateParts — Item 7 steel weight allocation', () => {
   })
 
   it('allocates RLZ1928 (22lb) for the bottom sash', () => {
-    const result = allocateParts(FIXTURE_TREE, BASE_VARS, rules, GLASS_CATALOGUE)
+    const result = allocateParts(FIXTURE_TREE, BASE_VARS, rules, GLASS_CATALOGUE, false, PV)
     const botAlloc = result.filter(a => a.part_code === 'RLZ1928' && a.scope_part_type === 'bottomSashPart')
     expect(botAlloc).toHaveLength(1)
     expect(botAlloc[0].qty).toBe(2)
@@ -180,7 +181,7 @@ describe('allocateParts — Item 7 steel weight allocation', () => {
   })
 
   it('does not allocate lead weights (LW100005) for either sash in complete new', () => {
-    const result = allocateParts(FIXTURE_TREE, BASE_VARS, rules, GLASS_CATALOGUE)
+    const result = allocateParts(FIXTURE_TREE, BASE_VARS, rules, GLASS_CATALOGUE, false, PV)
     const lead = result.filter(a => a.part_code === 'LW100005')
     expect(lead).toHaveLength(0)
   })
@@ -193,7 +194,7 @@ describe('allocateParts — Item 7 TP68 surrounds', () => {
 
   it('allocates TP68 × 2 for vertical architrave (measure ≈ 1875 mm)', () => {
     // (1000 × 1.775) + 100 = 1875
-    const result = allocateParts(FIXTURE_TREE, BASE_VARS, rules, GLASS_CATALOGUE)
+    const result = allocateParts(FIXTURE_TREE, BASE_VARS, rules, GLASS_CATALOGUE, false, PV)
     const verts = result.filter(a => a.part_code === 'TP68' && a.qty === 2)
     expect(verts).toHaveLength(1)
     expect(verts[0].measure).toBeCloseTo(1875, 1)
@@ -201,7 +202,7 @@ describe('allocateParts — Item 7 TP68 surrounds', () => {
 
   it('allocates TP68 × 1 for horizontal architrave (measure ≈ 1355 mm)', () => {
     // (1000 × 1.255) + 100 = 1355
-    const result = allocateParts(FIXTURE_TREE, BASE_VARS, rules, GLASS_CATALOGUE)
+    const result = allocateParts(FIXTURE_TREE, BASE_VARS, rules, GLASS_CATALOGUE, false, PV)
     const horiz = result.filter(a => a.part_code === 'TP68' && a.qty === 1)
     expect(horiz).toHaveLength(1)
     expect(horiz[0].measure).toBeCloseTo(1355, 1)
@@ -219,7 +220,7 @@ describe('allocateParts — round_up_to_nearest in measure expression', () => {
   }]
 
   it('round_up_to_nearest(1234, 100) + 100 = 1400', () => {
-    const result = allocateParts(FIXTURE_TREE, BASE_VARS, ruleWithRound, GLASS_CATALOGUE)
+    const result = allocateParts(FIXTURE_TREE, BASE_VARS, ruleWithRound, GLASS_CATALOGUE, false, PV)
     expect(result).toHaveLength(1)
     expect(result[0].measure).toBe(1400)
   })
@@ -229,7 +230,7 @@ describe('allocateParts — round_up_to_nearest in measure expression', () => {
       ...ruleWithRound[0],
       measure_expr: 'round_up_to_nearest(1300, 100) + 100',
     }]
-    const result = allocateParts(FIXTURE_TREE, BASE_VARS, rule, GLASS_CATALOGUE)
+    const result = allocateParts(FIXTURE_TREE, BASE_VARS, rule, GLASS_CATALOGUE, false, PV)
     expect(result[0].measure).toBe(1400)
   })
 
@@ -238,7 +239,7 @@ describe('allocateParts — round_up_to_nearest in measure expression', () => {
       ...ruleWithRound[0],
       measure_expr: 'round_up_to_nearest(1200, 100)',
     }]
-    const result = allocateParts(FIXTURE_TREE, BASE_VARS, rule, GLASS_CATALOGUE)
+    const result = allocateParts(FIXTURE_TREE, BASE_VARS, rule, GLASS_CATALOGUE, false, PV)
     expect(result[0].measure).toBe(1200)
   })
 })
@@ -253,7 +254,7 @@ describe('allocateParts — inactive rules', () => {
       condition: 'frame_to_be_replaced and is_cord_hung and weight_in_kg < 14',
       qty_expr: '2', part_code: 'LW100005', measure_expr: 'weight_in_kg / 2', is_active: false,
     }]
-    const result = allocateParts(FIXTURE_TREE, BASE_VARS, inactiveRule, GLASS_CATALOGUE)
+    const result = allocateParts(FIXTURE_TREE, BASE_VARS, inactiveRule, GLASS_CATALOGUE, false, PV)
     expect(result).toHaveLength(0)
   })
 
@@ -265,7 +266,7 @@ describe('allocateParts — inactive rules', () => {
       qty_expr: '2', part_code: 'LW100005', measure_expr: 'weight_in_kg / 2', is_active: false,
     }]
     // top sash ~43 lb and bottom ~45 lb — neither < 14 lb, so still no results even with includeInactive
-    const result = allocateParts(FIXTURE_TREE, BASE_VARS, inactiveRule, GLASS_CATALOGUE, true)
+    const result = allocateParts(FIXTURE_TREE, BASE_VARS, inactiveRule, GLASS_CATALOGUE, true, PV)
     expect(result).toHaveLength(0)
   })
 })
@@ -310,7 +311,7 @@ describe('allocateParts — height boundary test', () => {
         }],
       }],
     }
-    const result = allocateParts(minTree, vars, [boundaryRule], {})
+    const result = allocateParts(minTree, vars, [boundaryRule], {}, false, PV)
     // The rule checks gross_sash_height_in_mm from tree-derived, but we also
     // pre-set it in vars. partAllocator.js computes it from derived; for this
     // tiny test tree the derived height will be negative. The allocator will
@@ -357,21 +358,21 @@ const STEEL_RULES_DB_FORMAT = [
 
 describe('allocateParts — sash_height_in_mm reaches sash scope (DB rule format)', () => {
   it('top sash allocates RLZ1927 (21lb) using sash_height_in_mm > 630 (not gross_sash_height_in_mm)', () => {
-    const result = allocateParts(FIXTURE_TREE, BASE_VARS, STEEL_RULES_DB_FORMAT, GLASS_CATALOGUE)
+    const result = allocateParts(FIXTURE_TREE, BASE_VARS, STEEL_RULES_DB_FORMAT, GLASS_CATALOGUE, false, PV)
     const topAlloc = result.filter(a => a.part_code === 'RLZ1927' && a.scope_part_type === 'topSashPart')
     expect(topAlloc).toHaveLength(1)
     expect(topAlloc[0].qty).toBe(2)
   })
 
   it('bottom sash allocates RLZ1928 (22lb) using sash_height_in_mm > 660', () => {
-    const result = allocateParts(FIXTURE_TREE, BASE_VARS, STEEL_RULES_DB_FORMAT, GLASS_CATALOGUE)
+    const result = allocateParts(FIXTURE_TREE, BASE_VARS, STEEL_RULES_DB_FORMAT, GLASS_CATALOGUE, false, PV)
     const botAlloc = result.filter(a => a.part_code === 'RLZ1928' && a.scope_part_type === 'bottomSashPart')
     expect(botAlloc).toHaveLength(1)
     expect(botAlloc[0].qty).toBe(2)
   })
 
   it('does not fall back to lead (LW100005) for either sash when height is above threshold', () => {
-    const result = allocateParts(FIXTURE_TREE, BASE_VARS, STEEL_RULES_DB_FORMAT, GLASS_CATALOGUE)
+    const result = allocateParts(FIXTURE_TREE, BASE_VARS, STEEL_RULES_DB_FORMAT, GLASS_CATALOGUE, false, PV)
     const lead = result.filter(a => a.part_code === 'LW100005')
     expect(lead).toHaveLength(0)
   })
@@ -385,7 +386,7 @@ describe('allocateParts — sash_height_in_mm reaches sash scope (DB rule format
         condition: 'true', qty_expr: '0.5', part_code: '', measure_expr: null, is_active: true,
       },
     ]
-    const result = allocateParts(FIXTURE_TREE, BASE_VARS, mixedRules, GLASS_CATALOGUE)
+    const result = allocateParts(FIXTURE_TREE, BASE_VARS, mixedRules, GLASS_CATALOGUE, false, PV)
     // The ironmongery rule (no part_code, wrong family) must not appear
     const leaked = result.filter(a => a.rule_id === 'iron1')
     expect(leaked).toHaveLength(0)

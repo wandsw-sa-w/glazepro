@@ -35,7 +35,7 @@ import { computeVariables } from './computeVariables.js'
 import { evaluateCondition, evaluateNumber, getExpressionVariables } from './evaluator.js'
 import { loadDrawingParts } from '../drawingBoard/api.js'
 import { computeDerived } from '../drawingBoard/computeDerived.js'
-import { computeSashWeight } from './sashWeight.js'
+import { computeSashWeight, SASH_REPLACEMENT_ITEM_WEIGHT_FACTOR } from './sashWeight.js'
 import { allocateParts } from './partAllocator.js'
 import { treeHash } from './treeHash.js'
 import { loadPricingContext, resolveIronmongeryLines } from './loadPricingContext.js'
@@ -175,9 +175,9 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
       ? sz.sashWidth - 2 * stileWidth : null
     const sash_sightline_height_in_mm = isTop ? sz.topGlassHeight : sz.bottomGlassHeight
 
-    // Sash weight (uses outer-frame geometry for accurate physical weight)
-    // Weight uses SIGHTLINE glass size (not cut size) — see sashWeight.js comment
-    const weightData = computeSashWeight(partNode, tree, glassCatalogue)
+    // Sash weight — measured model (sashWeight.js); needs the profile
+    // rebate/tolerance for the glass cut, like the glass price does
+    const weightData = computeSashWeight(partNode, tree, glassCatalogue, profileValues)
     const sash_thickness = pair?.values?.sashThickness ?? 45
 
     return {
@@ -488,6 +488,7 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
   const allSashes    = [...allTopSashes, ...allBotSashes]
 
   let weight_of_heaviest_sash_to_be_replaced = 0  // lb
+  let sumReplacedSashKg = 0
   let item_nj_weight_in_kg = 0
   const isCordHungItem = itemVars.is_cord_hung ?? false
 
@@ -499,9 +500,18 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
     if (wt.weight_in_lb > weight_of_heaviest_sash_to_be_replaced) {
       weight_of_heaviest_sash_to_be_replaced = wt.weight_in_lb
     }
-    item_nj_weight_in_kg += wt.weight_in_kg
-    // Cord-hung: counterweights equal the sash weight (one weight per sash)
-    if (isCordHungItem) item_nj_weight_in_kg += wt.weight_in_kg
+    sumReplacedSashKg += wt.weight_in_kg
+  }
+
+  if (itemVars.is_sash_replacement === true) {
+    // MEASURED (step-w brief §5, every row within 0.2 lb): sash-replacement
+    // item weight = 1.1 × (top + bottom sash weight) — counterweights are
+    // NOT in Integrate's item weight.
+    item_nj_weight_in_kg = SASH_REPLACEMENT_ITEM_WEIGHT_FACTOR * sumReplacedSashKg
+  } else {
+    // UNMEASURED for other types of work — the previous behaviour is kept:
+    // sashes plus, when cord hung, counterweights equal to each sash weight.
+    item_nj_weight_in_kg = isCordHungItem ? 2 * sumReplacedSashKg : sumReplacedSashKg
   }
 
   const item_nj_weight_in_lb = item_nj_weight_in_kg * 2.20462
@@ -519,7 +529,7 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
   // Must run before price pass so the component loop has parts to iterate over.
   let allocatedParts = []
   if (partAllocationRules.length > 0) {
-    allocatedParts = allocateParts(tree, baseVars, partAllocationRules, glassCatalogue)
+    allocatedParts = allocateParts(tree, baseVars, partAllocationRules, glassCatalogue, false, profileValues)
   }
 
   // Component parts (non-weight groups) for the pricing component loop.
@@ -780,10 +790,10 @@ export async function priceDrawing(drawingId, supabase, { priceFileId } = {}) {
     const { rules: allRules, pfVariables, glassCatalogue, partAllocationRules,
             partCostMap, ironmongeryCatalogue } = ctx
 
-    // ── 4. Resolve ironmongery lines ─────────────────────────────────────────
-    const ironmongeryLines = resolveIronmongeryLines(tree, ctx)
-
-    // ── 4b. Load profile values for glass cut size (rebate width + tolerance) ─
+    // ── 4. Load profile values for glass cut size (rebate width + tolerance) ─
+    // Loaded BEFORE the ironmongery resolution: the measured sash-weight
+    // model needs the profile rebate/tolerance, and default-ironmongery
+    // rules evaluate per-sash weight variables.
     const { data: drawingRow } = await supabase
       .from('drawings')
       .select('default_profile_id')
@@ -802,6 +812,9 @@ export async function priceDrawing(drawingId, supabase, { priceFileId } = {}) {
         profileValues[pv.field_key?.split('.')?.pop() ?? pv.field_key] = isNaN(n) ? pv.default_value : n
       }
     }
+
+    // ── 4b. Resolve ironmongery lines ────────────────────────────────────────
+    const ironmongeryLines = resolveIronmongeryLines(tree, ctx, profileValues)
 
     // ── 5. Create pricing_runs row ────────────────────────────────────────────
     const currentTreeHash = treeHash(tree)

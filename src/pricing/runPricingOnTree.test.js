@@ -22,6 +22,8 @@
 
 import { describe, it, expect } from 'vitest'
 import { runPricingOnTree } from './pricingEngine.js'
+// Profile rebate/tolerance for the measured sash-weight glass cut (Sash profile: 14 / 2)
+const PV = { defaultDoubleGlazingRebateWidthForSash: 14, defaultDoubleGlazingTolerance: 2 }
 
 // ── Minimal valid box sash tree (same shape as computeVariables.test.js's
 // makeBoxSashTree — just enough for computeVariables to succeed) ──────────
@@ -71,7 +73,7 @@ const PRICE_RULE = { id: 'price1', rule_family: 'price', level: 'item', is_activ
 describe('runPricingOnTree — cost excludes labour minutes (item 2)', () => {
   it('results.price.total_cost reflects only the price rule, not the 1,787 labour minutes', () => {
     const tree = makeTree()
-    const results = runPricingOnTree(tree, [MFG_RULE, INST_RULE, PRICE_RULE], {})
+    const results = runPricingOnTree(tree, [MFG_RULE, INST_RULE, PRICE_RULE], {}, { profileValues: PV })
 
     expect(results.error).toBeUndefined()
     expect(results.manufacture_labour.total_minutes).toBe(1337)
@@ -93,7 +95,7 @@ describe('runPricingOnTree — cost excludes labour minutes (item 2)', () => {
     // cost is typically well under half of sales once markup is applied.
     const tree = makeTree()
     const sellsAt1622 = { id: 'price2', rule_family: 'price', level: 'item', is_active: true, condition: 'true', quantity: '1', value: '740.50', markup: 2.191, loop_target: null }
-    const results = runPricingOnTree(tree, [MFG_RULE, INST_RULE, sellsAt1622], {})
+    const results = runPricingOnTree(tree, [MFG_RULE, INST_RULE, sellsAt1622], {}, { profileValues: PV })
 
     expect(results.price.total).toBeCloseTo(1622.44, 1)
     expect(results.price.total_cost).toBeLessThan(results.price.total)
@@ -103,7 +105,7 @@ describe('runPricingOnTree — cost excludes labour minutes (item 2)', () => {
   it('an inactive labour rule contributes nothing, confirming is_active gating is independent of the cost fix', () => {
     const tree = makeTree()
     const inactiveMfg = { ...MFG_RULE, is_active: false }
-    const results = runPricingOnTree(tree, [inactiveMfg, PRICE_RULE], {})
+    const results = runPricingOnTree(tree, [inactiveMfg, PRICE_RULE], {}, { profileValues: PV })
     expect(results.manufacture_labour.total_minutes).toBe(0)
     expect(results.price.total_cost).toBeCloseTo(820.11, 2)
   })

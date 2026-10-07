@@ -31,7 +31,7 @@ describe('Single pricing path — source-level verification', () => {
   })
 
   it('pricingEngine.js calls resolveIronmongeryLines in priceDrawing', () => {
-    expect(engineSource).toContain('resolveIronmongeryLines(tree, ctx)')
+    expect(engineSource).toContain('resolveIronmongeryLines(tree, ctx, profileValues)')
   })
 
   it('PricingBenchmark.jsx imports loadPricingContext', () => {
@@ -43,7 +43,7 @@ describe('Single pricing path — source-level verification', () => {
   })
 
   it('PricingBenchmark.jsx calls resolveIronmongeryLines', () => {
-    expect(benchmarkSource).toContain('resolveIronmongeryLines(benchmark.tree, ctx)')
+    expect(benchmarkSource).toContain('resolveIronmongeryLines(benchmark.tree, ctx,')
   })
 
   it('PricingBenchmark.jsx does NOT import defaultIronmonger directly', () => {
@@ -161,7 +161,7 @@ describe('loadPricingContext — survives the 1,000-row response cap', () => {
     const supabase = createMockSupabase(buildMockTables())
     const ctx = await loadPricingContext(supabase, 'pf-test')
 
-    const ironmongeryLines = resolveIronmongeryLines(BENCHMARK_L34046.tree, ctx)
+    const ironmongeryLines = resolveIronmongeryLines(BENCHMARK_L34046.tree, ctx, BENCHMARK_L34046.profileValues)
     const trickleLine = ironmongeryLines.find(l => l.product_short_name === 'trickle_vent_xr16')
     expect(trickleLine).toBeTruthy()
     expect(trickleLine.finish_code).toBe('Wht')

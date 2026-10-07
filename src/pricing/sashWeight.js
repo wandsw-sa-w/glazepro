@@ -1,28 +1,30 @@
 /**
  * sashWeight.js
- * Physical model for sliding-sash weight calculation.
+ * Sliding-sash weight, MEASURED from Integrate on 7 Oct 2026
+ * (docs/step-w-sash-weight-brief.md — the measurement table is fact).
  *
- * Integrate computes sash weights server-side with hidden constants.
- * This module replicates the formula by working from outer-frame dimensions
- * (as Integrate does) rather than the inner-opening geometry used for drawing.
+ * The model, which reproduces the measurement rows:
+ *   timber_kg = density × thickness ×
+ *               [ 2 × stile × drawn sash height
+ *                 + (own rail + meeting rail) × (sash width − 2 × stile) ] / 1e9
+ *   glass_kg  = CUT size (sightline + 2 × (rebate − tolerance) per axis, the
+ *               same cut the glass PRICE uses, from the profile values —
+ *               missing value = error, as elsewhere)
+ *               × (inner + outer pane thickness) × 2.5 kg/m²/mm,
+ *               ONE unit per sash — bars do not split the glass for weight
+ *   bars_kg   = 0.302 kg per metre of bar, full sightline lengths, no
+ *               deduction at crossings; independent of thickness and timber
+ *   The HORN is NOT in the weight (measurement rows 10 vs 11).
  *
- * Integrate's weight figures (facts): L34046 Item 7 top 19.4 / bottom
- * 20.4 kg; Benchmark A top 17.2 / bottom 17.3 kg (before the 15% Lead
- * Weight wastage).
+ * Item weight for a SASH REPLACEMENT = 1.1 × (top + bottom); measured only
+ * for sash replacements — not applied to other types of work.
  *
- * Step V replaced the outer-frame derivation (and its tuned cill
- * extension) with the DRAWN sash sizes from computeDerived. Where the
- * computed weights now differ from Integrate's figures, the gap is
- * reported — never pulled back with a constant.
- *
- * Remaining physical constants:
- *   GLAZING_REBATE_MM = 0   (sight size only; no rebate contribution to glass area)
- *   BAR_WIDTH_MM = 20, BAR_THICKNESS_MM = 10  (standard glazing bar section)
- *   Horn 'victorian' = 50 mm (weight model; the pricing engine's gross
- *   height uses 70 mm — a known, reported inconsistency)
+ * Known open question (measurement row 10): 6.8 mm Acoustic Laminated
+ * behaves like ~6.0 mm of glass in Integrate; the model uses the
+ * catalogue thickness as-is and the difference is reported, not fitted.
  */
 
-import { timberFamily, TIMBER_FAMILY_DENSITIES, hornKind } from './optionVocabulary.js'
+import { timberFamily, TIMBER_FAMILY_DENSITIES, glazingType } from './optionVocabulary.js'
 import { sashSizes } from './derivedGeometry.js'
 
 // ── Timber density constants (kg/m³) — from Integrate Weight Calc page ────────
@@ -30,23 +32,18 @@ import { sashSizes } from './derivedGeometry.js'
 // imports keep working; the lookup itself goes code → family → density.
 export const TIMBER_DENSITIES = TIMBER_FAMILY_DENSITIES
 
-// ── Physical constants ─────────────────────────────────────────────────────────
-// Glass pane dimensions for weight use the SIGHTLINE, not the cut size.
-// Evidence: using cut size (sightline + 24mm per axis) gave weights ~0.9 kg
-// too heavy (L34046 20.28/21.21 vs Integrate 19.4/20.4). Pricing uses the
-// cut size for glass cost/area; weight uses sightline — the two differ and
-// this is evidence-based, not a preference.
-export const GLAZING_REBATE_MM   = 0     // rebate added to each side of the sightline for weight calc
-export const BAR_WIDTH_MM        = 20    // glazing bar width (face dimension, mm)
-export const BAR_THICKNESS_MM    = 10    // glazing bar depth (thickness, mm)
-export const KG_PER_M2_PER_MM    = 2.5  // glass density factor: kg per m² per mm thickness
-export const KG_PER_LB           = 1 / 2.20462
+// ── Measured constants ────────────────────────────────────────────────────────
+export const KG_PER_M2_PER_MM = 2.5       // glass: kg per m² per mm thickness
+export const KG_PER_LB        = 1 / 2.20462
 
-// Horn lengths in mm by shortName (lower-cased)
-export const HORN_LENGTHS_MM = {
-  victorian: 50,
-  none:       0,
-}
+// Glazing bar rate, measured for the 22 mm bar ONLY
+// (docs/step-w-sash-weight-brief.md §4 — 0.302 = 22 × 27 mm at 508.3 kg/m³).
+// Other bar widths are unmeasured and use the same rate until measured.
+export const GLAZING_BAR_KG_PER_M = 0.302
+
+// Item weight factor for a sash replacement (brief §5): item weight =
+// 1.1 × (top + bottom sash weight). Measured ONLY for sash replacements.
+export const SASH_REPLACEMENT_ITEM_WEIGHT_FACTOR = 1.1
 
 // ── Tree helpers (local copies, same logic as pricingEngine.js) ───────────────
 
@@ -97,7 +94,7 @@ function findFirst(node, partType) {
  *   _debug: Object
  * }}
  */
-export function computeSashWeight(sashNode, tree, glassCatalogue = {}) {
+export function computeSashWeight(sashNode, tree, glassCatalogue = {}, profileValues = {}) {
   const isTop = sashNode.part_type === 'topSashPart'
   const sv    = sashNode.values ?? {}
 
@@ -116,18 +113,14 @@ export function computeSashWeight(sashNode, tree, glassCatalogue = {}) {
   const gross_sash_width  = sz.sashWidth ?? 0
   const sightlineWidth    = gross_sash_width - 2 * stileWidth
   const sightlineHeight   = (isTop ? sz.topGlassHeight : sz.bottomGlassHeight) ?? 0
-
-  // ── Gross sash height (drawn height + horn) ──────────────────────────────
-  // 'none' and 'no_horn' both mean no horn (optionVocabulary.js)
-  const hornCode   = isTop ? pv.topHornTypeShortName : pv.bottomHornTypeShortName
-  const hornLength = HORN_LENGTHS_MM[hornKind(hornCode) ?? 'none'] ?? 0
+  const drawnHeight       = (isTop ? sz.topSashHeight : sz.bottomSashHeight) ?? 0
 
   const railHeight = isTop ? (sv.topHeight ?? 49) : (sv.bottomHeight ?? 88)
 
-  const drawnHeight = (isTop ? sz.topSashHeight : sz.bottomSashHeight) ?? 0
-  const gross_sash_height = drawnHeight + hornLength
+  // The horn is NOT in the weight (measurement rows 10 vs 11).
+  const gross_sash_height = drawnHeight
 
-  // ── Glazing bar info from glass child ────────────────────────────────────
+  // ── Glazing bars from glass child ────────────────────────────────────────
   // Real drawings store bars as child parts; legacy barsWide/barsHigh counts
   // are the fallback (same preference as the pricing engine).
   const glassNode = (sashNode.children ?? []).find(c => c.part_type === 'glassPart')
@@ -135,17 +128,15 @@ export function computeSashWeight(sashNode, tree, glassCatalogue = {}) {
   const vBarParts = (glassNode?.children ?? []).filter(c => c.part_type === 'verticalGlazingBarPart').length
   const hBarParts = (glassNode?.children ?? []).filter(c => c.part_type === 'horizontalGlazingBarPart').length
   const hasActualBars = vBarParts > 0 || hBarParts > 0
-  const barsWide  = hasActualBars ? vBarParts : (gv.barsWide ?? 0)   // vertical bars (divide width)
-  const barsHigh  = hasActualBars ? hBarParts : (gv.barsHigh ?? 0)   // horizontal bars (divide height)
+  const barsWide  = hasActualBars ? vBarParts : (gv.barsWide ?? 0)   // vertical bars
+  const barsHigh  = hasActualBars ? hBarParts : (gv.barsHigh ?? 0)   // horizontal bars
 
-  // ── Timber volumes (mm³) ─────────────────────────────────────────────────
-  const stiles_vol      = 2 * sashThickness * stileWidth * gross_sash_height
-  const rail_vol        = sashThickness * railHeight * sightlineWidth        // head or sill rail, between stiles
-  const midrail_vol     = sashThickness * midrailHeight * sightlineWidth     // meeting rail, between stiles
-  const horiz_bar_vol   = barsHigh * BAR_WIDTH_MM * BAR_THICKNESS_MM * sightlineWidth
-  const vert_bar_vol    = barsWide  * BAR_WIDTH_MM * BAR_THICKNESS_MM * sightlineHeight
-
-  const total_timber_vol_mm3 = stiles_vol + rail_vol + midrail_vol + horiz_bar_vol + vert_bar_vol
+  // ── Timber (measured model, brief §1) ────────────────────────────────────
+  // density × thickness × [2 × stile × drawn height + (rail + meeting rail)
+  // × (sash width − 2 × stile)]
+  const timber_vol_mm3 =
+    sashThickness * (2 * stileWidth * drawnHeight +
+                     (railHeight + midrailHeight) * sightlineWidth)
 
   // Timber density — real timber_species code → family → density.
   // Families with no Integrate density fall back to the softwood figure;
@@ -153,11 +144,30 @@ export function computeSashWeight(sashNode, tree, glassCatalogue = {}) {
   const sashMaterialId    = item?.values?.sashMaterialId ?? 'softwood'
   const family            = timberFamily(sashMaterialId)
   const density_kg_per_m3 = TIMBER_FAMILY_DENSITIES[family] ?? 508.3
-  const timber_kg = total_timber_vol_mm3 / 1e9 * density_kg_per_m3
+  const timber_kg = timber_vol_mm3 / 1e9 * density_kg_per_m3
 
-  // ── Glass weight ─────────────────────────────────────────────────────────
-  const paneWidth  = sightlineWidth + 2 * GLAZING_REBATE_MM
-  const paneHeight = sightlineHeight + 2 * GLAZING_REBATE_MM
+  // ── Glass weight — CUT size, one unit per sash (brief §3) ────────────────
+  // Cut = sightline + 2 × (rebate − tolerance) per axis, the same cut the
+  // glass PRICE uses. The rebate/tolerance come from the profile values,
+  // keyed by glazing type; a missing value is an error, as elsewhere.
+  const gType = glazingType(gv.glazingId)
+  const rebateKey = gType === 'single' ? 'defaultSingleGlazingRebateWidthForSash'
+    : gType === 'triple' ? 'defaultTripleGlazingRebateWidthForSash'
+    : gType === 'heritage' ? 'defaultHeritageGlazingRebateWidthForSash'
+    : 'defaultDoubleGlazingRebateWidthForSash'
+  const toleranceKey = gType === 'single' ? 'defaultSingleGlazingTolerance'
+    : gType === 'triple' ? 'defaultTripleGlazingTolerance'
+    : gType === 'heritage' ? 'defaultHeritageGlazingTolerance'
+    : 'defaultDoubleGlazingTolerance'
+  const rebateWidth = profileValues[rebateKey]
+  const tolerance   = profileValues[toleranceKey]
+  if (rebateWidth == null || tolerance == null) {
+    throw new Error(`Missing profile values for sash weight glass cut size: ${rebateKey}=${rebateWidth}, ${toleranceKey}=${tolerance}. Check the drawing's profile has glassPart rebate and tolerance values.`)
+  }
+  const cover = rebateWidth - tolerance   // mm beyond sightline per edge
+
+  const paneWidth  = sightlineWidth  + 2 * cover
+  const paneHeight = sightlineHeight + 2 * cover
   const glass_area_m2 = paneWidth * paneHeight / 1e6
 
   // Pane thicknesses from catalogue; fallback to 4 + 4 mm
@@ -168,8 +178,14 @@ export function computeSashWeight(sashNode, tree, glassCatalogue = {}) {
 
   const glass_kg = glass_area_m2 * (inner_t + outer_t) * KG_PER_M2_PER_MM
 
+  // ── Glazing bars — fixed measured rate (brief §4) ────────────────────────
+  // Full sightline lengths, no deduction at crossings; independent of sash
+  // thickness and timber. Measured for the 22 mm bar only.
+  const bar_length_m = (barsWide * sightlineHeight + barsHigh * sightlineWidth) / 1000
+  const bars_kg = bar_length_m * GLAZING_BAR_KG_PER_M
+
   // ── Final weights ─────────────────────────────────────────────────────────
-  const weight_in_kg = timber_kg + glass_kg
+  const weight_in_kg = timber_kg + glass_kg + bars_kg
   const weight_in_lb = weight_in_kg * 2.20462
 
   // weight_incl_panel: panel volume not yet in tree — same as weight without panel
@@ -192,13 +208,14 @@ export function computeSashWeight(sashNode, tree, glassCatalogue = {}) {
       gross_sash_height,
       sightlineWidth,
       sightlineHeight,
-      hornLength,
-      total_timber_vol_mm3,
+      timber_vol_mm3,
       timber_kg,
       glass_area_m2,
       inner_t,
       outer_t,
       glass_kg,
+      bar_length_m,
+      bars_kg,
     },
   }
 }

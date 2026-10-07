@@ -164,9 +164,11 @@ export async function loadPricingContext(supabase, priceFileId) {
  *
  * @param {Object} tree - Root parts tree node
  * @param {Object} pricingContext - The object returned by loadPricingContext
+ * @param {Object} [profileValues] - Profile rebate/tolerance values; needed by
+ *        the sash-weight model when default rules evaluate per-sash variables
  * @returns {Array<{ product_short_name: string, finish_code: string, qty: number }>}
  */
-export function resolveIronmongeryLines(tree, pricingContext) {
+export function resolveIronmongeryLines(tree, pricingContext, profileValues = {}) {
   const { pfVariables, ironmongeryRules, glassCatalogue } = pricingContext
 
   // Check for tree-saved ironmongery lines
@@ -184,5 +186,5 @@ export function resolveIronmongeryLines(tree, pricingContext) {
 
   const derived  = computeDerived(tree)
   const itemVars = computeVariables(tree, derived, pfVariables) ?? {}
-  return defaultIronmonger(tree, { ...pfVariables, ...itemVars }, ironmongeryRules, glassCatalogue)
+  return defaultIronmonger(tree, { ...pfVariables, ...itemVars }, ironmongeryRules, glassCatalogue, profileValues)
 }

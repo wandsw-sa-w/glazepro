@@ -106,8 +106,15 @@ function computeTopSashHeight(tree) {
 function computeSashWeightKg(tree) {
   const topSash = findFirstPart(tree, 'topSashPart')
   if (!topSash) return null
-  const wt = computeSashWeight(topSash, tree, {})
-  return wt?.weight_in_kg != null ? Math.round(wt.weight_in_kg * 10) / 10 : null
+  // The grid context has no profile loaded; the measured weight model
+  // requires the profile rebate/tolerance and throws without them —
+  // show the column as absent rather than a wrong number.
+  try {
+    const wt = computeSashWeight(topSash, tree, {})
+    return wt?.weight_in_kg != null ? Math.round(wt.weight_in_kg * 10) / 10 : null
+  } catch {
+    return null
+  }
 }
 
 // Item Weight: both sashes' weights added together.
@@ -117,8 +124,12 @@ function computeItemWeightKg(tree) {
   let total = null
   for (const sash of [topSash, botSash]) {
     if (!sash) continue
-    const wt = computeSashWeight(sash, tree, {})
-    if (wt?.weight_in_kg != null) total = (total ?? 0) + wt.weight_in_kg
+    try {
+      const wt = computeSashWeight(sash, tree, {})
+      if (wt?.weight_in_kg != null) total = (total ?? 0) + wt.weight_in_kg
+    } catch {
+      return null  // profile rebate/tolerance unavailable here — show absent
+    }
   }
   return total != null ? Math.round(total * 10) / 10 : null
 }

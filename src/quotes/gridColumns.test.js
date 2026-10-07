@@ -340,16 +340,16 @@ describe('sash_weight / item_weight columns', () => {
   const sashCol = GRID_COLUMNS.find(c => c.key === 'sash_weight')
   const itemCol = GRID_COLUMNS.find(c => c.key === 'item_weight')
 
-  it('sash_weight is a positive number computed from the tree geometry', () => {
-    const val = readColumnValue(makeTree(), sashCol)
-    expect(typeof val).toBe('number')
-    expect(val).toBeGreaterThan(0)
+  it('sash_weight is absent (null) in the grid — the measured weight model needs profile values the grid does not load', () => {
+    // Step W: computeSashWeight requires the profile glass rebate/tolerance
+    // (missing value = error). The grid has no profile loaded, so the
+    // column shows "—" rather than a wrong number. Reported as a known
+    // gap — threading profile values into the grid is follow-up work.
+    expect(readColumnValue(makeTree(), sashCol)).toBeNull()
   })
 
-  it('item_weight is the sum of both sashes, so is larger than a single sash_weight', () => {
-    const sash = readColumnValue(makeTree(), sashCol)
-    const item = readColumnValue(makeTree(), itemCol)
-    expect(item).toBeGreaterThan(sash)
+  it('item_weight is likewise absent (null) without profile values', () => {
+    expect(readColumnValue(makeTree(), itemCol)).toBeNull()
   })
 
   it('returns null rather than throwing for a tree with no sashes', () => {

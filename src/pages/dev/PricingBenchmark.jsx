@@ -259,7 +259,8 @@ export default function PricingBenchmark() {
         // Run each benchmark
         const benchmarkResults = ALL_BENCHMARKS.map(benchmark => {
           // Ironmongery: resolveIronmongeryLines handles tree-saved vs defaults
-          const ironmongeryLines = resolveIronmongeryLines(benchmark.tree, ctx)
+          // (profile values feed the measured sash-weight model)
+          const ironmongeryLines = resolveIronmongeryLines(benchmark.tree, ctx, benchmark.profileValues ?? profileValuesMap)
 
           // Check for unresolved ironmongery products
           const ironWarnings = []

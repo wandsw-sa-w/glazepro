@@ -21,6 +21,10 @@ import { resolveIronmongeryLines } from '../loadPricingContext.js'
 import INTEGRATE from './integrate-targets.json'
 
 // ── Minimal price-file variables (PF30 scalars) ────────────────────────────
+// Sash profile rebate/tolerance (14 / 2) — the measured sash-weight model
+// needs them for the glass cut, like the glass price does
+const SASH_PV = { defaultDoubleGlazingRebateWidthForSash: 14, defaultDoubleGlazingTolerance: 2 }
+
 const PF_VARIABLES = {
   accoya_cubic_meter: 4.65,
   decoration_labour_hourly: 42.50,
@@ -79,7 +83,7 @@ describe('Benchmark fixtures load and engine runs without errors', () => {
   it('engine runs on each fixture without throwing', () => {
     // Empty rules — just verifying the engine doesn't throw
     for (const benchmark of [BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_B]) {
-      const results = runPricingOnTree(benchmark.tree, [], PF_VARIABLES)
+      const results = runPricingOnTree(benchmark.tree, [], PF_VARIABLES, { profileValues: benchmark.profileValues })
       expect(results.error).toBeUndefined()
     }
   })
@@ -213,7 +217,7 @@ describe('S4 — sash material rule correction', () => {
 
   it('uncorrected rules fire on DSO (Benchmark B) — all three produce cost > 0', () => {
     const { tree } = BENCHMARK_B_UNCORRECTED
-    const results = runPricingOnTree(tree, UNCORRECTED_RULES, PF_VARIABLES)
+    const results = runPricingOnTree(tree, UNCORRECTED_RULES, PF_VARIABLES, { profileValues: SASH_PV })
     const firedLines = results.price.lines.filter(l => l.fires && !l.error)
     // All three rules should fire on both sashes (but lam_bottom only fires
     // for bottomSashPart and lam_top only for topSashPart; glaze_bead fires
@@ -224,7 +228,7 @@ describe('S4 — sash material rule correction', () => {
 
   it('corrected rules do NOT fire on DSO (Benchmark B) — cost = 0', () => {
     const { tree } = BENCHMARK_B
-    const results = runPricingOnTree(tree, CORRECTED_RULES, PF_VARIABLES)
+    const results = runPricingOnTree(tree, CORRECTED_RULES, PF_VARIABLES, { profileValues: SASH_PV })
     const firedLines = results.price.lines.filter(l => l.fires && !l.error)
     // to_be_replaced=false on DSO sashes, so none of the corrected rules fire
     expect(firedLines.length).toBe(0)
@@ -233,8 +237,8 @@ describe('S4 — sash material rule correction', () => {
 
   it('corrected rules still fire on sash replacement (Benchmark A) — unchanged', () => {
     const { tree } = BENCHMARK_A
-    const resultsUncorrected = runPricingOnTree(tree, UNCORRECTED_RULES, PF_VARIABLES)
-    const resultsCorrected   = runPricingOnTree(tree, CORRECTED_RULES, PF_VARIABLES)
+    const resultsUncorrected = runPricingOnTree(tree, UNCORRECTED_RULES, PF_VARIABLES, { profileValues: SASH_PV })
+    const resultsCorrected   = runPricingOnTree(tree, CORRECTED_RULES, PF_VARIABLES, { profileValues: SASH_PV })
 
     // Both sashes have toBeReplaced=true, so corrected rules fire identically
     const firedUncorrected = resultsUncorrected.price.lines.filter(l => l.fires && !l.error).length
@@ -245,8 +249,8 @@ describe('S4 — sash material rule correction', () => {
 
   it('corrected rules still fire on complete new (L34046) — unchanged', () => {
     const { tree } = BENCHMARK_L34046
-    const resultsUncorrected = runPricingOnTree(tree, UNCORRECTED_RULES, PF_VARIABLES)
-    const resultsCorrected   = runPricingOnTree(tree, CORRECTED_RULES, PF_VARIABLES)
+    const resultsUncorrected = runPricingOnTree(tree, UNCORRECTED_RULES, PF_VARIABLES, { profileValues: SASH_PV })
+    const resultsCorrected   = runPricingOnTree(tree, CORRECTED_RULES, PF_VARIABLES, { profileValues: SASH_PV })
 
     const firedUncorrected = resultsUncorrected.price.lines.filter(l => l.fires && !l.error).length
     const firedCorrected   = resultsCorrected.price.lines.filter(l => l.fires && !l.error).length
@@ -633,7 +637,7 @@ describe.skipIf(!snapshotExists)('Snapshot-based tests (pf30-snapshot.json)', ()
    * tree-saved lines win, defaults apply when the tree has none (L34046).
    */
   function runFromSnapshot(benchmark) {
-    const ironmongeryLines = resolveIronmongeryLines(benchmark.tree, snapshot)
+    const ironmongeryLines = resolveIronmongeryLines(benchmark.tree, snapshot, snapshot.profileValues ?? {})
     return runPricingOnTree(benchmark.tree, snapshot.rules ?? [], snapshot.pfVariables ?? {}, {
       testMode: false,
       glassCatalogue:       snapshot.glassCatalogue ?? {},

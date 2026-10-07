@@ -433,6 +433,7 @@ export async function buildQuoteSnapshot({ quoteId, leadId, userId, userName, su
     // board and pricing engine use)
     // Load default-ironmongery rules once for the fallback computation
     let defaultIronRules = null
+    const pvShortByProfile = {}   // profile_id → { shortFieldKey: value } for sash weight
     for (const dwgId of drawingIds) {
       if (ironmongeryByDrawing[dwgId] && ironmongeryByDrawing[dwgId].length > 0) continue
       const tree = trees[dwgId]
@@ -455,8 +456,26 @@ export async function buildQuoteSnapshot({ quoteId, leadId, userId, userName, su
         }
         if (defaultIronRules.length > 0) {
           try {
+            // The measured sash-weight model needs the drawing profile's
+            // glass rebate/tolerance values
+            const dwgRow = drawings.find(d => String(d.id) === String(dwgId))
+            const profId = dwgRow?.default_profile_id ?? null
+            if (profId != null && !pvShortByProfile[profId]) {
+              const { data: pvRows, error: pvErr } = await supabase
+                .from('default_profile_values')
+                .select('field_key, default_value')
+                .eq('profile_id', profId)
+              if (pvErr) throw new Error(`profile values: ${pvErr.message}`)
+              const m = {}
+              for (const pv of (pvRows || [])) {
+                const key = pv.field_key?.split('.')?.pop() ?? pv.field_key
+                const n = Number(pv.default_value)
+                m[key] = isNaN(n) ? pv.default_value : n
+              }
+              pvShortByProfile[profId] = m
+            }
             const vars = computeVariables(tree, computeDerived(tree), {})
-            lines = defaultIronmonger(tree, vars, defaultIronRules)
+            lines = defaultIronmonger(tree, vars, defaultIronRules, {}, pvShortByProfile[profId] ?? {})
           } catch { /* leave null */ }
         }
       }

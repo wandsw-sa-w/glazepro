@@ -389,7 +389,7 @@ function PropertyField({ field, value, derivedValue, onChange, refOptions, requi
 
 // ── IronmongeryPanel ──────────────────────────────────────────────────────────
 
-function IronmongeryPanel({ node, tree, derived, refOptions, onChangeField, onAutoApplyDefaults, ironmongeryRules, ironmongeryProducts }) {
+function IronmongeryPanel({ node, tree, derived, refOptions, onChangeField, onAutoApplyDefaults, ironmongeryRules, ironmongeryProducts, profileValueMap }) {
   const lines      = node.values?.ironmongeryLines  ?? []
   const finish     = node.values?.ironmongeryFinish ?? 'PB'
   const finishOpts = refOptions?.['ironmongery_finish'] ?? []
@@ -418,7 +418,15 @@ function IronmongeryPanel({ node, tree, derived, refOptions, onChangeField, onAu
 
   function doApplyDefaults() {
     const vars = computeBaseVars()
-    const defaultLines = defaultIronmonger(tree, vars, ironmongeryRules ?? [])
+    let defaultLines
+    try {
+      defaultLines = defaultIronmonger(tree, vars, ironmongeryRules ?? [], {}, profileValueMap ?? {})
+    } catch (e) {
+      // e.g. the drawing's profile is missing glass rebate/tolerance values,
+      // which the sash-weight model requires — surface, never apply wrong defaults
+      console.error('Default ironmongery could not be computed:', e?.message)
+      return
+    }
     const manualLines  = lines.filter(l => l.source === 'manual')
     const newLines = [
       ...defaultLines.map(l => ({ ...l, source: 'default' })),
@@ -546,7 +554,7 @@ function IronmongeryPanel({ node, tree, derived, refOptions, onChangeField, onAu
 
 // ── PropertyEditor ────────────────────────────────────────────────────────────
 
-function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, onAutoApplyDefaults, onPrev, onNext, prevDisabled, nextDisabled, prevLabel, nextLabel, visibilityMap, boardMode, showHidden, tree, ironmongeryRules, ironmongeryProducts, onShowPriceBreakdown }) {
+function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, onAutoApplyDefaults, onPrev, onNext, prevDisabled, nextDisabled, prevLabel, nextLabel, visibilityMap, boardMode, showHidden, tree, ironmongeryRules, ironmongeryProducts, onShowPriceBreakdown, profileValueMap }) {
   if (!node) {
     return (
       <div style={{ padding: 16, color: '#aaa', fontSize: 12, textAlign: 'center', paddingTop: 48 }}>
@@ -599,6 +607,7 @@ function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, o
             onAutoApplyDefaults={onAutoApplyDefaults}
             ironmongeryRules={ironmongeryRules}
             ironmongeryProducts={ironmongeryProducts}
+            profileValueMap={profileValueMap}
           />
         )}
         {node.part_type === 'paintAndIronmongeryPart' && fields.length > 0 && (
@@ -1458,6 +1467,18 @@ function DrawingBoard() {
   const derived  = tree ? computeDerived(tree) : {}
   const geometry = tree ? computeSashGeometry(tree, derived) : null
 
+  // Profile values keyed by short field name (numbers parsed) — the measured
+  // sash-weight model needs the profile's glass rebate/tolerance
+  const profileValueMap = (() => {
+    const map = {}
+    for (const pv of (profileValues || [])) {
+      const key = pv.field_key?.split('.')?.pop() ?? pv.field_key
+      const n = Number(pv.default_value)
+      map[key] = isNaN(n) ? pv.default_value : n
+    }
+    return map
+  })()
+
   // ── Sash weights (recompute whenever tree changes) ─────────────────────────
   const sashWeights = (() => {
     if (!tree) return null
@@ -1465,8 +1486,8 @@ function DrawingBoard() {
     const topSash = findFirst(tree, 'topSashPart')
     const botSash = findFirst(tree, 'bottomSashPart')
     try {
-      if (topSash) result.top = computeSashWeight(topSash, tree)
-      if (botSash) result.bottom = computeSashWeight(botSash, tree)
+      if (topSash) result.top = computeSashWeight(topSash, tree, {}, profileValueMap)
+      if (botSash) result.bottom = computeSashWeight(botSash, tree, {}, profileValueMap)
     } catch { /* weight is optional — don't break the board */ }
     return (result.top || result.bottom) ? result : null
   })()
@@ -2192,6 +2213,7 @@ function DrawingBoard() {
               ironmongeryRules={ironmongeryRules}
               ironmongeryProducts={ironmongeryProducts}
               onShowPriceBreakdown={() => setBreakdownOpen(true)}
+              profileValueMap={profileValueMap}
             />
           </div>
 
