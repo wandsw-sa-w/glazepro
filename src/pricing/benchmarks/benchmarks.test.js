@@ -276,20 +276,22 @@ describe('Glass rounded_area formula', () => {
     return fired?.quantity ?? null
   }
 
-  it('0.22 m2 actual -> 0.30 rounded (minimum applies)', () => {
-    // Need width * height / 1e6 ~ 0.22.  e.g. 440 x 500 = 220000 / 1e6 = 0.22
+  // Glass cut size: actual dimensions = sightline + 2*cover per axis.
+  // Default cover = rebateWidth(14) - tolerance(2) = 12 mm per edge = +24 mm per axis.
+
+  it('small glass area still gets 0.30 minimum', () => {
+    // Sightline 440 x 500, cut size = 464 x 524 = 0.243136 m2 -> min 0.30
     expect(getRoundedArea(440, 500)).toBe(0.30)
   })
 
-  it('0.705 m2 actual -> 0.71 rounded (2dp rounding, no step)', () => {
-    // 705 * 1000 = 705000 / 1e6 = 0.705 -> round to 2dp = 0.71
-    // (JS Math.round(70.5) = 71)
-    expect(getRoundedArea(705, 1000)).toBe(0.71)
+  it('cut size area rounds to 2dp (case 1: sightline 705x1000)', () => {
+    // Sightline 705 x 1000, cut size = 729 x 1024 = 746496 / 1e6 = 0.746496 -> round 2dp = 0.75
+    expect(getRoundedArea(705, 1000)).toBe(0.75)
   })
 
-  it('0.646 m2 actual -> 0.65 rounded (2dp rounding, no step)', () => {
-    // 646 * 1000 = 646000 / 1e6 = 0.646 -> round to 2dp = 0.65
-    expect(getRoundedArea(646, 1000)).toBe(0.65)
+  it('cut size area rounds to 2dp (case 2: sightline 646x1000)', () => {
+    // Sightline 646 x 1000, cut size = 670 x 1024 = 686080 / 1e6 = 0.68608 -> round 2dp = 0.69
+    expect(getRoundedArea(646, 1000)).toBe(0.69)
   })
 })
 
@@ -410,11 +412,11 @@ function groupTotals(results) {
 describe('Item 1 — L34046 honest test against PF30 rules', () => {
   const results = runBenchmark(BENCHMARK_L34046)
 
-  it('total cost matches target £1,241.58', () => {
+  it('total cost matches target', () => {
     expect(results.price.total_cost).toBeCloseTo(BENCHMARK_L34046.targets.total_cost, 2)
   })
 
-  it('total price matches target £2,456.25', () => {
+  it('total price matches target', () => {
     expect(results.price.total).toBeCloseTo(BENCHMARK_L34046.targets.total_price, 2)
   })
 
@@ -430,11 +432,11 @@ describe('Item 1 — L34046 honest test against PF30 rules', () => {
 describe('Item 1 — Benchmark A honest test against PF30 rules (S4 corrected)', () => {
   const results = runBenchmark(BENCHMARK_A)
 
-  it('total cost matches target £728.26', () => {
+  it('total cost matches target', () => {
     expect(results.price.total_cost).toBeCloseTo(BENCHMARK_A.targets.total_cost, 2)
   })
 
-  it('total price matches target £1,408.66', () => {
+  it('total price matches target', () => {
     expect(results.price.total).toBeCloseTo(BENCHMARK_A.targets.total_price, 2)
   })
 
@@ -451,11 +453,11 @@ describe('Item 1 — Benchmark A honest test against PF30 rules (S4 corrected)',
 describe('Item 1 — Benchmark B honest test against PF30 rules (S4 corrected)', () => {
   const results = runBenchmark(BENCHMARK_B)
 
-  it('total cost matches target £208.33', () => {
+  it('total cost matches target', () => {
     expect(results.price.total_cost).toBeCloseTo(BENCHMARK_B.targets.total_cost, 2)
   })
 
-  it('total price matches target £522.65', () => {
+  it('total price matches target', () => {
     expect(results.price.total).toBeCloseTo(BENCHMARK_B.targets.total_price, 2)
   })
 

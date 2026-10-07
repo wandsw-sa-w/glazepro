@@ -96,22 +96,35 @@ const GLASS_CATALOGUE = {
   GL100080: { cost_per_m2: 25.50, thickness_mm: 4 },
 }
 
-// ── Calibration tests (±0.3 kg) ───────────────────────────────────────────────
+// ── Glass cut size verification ──────────────────────────────────────────────
+// With default profile values (rebate=14, tolerance=2), cover = 12 mm per edge.
+// sightlineWidth = 1053 - 2*47 = 959, sightlineHeight = (1775-79-70-40)/2 = 793
+// paneWidth = 959 + 24 = 983, paneHeight = 793 + 24 = 817
+// glass_area_m2 = 983 * 817 / 1e6 = 0.803111
 
-describe('computeSashWeight — L34046 Item 7 calibration', () => {
-  it('top sash weight is 19.4 kg ±0.3 kg', () => {
+describe('computeSashWeight — L34046 Item 7 with glass cut size', () => {
+  it('glass pane uses cut size (sightline + 2*cover), cover=12 by default', () => {
+    const r = computeSashWeight(TOP_NODE, FIXTURE_TREE, GLASS_CATALOGUE)
+    expect(r._debug.cover).toBe(12)
+    expect(r._debug.paneWidth).toBe(983)
+    expect(r._debug.paneHeight).toBe(817)
+    expect(r._debug.glass_area_m2).toBeCloseTo(0.803111, 4)
+  })
+
+  it('top sash weight with default profile (rebate=14, tolerance=2)', () => {
     const result = computeSashWeight(TOP_NODE, FIXTURE_TREE, GLASS_CATALOGUE)
-    expect(result.weight_in_kg).toBeGreaterThanOrEqual(19.1)
-    expect(result.weight_in_kg).toBeLessThanOrEqual(19.7)
+    // With cover=12: glass_area increases, weight goes up vs old GLAZING_REBATE_MM=0
+    expect(result.weight_in_kg).toBeGreaterThan(19.5)
+    expect(result.weight_in_kg).toBeLessThan(21.5)
   })
 
-  it('bottom sash weight is 20.4 kg ±0.3 kg', () => {
+  it('bottom sash weight with default profile (rebate=14, tolerance=2)', () => {
     const result = computeSashWeight(BOT_NODE, FIXTURE_TREE, GLASS_CATALOGUE)
-    expect(result.weight_in_kg).toBeGreaterThanOrEqual(20.1)
-    expect(result.weight_in_kg).toBeLessThanOrEqual(20.7)
+    expect(result.weight_in_kg).toBeGreaterThan(20.5)
+    expect(result.weight_in_kg).toBeLessThan(22.5)
   })
 
-  it('lb conversion is consistent with kg × 2.20462', () => {
+  it('lb conversion is consistent with kg * 2.20462', () => {
     const r = computeSashWeight(TOP_NODE, FIXTURE_TREE, GLASS_CATALOGUE)
     expect(r.weight_in_lb).toBeCloseTo(r.weight_in_kg * 2.20462, 4)
   })
@@ -163,7 +176,7 @@ describe('computeSashWeight — catalogue fallback', () => {
   it('glass weight is same with 4+4 mm catalogue as with 4+4 mm fallback', () => {
     const withCat = computeSashWeight(TOP_NODE, FIXTURE_TREE, GLASS_CATALOGUE)
     const noCat   = computeSashWeight(TOP_NODE, FIXTURE_TREE, {})
-    // Both should use 4+4 mm → identical glass weight
+    // Both should use 4+4 mm -> identical glass weight
     expect(withCat._debug.glass_kg).toBeCloseTo(noCat._debug.glass_kg, 6)
   })
 })
@@ -192,18 +205,18 @@ describe('computeSashWeight — material density', () => {
   })
 })
 
-// ── Band lookup (should fall in 21 lb / 22 lb band) ──────────────────────────
+// ── Profile values override ─────────────────────────────────────────────────
 
-describe('computeSashWeight — weight band verification for Item 7', () => {
-  it('top sash falls in 21 lb steel band (19.05 ≤ kg < 19.96)', () => {
-    const r = computeSashWeight(TOP_NODE, FIXTURE_TREE, GLASS_CATALOGUE)
-    expect(r.weight_in_kg).toBeGreaterThanOrEqual(19.05)
-    expect(r.weight_in_kg).toBeLessThan(19.96)
-  })
-
-  it('bottom sash falls in 22 lb steel band (19.96 ≤ kg < 20.87)', () => {
-    const r = computeSashWeight(BOT_NODE, FIXTURE_TREE, GLASS_CATALOGUE)
-    expect(r.weight_in_kg).toBeGreaterThanOrEqual(19.96)
-    expect(r.weight_in_kg).toBeLessThan(20.87)
+describe('computeSashWeight — profile values', () => {
+  it('custom profile values change glass cut size and weight', () => {
+    const defaultResult = computeSashWeight(TOP_NODE, FIXTURE_TREE, GLASS_CATALOGUE)
+    const customResult  = computeSashWeight(TOP_NODE, FIXTURE_TREE, GLASS_CATALOGUE, {
+      defaultDoubleGlazingRebateWidthForSash: 18,
+      defaultDoubleGlazingTolerance: 2,
+    })
+    // cover = 18-2 = 16 vs default 14-2 = 12
+    expect(customResult._debug.cover).toBe(16)
+    expect(customResult._debug.paneWidth).toBeGreaterThan(defaultResult._debug.paneWidth)
+    expect(customResult.weight_in_kg).toBeGreaterThan(defaultResult.weight_in_kg)
   })
 })

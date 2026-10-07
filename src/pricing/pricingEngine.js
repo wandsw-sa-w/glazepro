@@ -120,7 +120,7 @@ function defaultMissingVars(exprs, vars) {
 
 // ── Part-level variable computation ──────────────────────────────────────────
 
-function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue = {}) {
+function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue = {}, profileValues = {}) {
   if (!partNode) return {}
   const pt = partNode.part_type
   const v  = partNode.values ?? {}
@@ -181,7 +181,7 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
     const sash_sightline_height_in_mm = sightlineH
 
     // Sash weight (uses outer-frame geometry for accurate physical weight)
-    const weightData = computeSashWeight(partNode, tree, glassCatalogue)
+    const weightData = computeSashWeight(partNode, tree, glassCatalogue, profileValues)
     const sash_thickness = pair?.values?.sashThickness ?? 45
 
     return {
@@ -241,8 +241,8 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
     const pair        = findFirst(tree, 'sashPairPart')
 
     // Glass unit dimensions from frame geometry (Integrate convention).
-    // glassWidth  = frame.width − 2 × stileWidth
-    // glassHeight = (frame.height − topRail − bottomRail − midrail) / 2  (half_half split)
+    // sightlineWidth  = frame.width − 2 × stileWidth
+    // sightlineHeight = (frame.height − topRail − bottomRail − midrail) / 2  (half_half split)
     const glassFrameNode = findFirst(tree, 'assemblyFramePart')
     const gfv            = glassFrameNode?.values ?? {}
     const glassTopSash   = findFirst(tree, 'topSashPart')
@@ -251,20 +251,36 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
     const gBotRailH      = glassBotSash?.values?.bottomHeight ?? 88
     const gMidrailH      = pair?.values?.midrailHeight        ?? 40
     const gStileWidth    = parentSash?.values?.leftWidth      ?? 47
-    const glassWidth     = (gfv.width ?? 0) - 2 * gStileWidth
+    const sightlineWidth  = (gfv.width ?? 0) - 2 * gStileWidth
     const gFrameH        = gfv.height ?? 0
-    const glassHeight    = gFrameH > 0
+    const sightlineHeight = gFrameH > 0
       ? (gFrameH - gTopRailH - gBotRailH - gMidrailH) / 2 : 0
 
-    // actual_area: m² rounded to 2dp (Integrate definition)
+    // Glass CUT SIZE: extends beyond the sightline by (rebateWidth - tolerance) per edge.
+    // The rebate and tolerance come from profile values keyed by glazing type.
+    const glazingId = v.glazingId ?? ''
+    const rebateKey = glazingId === 'single_glazed' ? 'defaultSingleGlazingRebateWidthForSash'
+      : glazingId === 'triple_glazed' ? 'defaultTripleGlazingRebateWidthForSash'
+      : glazingId === 'heritage_glazed' ? 'defaultHeritageGlazingRebateWidthForSash'
+      : 'defaultDoubleGlazingRebateWidthForSash'
+    const toleranceKey = glazingId === 'single_glazed' ? 'defaultSingleGlazingTolerance'
+      : glazingId === 'triple_glazed' ? 'defaultTripleGlazingTolerance'
+      : glazingId === 'heritage_glazed' ? 'defaultHeritageGlazingTolerance'
+      : 'defaultDoubleGlazingTolerance'
+    const rebateWidth = profileValues[rebateKey] ?? 14
+    const tolerance   = profileValues[toleranceKey] ?? 2
+    const cover       = rebateWidth - tolerance   // mm beyond sightline per edge
+
+    const glassWidth  = sightlineWidth  + 2 * cover
+    const glassHeight = sightlineHeight + 2 * cover
+
+    // actual_area: m² rounded to 2dp (from glass CUT SIZE, not sightline)
     const actual_area  = (glassWidth > 0 && glassHeight > 0)
       ? Math.round((glassWidth * glassHeight / 1e6) * 100) / 100
       : 0
     // rounded_area: actual_area (already 2dp) with 0.30 m² minimum.
     // Integrate definition (line 2168): "rounded up to 0.3 m2 if smaller".
     const rounded_area = Math.max(0.30, actual_area)
-
-    const glazingId = v.glazingId ?? ''
 
     // to_be_replaced
     const to_be_replaced = (baseVars.is_complete_new === true) || (parentSash?.values?.toBeReplaced === true)
@@ -279,8 +295,9 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
     const unit_gb_qty = barsWide + barsHigh
 
     // internal_spacer_length: total run of glazing bar material in this unit (metres).
+    // Uses sightline dimensions (bars run within the visible area).
     // Ceiled to 0.1 m precision to match Integrate's behaviour (ceil(mm/100)/10).
-    const internal_spacer_length = Math.ceil((barsWide * glassHeight + barsHigh * glassWidth) / 100) / 10
+    const internal_spacer_length = Math.ceil((barsWide * sightlineHeight + barsHigh * sightlineWidth) / 100) / 10
 
     // Glass costs — look up from parts catalogue using part codes; fall back to fixture values
     const innerEntry  = glassCatalogue[v.internalGlassPartNo] ?? null
@@ -463,6 +480,7 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
   partCostMap = {},
   ironmongeryLines = [],
   ironmongeryCatalogue = {},
+  profileValues = {},
 } = {}) {
   const derived  = computeDerived(tree)
   const itemVars = computeVariables(tree, derived, pfVariables)
@@ -482,7 +500,7 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
     const sv = sash.values ?? {}
     const toBeReplaced = (itemVars.is_complete_new === true) || (sv.toBeReplaced === true)
     if (!toBeReplaced) continue
-    const wt = computeSashWeight(sash, tree, glassCatalogue)
+    const wt = computeSashWeight(sash, tree, glassCatalogue, profileValues)
     if (wt.weight_in_lb > weight_of_heaviest_sash_to_be_replaced) {
       weight_of_heaviest_sash_to_be_replaced = wt.weight_in_lb
     }
@@ -549,7 +567,7 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
     const loopParts = getLoopParts(tree, rule.loop_target)
     for (const partNode of loopParts) {
       const vars = partNode
-        ? { ...baseVars, ...computePartVariables(partNode, tree, derived, baseVars, glassCatalogue) }
+        ? { ...baseVars, ...computePartVariables(partNode, tree, derived, baseVars, glassCatalogue, profileValues) }
         : baseVars
       const line = evalRuleLine(rule, vars, partNode)
       if (!line.error && line.fires) mfgMinutes += line.minutes
@@ -571,7 +589,7 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
     const loopParts = getLoopParts(tree, rule.loop_target)
     for (const partNode of loopParts) {
       const vars = partNode
-        ? { ...mfgVars, ...computePartVariables(partNode, tree, derived, mfgVars, glassCatalogue) }
+        ? { ...mfgVars, ...computePartVariables(partNode, tree, derived, mfgVars, glassCatalogue, profileValues) }
         : mfgVars
       const line = evalRuleLine(rule, vars, partNode)
       if (!line.error && line.fires) instMinutes += line.minutes
@@ -670,7 +688,7 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
     const loopParts = getLoopParts(tree, rule.loop_target)
     for (const partNode of loopParts) {
       const vars = partNode
-        ? { ...priceVars, ...computePartVariables(partNode, tree, derived, priceVars, glassCatalogue) }
+        ? { ...priceVars, ...computePartVariables(partNode, tree, derived, priceVars, glassCatalogue, profileValues) }
         : priceVars
       const line = evalPriceRuleLine(rule, vars, partNode)
       if (!line.error && line.fires) { totalCost += line.line_cost; totalPrice += line.line_total }
