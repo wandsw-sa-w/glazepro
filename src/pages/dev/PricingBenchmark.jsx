@@ -138,11 +138,11 @@ function PriceTable({ lines, targets }) {
             return (
               <tr key={group} style={S.fired}>
                 <td style={S.td}><strong>{group}</strong></td>
-                <td style={S.td}>\u00A3{fmt(g.cost)}</td>
-                <td style={S.td}>\u00A3{fmt(g.price)}</td>
+                <td style={S.td}>{'\u00A3'}{fmt(g.cost)}</td>
+                <td style={S.td}>{'\u00A3'}{fmt(g.price)}</td>
                 <td style={S.td}>
                   {costDiff == null
-                    ? <span style={{ color: '#aaa' }}>\u2014</span>
+                    ? <span style={{ color: '#aaa' }}>{'\u2014'}</span>
                     : <>
                         <span style={costOk ? S.hit : S.miss}>
                           {costOk ? `C: ok` : `C: diff \u00A3${fmt(costDiff)}`}
@@ -161,19 +161,19 @@ function PriceTable({ lines, targets }) {
           })}
           <tr style={{ fontWeight: 'bold', background: '#f0f0f0' }}>
             <td style={S.td}>TOTAL</td>
-            <td style={S.td}>\u00A3{fmt(totalCost)}</td>
-            <td style={S.td}>\u00A3{fmt(totalPrice)}</td>
+            <td style={S.td}>{'\u00A3'}{fmt(totalCost)}</td>
+            <td style={S.td}>{'\u00A3'}{fmt(totalPrice)}</td>
             <td style={S.td}>
               {(() => {
                 const m = costPriceMatch(totalCost, totalPrice, targets)
                 return (
                   <>
                     <span style={m.costOk ? S.hit : S.miss}>
-                      Cost: {m.costOk ? 'ok' : `diff \u00A3${fmt(m.costDiff)}`} (target \u00A3{fmt(targets.total_cost)})
+                      Cost: {m.costOk ? 'ok' : `diff \u00A3${fmt(m.costDiff)}`} (target {'\u00A3'}{fmt(targets.total_cost)})
                     </span>
                     {' | '}
                     <span style={m.priceOk ? S.hit : S.miss}>
-                      Price: {m.priceOk ? 'ok' : `diff \u00A3${fmt(m.priceDiff)}`} (target \u00A3{fmt(targets.total_price)})
+                      Price: {m.priceOk ? 'ok' : `diff \u00A3${fmt(m.priceDiff)}`} (target {'\u00A3'}{fmt(targets.total_price)})
                     </span>
                   </>
                 )
@@ -187,7 +187,7 @@ function PriceTable({ lines, targets }) {
       {Object.entries(groups).map(([group, g]) => (
         <details key={group} style={{ marginBottom: '12px' }}>
           <summary style={{ ...S.summary, fontSize: '12px', color: '#555' }}>
-            {group} \u2014 cost \u00A3{fmt(g.cost)} / price \u00A3{fmt(g.price)}
+            {group} {'\u2014'} cost {'\u00A3'}{fmt(g.cost)} / price {'\u00A3'}{fmt(g.price)}
           </summary>
           <table style={S.table}>
             <thead>
@@ -213,8 +213,8 @@ function PriceTable({ lines, targets }) {
                     <td style={S.td}>{line.error ? <span style={{ color: '#c00' }}>{line.error}</span> : fmt(line.quantity, 4)}</td>
                     <td style={S.td}>{!line.error && fmt(line.value, 4)}</td>
                     <td style={S.td}>{!line.error && fmt(line.markup, 3)}</td>
-                    <td style={S.td}>{lineCost != null ? <strong>\u00A3{fmt(lineCost)}</strong> : (!line.error ? '\u2014' : '')}</td>
-                    <td style={S.td}>{linePrice != null ? <strong>\u00A3{fmt(linePrice)}</strong> : (!line.error ? '\u2014' : '')}</td>
+                    <td style={S.td}>{lineCost != null ? <strong>{'\u00A3'}{fmt(lineCost)}</strong> : (!line.error ? '\u2014' : '')}</td>
+                    <td style={S.td}>{linePrice != null ? <strong>{'\u00A3'}{fmt(linePrice)}</strong> : (!line.error ? '\u2014' : '')}</td>
                   </tr>
                 )
               })}
@@ -289,19 +289,19 @@ function BenchmarkSection({ benchmark, results, ironmongeryLines }) {
         <tbody>
           <tr>
             <td style={S.td}>Total cost</td>
-            <td style={S.td}><strong>\u00A3{fmt(totalCost)}</strong></td>
+            <td style={S.td}><strong>{'\u00A3'}{fmt(totalCost)}</strong></td>
             <td style={S.td}>
               <span style={m.costOk ? S.hit : S.miss}>
-                target \u00A3{fmt(targets.total_cost)} {m.costOk ? '-- ok' : `-- diff \u00A3${fmt(m.costDiff)}`}
+                target {'\u00A3'}{fmt(targets.total_cost)} {m.costOk ? '-- ok' : `-- diff \u00A3${fmt(m.costDiff)}`}
               </span>
             </td>
           </tr>
           <tr>
             <td style={S.td}>Total price</td>
-            <td style={S.td}><strong>\u00A3{fmt(totalPrice)}</strong></td>
+            <td style={S.td}><strong>{'\u00A3'}{fmt(totalPrice)}</strong></td>
             <td style={S.td}>
               <span style={m.priceOk ? S.hit : S.miss}>
-                target \u00A3{fmt(targets.total_price)} {m.priceOk ? '-- ok' : `-- diff \u00A3${fmt(m.priceDiff)}`}
+                target {'\u00A3'}{fmt(targets.total_price)} {m.priceOk ? '-- ok' : `-- diff \u00A3${fmt(m.priceDiff)}`}
               </span>
             </td>
           </tr>
@@ -559,10 +559,10 @@ export default function PricingBenchmark() {
             return (
               <tr key={i} style={allOk ? { background: '#f0fff0' } : { background: '#fff0f0' }}>
                 <td style={S.td}><strong>{benchmark.name}</strong></td>
-                <td style={S.td}>\u00A3{fmt(cost)}</td>
-                <td style={S.td}>\u00A3{fmt(benchmark.targets.total_cost)}</td>
-                <td style={S.td}>\u00A3{fmt(price)}</td>
-                <td style={S.td}>\u00A3{fmt(benchmark.targets.total_price)}</td>
+                <td style={S.td}>{'\u00A3'}{fmt(cost)}</td>
+                <td style={S.td}>{'\u00A3'}{fmt(benchmark.targets.total_cost)}</td>
+                <td style={S.td}>{'\u00A3'}{fmt(price)}</td>
+                <td style={S.td}>{'\u00A3'}{fmt(benchmark.targets.total_price)}</td>
                 <td style={S.td}>
                   <span style={allOk ? S.hit : S.miss}>
                     {allOk ? 'PASS' : `FAIL (cost diff \u00A3${fmt(m.costDiff)}, price diff \u00A3${fmt(m.priceDiff)})`}
