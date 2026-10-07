@@ -344,6 +344,8 @@ export default function PricingBenchmark() {
   const [state, setState] = useState({
     status: 'idle', benchmarkResults: [], pfName: null, ruleCount: 0,
     error: null, warnings: [],
+    // Snapshot data (populated on successful load for download)
+    snapshotData: null,
   })
 
   useEffect(() => {
@@ -506,6 +508,13 @@ export default function PricingBenchmark() {
           ruleCount: (rules || []).length,
           error:     null,
           warnings,
+          snapshotData: {
+            rules:                rules || [],
+            pfVariables,
+            partAllocationRules,
+            glassCatalogue,
+            ironmongeryCatalogue,
+          },
         })
       } catch (err) {
         if (!cancelled) setState({ status: 'error', benchmarkResults: [], pfName: null, ruleCount: 0, error: err.message, warnings: [] })
@@ -515,6 +524,18 @@ export default function PricingBenchmark() {
     run()
     return () => { cancelled = true }
   }, [])
+
+  // ── Download snapshot ─────────────────────────────────────────────────────
+  function handleDownloadSnapshot() {
+    if (!state.snapshotData) return
+    const blob = new Blob([JSON.stringify(state.snapshotData, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'pf30-snapshot.json'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
@@ -538,6 +559,14 @@ export default function PricingBenchmark() {
       <h1 style={S.h1}>Pricing Benchmarks</h1>
       <p style={{ color: '#555', marginBottom: '16px' }}>
         Price file: <strong>{pfName}</strong> | {ruleCount} rules loaded | {benchmarkResults.length} benchmarks
+        {state.snapshotData && (
+          <button
+            onClick={handleDownloadSnapshot}
+            style={{ marginLeft: '16px', padding: '3px 10px', fontSize: '12px', cursor: 'pointer' }}
+          >
+            Download snapshot
+          </button>
+        )}
       </p>
 
       {warnings.map((w, i) => (

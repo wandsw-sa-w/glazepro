@@ -5,7 +5,10 @@
  * cost and price totals to the Integrate targets.
  */
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeAll } from 'vitest'
+import { existsSync, readFileSync } from 'fs'
+import { resolve, dirname } from 'path'
+import { fileURLToPath } from 'url'
 import { runPricingOnTree } from '../pricingEngine.js'
 import { computeDerived } from '../../drawingBoard/computeDerived.js'
 import { computeVariables } from '../computeVariables.js'
@@ -463,5 +466,70 @@ describe('Item 1 — Benchmark B honest test against PF30 rules (S4 corrected)',
       expect(groups[group]?.cost  ?? 0).toBeCloseTo(target.cost,  1)
       expect(groups[group]?.price ?? 0).toBeCloseTo(target.price, 1)
     }
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Snapshot-based tests — use pf30-snapshot.json (exported from the benchmark
+// page's "Download snapshot" button) as the rule/catalogue source instead of
+// the hand-typed PF30_RULES and fixture catalogue constants.
+//
+// When the snapshot file is absent these tests are clearly skipped.
+// ══════════════════════════════════════════════════════════════════════════════
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const SNAPSHOT_PATH = resolve(__dirname, 'pf30-snapshot.json')
+const snapshotExists = existsSync(SNAPSHOT_PATH)
+
+describe.skipIf(!snapshotExists)('Snapshot-based tests (pf30-snapshot.json)', () => {
+  let snapshot
+
+  beforeAll(() => {
+    snapshot = JSON.parse(readFileSync(SNAPSHOT_PATH, 'utf8'))
+  })
+
+  function runFromSnapshot(benchmark) {
+    // Apply S4 correction to snapshot rules
+    const rules = (snapshot.rules || []).map(r => {
+      if (r.rule_family === 'price' && S4_SASH_MATERIAL_NAMES.includes(r.name)) {
+        return { ...r, condition: r.condition + ' and to_be_replaced' }
+      }
+      return r
+    })
+
+    let ironmongeryLines = benchmark.ironmongeryLines ?? []
+    if (ironmongeryLines.length === 0) {
+      const paintNode = (benchmark.tree.children ?? []).find(c => c.part_type === 'paintAndIronmongeryPart')
+      ironmongeryLines = paintNode?.values?.ironmongeryLines ?? []
+    }
+
+    return runPricingOnTree(benchmark.tree, rules, snapshot.pfVariables ?? PF_VARIABLES, {
+      testMode: true,
+      glassCatalogue:      snapshot.glassCatalogue ?? {},
+      partAllocationRules: snapshot.partAllocationRules ?? [],
+      partCostMap:         benchmark.partCostMap ?? {},
+      ironmongeryLines,
+      ironmongeryCatalogue: snapshot.ironmongeryCatalogue ?? {},
+    })
+  }
+
+  it('Benchmark B total cost matches target', () => {
+    const results = runFromSnapshot(BENCHMARK_B)
+    expect(results.price.total_cost).toBeCloseTo(BENCHMARK_B.targets.total_cost, 1)
+  })
+
+  it('Benchmark B total price matches target', () => {
+    const results = runFromSnapshot(BENCHMARK_B)
+    expect(results.price.total).toBeCloseTo(BENCHMARK_B.targets.total_price, 1)
+  })
+
+  it('Benchmark A total cost matches target', () => {
+    const results = runFromSnapshot(BENCHMARK_A)
+    expect(results.price.total_cost).toBeCloseTo(BENCHMARK_A.targets.total_cost, 1)
+  })
+
+  it('L34046 total cost matches target', () => {
+    const results = runFromSnapshot(BENCHMARK_L34046)
+    expect(results.price.total_cost).toBeCloseTo(BENCHMARK_L34046.targets.total_cost, 1)
   })
 })

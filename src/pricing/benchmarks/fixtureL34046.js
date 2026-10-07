@@ -4,12 +4,6 @@
  * Extracted from PricingBenchmark.jsx so page and tests share the same fixture.
  */
 
-// ── Glass catalogue ──────────────────────────────────────────────────────────
-const GLASS_CATALOGUE = {
-  GL100010: { cost_per_m2: 32.00, thickness_mm: 4 },  // 4mm Clear Pilkington K Toughened
-  GL100080: { cost_per_m2: 25.50, thickness_mm: 4 },  // 4mm Clear Toughened
-}
-
 // ── Part cost map (from integrate-part-allocator.txt "Referenced parts") ──────
 const PART_COST_MAP = {
   TP68: 2.85,   // Ogee Architrave 20x70 MDF £2.85/m
@@ -201,7 +195,6 @@ export const BENCHMARK_L34046 = {
   name:   'L34046 Item 7 — Complete new box sash',
   tree:   TREE,
   targets: TARGETS,
-  glassCatalogue: GLASS_CATALOGUE,
   partCostMap: PART_COST_MAP,
   assumptions: ASSUMPTIONS,
 }

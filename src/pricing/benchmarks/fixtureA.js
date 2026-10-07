@@ -7,12 +7,6 @@
  *   Total cost £728.26   Total price £1,408.66
  */
 
-// ── Glass catalogue ──────────────────────────────────────────────────────────
-const GLASS_CATALOGUE = {
-  GL100010: { cost_per_m2: 32.00, thickness_mm: 4 },  // 4mm Clear Pilkington K Toughened
-  GL100080: { cost_per_m2: 25.50, thickness_mm: 4 },  // 4mm Clear Toughened
-}
-
 // ── Part cost map ────────────────────────────────────────────────────────────
 const PART_COST_MAP = {
   TP01: 2.59,   // Small staff bead 20x15 Redwood £2.59/m
@@ -286,7 +280,6 @@ export const BENCHMARK_A = {
   name:   'Benchmark A — Sash replacement (L31115 Item 1)',
   tree:   TREE,
   targets: TARGETS,
-  glassCatalogue: GLASS_CATALOGUE,
   partCostMap: PART_COST_MAP,
   ironmongeryLines: IRONMONGERY_LINES,
   ironmongeryCatalogue: IRONMONGERY_CATALOGUE,
