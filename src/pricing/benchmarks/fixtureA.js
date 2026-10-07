@@ -260,6 +260,7 @@ const ASSUMPTIONS = [
   'Glazing bars: 2 wide + 1 high on top sash only, none on bottom sash',
   'Ironmongery: Claw Fastener Kit without Pulleys, PB finish',
   'Sash weights: lead, 40mm — target 17.2 kg top, 17.3 kg bottom; engine produces ~17.4/17.9 (sashWeight geometry mismatch)',
+  'Glazing Bead qty: target 3.13, engine gives 3.12; 5mm sightline sum gap (1560 vs ~1565mm), likely different stile/sightline convention in Integrate',
 ]
 
 export const BENCHMARK_A = {
