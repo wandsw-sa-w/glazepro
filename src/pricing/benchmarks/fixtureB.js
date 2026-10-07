@@ -83,10 +83,10 @@ const TREE = {
         rightCillHorn:  50,
         rakeFrame:      false,
         archHead:       false,
-        // Outer frame: set so that frame_area = outerW * outerH / 1e6 = 1.32 m2
-        // (Nathan confirmed frame_area = 1.32 for this item; includes box construction)
-        outerWidth:  1100,
-        outerHeight: 1200,
+        // Outer frame: derived from inner + jambs + head + cill:
+        //   outerWidth  = 950 + 85 + 85 = 1120 mm
+        //   outerHeight = 1032 + 79 + 70 = 1181 mm
+        //   frame_area  = round(1.120 * 1.181, 2) = 1.32 m2
       },
       children: [
         {
@@ -237,8 +237,8 @@ const TARGETS_UNCORRECTED = {
 // ── Assumptions ──────────────────────────────────────────────────────────────
 const ASSUMPTIONS = [
   'Frame dimensions: 950 x 1032 mm (internal opening from spec)',
-  'Outer frame: 1152 x 1181 mm (derived: inner + 2*outerJamb, inner + head + cill)',
-  'frame_area = 1.32 m2 (confirmed by Nathan: overall frame incl. boxes, not opening size)',
+  'Outer frame: 1120 x 1181 mm (derived: inner + leftWidth + rightWidth, inner + head + cill)',
+  'frame_area = round(1.120 * 1.181, 2) = 1.32 m2',
   'Stile width: 50.75 mm (profile default: 47mm + 3.75mm lip)',
   'Top rail: 49 mm, bottom rail: 88 mm, midrail: 40 mm (profile defaults)',
   'Cill: height 70mm, profiledHeight 45mm (profile defaults)',

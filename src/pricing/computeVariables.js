@@ -467,8 +467,12 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
 
     // ── GROUP 12 — Frame geometry (mm) ────────────────────────────────────────
     // OUTER frame dimensions (Integrate: frame_width/height_in_mm = OUTER mm; width/height = OUTER metres)
-    const frame_width    = (frame?.values?.outerWidth  ?? frame?.values?.width)  ?? null
-    const frame_height   = (frame?.values?.outerHeight ?? frame?.values?.height) ?? null
+    // If outerWidth/outerHeight are not explicitly set on the frame, derive them:
+    //   outerWidth  = inner width  + leftWidth + rightWidth
+    //   outerHeight = inner height + topHeight + cill.height
+    const _fv = frame?.values ?? {}
+    const frame_width    = (_fv.outerWidth  ?? (_fv.width  != null ? _fv.width  + (_fv.leftWidth ?? 0) + (_fv.rightWidth ?? 0) : null)) ?? null
+    const frame_height   = (_fv.outerHeight ?? (_fv.height != null ? _fv.height + (_fv.topHeight ?? 0) + (cill?.values?.height ?? 0) : null)) ?? null
     const frame_depth_in_mm = frame?.values?.frameDepth ?? null
 
     // Integrate names — OUTER dimensions
@@ -483,8 +487,9 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
     const overall_frame_width = frame_width_m
 
     const frame_area_m2 = (frame_width != null && frame_height != null)
-      ? (frame_width * frame_height) / 1e6 : null
+      ? Math.round((frame_width * frame_height) / 1e6 * 100) / 100 : null
     // Integrate alias: frame_area = sum of frame m2 (used by DSO SqM Rate rule)
+    // Rounded to 2dp to match Integrate's internal rounding.
     const frame_area = frame_area_m2
     const frame_perimeter_mm = (frame_width != null && frame_height != null)
       ? 2 * (frame_width + frame_height) : null

@@ -206,10 +206,12 @@ describe('computeVariables — box sash complete new (solid redwood / utile cill
   })
 
   it('has correct frame dimensions', () => {
-    expect(vars.frame_width).toBe(1075)
-    expect(vars.frame_height).toBe(1630)
-    expect(vars.frame_width_in_mm).toBe(1075)
-    expect(vars.frame_height_in_mm).toBe(1630)
+    // frame_width/height are OUTER dimensions: inner + leftWidth + rightWidth / inner + topHeight + cill.height
+    // 1075 + 85 + 85 = 1245, 1630 + 79 + 70 = 1779
+    expect(vars.frame_width).toBe(1245)
+    expect(vars.frame_height).toBe(1779)
+    expect(vars.frame_width_in_mm).toBe(1245)
+    expect(vars.frame_height_in_mm).toBe(1779)
   })
 
   it('has non-zero timber volumes for complete_new redwood', () => {
