@@ -198,6 +198,99 @@ describe('S4 — sash material rule correction', () => {
 })
 
 // ══════════════════════════════════════════════════════════════════════════════
+// Glass rounded_area — correct formula per integrate-variable-dictionary.txt:
+//   actual_area = round(raw, 2dp)
+//   rounded_area = max(actual_area, 0.30)   (no 0.05 step rounding)
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('Glass rounded_area formula', () => {
+  // Helper: build a minimal tree with a glass part whose dimensions yield a
+  // known raw area (width_mm * height_mm / 1e6).  We set frame.width and
+  // stileWidth so that glassWidth = frame.width - 2*stileWidth = width_mm,
+  // and frame.height, topRail, bottomRail, midrail so that
+  // glassHeight = (frame.height - topRail - botRail - midrail) / 2 = height_mm.
+  //
+  // A dummy price rule with quantity="rounded_area" captures the value.
+  function makeGlassTree(widthMm, heightMm) {
+    // Solve backwards from engine formulas:
+    //   glassWidth = frame.width - 2 * stileWidth   =>  frame.width = widthMm + 2*50
+    //   glassHeight = (frame.height - 49 - 88 - 40) / 2 = heightMm
+    //                 frame.height = heightMm * 2 + 49 + 88 + 40
+    const frameW = widthMm + 100   // stileWidth = 50
+    const frameH = heightMm * 2 + 49 + 88 + 40
+    return {
+      key: 'item', part_type: 'drawingItemPart',
+      values: { typeOfWork: 'complete_new' },
+      children: [{
+        key: 'f', part_type: 'assemblyFramePart',
+        values: { width: frameW, height: frameH },
+        children: [{
+          key: 'pair', part_type: 'sashPairPart',
+          values: { sashThickness: 45, midrailHeight: 40 },
+          children: [{
+            key: 'top', part_type: 'topSashPart',
+            values: { topHeight: 49, leftWidth: 50, rightWidth: 50 },
+            children: [{
+              key: 'g', part_type: 'glassPart',
+              values: {
+                glazingId: 'double_glazed',
+                internalGlassPartNo: 'GL100010',
+                externalGlassPartNo: 'GL100080',
+                spacerHeight: 16,
+              },
+              children: [],
+            }],
+          }, {
+            key: 'bot', part_type: 'bottomSashPart',
+            values: { bottomHeight: 88, leftWidth: 50, rightWidth: 50 },
+            children: [],
+          }],
+        }],
+      }],
+    }
+  }
+
+  // A price rule that captures rounded_area as its quantity.
+  const PROBE_RULE = [{
+    id: 'probe', rule_family: 'price', level: 'item', is_active: true,
+    group_name: 'glass_done', loop_target: 'glass_unit',
+    name: 'probe_rounded_area',
+    condition: 'true', quantity: 'rounded_area', value: '1', markup: 1,
+    sort_order: 1,
+  }]
+
+  const GLASS_CAT = {
+    GL100010: { cost_per_m2: 32.00, thickness_mm: 4 },
+    GL100080: { cost_per_m2: 25.50, thickness_mm: 4 },
+  }
+
+  function getRoundedArea(widthMm, heightMm) {
+    const tree = makeGlassTree(widthMm, heightMm)
+    const res = runPricingOnTree(tree, PROBE_RULE, PF_VARIABLES, {
+      glassCatalogue: GLASS_CAT,
+    })
+    const fired = res.price.lines.find(l => l.name === 'probe_rounded_area' && l.fires)
+    return fired?.quantity ?? null
+  }
+
+  it('0.22 m2 actual -> 0.30 rounded (minimum applies)', () => {
+    // Need width * height / 1e6 ~ 0.22.  e.g. 440 x 500 = 220000 / 1e6 = 0.22
+    expect(getRoundedArea(440, 500)).toBe(0.30)
+  })
+
+  it('0.705 m2 actual -> 0.71 rounded (2dp rounding, no step)', () => {
+    // 705 * 1000 = 705000 / 1e6 = 0.705 -> round to 2dp = 0.71
+    // (JS Math.round(70.5) = 71)
+    expect(getRoundedArea(705, 1000)).toBe(0.71)
+  })
+
+  it('0.646 m2 actual -> 0.65 rounded (2dp rounding, no step)', () => {
+    // 646 * 1000 = 646000 / 1e6 = 0.646 -> round to 2dp = 0.65
+    expect(getRoundedArea(646, 1000)).toBe(0.65)
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
 // Item 1 — Honest tests: run each benchmark against the full PF30 rule set
 // and assert total cost/price to the penny plus group totals.
 // S4 correction: sash material rules are gated by to_be_replaced.
