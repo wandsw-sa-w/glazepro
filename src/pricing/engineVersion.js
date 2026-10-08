@@ -35,6 +35,10 @@
  * no resolvable finish warns by name instead of pricing £0 — version-6
  * runs froze default lines at their creation-time finish and priced
  * "Item finish" lines at £0.
+ * Version 8 is Step AB: the chamfered-bottom-rail allowance is a WHOLE
+ * millimetre — round(thickness × tan(angle)), as Integrate stores it
+ * (35/40 → 6, 45 → 7, 50 → 8 at 9°) — version-7 runs used the unrounded
+ * figure and were a penny out on bottom Laminated lines away from 45 mm.
  */
 
-export const PRICING_ENGINE_VERSION = 7
+export const PRICING_ENGINE_VERSION = 8
