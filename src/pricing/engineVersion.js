@@ -30,6 +30,11 @@
  * round half-up to 2 dp, pricing weight is cut to 1 dp, and null outer
  * jambs mean no extension — version-5 runs were pennies off on every
  * Laminated/bead/steel line.
+ * Version 7 is Step Z: ironmongery lines with an empty finish follow the
+ * item's ironmongery finish (then the profile default), and a line with
+ * no resolvable finish warns by name instead of pricing £0 — version-6
+ * runs froze default lines at their creation-time finish and priced
+ * "Item finish" lines at £0.
  */
 
-export const PRICING_ENGINE_VERSION = 6
+export const PRICING_ENGINE_VERSION = 7
