@@ -33,14 +33,18 @@ const TREE = {
   key: 'item1',
   part_type: 'drawingItemPart',
   values: {
-    typeOfWork:          'draught_seal',
-    frameMaterialId:     'softwood',
+    typeOfWork:          'draught_seal',   // Integrate: draughtseal true, NOT newSashes
+    // Step AG: Integrate's saved drawing stores NO frame material
+    // (docs/integrate-L31115-A-B-trees.txt) — frameMaterialId removed.
+    // sashMaterialId 38 = Solid Redwood; cillMaterialId 44 (utile) is on
+    // Integrate's CillPart, GlazePro's real key is item-level.
     sashMaterialId:      'softwood',
     cillMaterialId:      'utile',
     fitToPreparedOpening: false,
     decoration:          false,
-    floorLevel:          'first_floor',
+    floorLevel:          'first_floor',    // stage-4 fact file (facts line 22)
     staffBeadTypeId:     'small',
+    partingBeadTypeId:   'standard',       // Integrate: partingBeadTypeId 280
     bayFullyCoupledFrames: false,
     frameInKitForm:      false,
     bayPoleRequired:     false,
@@ -50,10 +54,11 @@ const TREE = {
       key: 'paint1',
       part_type: 'paintAndIronmongeryPart',
       values: {
-        // "Affected areas will be primed only" = clean_white (base finish)
-        internalFinish:    'clean_white',
-        externalFinish:    'clean_white',
-        cillFinish:        'clean_white',
+        // Step AG: Integrate's finish is "Affected areas will be primed
+        // only" (int/ext/cill). GlazePro's six paint_finish codes have no
+        // primed-only option, so the finishes are left UNSET (the engine
+        // defaults to clean_white; no fired B line reads them) — listed
+        // in the step-ag report, not silently mapped.
         cutOutBrickReveal: false,
         ironmongeryFinish: 'PB',
         ironmongeryLines: [
@@ -80,16 +85,19 @@ const TREE = {
         // frame_area = round(1.120 * 1.181, 2) = 1.32 m2
         width:          1120,
         height:         1181,
-        // ASSUMPTION: profile defaults for frame geometry
+        // Step AG: the rest is Integrate's saved drawing (step-ag facts):
+        // head 79, bottom 70, jambs 85/85, frameDepth 140, hollow box,
+        // stop sizes 16/16/16. No outer jamb extensions, no cill horns
+        // (the old 101/50 were assumptions).
         topHeight:      79,
+        bottomHeight:   70,
         leftWidth:      85,
         rightWidth:     85,
-        frameDepth:     165,
-        jambType:       'solid_profiled',
-        leftOuterJamb:  101,
-        rightOuterJamb: 101,
-        leftCillHorn:   50,
-        rightCillHorn:  50,
+        frameDepth:     140,
+        jambType:       'hollow_box_for_sash',   // Integrate 'hollow_box'
+        frameHeadStopSize:  16,
+        frameStileStopSize: 16,
+        cillStopSize:       16,
         rakeFrame:      false,
         archHead:       false,
       },
@@ -98,9 +106,10 @@ const TREE = {
           key: 'cill1',
           part_type: 'cillPart',
           values: {
+            // Integrate CillPart: height 70, depth 140 (step-ag facts);
+            // profiledHeight is not a stored Integrate field — removed.
             height: 70,
-            depth:  200,
-            profiledHeight: 45,
+            depth:  140,
           },
           children: [],
         },
@@ -116,11 +125,14 @@ const TREE = {
             mechanicalClearanceRight:  0,
             mechanicalClearanceTop:    0,
             mechanicalClearanceBottom: 0,
-            // ASSUMPTION: no horns specified for DSO; default none/none
-            topHornTypeShortName:    'none',
-            bottomHornTypeShortName: 'none',
+            // Step AG facts: top horn victorian_style_horn 75, bottom
+            // no_horn (the old none/none was an assumption). The invented
+            // sashLip: 8 is removed — not a stored Integrate field.
+            topHornTypeShortName:    'victorian',
+            topHornLength:           75,
+            bottomHornTypeShortName: 'no_horn',
+            bottomHornLength:        0,
             sashSplit:               'half_half',
-            sashLip:                 8,
           },
           children: [
             {
@@ -128,14 +140,29 @@ const TREE = {
               part_type: 'topSashPart',
               values: {
                 topHeight:    49,
-                leftWidth:    50.75,
-                rightWidth:   50.75,
+                // Step AG facts: stiles 49 (the old 50.75 "47 + lip" was
+                // an assumption)
+                leftWidth:    49,
+                rightWidth:   49,
                 operation:    'cord_hung',
-                toBeReplaced: false,   // DSO: sashes are NOT replaced
+                toBeReplaced: false,   // Integrate: not to be replaced
                 archHead:     false,
               },
               children: [
-                // No glass specified for DSO
+                {
+                  // Step AG facts: Integrate's saved DSO drawing DOES store
+                  // glass on both sashes (GL100010 / GL100080, no bars).
+                  // Only the cited fields: two pane codes = double glazed;
+                  // no spacer values are in the read.
+                  key: 'glassB_t',
+                  part_type: 'glassPart',
+                  values: {
+                    glazingId:            'double_glazing',
+                    internalGlassPartNo:  'GL100010',
+                    externalGlassPartNo:  'GL100080',
+                  },
+                  children: [],
+                },
               ],
             },
             {
@@ -143,14 +170,26 @@ const TREE = {
               part_type: 'bottomSashPart',
               values: {
                 bottomHeight: 88,
-                leftWidth:    50.75,
-                rightWidth:   50.75,
+                leftWidth:    49,
+                rightWidth:   49,
                 operation:    'cord_hung',
-                toBeReplaced: false,   // DSO: sashes are NOT replaced
+                toBeReplaced: false,   // Integrate: not to be replaced
                 archHead:     false,
+                // Step AG facts: chamfered bottom rail 9°
+                btmRailShapeId: 'chamfered',
+                chamferedBottomRailAngle: 9,
               },
               children: [
-                // No glass specified for DSO
+                {
+                  key: 'glassB_b',
+                  part_type: 'glassPart',
+                  values: {
+                    glazingId:            'double_glazing',
+                    internalGlassPartNo:  'GL100010',
+                    externalGlassPartNo:  'GL100080',
+                  },
+                  children: [],
+                },
               ],
             },
           ],
@@ -234,17 +273,13 @@ const TARGETS_UNCORRECTED = {
 }
 
 // ── Assumptions ──────────────────────────────────────────────────────────────
+// Step AG: the tree is now Integrate's own saved drawing
+// (docs/integrate-L31115-A-B-trees.txt).
 const ASSUMPTIONS = [
-  'Frame dimensions: 950 x 1032 mm (internal opening from spec)',
-  'Outer frame: 1120 x 1181 mm (derived: inner + leftWidth + rightWidth, inner + head + cill)',
-  'frame_area = round(1.120 * 1.181, 2) = 1.32 m2',
-  'Stile width: 50.75 mm (profile default: 47mm + 3.75mm lip)',
-  'Top rail: 49 mm, bottom rail: 88 mm, midrail: 40 mm (profile defaults)',
-  'Cill: height 70mm, profiledHeight 45mm (profile defaults)',
-  'Horn type: none/none (not specified in DSO)',
-  'No glass, no manufacture group, no weights',
-  'Ironmongery: Brighton Fastener Kit without Pulleys, PB finish',
-  'DSO Extra Profits: qty = sliding_sash_qty - fixed_sliding_sash_qty = 2, markup = 55',
+  'Geometry/frame/cill/horns/stiles 49/chamfer 9°/glass codes: Integrate saved drawing, step-ag facts — no longer assumptions',
+  'NOT STORABLE in GlazePro (left out): range Standard; installByUs; installationLevel "standard"; cill width 950 (derived); finishes "Affected areas will be primed only" (no primed-only paint_finish code — left unset, engine defaults clean_white, no fired B line reads them); surround auto-calc off flag',
+  'Integrate stores NO frame material — frameMaterialId removed; cillMaterialId utile cited from Integrate CillPart (44)',
+  'Ironmongery PB Brighton fastener kit: stage-4 spec; DSO Extra Profits qty = sliding_sash_qty − fixed = 2, markup 55',
 ]
 
 // ── Ironmongery fixture data ─────────────────────────────────────────────────

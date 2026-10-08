@@ -33,14 +33,18 @@ const TREE = {
   key: 'item1',
   part_type: 'drawingItemPart',
   values: {
-    typeOfWork:          'new_pair_of_sashes',
-    frameMaterialId:     'softwood',
+    typeOfWork:          'new_pair_of_sashes',   // Integrate: newSashes true
+    // Step AG: Integrate's saved drawing stores NO frame material on a sash
+    // replacement (docs/integrate-L31115-A-B-trees.txt) — frameMaterialId
+    // removed. sashMaterialId 38 = Solid Redwood; cillMaterialId 44 (utile)
+    // is stored on Integrate's CillPart, GlazePro's real key is item-level.
     sashMaterialId:      'softwood',
     cillMaterialId:      'utile',
     fitToPreparedOpening: false,
     decoration:          false,
-    floorLevel:          'third_floor',
+    floorLevel:          'third_floor',          // Integrate item location: Third Floor Front Living Room
     staffBeadTypeId:     'small',
+    partingBeadTypeId:   'standard',             // Integrate: partingBeadTypeId 280
     bayFullyCoupledFrames: false,
     frameInKitForm:      false,
     bayPoleRequired:     false,
@@ -79,16 +83,21 @@ const TREE = {
         // outerWidth 1102 was a guess and was wrong.
         width:          1070,
         height:         1849,
-        // ASSUMPTION: profile defaults for rail/jamb sizes
+        // Step AG: the rest of the frame is now Integrate's saved drawing
+        // (docs/integrate-L31115-A-B-trees.txt): head 79, bottom 70, jambs
+        // 85/85, frameDepth 140, hollow box, stop sizes 16/16 and CILL
+        // STOP 20 (unlike every other benchmark's 16). No outer jamb
+        // extensions and no cill horns (all 0 in Integrate — the old 101
+        // and 50 were assumptions).
         topHeight:      79,
+        bottomHeight:   70,
         leftWidth:      85,
         rightWidth:     85,
-        frameDepth:     165,
-        jambType:       'solid_profiled',
-        leftOuterJamb:  101,
-        rightOuterJamb: 101,
-        leftCillHorn:   50,
-        rightCillHorn:  50,
+        frameDepth:     140,
+        jambType:       'hollow_box_for_sash',   // Integrate 'hollow_box'
+        frameHeadStopSize:  16,
+        frameStileStopSize: 16,
+        cillStopSize:       20,
         rakeFrame:      false,
         archHead:       false,
       },
@@ -97,10 +106,11 @@ const TREE = {
           key: 'cill1',
           part_type: 'cillPart',
           values: {
-            // ASSUMPTION: profile defaults (same as L34046)
+            // Integrate CillPart: height 70, depth 140 (step-ag facts).
+            // profiledHeight is not a stored Integrate field — removed
+            // (the old depth 200 / profiledHeight 45 were assumptions).
             height: 70,
-            depth:  200,
-            profiledHeight: 45,
+            depth:  140,
           },
           children: [],
         },
@@ -116,9 +126,9 @@ const TREE = {
             mechanicalClearanceRight:  0,
             mechanicalClearanceTop:    0,
             mechanicalClearanceBottom: 0,
-            topHornTypeShortName:    'victorian',
-            topHornLength:           75,  // Integrate drawing label (step-w brief §3); not in the weight
-            bottomHornTypeShortName: 'none',
+            topHornTypeShortName:    'victorian',  // Integrate victorian_style_horn 75
+            topHornLength:           75,
+            bottomHornTypeShortName: 'no_horn',    // Integrate no_horn (step-ag facts)
             bottomHornLength:        0,
             sashSplit:               'half_half',
             // (the invented sashLip: 8 is gone — step-y brief §1)
@@ -150,15 +160,16 @@ const TREE = {
                     internalGlassPartNo:  'GL100010',
                     externalGlassPartNo:  'GL100080',
                   },
-                  // Glazing bars: "22 with 4 Nib" — one unit prices bars.
-                  // This sash has the bars: 2 vertical + 1 horizontal = 3 bars,
-                  // stored as child parts the way real drawings store them.
-                  // Integrate shows unit_gb_qty on this unit drives the
-                  // "Square Glass Multiple GB" rule.
+                  // Glazing bars on the TOP sash only (step-ag facts):
+                  // 2 vertical (offsets 252.7 / 527.3) + 1 horizontal
+                  // (369.8), 22 mm, nib 4 — Integrate's stored values.
                   children: [
-                    { key: 'glass1_vb1', part_type: 'verticalGlazingBarPart',   values: {}, children: [] },
-                    { key: 'glass1_vb2', part_type: 'verticalGlazingBarPart',   values: {}, children: [] },
-                    { key: 'glass1_hb1', part_type: 'horizontalGlazingBarPart', values: {}, children: [] },
+                    { key: 'glass1_vb1', part_type: 'verticalGlazingBarPart',
+                      values: { offset: 252.7, thickness: 22, nib: 4 }, children: [] },
+                    { key: 'glass1_vb2', part_type: 'verticalGlazingBarPart',
+                      values: { offset: 527.3, thickness: 22, nib: 4 }, children: [] },
+                    { key: 'glass1_hb1', part_type: 'horizontalGlazingBarPart',
+                      values: { offset: 369.8, thickness: 22, nib: 4 }, children: [] },
                   ],
                 },
               ],
@@ -245,19 +256,15 @@ const TARGETS = {
 }
 
 // ── Assumptions ──────────────────────────────────────────────────────────────
+// Step AG: the tree is now Integrate's own saved drawing
+// (docs/integrate-L31115-A-B-trees.txt). What remains below is what a saved
+// GlazePro drawing has NO field for (left out, listed), plus the one
+// spec-sourced block.
 const ASSUMPTIONS = [
-  'Inner frame dimensions: 900 x 1700 mm (from spec "Sash width" x "Sash height")',
-  'Outer frame: 1102 x 1849 mm (derived: inner + 2*outerJamb width, inner + head + cill)',
-  'Stile width: 49 mm (Integrate drawing label, step-w brief; stage-4 bead qty implies 50.75 in pricing — reported discrepancy)',
-  'Top rail: 49 mm, bottom rail: 88 mm, midrail: 40 mm (profile defaults)',
-  'Cill: height 70mm, profiledHeight 45mm, depth 200mm (profile defaults)',
-  'Frame depth: 165 mm, outerJamb: 101 mm (profile defaults)',
-  'Horn lengths: victorian=70mm (pricingEngine), victorian=50mm (sashWeight)',
-  'Sash lip: 8mm (meeting-rail overhang, standard profile default)',
-  'Glazing bars: 2 wide + 1 high on top sash only, none on bottom sash',
-  'Ironmongery: Claw Fastener Kit without Pulleys, PB finish',
-  'Sash weights: lead, 40mm — target 17.2 kg top, 17.3 kg bottom; engine produces ~17.4/17.9 (sashWeight geometry mismatch)',
-  'Glazing Bead qty: target 3.13, engine gives 3.12; 5mm sightline sum gap (1560 vs ~1565mm), likely different stile/sightline convention in Integrate',
+  'Geometry/frame/cill/horns/bars: Integrate saved drawing, step-ag facts — no longer assumptions',
+  'NOT STORABLE in GlazePro (left out): range Replacement_Sashes; draughtseal true ALONGSIDE newSashes (typeOfWork is single-valued); installByUs/deliveryByUs; installationLevel (blank); cill width 900 (derived in GlazePro); per-unit glass rebate 14/tolerance 2 (GlazePro reads the profile); surround auto-calc architrave_and_bullnose flag',
+  'Integrate stores NO frame material on a sash replacement — frameMaterialId removed; cillMaterialId utile cited from Integrate CillPart (44)',
+  'Spacer 16mm White Warm Edge + argon, finishes Teknos Clean White, ironmongery PB claw kit: stage-4 spec (facts file line 20 block)',
 ]
 
 // ── Ironmongery fixture data ─────────────────────────────────────────────────
