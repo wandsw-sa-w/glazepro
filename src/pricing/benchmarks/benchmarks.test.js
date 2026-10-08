@@ -12,7 +12,7 @@ import { fileURLToPath } from 'url'
 import { runPricingOnTree } from '../pricingEngine.js'
 import { computeDerived } from '../../drawingBoard/computeDerived.js'
 import { computeVariables } from '../computeVariables.js'
-import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_B, BENCHMARK_B_UNCORRECTED } from './index.js'
+import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_B_UNCORRECTED } from './index.js'
 import { resolveIronmongeryLines } from '../loadPricingContext.js'
 // The LIVE price-file snapshot (reviewer-checked, 8 Oct 2026) — the honest
 // benchmarks and the real-tree case price from this, never from the
@@ -192,15 +192,17 @@ describe('Step V — fixture sash sizes equal Integrate’s drawn labels', () =>
   })
 })
 
-describe('Step AA — thickness variants draw Integrate’s sash heights', () => {
+describe('Steps AA/AB — thickness variants draw Integrate’s sash heights', () => {
   // docs/integrate-benchmarks-thickness.txt: 35/40 → top 850.5, bottom
-  // 890.5; 50 → top 850.5, bottom 888.5. The fixtures record Integrate's
-  // resulting heights via sashSplit 'set_top' + fixedSashHeight 850.5
-  // (plain half_half at 1701 would draw 851/890 — not Integrate's drawing).
+  // 890.5; 50 → top 850.5, bottom 888.5; 35 mm set back to 1700 → 850/890.
+  // Step AB: with Integrate's STORED bottom rail (89 at 35/40, 87 at 50 —
+  // (rail + whole-mm allowance) held at 95) a plain half_half split draws
+  // these heights exactly; the Step AA set_top workaround is gone.
   const CASES = [
     [BENCHMARK_A35, 35, 1701, 850.5, 890.5],
     [BENCHMARK_A40, 40, 1701, 850.5, 890.5],
     [BENCHMARK_A50, 50, 1699, 850.5, 888.5],
+    [BENCHMARK_A35_H1700, 35, 1700, 850, 890],
   ]
   for (const [bm, t, H, top, bottom] of CASES) {
     it(`${t} mm (int ${H}): top ${top} / bottom ${bottom}`, () => {
@@ -487,17 +489,12 @@ describe('Honest benchmarks — live snapshot, real is_active flags', () => {
     expectMatchesIntegrate(runFromSnapshot(BENCHMARK_B.tree), INTEGRATE.benchmarkB_corrected)
   })
 
-  // Step AA thickness variants. These are truthful failures as of Step AA
-  // (see docs/step-aa-findings.md); the brief says report, don't tune:
-  //  - A50: +27p cost / +42p price. Mostly the anticipated top Lead Weight
-  //    miss (model 17.61 kg → 17.6 where Integrate shows 17.5), minus 1p
-  //    on the bottom Glazing Bead.
-  //  - A35: −1p cost / +1p price; A40: exact cost / +2p price. Penny-level
-  //    rounding on the bottom sash's Laminated and Glazing Bead lines:
-  //    GlazePro's chamfer allowance (thickness × tan 9°) and bottom glass
-  //    height vary with thickness, where Integrate holds those lines
-  //    identical at every thickness. Changing that needs an engine change,
-  //    which the brief rules out for this step.
+  // Thickness variants (Steps AA/AB). After Step AB (whole-mm chamfer
+  // allowance; fixtures carry Integrate's stored bottom rail), A35, A40
+  // and A35/h1700 are expected exact. A50 remains a truthful failure:
+  // the top Lead Weight misses by ~28p cost / 42p price because the
+  // weight model gives 17.61 kg → 17.6 where Integrate shows 17.5
+  // (docs/step-ab-findings.md). Report, don't tune — the reviewer decides.
   it('Benchmark A35 matches the Integrate targets', () => {
     expectMatchesIntegrate(runFromSnapshot(BENCHMARK_A35.tree), INTEGRATE.benchmarkA35)
   })
@@ -508,6 +505,10 @@ describe('Honest benchmarks — live snapshot, real is_active flags', () => {
 
   it('Benchmark A50 matches the Integrate targets', () => {
     expectMatchesIntegrate(runFromSnapshot(BENCHMARK_A50.tree), INTEGRATE.benchmarkA50)
+  })
+
+  it('Benchmark A35/h1700 matches the Integrate targets', () => {
+    expectMatchesIntegrate(runFromSnapshot(BENCHMARK_A35_H1700.tree), INTEGRATE.benchmarkA35_h1700)
   })
 })
 

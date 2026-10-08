@@ -202,5 +202,39 @@
         "price": 68.54
       }
     }
+  },
+  "benchmarkA35_h1700": {
+    "source": "L31115 Quote 1, Item 1, Drawing 4 at 35 mm with the sash height (int) set back to 1700 by hand; Integrate then drew top 850 / bottom 890 and stored bottom rail 89. Read 8 Oct 2026, then restored to 45 mm / 1700.",
+    "sash_thickness": 35,
+    "sash_height_int": 1700,
+    "bottom_rail_stored": 89,
+    "lead_weight_qty_top_bottom": [
+      18.86,
+      18.75
+    ],
+    "total_cost": 723.26,
+    "total_price": 1401.17,
+    "groups": {
+      "glass_done": {
+        "cost": 99.46,
+        "price": 198.9
+      },
+      "installation_materials": {
+        "cost": 128.99,
+        "price": 212.67
+      },
+      "manufacture": {
+        "cost": 269.53,
+        "price": 539.07
+      },
+      "labour": {
+        "cost": 191.0,
+        "price": 382.0
+      },
+      "manufacture_materials": {
+        "cost": 34.28,
+        "price": 68.53
+      }
+    }
   }
 }

@@ -292,26 +292,25 @@ export const BENCHMARK_A = {
   assumptions: ASSUMPTIONS,
 }
 
-// ── Thickness variants (Step AA) ─────────────────────────────────────────────
+// ── Thickness variants (Steps AA/AB) ─────────────────────────────────────────
 // DERIVED from benchmark A's tree — A stays the single source. Facts from
 // docs/integrate-benchmarks-thickness.txt: the reviewer changed only the
 // sash thickness on Integrate's drawing; Integrate's board moved the
-// internal sash height to 1701 (35/40) / 1699 (50) and kept the TOP sash
-// at 850.5, giving the odd millimetre to the bottom (drawn heights
-// 850.5/890.5 and 850.5/888.5). GlazePro does NOT copy that board
-// behaviour (step-aa brief, "Not to do"); the fixtures record Integrate's
-// RESULTING heights as drawing data via sashSplit 'set_top' +
-// fixedSashHeight 850.5 — real stored fields, a real board capability.
-// (Plain half_half at 1701 would draw 851/890, which is not Integrate's
-// drawing.)
-function thicknessVariant(name, targets, sashThickness, interiorHeight) {
+// internal sash height (1701 at 35/40, 1699 at 50 — keeping the external
+// height, internal + chamfer allowance, constant) and RE-STORED the
+// bottom rail so (rail + whole-mm allowance) stays 95: 89 at 35/40
+// (allowance 6), 88 at 45 (7), 87 at 50 (8) — second visit, GetDrawing.
+// With Integrate's stored rail a plain half_half split draws exactly
+// Integrate's heights (equal glass sightlines of 761.5), so the Step AA
+// set_top/fixedSashHeight workaround is gone (step-ab brief §2).
+function thicknessVariant(name, targets, sashThickness, interiorHeight, bottomRail) {
   const tree = JSON.parse(JSON.stringify(TREE))
   const frame = tree.children.find(c => c.part_type === 'assemblyFramePart')
   frame.values.height = interiorHeight + 79 + 70   // head 79 + cill 70, as A
   const pair = frame.children.find(c => c.part_type === 'sashPairPart')
-  pair.values.sashThickness   = sashThickness
-  pair.values.sashSplit       = 'set_top'
-  pair.values.fixedSashHeight = 850.5
+  pair.values.sashThickness = sashThickness
+  const bot = pair.children.find(c => c.part_type === 'bottomSashPart')
+  bot.values.bottomHeight = bottomRail             // Integrate's stored rail
   return {
     name,
     tree,
@@ -322,14 +321,17 @@ function thicknessVariant(name, targets, sashThickness, interiorHeight) {
     ironmongeryCatalogue: IRONMONGERY_CATALOGUE,
     assumptions: [
       ...ASSUMPTIONS,
-      `Derived from benchmark A: sash thickness ${sashThickness} mm, internal sash height ${interiorHeight} (Integrate's board), top sash held at 850.5 via set_top`,
+      `Derived from benchmark A: sash thickness ${sashThickness} mm, internal sash height ${interiorHeight}, stored bottom rail ${bottomRail} (Integrate, second visit), plain half_half`,
     ],
   }
 }
 
 export const BENCHMARK_A35 = thicknessVariant(
-  'Benchmark A35 — Sash replacement at 35 mm', INTEGRATE_TARGETS.benchmarkA35, 35, 1701)
+  'Benchmark A35 — Sash replacement at 35 mm', INTEGRATE_TARGETS.benchmarkA35, 35, 1701, 89)
 export const BENCHMARK_A40 = thicknessVariant(
-  'Benchmark A40 — Sash replacement at 40 mm', INTEGRATE_TARGETS.benchmarkA40, 40, 1701)
+  'Benchmark A40 — Sash replacement at 40 mm', INTEGRATE_TARGETS.benchmarkA40, 40, 1701, 89)
 export const BENCHMARK_A50 = thicknessVariant(
-  'Benchmark A50 — Sash replacement at 50 mm', INTEGRATE_TARGETS.benchmarkA50, 50, 1699)
+  'Benchmark A50 — Sash replacement at 50 mm', INTEGRATE_TARGETS.benchmarkA50, 50, 1699, 87)
+export const BENCHMARK_A35_H1700 = thicknessVariant(
+  'Benchmark A35/h1700 — 35 mm with sash height set back to 1700',
+  INTEGRATE_TARGETS.benchmarkA35_h1700, 35, 1700, 89)
