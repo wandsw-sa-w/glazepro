@@ -49,6 +49,12 @@ const CONTAINMENT = [
   { parent_code: 'bottomSashPart', child_code: 'glassPart',      min_count: 1, sort_order: 10 },
 ]
 
+// Step AE item 1: a box sash mullion is hollow — applyDividers takes its
+// thickness from the profile value thicknessInFrameHollow (144 on the
+// snapshot's Sash profile) and lays LEFT-face offsets with equal openings.
+const PV = { thicknessInFrameHollow: 144 }
+const T  = 144
+
 // Build a fresh box sash the same way DrawingBoard.jsx does when a drawing
 // has no saved drawing_parts yet, then give it realistic dimensions (empty
 // fieldDefs means buildNewBoxSash can't populate values from profile
@@ -86,15 +92,41 @@ describe('applyDividers — runs the actual Transom/Mullion... handler', () => {
     const iW = frame.values.width - frame.values.leftWidth - frame.values.rightWidth
     const iH = frame.values.height - frame.values.topHeight - 70
 
-    const next = applyDividers(tree, frame.key, 2, 1, iW, iH)
+    const next = applyDividers(tree, frame.key, 2, 1, iW, iH, PV)
 
     expect(findAll(next, 'sashPairPart').length).toBe(2)
     expect(findAll(next, 'mullionPart').length).toBe(1)
     expect(findAll(next, 'transomPart').length).toBe(0)
 
-    // The mullion sits at the midpoint (equal-width openings)
+    // Step AE: offset = LEFT face giving equal openings — opening =
+    // (iW − t) / 2 — and the resolved hollow thickness is stored.
     const mullion = findFirst(next, 'mullionPart')
-    expect(mullion.values.offset).toBeCloseTo(iW / 2, 0)
+    expect(mullion.values.offset).toBeCloseTo((iW - T) / 2, 6)
+    expect(mullion.values.thicknessInFrame).toBe(T)
+  })
+
+  it('a mullion needs the thicknessInFrameHollow profile value — missing = error, nothing changed', () => {
+    const tree = freshBoxSash()
+    const frame = findFirst(tree, 'assemblyFramePart')
+    const iW = frame.values.width - frame.values.leftWidth - frame.values.rightWidth
+    const iH = frame.values.height - frame.values.topHeight - 70
+    expect(() => applyDividers(tree, frame.key, 2, 1, iW, iH, {})).toThrow(/thicknessInFrameHollow/)
+    expect(() => applyDividers(tree, frame.key, 2, 1, iW, iH)).toThrow(/thicknessInFrameHollow/)
+    // Rows-only grids need no mullion thickness
+    expect(() => applyDividers(tree, frame.key, 1, 2, iW, iH)).not.toThrow()
+  })
+
+  it('3 x 1 offsets follow offset_i = i x opening + (i-1) x t', () => {
+    const tree = freshBoxSash()
+    const frame = findFirst(tree, 'assemblyFramePart')
+    const iW = frame.values.width - frame.values.leftWidth - frame.values.rightWidth
+    const iH = frame.values.height - frame.values.topHeight - 70
+
+    const next = applyDividers(tree, frame.key, 3, 1, iW, iH, PV)
+    const opening = (iW - 2 * T) / 3
+    const offsets = findAll(next, 'mullionPart').map(m => m.values.offset).sort((a, b) => a - b)
+    expect(offsets[0]).toBeCloseTo(opening, 6)
+    expect(offsets[1]).toBeCloseTo(2 * opening + T, 6)
   })
 
   it('the second pair is a real copy — same values, distinct keys, bars preserved', () => {
@@ -105,7 +137,7 @@ describe('applyDividers — runs the actual Transom/Mullion... handler', () => {
     const iW = frame.values.width - frame.values.leftWidth - frame.values.rightWidth
     const iH = frame.values.height - frame.values.topHeight - 70
 
-    const next = applyDividers(withBar, frame.key, 2, 1, iW, iH)
+    const next = applyDividers(withBar, frame.key, 2, 1, iW, iH, PV)
     const pairs = findAll(next, 'sashPairPart')
     expect(pairs).toHaveLength(2)
     expect(pairs[0].key).not.toBe(pairs[1].key)
@@ -123,7 +155,7 @@ describe('applyDividers — runs the actual Transom/Mullion... handler', () => {
     const iW = frame.values.width - frame.values.leftWidth - frame.values.rightWidth
     const iH = frame.values.height - frame.values.topHeight - 70
 
-    const next = applyDividers(tree, frame.key, 2, 1, iW, iH)
+    const next = applyDividers(tree, frame.key, 2, 1, iW, iH, PV)
     const html = renderTree(next)
 
     expect(html).toContain('<svg')
@@ -147,11 +179,14 @@ describe('applyDividers — runs the actual Transom/Mullion... handler', () => {
 
   // Opening bounds in absolute frame-local x (same coordinate space the
   // label x is rendered in): [gx, gx+glassW] for a given opening index.
+  // Step AE: openings subtract the mullion thickness (144) and each later
+  // opening starts after the mullion.
   function glassBounds(frame, openingIndex, numOpenings) {
     const iW = frame.values.width - frame.values.leftWidth - frame.values.rightWidth
-    const openingW = iW / numOpenings
+    const nMullions = numOpenings - 1
+    const openingW = (iW - nMullions * T) / numOpenings
     const stile = 47
-    const openingX = frame.values.leftWidth + openingIndex * openingW
+    const openingX = frame.values.leftWidth + openingIndex * (openingW + T)
     const glassW = openingW - 2 * stile
     return { min: openingX + stile, max: openingX + stile + glassW }
   }
@@ -162,7 +197,7 @@ describe('applyDividers — runs the actual Transom/Mullion... handler', () => {
     const iW = frame.values.width - frame.values.leftWidth - frame.values.rightWidth
     const iH = frame.values.height - frame.values.topHeight - 70
 
-    const next = applyDividers(tree, frame.key, 2, 1, iW, iH)
+    const next = applyDividers(tree, frame.key, 2, 1, iW, iH, PV)
     const html = renderTree(next)
 
     const aX = extractLabelX(html, 0)
@@ -189,7 +224,7 @@ describe('applyDividers — runs the actual Transom/Mullion... handler', () => {
     const iW = frame.values.width - frame.values.leftWidth - frame.values.rightWidth
     const iH = frame.values.height - frame.values.topHeight - 70
 
-    const next = applyDividers(tree, frame.key, 3, 1, iW, iH)
+    const next = applyDividers(tree, frame.key, 3, 1, iW, iH, PV)
     const html = renderTree(next)
 
     for (let i = 0; i < 3; i++) {
@@ -217,7 +252,7 @@ describe('applyDividers — runs the actual Transom/Mullion... handler', () => {
     const iW = frame.values.width - frame.values.leftWidth - frame.values.rightWidth
     const iH = frame.values.height - frame.values.topHeight - 70
 
-    const next = applyDividers(tree, frame.key, 3, 1, iW, iH)
+    const next = applyDividers(tree, frame.key, 3, 1, iW, iH, PV)
     expect(findAll(next, 'sashPairPart').length).toBe(3)
     expect(findAll(next, 'mullionPart').length).toBe(2)
 
@@ -232,7 +267,7 @@ describe('applyDividers — runs the actual Transom/Mullion... handler', () => {
     const iW = frame.values.width - frame.values.leftWidth - frame.values.rightWidth
     const iH = frame.values.height - frame.values.topHeight - 70
 
-    const doubled  = applyDividers(tree, frame.key, 2, 1, iW, iH)
+    const doubled  = applyDividers(tree, frame.key, 2, 1, iW, iH, PV)
     const shrunk    = applyDividers(doubled, frame.key, 1, 1, iW, iH)
 
     expect(findAll(shrunk, 'sashPairPart').length).toBe(1)

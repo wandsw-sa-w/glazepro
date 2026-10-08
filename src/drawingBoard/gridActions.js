@@ -36,7 +36,28 @@ export function cloneWithNewKeys(node) {
 // horizontal row (via computeOpeningLayout on the frame's mullions only),
 // so a true N x M grid needs per-row vertical geometry the renderer
 // doesn't have yet. Columns (mullions) are fully supported.
-export function applyDividers(tree, frameKey, cols, rows, iW, iH) {
+export function applyDividers(tree, frameKey, cols, rows, iW, iH, profileValues = null) {
+  // Step AE item 1: a new MULLION on a box sash frame is HOLLOW (it houses
+  // the weights). Its thickness is the profile value thicknessInFrameHollow
+  // (missing = error, shown by the caller), and offsets are LEFT faces
+  // giving equal openings — Integrate's model (step-ad brief §3):
+  //   opening  = (iW − n × t) / (n + 1)        n mullions of thickness t
+  //   offset_i = i × opening + (i − 1) × t     i = 1..n
+  // TRANSOMS are NOT changed in this step: still centre-line offset
+  // round(iH × row / rows) with thicknessInFrame 40 (step-ae brief §1 —
+  // report only). GlazePro has no casement mullions (the board builds box
+  // sash windows only).
+  const nMullions = Math.max(0, cols - 1)
+  let mullionT = 0
+  if (nMullions > 0) {
+    mullionT = Number(profileValues?.thicknessInFrameHollow)
+    if (!isFinite(mullionT) || mullionT <= 0) {
+      throw new Error(
+        'Missing profile value thicknessInFrameHollow — a box sash mullion is hollow and takes its thickness from the profile. No mullions were added; check the drawing’s profile values.')
+    }
+  }
+  const openingW = (iW - nMullions * mullionT) / (nMullions + 1)
+
   function process(node) {
     if (node.key !== frameKey) {
       return { ...node, children: (node.children ?? []).map(process) }
@@ -48,10 +69,12 @@ export function applyDividers(tree, frameKey, cols, rows, iW, iH) {
       c => c.part_type !== 'mullionPart' && c.part_type !== 'transomPart' && c.part_type !== 'sashPairPart'
     )
 
-    const mullions = Array.from({ length: cols - 1 }, (_, i) => ({
+    const mullions = Array.from({ length: nMullions }, (_, idx) => ({
       key:       makeKey('mull'),
       part_type: 'mullionPart',
-      values:    { offset: Math.round(iW * (i + 1) / cols), thicknessInFrame: 40 },
+      // offset = LEFT face; the resolved hollow thickness is stored, as
+      // Integrate stores it (144 on the snapshot's Sash profile)
+      values:    { offset: (idx + 1) * openingW + idx * mullionT, thicknessInFrame: mullionT },
       children:  [],
     }))
     const transoms = Array.from({ length: rows - 1 }, (_, i) => ({

@@ -1041,7 +1041,7 @@ function HistoryPanel({ entries, loading: historyLoading, error: historyError })
 // For mullion/transom: N cols × M rows → (N-1) vertical dividers + (M-1) horizontal dividers.
 // For glazing bars: the same, but children of a glassPart.
 
-function GridPickerDialog({ title, applyLabel = 'Apply', onApply, onClose, maxCols = 15, maxRows = 15, initialCols = 1, initialRows = 1 }) {
+function GridPickerDialog({ title, applyLabel = 'Apply', onApply, onClose, maxCols = 15, maxRows = 15, initialCols = 1, initialRows = 1, error = null }) {
   const [hover, setHover] = useState({ cols: initialCols, rows: initialRows })
 
   const cellSize = 22
@@ -1050,9 +1050,14 @@ function GridPickerDialog({ title, applyLabel = 'Apply', onApply, onClose, maxCo
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       onClick={onClose}>
-      <div style={{ background: '#fff', border: '1px solid #d8d5cf', borderRadius: 10, padding: 20, boxShadow: '0 8px 32px rgba(0,0,0,.18)', minWidth: 340 }}
+      <div style={{ background: '#fff', border: '1px solid #d8d5cf', borderRadius: 10, padding: 20, boxShadow: '0 8px 32px rgba(0,0,0,.18)', minWidth: 340, maxWidth: 420 }}
         onClick={e => e.stopPropagation()}>
         <div style={{ fontWeight: 700, fontSize: 14, color: '#1a1a1a', marginBottom: 12 }}>{title}</div>
+        {error && (
+          <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 6, padding: '6px 10px', marginBottom: 10, fontSize: 12, color: '#991b1b' }}>
+            {'⚠'} {error}
+          </div>
+        )}
 
         {/* Grid */}
         <div style={{ display: 'inline-grid', gap, gridTemplateColumns: `repeat(${maxCols}, ${cellSize}px)`, cursor: 'pointer', userSelect: 'none', marginBottom: 10 }}>
@@ -1888,6 +1893,7 @@ function DrawingBoard() {
   // ── Dividers / bars / remove handlers ────────────────────────────────────────
 
   const [dividerConfirmPending, setDividerConfirmPending] = useState(null) // { cols, rows }
+  const [dividerError, setDividerError] = useState(null) // Step AE: e.g. missing thicknessInFrameHollow
 
   function handleApplyDividers(cols, rows) {
     if (!tree) return
@@ -1908,15 +1914,24 @@ function DrawingBoard() {
   function applyDividersNow(cols, rows, frameOverride) {
     const frame = frameOverride || findFirst(tree, 'assemblyFramePart')
     if (!frame) return
-    const pair = findFirst(tree, 'sashPairPart')
-    const pairD = pair ? (derived[pair.key] ?? {}) : {}
     const fv = frame.values ?? {}
     const cillH = findFirst(tree, 'cillPart')?.values?.height ?? 0
-    const iW = (pairD.internalWidth  ?? ((fv.width  ?? 0) - (fv.leftWidth  ?? 0) - (fv.rightWidth  ?? 0)))
-    const iH = (pairD.internalHeight ?? ((fv.height ?? 0) - (fv.topHeight  ?? 0) - cillH))
-    const newTree = applyDividers(tree, frame.key, cols, rows, iW, iH)
-    commit(newTree)
-    setDividerDialog(false)
+    // The WHOLE interior, from the frame values — since Step AD a pair's
+    // derived internalWidth is its own OPENING, not the interior, so it
+    // must not be used here (re-gridding a 2-opening frame would otherwise
+    // lay the new grid out inside one opening).
+    const iW = (fv.width  ?? 0) - (fv.leftWidth ?? 0) - (fv.rightWidth ?? 0)
+    const iH = (fv.height ?? 0) - (fv.topHeight ?? 0) - cillH
+    try {
+      // Step AE item 1: a box sash mullion is hollow — thickness from the
+      // profile value thicknessInFrameHollow; missing = visible error.
+      const newTree = applyDividers(tree, frame.key, cols, rows, iW, iH, profileValueMap)
+      setDividerError(null)
+      commit(newTree)
+      setDividerDialog(false)
+    } catch (e) {
+      setDividerError(e?.message ?? String(e))
+    }
   }
 
   function handleDividerConfirm() {
@@ -2417,7 +2432,8 @@ function DrawingBoard() {
           title="Transom / Mullion — choose grid"
           applyLabel="Apply to frame"
           onApply={handleApplyDividers}
-          onClose={() => setDividerDialog(false)}
+          onClose={() => { setDividerError(null); setDividerDialog(false) }}
+          error={dividerError}
         />
       )}
 
