@@ -58,6 +58,21 @@ describe('Real tree L507712 drawing 1 — geometry matches the board', () => {
   })
 })
 
+describe('Real tree — no timber volume variable is negative', () => {
+  // Step Y item 5: real drawings store leftOuterJamb/rightOuterJamb as
+  // null; that must mean "no extension" (outer = inner), never a −85
+  // jamb difference that turns the frame volume negative.
+  const derived = computeDerived(REAL_TREE)
+  const vars = computeVariables(REAL_TREE, derived, {})
+
+  it('every volume variable is >= 0', () => {
+    for (const [key, val] of Object.entries(vars)) {
+      if (!/volume/.test(key)) continue
+      expect(val, key).toBeGreaterThanOrEqual(0)
+    }
+  })
+})
+
 describe('sashSizes — no sash pair', () => {
   it('returns nulls, never throws', () => {
     const sz = sashSizes({ key: 'x', part_type: 'drawingItemPart', values: {}, children: [] })

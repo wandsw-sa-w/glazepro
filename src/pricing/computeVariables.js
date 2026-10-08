@@ -575,7 +575,11 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
 
     if (is_complete_new && frame_width != null && frame_height != null) {
       const innerJamb  = frame?.values?.leftWidth        ?? 0
-      const outerJamb  = frame?.values?.leftOuterJamb    ?? 0
+      // A null outer jamb means NO EXTENSION (outer = inner), as Integrate
+      // stores on its real drawing — not outer = 0, which made this
+      // difference −85 and the frame volume negative on every real drawing
+      // (step-y brief §5).
+      const outerJamb  = frame?.values?.leftOuterJamb    ?? innerJamb
       const jambDiff   = outerJamb - innerJamb  // = jambDifference (derived)
 
       const innerHead  = frame?.values?.topHeight         ?? 0
