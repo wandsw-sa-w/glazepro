@@ -392,7 +392,9 @@ function PropertyField({ field, value, derivedValue, onChange, refOptions, requi
 
 function IronmongeryPanel({ node, tree, derived, refOptions, onChangeField, onAutoApplyDefaults, ironmongeryRules, ironmongeryProducts, profileValueMap }) {
   const lines      = node.values?.ironmongeryLines  ?? []
-  const finish     = node.values?.ironmongeryFinish ?? 'PB'
+  // The STORED item finish — null means not set (no silent 'PB' default;
+  // an unset finish is a visible warning, Step Z)
+  const itemFinish = node.values?.ironmongeryFinish ?? null
   const finishOpts = refOptions?.['ironmongery_finish'] ?? []
 
   // Product name lookup: short_name → display name
@@ -462,18 +464,17 @@ function IronmongeryPanel({ node, tree, derived, refOptions, onChangeField, onAu
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {/* Finish selector */}
-      <div>
-        <div style={{ fontSize: 11, fontWeight: 600, color: '#555', marginBottom: 4 }}>Ironmongery Finish</div>
-        <select
-          value={finish}
-          onChange={e => onChangeField(node.key, 'ironmongeryFinish', e.target.value, 'paintAndIronmongeryPart.ironmongeryFinish')}
-          style={{ ...SI, fontSize: 12 }}
-        >
-          {finishOpts.length === 0 && <option value={finish}>{finish}</option>}
-          {finishOpts.map(o => <option key={o.code} value={o.code}>{o.label} ({o.code})</option>)}
-        </select>
-      </div>
+      {/* Step Z: the panel's own "Ironmongery Finish" select was removed —
+          it duplicated the real field (paintAndIronmongeryPart.
+          ironmongeryFinish), which the definition-driven field list below
+          renders with its proper label, options and flags. The panel copy
+          also displayed 'PB' when the field was actually empty. */}
+      {itemFinish == null && (
+        <div style={{ fontSize: 11, color: '#991b1b', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 6, padding: '5px 8px' }}>
+          {'⚠'} No Ironmongery Finish set on this item — lines set to
+          "Item finish" will not price until one is chosen below.
+        </div>
+      )}
 
       {/* Lines table */}
       <div>
@@ -514,7 +515,9 @@ function IronmongeryPanel({ node, tree, derived, refOptions, onChangeField, onAu
                       onChange={e => handleFinishOverride(idx, e.target.value)}
                       style={{ fontSize: 10, padding: '2px 4px', border: '1px solid #d8d5cf', borderRadius: 4, background: '#fff' }}
                     >
-                      <option value="">Item finish</option>
+                      {/* Empty = follow the item's ironmongery finish (Step Z);
+                          the label shows what it currently resolves to */}
+                      <option value="">{itemFinish ? `Item finish (${itemFinish})` : 'Item finish (⚠ not set)'}</option>
                       {finishOpts.map(o => <option key={o.code} value={o.code}>{o.code}</option>)}
                     </select>
                   </td>
