@@ -5,16 +5,19 @@
  * cost and price totals to the Integrate targets.
  */
 
-import { describe, it, expect, beforeAll } from 'vitest'
-import { existsSync, readFileSync } from 'fs'
+import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { runPricingOnTree } from '../pricingEngine.js'
 import { computeDerived } from '../../drawingBoard/computeDerived.js'
 import { computeVariables } from '../computeVariables.js'
 import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_B, BENCHMARK_B_UNCORRECTED } from './index.js'
-import { PF30_RULES } from './pf30Rules.js'
 import { resolveIronmongeryLines } from '../loadPricingContext.js'
+// The LIVE price-file snapshot (reviewer-checked, 8 Oct 2026) — the honest
+// benchmarks and the real-tree case price from this, never from the
+// hand-typed pf30Rules.js (whose rules are all is_active: false).
+import SNAPSHOT from './pf30-snapshot.json'
 // The ONLY source of cost/price targets: figures read from Integrate.
 // Never edited to match GlazePro output — a failing test that tells the
 // truth is the right outcome when GlazePro disagrees with Integrate.
@@ -358,97 +361,31 @@ describe('Glass rounded_area formula', () => {
 })
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Item 1 — Honest tests: run each benchmark against the full PF30 rule set
-// and assert total cost/price to the penny plus group totals.
-// S4 correction: sash material rules are gated by to_be_replaced.
+// Item 1 — Honest tests: run each benchmark from the LIVE SNAPSHOT
+// (pf30-snapshot.json, taken 8 Oct 2026, reviewer-checked: 264 rules of which
+// 263 active — the inactive one is "Additional for Cruciform") with its REAL
+// is_active flags, no testMode, exactly like the live site. The hand-typed
+// pf30Rules.js is NOT a benchmark: all 266 of its rules carry
+// is_active: false, so running it in testMode fires rules the live file
+// disables (that was the whole "Additional for Cruciform" +1 h finding).
 // ══════════════════════════════════════════════════════════════════════════════
 
-// Apply the S4 correction to the PF30 rules: sash material rules (sort 10, 15, 310
-// in manufacture_materials) get "and to_be_replaced" appended to their condition.
-const S4_SASH_MATERIAL_NAMES = [
-  'Laminated Softwood for Sashes (Bottom)',
-  'Laminated Softwood for Sashes (Top)',
-  'Glazing Bead for Sashes',
-]
-
-const PF30_RULES_S4 = PF30_RULES.map(r => {
-  if (r.rule_family === 'price' && S4_SASH_MATERIAL_NAMES.includes(r.name)) {
-    return { ...r, condition: r.condition + ' and to_be_replaced' }
-  }
-  return r
-})
-
-// Part allocation rules for sash_windows beads (from integrate-part-allocator.txt)
-const SASH_WINDOW_ALLOC_RULES = [
-  {
-    id: 'sw0', sort_order: 0, group_name: 'sash_windows', loop_target: 'sliding_sash',
-    label: 'Staff bead for width',
-    condition: 'is_small_staff_bead and not frame_to_be_replaced',
-    qty_expr: 'interior_qty', part_code: 'TP01',
-    measure_expr: 'round_up_to_nearest(profiled_frame_interior_width_in_mm, 100) + 100',
-    is_active: true,
-  },
-  {
-    id: 'sw1', sort_order: 1, group_name: 'sash_windows', loop_target: 'sliding_sash',
-    label: 'Staff bead for height',
-    condition: 'is_small_staff_bead and not frame_to_be_replaced',
-    qty_expr: '1', part_code: 'TP01',
-    measure_expr: 'round_up_to_nearest(profiled_frame_interior_height_in_mm, 100) + 100',
-    is_active: true,
-  },
-  {
-    id: 'sw2', sort_order: 2, group_name: 'sash_windows', loop_target: 'sliding_sash',
-    label: 'Staff bead for width (large)',
-    condition: 'is_large_staff_bead and not frame_to_be_replaced',
-    qty_expr: 'interior_qty', part_code: 'TP02',
-    measure_expr: 'round_up_to_nearest(profiled_frame_interior_width_in_mm, 100) + 100',
-    is_active: true,
-  },
-  {
-    id: 'sw3', sort_order: 3, group_name: 'sash_windows', loop_target: 'sliding_sash',
-    label: 'Staff bead for height (large)',
-    condition: 'is_large_staff_bead and not frame_to_be_replaced',
-    qty_expr: '2', part_code: 'TP02',
-    measure_expr: 'round_up_to_nearest(profiled_frame_interior_height_in_mm, 100) + 100',
-    is_active: true,
-  },
-  {
-    id: 'sw4h', sort_order: 4, group_name: 'sash_windows', loop_target: 'sliding_sash',
-    label: 'Parting bead for height',
-    condition: 'not frame_to_be_replaced',
-    qty_expr: 'interior_qty', part_code: 'TP03',
-    measure_expr: 'round_up_to_nearest(profiled_frame_interior_height_in_mm, 100) + 100',
-    is_active: true,
-  },
-  {
-    id: 'sw4w', sort_order: 4, group_name: 'sash_windows', loop_target: 'sliding_sash',
-    label: 'Parting bead for width',
-    condition: 'not frame_to_be_replaced',
-    qty_expr: '0.5', part_code: 'TP03',
-    measure_expr: 'round_up_to_nearest(profiled_frame_interior_width_in_mm, 100) + 100',
-    is_active: true,
-  },
-]
-
 /**
- * Helper: run a benchmark through the full PF30 engine and return results.
+ * Price a benchmark from the snapshot ALONE: rules (real is_active flags),
+ * pf variables, glass catalogue, allocation rules, part costs, ironmongery
+ * rules + catalogue and profile values all come from the snapshot.
+ * Ironmongery lines resolve through the shared resolveIronmongeryLines:
+ * tree-saved lines win, defaults apply when the tree has none (L34046).
  */
-function runBenchmark(benchmark, rules = PF30_RULES_S4) {
-  // Ironmongery: prefer fixture export, fall back to tree-stored lines
-  // (paintAndIronmongeryPart.values.ironmongeryLines, same as DrawingBoard).
-  let ironmongeryLines = benchmark.ironmongeryLines ?? []
-  if (ironmongeryLines.length === 0) {
-    const paintNode = (benchmark.tree.children ?? []).find(c => c.part_type === 'paintAndIronmongeryPart')
-    ironmongeryLines = paintNode?.values?.ironmongeryLines ?? []
-  }
-  return runPricingOnTree(benchmark.tree, rules, PF_VARIABLES, {
-    testMode: true,  // PF30 rules are is_active=false (draft import)
-    glassCatalogue: benchmark.glassCatalogue ?? {},
-    partAllocationRules: SASH_WINDOW_ALLOC_RULES,
-    partCostMap: benchmark.partCostMap ?? {},
+function runFromSnapshot(tree) {
+  const ironmongeryLines = resolveIronmongeryLines(tree, SNAPSHOT, SNAPSHOT.profileValues)
+  return runPricingOnTree(tree, SNAPSHOT.rules, SNAPSHOT.pfVariables, {
+    glassCatalogue:       SNAPSHOT.glassCatalogue,
+    partAllocationRules:  SNAPSHOT.partAllocationRules,
+    partCostMap:          SNAPSHOT.partCostMap,
     ironmongeryLines,
-    ironmongeryCatalogue: benchmark.ironmongeryCatalogue ?? {},
-    profileValues: benchmark.profileValues ?? {},
+    ironmongeryCatalogue: SNAPSHOT.ironmongeryCatalogue,
+    profileValues:        SNAPSHOT.profileValues,
   })
 }
 
@@ -486,49 +423,26 @@ function expectMatchesIntegrate(results, target) {
   }
 }
 
-describe('Item 1 — L34046 honest test against PF30 rules', () => {
-  const results = runBenchmark(BENCHMARK_L34046)
-
-  it('total cost matches target', () => {
-    expect(results.price.total_cost).toBeCloseTo(INTEGRATE.L34046.total_cost, 2)
-  })
-
-  it('total price matches target', () => {
-    expect(results.price.total).toBeCloseTo(INTEGRATE.L34046.total_price, 2)
-  })
-
-  it('group totals match targets', () => {
-    const groups = groupTotals(results)
-    for (const [group, t] of Object.entries(INTEGRATE.L34046.groups)) {
-      expect(groups[group]?.cost  ?? 0, `${group} cost`).toBeCloseTo(t.cost,  1)
-      expect(groups[group]?.price ?? 0, `${group} price`).toBeCloseTo(t.price, 1)
+describe('Honest benchmarks — live snapshot, real is_active flags', () => {
+  it('snapshot holds everything loadPricingContext returns plus profile values', () => {
+    for (const key of ['rules', 'pfVariables', 'glassCatalogue', 'partAllocationRules',
+                       'partCostMap', 'ironmongeryRules', 'ironmongeryCatalogue', 'profileValues']) {
+      expect(SNAPSHOT[key], `snapshot.${key}`).toBeDefined()
     }
   })
-})
 
-describe('Item 1 — Benchmark A honest test against PF30 rules (S4 corrected)', () => {
-  const results = runBenchmark(BENCHMARK_A)
+  it('L34046 matches the Integrate targets', () => {
+    expectMatchesIntegrate(runFromSnapshot(BENCHMARK_L34046.tree), INTEGRATE.L34046)
+  })
 
-  it('matches the Integrate targets', () => {
-    expectMatchesIntegrate(results, INTEGRATE.benchmarkA)
+  it('Benchmark A matches the Integrate targets', () => {
+    expectMatchesIntegrate(runFromSnapshot(BENCHMARK_A.tree), INTEGRATE.benchmarkA)
+  })
+
+  it('Benchmark B matches the Integrate targets (corrected)', () => {
+    expectMatchesIntegrate(runFromSnapshot(BENCHMARK_B.tree), INTEGRATE.benchmarkB_corrected)
   })
 })
-
-describe('Item 1 — Benchmark B honest test against PF30 rules (S4 corrected)', () => {
-  const results = runBenchmark(BENCHMARK_B)
-
-  it('matches the Integrate targets (corrected)', () => {
-    expectMatchesIntegrate(results, INTEGRATE.benchmarkB_corrected)
-  })
-})
-
-// ══════════════════════════════════════════════════════════════════════════════
-// Snapshot-based tests — use pf30-snapshot.json (exported from the benchmark
-// page's "Download snapshot" button) as the rule/catalogue source instead of
-// the hand-typed PF30_RULES and fixture catalogue constants.
-//
-// When the snapshot file is absent these tests are clearly skipped.
-// ══════════════════════════════════════════════════════════════════════════════
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Fourth case — the REAL saved tree (L507712 drawing 1, captured from the live
@@ -571,15 +485,9 @@ describe('Real tree — L507712 drawing 1 prices with real vocabulary', () => {
     GL100080: { cost_per_m2: 25.5, thickness_mm: 4 },
   }
 
-  const results = runPricingOnTree(REAL_TREE, PF30_RULES_S4, PF_VARIABLES, {
-    testMode: true,  // PF30 fixture rules are is_active=false (draft import)
-    glassCatalogue: REAL_GLASS_CAT,
-    // Sash profile rebate/tolerance (14/2 — decided facts, handover 7 Oct)
-    profileValues: {
-      defaultDoubleGlazingRebateWidthForSash: 14,
-      defaultDoubleGlazingTolerance: 2,
-    },
-  })
+  // Priced from the live snapshot like the honest benchmarks (real
+  // is_active flags, snapshot catalogues and profile values)
+  const results = runFromSnapshot(REAL_TREE)
 
   function firedLines(name) {
     return results.price.lines.filter(l => l.name === name && l.fires && !l.error)
@@ -609,69 +517,3 @@ describe('Real tree — L507712 drawing 1 prices with real vocabulary', () => {
   })
 })
 
-const SNAPSHOT_PATH = resolve(__dirname, 'pf30-snapshot.json')
-const snapshotExists = existsSync(SNAPSHOT_PATH)
-
-// Without the snapshot file the snapshot-based tests cannot run; this suite
-// makes the skip visible in every test run instead of silently vanishing.
-describe.runIf(!snapshotExists)('Snapshot-based tests — SKIPPED', () => {
-  it('pf30-snapshot.json is absent — use "Download snapshot" on /dev/pricing-benchmark and save it to src/pricing/benchmarks/', () => {
-    expect(snapshotExists).toBe(false)
-  })
-})
-
-describe.skipIf(!snapshotExists)('Snapshot-based tests (pf30-snapshot.json)', () => {
-  let snapshot
-
-  beforeAll(() => {
-    snapshot = JSON.parse(readFileSync(SNAPSHOT_PATH, 'utf8'))
-  })
-
-  /**
-   * Price a benchmark from the snapshot ALONE: rules, pf variables, glass
-   * catalogue, allocation rules, part costs, ironmongery rules + catalogue
-   * and profile values all come from the snapshot (everything
-   * loadPricingContext returned, as downloaded from the benchmark page).
-   * No hand-typed catalogue data, no S4 patching (the live PF30 rules are
-   * already corrected — sql/step-s4-sash-material-rules.sql has been run),
-   * and testMode false so only active rules fire, exactly like the page.
-   * Ironmongery lines resolve through the shared resolveIronmongeryLines:
-   * tree-saved lines win, defaults apply when the tree has none (L34046).
-   */
-  function runFromSnapshot(benchmark) {
-    const ironmongeryLines = resolveIronmongeryLines(benchmark.tree, snapshot, snapshot.profileValues ?? {})
-    return runPricingOnTree(benchmark.tree, snapshot.rules ?? [], snapshot.pfVariables ?? {}, {
-      testMode: false,
-      glassCatalogue:       snapshot.glassCatalogue ?? {},
-      partAllocationRules:  snapshot.partAllocationRules ?? [],
-      partCostMap:          snapshot.partCostMap ?? {},
-      ironmongeryLines,
-      ironmongeryCatalogue: snapshot.ironmongeryCatalogue ?? {},
-      profileValues:        snapshot.profileValues ?? {},
-    })
-  }
-
-  it('snapshot holds everything loadPricingContext returns plus profile values', () => {
-    for (const key of ['rules', 'pfVariables', 'glassCatalogue', 'partAllocationRules',
-                       'partCostMap', 'ironmongeryRules', 'ironmongeryCatalogue', 'profileValues']) {
-      expect(snapshot[key], `snapshot.${key}`).toBeDefined()
-    }
-  })
-
-  // Expected with a current snapshot (handover, 7 Oct 2026): B passes;
-  // A fails on installation materials by the lead weight amount only;
-  // L34046 fails by 2p / 1p in Manufacture Materials only.
-  // Any other failure is new information — report it, never tune it away.
-
-  it('Benchmark B matches the Integrate targets (corrected)', () => {
-    expectMatchesIntegrate(runFromSnapshot(BENCHMARK_B), INTEGRATE.benchmarkB_corrected)
-  })
-
-  it('Benchmark A matches the Integrate targets', () => {
-    expectMatchesIntegrate(runFromSnapshot(BENCHMARK_A), INTEGRATE.benchmarkA)
-  })
-
-  it('L34046 matches the Integrate targets', () => {
-    expectMatchesIntegrate(runFromSnapshot(BENCHMARK_L34046), INTEGRATE.L34046)
-  })
-})
