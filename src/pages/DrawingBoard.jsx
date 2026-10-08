@@ -15,7 +15,7 @@ import { computeSashWeight } from '../pricing/sashWeight.js'
 import { loadDrawingRunPrices } from '../quotes/drawingRunPrice.js'
 import { SashElevation } from '../drawingBoard/renderElevation.jsx'
 import { applyDividers, applyBars } from '../drawingBoard/gridActions.js'
-import { saveAsTemplate, listTemplates } from '../drawingBoard/templates.js'
+import { saveAsTemplate, listTemplates, templateGlassNameWarnings } from '../drawingBoard/templates.js'
 import { diffTrees } from '../drawingBoard/diffTrees.js'
 import { insertDrawingHistory, loadDrawingHistory } from '../drawingBoard/drawingHistory.js'
 import { FALLBACK_PROFILE_CODE } from '../drawingBoard/defaultProfile.js'
@@ -1988,7 +1988,15 @@ function DrawingBoard() {
         family: templateForm.family,
         group_name: templateForm.group_name.trim(),
       })
-      setTemplateDialog(false)
+      // Step AE item 2: a template must never carry a glass NAME — it
+      // saved, but tell its author visibly (pricing shows "Glass code not
+      // found" later; this is the earlier, named warning).
+      const glassWarnings = templateGlassNameWarnings(tree, templateForm.name.trim())
+      if (glassWarnings.length > 0) {
+        setTemplateError(`Template saved, BUT: ${glassWarnings.join(' | ')}`)
+      } else {
+        setTemplateDialog(false)
+      }
     } catch (e) {
       setTemplateError(e?.message ?? String(e))
     }

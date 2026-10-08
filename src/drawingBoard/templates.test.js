@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { regenerateKeys, clearItemValues } from './templates.js'
+import { regenerateKeys, clearItemValues, templateGlassNameWarnings } from './templates.js'
 
 // ── Fixture: minimal box sash tree ──────────────────────────────────────────
 
@@ -193,5 +193,50 @@ describe('template profile_id handling', () => {
     // It must never insert null for default_profile_id — the profileId variable
     // is set to the fallback before the insert
     expect(fnBlock).toContain('default_profile_id: profileId')
+  })
+})
+
+// ── Step AE item 2: glass code guard ─────────────────────────────────────────
+// A template must never carry a glass NAME (it prices as "no glass"). The
+// guard runs at "Save as template" and at create-from-template, naming the
+// template and the field for whoever made it.
+describe('templateGlassNameWarnings', () => {
+  const treeWithName = {
+    key: 'item', part_type: 'drawingItemPart', values: {},
+    children: [{
+      key: 'f', part_type: 'assemblyFramePart', values: {},
+      children: [{
+        key: 'p', part_type: 'sashPairPart', values: {},
+        children: [{
+          key: 't', part_type: 'topSashPart', values: {},
+          children: [{
+            key: 'g', part_type: 'glassPart',
+            values: {
+              internalGlassPartNo: '4mm Clear Pilkington K Toughened',  // NAME — must warn
+              externalGlassPartNo: 'GL100080',                          // code — fine
+            },
+            children: [],
+          }],
+        }],
+      }],
+    }],
+  }
+
+  it('flags a glass NAME, naming the template and the field', () => {
+    const w = templateGlassNameWarnings(treeWithName, 'Single Box Sash')
+    expect(w).toHaveLength(1)
+    expect(w[0]).toContain('Single Box Sash')
+    expect(w[0]).toContain('internalGlassPartNo')
+    expect(w[0]).toContain('4mm Clear Pilkington K Toughened')
+  })
+
+  it('is silent when every glass value is a part code or empty', () => {
+    const clean = JSON.parse(JSON.stringify(treeWithName))
+    clean.children[0].children[0].children[0].children[0].values = {
+      internalGlassPartNo: 'GL100010',
+      externalGlassPartNo: 'GL100080',
+      singleGlassPartNo:   '',
+    }
+    expect(templateGlassNameWarnings(clean, 'Clean')).toHaveLength(0)
   })
 })

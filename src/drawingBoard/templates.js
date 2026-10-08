@@ -57,6 +57,37 @@ export function clearItemValues(node) {
   }
 }
 
+// ── Glass code guard (Step AE item 2) ────────────────────────────────────────
+
+/**
+ * A template must never carry a glass NAME: pricing looks glass up by PART
+ * CODE, so a name prices as "no glass" (the step-ad3 data fix converted the
+ * three existing templates; this guard is for whoever makes the next one).
+ * A part code never contains whitespace ("GL100010"); a catalogue name
+ * always does ("4mm Clear Toughened") — so any glass value containing
+ * whitespace is reported, naming the template and the field. The pricing
+ * warning ("Glass code not found") already exists; this one fires at
+ * template save / drawing creation, for the template's author.
+ */
+export function templateGlassNameWarnings(tree, templateName = 'template') {
+  const warnings = []
+  const FIELDS = ['internalGlassPartNo', 'externalGlassPartNo', 'singleGlassPartNo']
+  ;(function walk(n) {
+    if (!n) return
+    if (n.part_type === 'glassPart') {
+      for (const k of FIELDS) {
+        const v = n.values?.[k]
+        if (typeof v === 'string' && v.trim() !== '' && /\s/.test(v.trim())) {
+          warnings.push(
+            `Template "${templateName}": ${k} holds a glass NAME ("${v}"), not a part code — drawings made from this template price with NO glass until it is fixed`)
+        }
+      }
+    }
+    for (const c of (n.children ?? [])) walk(c)
+  })(tree)
+  return warnings
+}
+
 // ── Template CRUD ────────────────────────────────────────────────────────────
 
 /**
@@ -169,6 +200,10 @@ export async function createDrawingFromTemplate(jobItemId, template, nextDrawing
   } catch (histE) {
     console.warn('History insert for template creation failed:', histE)
   }
+
+  // Step AE item 2: creating from a template must never silently carry a
+  // glass NAME — the caller shows these to the user.
+  newDwg.glassNameWarnings = templateGlassNameWarnings(template.tree, template.name)
 
   return newDwg
 }

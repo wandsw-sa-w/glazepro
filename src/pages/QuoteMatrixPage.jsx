@@ -255,6 +255,7 @@ export default function QuoteMatrixPage() {
   const [selectMode, setSelectMode] = useState(false)
   const [selectedItemIds, setSelectedItemIds] = useState(new Set())
   const [templatePickerFor, setTemplatePickerFor] = useState(null) // jobItemId
+  const [templateGlassWarn, setTemplateGlassWarn] = useState(null) // { warnings, drawingId } — Step AE item 2
   const [breakdownDrawingId, setBreakdownDrawingId] = useState(null) // Price breakdown dialog
   const [priceFileModal, setPriceFileModal] = useState(false)
   const [allTemplates, setAllTemplates] = useState([]) // drawing_templates rows
@@ -559,7 +560,15 @@ export default function QuoteMatrixPage() {
     try {
       const newDwg = await createDrawingFromTemplate(item.id, template, nextNum)
       setTemplatePickerFor(null)
-      if (newDwg) navigate(`/drawing-board/${newDwg.id}`)
+      if (!newDwg) return
+      // Step AE item 2: a template that still stores a glass NAME prices
+      // with no glass — tell whoever made the template, visibly, before
+      // opening the new drawing.
+      if ((newDwg.glassNameWarnings ?? []).length > 0) {
+        setTemplateGlassWarn({ warnings: newDwg.glassNameWarnings, drawingId: newDwg.id })
+        return
+      }
+      navigate(`/drawing-board/${newDwg.id}`)
     } catch (e) {
       console.error('Failed to create drawing from template:', e)
       setTemplatePickerFor(null)
@@ -1133,6 +1142,31 @@ export default function QuoteMatrixPage() {
           }}
           onClose={() => setTemplatePickerFor(null)}
         />
+      )}
+
+      {/* Step AE item 2: template glass-name warning (shown before opening the new drawing) */}
+      {templateGlassWarn && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9000, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', borderRadius: 12, padding: 24, width: 480, boxShadow: '0 8px 32px rgba(0,0,0,.18)' }}>
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>Template stores a glass name</div>
+            {templateGlassWarn.warnings.map((w, i) => (
+              <div key={i} style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 6, padding: '6px 10px', marginBottom: 8, fontSize: 12, color: '#991b1b' }}>
+                {'⚠'} {w}
+              </div>
+            ))}
+            <div style={{ fontSize: 12, color: '#555', marginBottom: 14 }}>
+              The drawing was created, but its glass will not price until the template (and this drawing) store glass part codes.
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => { const id = templateGlassWarn.drawingId; setTemplateGlassWarn(null); navigate(`/drawing-board/${id}`) }}
+                style={{ padding: '7px 14px', borderRadius: 6, border: 'none', background: '#3d35a8', color: '#fff', fontSize: 13, cursor: 'pointer' }}
+              >
+                Open drawing
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {breakdownDrawingId && (
