@@ -41,7 +41,7 @@ import { treeHash } from './treeHash.js'
 import { loadPricingContext, resolveIronmongeryLines } from './loadPricingContext.js'
 import { PRICING_ENGINE_VERSION } from './engineVersion.js'
 import {
-  glazingType, hornKind, operationKind, glassSpacerMm,
+  glazingType, hornLengthMm, operationKind, glassSpacerMm,
   isWarmEdgeSpacerColour, collectVocabularyWarnings,
 } from './optionVocabulary.js'
 import { fetchAllRows } from '../lib/fetchAllRows.js'
@@ -150,22 +150,31 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
     // drawn sash sizes come from computeDerived / computeSashGeometry).
     const sz = sashSizes(tree, derived)
 
+    // Horn length from the drawing (stored length, else the length that
+    // belongs to the horn type — optionVocabulary.js, step-y brief §1).
+    // The old 70 mm Victorian constant and the invented sashLip are gone.
     const hornCode   = isTop
       ? pair?.values?.topHornTypeShortName
       : pair?.values?.bottomHornTypeShortName
-    // 'none' and 'no_horn' both mean no horn (optionVocabulary.js)
-    const hornLength = hornKind(hornCode) === 'victorian' ? 70 : 0
+    const storedHornLength = isTop
+      ? pair?.values?.topHornLength
+      : pair?.values?.bottomHornLength
+    const hornLength = hornLengthMm(hornCode, storedHornLength)
 
-    // Sash lip: the meeting-rail overhang that Integrate includes in
-    // gross_sash_height_in_mm ("sash height including sash lip & horn").
-    // Defaults to 0 for backward compat; fixtures set it from the sash profile.
-    const sashLip = pair?.values?.sashLip ?? 0
+    // Bottom sash: a chamfered bottom rail adds the internal/external
+    // measurement difference — sash thickness × tan(chamfer angle), the
+    // "7" Integrate labels on its drawings (45 mm × tan 9° = 7.13; only
+    // 9° / 45 mm is measured — step-y brief §1). Not chamfered → 0.
+    const sashThicknessForGross = pair?.values?.sashThickness ?? 45
+    const chamferAngle = !isTop ? Number(v.chamferedBottomRailAngle ?? 0) : 0
+    const chamferAllowance = chamferAngle > 0
+      ? sashThicknessForGross * Math.tan(chamferAngle * Math.PI / 180) : 0
 
     // Gross sash height = drawn sash height (glass + own rail + meeting
-    // rail — Integrate's drawn label, e.g. A: 850.5 / 889.5) + horn + lip
+    // rail — Integrate's drawn label) + horn + bottom chamfer allowance
     const drawnHeight = isTop ? sz.topSashHeight : sz.bottomSashHeight
     const gross_sash_height_in_mm = drawnHeight != null
-      ? drawnHeight + hornLength + sashLip : null
+      ? drawnHeight + hornLength + chamferAllowance : null
 
     // Gross sash width = the drawn sash width (Integrate's "Sash width")
     const gross_sash_width_in_mm = sz.sashWidth

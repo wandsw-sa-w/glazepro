@@ -25,6 +25,7 @@ import { defaultIronmonger } from '../pricing/defaultIronmongery.js'
 import { computeVariables } from '../pricing/computeVariables.js'
 import { validateDrawing, countBySeverity } from '../validation/validate.js'
 import { PriceBreakdown } from '../components/PriceBreakdown.jsx'
+import { hornKind, HORN_TYPE_DEFAULT_LENGTH_MM } from '../pricing/optionVocabulary.js'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -1799,7 +1800,18 @@ function DrawingBoard() {
   // ── Field change handler ──────────────────────────────────────────────────────
   const handleChangeField = useCallback((nodeKey, propertyName, newValue, fieldKey) => {
     if (!tree) return
-    let newTree = updateNodeValues(tree, nodeKey, { [propertyName]: newValue })
+    let patch = { [propertyName]: newValue }
+
+    // Choosing a horn TYPE also fills in the horn LENGTH, as Integrate does
+    // (step-y brief §1): Victorian → 75, no horn → 0, custom → cleared for
+    // the user to type. New drawings therefore store the length.
+    if (fieldKey === 'sashPairPart.topHornTypeShortName' || fieldKey === 'sashPairPart.bottomHornTypeShortName') {
+      const lengthProp = fieldKey.endsWith('topHornTypeShortName') ? 'topHornLength' : 'bottomHornLength'
+      const kind = hornKind(newValue)
+      patch[lengthProp] = kind === 'custom' ? null : (HORN_TYPE_DEFAULT_LENGTH_MM[kind] ?? null)
+    }
+
+    let newTree = updateNodeValues(tree, nodeKey, patch)
 
     // If an operation field changed, apply frame/cill defaults as ONE step
     if (OPERATION_FIELDS.has(fieldKey)) {

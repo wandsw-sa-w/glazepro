@@ -10,7 +10,7 @@ import { readFileSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import {
-  timberFamily, glazingType, hornKind, operationKind,
+  timberFamily, glazingType, hornKind, hornLengthMm, operationKind,
   spacerDimensionMm, glassSpacerMm, isWarmEdgeSpacerColour,
   isLambsTongueMoulding, collectVocabularyWarnings,
   TIMBER_FAMILY_DENSITIES,
@@ -63,6 +63,18 @@ describe('hornKind / operationKind / spacers / moulding', () => {
     expect(hornKind('victorian')).toBe('victorian')
     expect(hornKind('custom')).toBe('custom')
     expect(hornKind('stub')).toBeUndefined()
+  })
+
+  it('horn length: stored wins; else by type (Victorian 75 — both Integrate drawings); custom without a length is an error', () => {
+    expect(hornLengthMm('victorian', 75)).toBe(75)
+    expect(hornLengthMm('victorian', 60)).toBe(60)   // stored length wins
+    expect(hornLengthMm('victorian', null)).toBe(75) // by type
+    expect(hornLengthMm('no_horn', null)).toBe(0)
+    expect(hornLengthMm('none', 0)).toBe(0)
+    expect(hornLengthMm(null, null)).toBe(0)
+    expect(hornLengthMm('custom', 90)).toBe(90)
+    expect(() => hornLengthMm('custom', null)).toThrow(/Custom horn/)
+    expect(hornLengthMm('stub', null)).toBe(0)       // unknown type → 0 + vocabulary warning
   })
 
   it('operation codes', () => {

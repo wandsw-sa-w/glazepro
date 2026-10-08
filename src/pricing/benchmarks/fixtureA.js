@@ -119,10 +119,9 @@ const TREE = {
             topHornTypeShortName:    'victorian',
             topHornLength:           75,  // Integrate drawing label (step-w brief §3); not in the weight
             bottomHornTypeShortName: 'none',
+            bottomHornLength:        0,
             sashSplit:               'half_half',
-            // Sash lip: meeting-rail overhang included in Integrate's
-            // gross_sash_height_in_mm. 8mm is the standard profile default.
-            sashLip:                 8,
+            // (the invented sashLip: 8 is gone — step-y brief §1)
           },
           children: [
             {
@@ -173,7 +172,10 @@ const TREE = {
                 rightWidth:   49,
                 operation:    'cord_hung',
                 toBeReplaced: true,  // sash replacement: both sashes replaced
-                archHead:     false,
+                // Chamfered bottom rail at 9° (step-y brief §1: both
+                // Integrate drawings) — drives the gross-height allowance
+                btmRailShapeId: 'chamfered',
+                chamferedBottomRailAngle: 9,
               },
               children: [
                 {

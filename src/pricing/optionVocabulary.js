@@ -89,6 +89,37 @@ export function hornKind(code) {
   return HORN_KINDS[String(code).toLowerCase()]
 }
 
+// Horn length by type, in mm — step-y brief §1: in Integrate the length
+// follows the type. Both Integrate drawings with "Victorian Style Horn"
+// store 75 (L34046 Item 7 and L31115 Item 1 Dwg 4), "No horn" stores 0,
+// and "Custom Horn" requires a typed length. This lives HERE rather than
+// on the horn_type reference data because reference_options.attributes
+// could hold it but (a) writing it needs SQL, which these sessions never
+// run, and (b) nothing loads option attributes into the pricing context —
+// the named mapping is the structure the code currently supports.
+export const HORN_TYPE_DEFAULT_LENGTH_MM = {
+  victorian: 75,
+  none:      0,
+}
+
+/**
+ * The horn length for pricing: the STORED length when the drawing has one,
+ * else the length that belongs to the horn type. A custom horn with no
+ * stored length is an ERROR, not 0. An unknown horn type contributes 0 —
+ * collectVocabularyWarnings() already reports the code.
+ */
+export function hornLengthMm(code, storedLength) {
+  if (storedLength != null && storedLength !== '') {
+    const n = Number(storedLength)
+    if (isFinite(n)) return n
+  }
+  const kind = hornKind(code)
+  if (kind === 'custom') {
+    throw new Error('Custom horn with no horn length set on the drawing — enter the horn length')
+  }
+  return HORN_TYPE_DEFAULT_LENGTH_MM[kind] ?? 0
+}
+
 // ── Sash operation ────────────────────────────────────────────────────────────
 // sash_operation has three live options (sql/step-b2c-applies-to.sql):
 // "Cord Hung", a spiral option and a fix option. Real code seen: 'cord_hung'.
