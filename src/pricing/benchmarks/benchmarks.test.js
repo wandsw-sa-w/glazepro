@@ -9,7 +9,7 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
-import { runPricingOnTree } from '../pricingEngine.js'
+import { runPricingOnTree, shapedGlassCutAreaM2 } from '../pricingEngine.js'
 import { computeDerived } from '../../drawingBoard/computeDerived.js'
 import { computeVariables } from '../computeVariables.js'
 import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_B_UNCORRECTED, BENCHMARK_C, BENCHMARK_D } from './index.js'
@@ -252,6 +252,24 @@ describe('Step AC — fixtures C and D drawn sizes vs Integrate', () => {
     const frame = BENCHMARK_D.tree.children.find(c => c.part_type === 'assemblyFramePart')
     const pairs = frame.children.filter(c => c.part_type === 'sashPairPart')
     for (const p of pairs) expect(d[p.key]?.sashWidth).toBe(738)
+  })
+})
+
+describe('Step AD — shaped glass cut area (exact shape, not the rectangle)', () => {
+  // Reviewer's arithmetic (step-ad brief §2) for C's arched top unit:
+  // sightline chord 726, glass height 436.5, rise 100, cover 12 →
+  // R 720.845, W 750, rectangle 0.2665 + segment 0.0533 = 0.3199 m² →
+  // rounded 0.32 (Integrate), energy qty 0.32 × 20 = 6.40 (Integrate).
+  it('C top unit area rounds to Integrate’s 0.32 m²', () => {
+    const a = shapedGlassCutAreaM2(726, 436.5, 100, 12)
+    expect(a).toBeCloseTo(0.3199, 3)
+    expect(Math.round(a * 100) / 100).toBe(0.32)
+  })
+
+  it('degenerate shapes return null (no silent rectangle)', () => {
+    expect(shapedGlassCutAreaM2(726, 436.5, 0, 12)).toBeNull()    // no rise
+    expect(shapedGlassCutAreaM2(0, 436.5, 100, 12)).toBeNull()    // no chord
+    expect(shapedGlassCutAreaM2(726, 90, 100, 12)).toBeNull()     // rise taller than glass
   })
 })
 

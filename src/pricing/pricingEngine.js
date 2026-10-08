@@ -127,6 +127,35 @@ function defaultMissingVars(exprs, vars) {
   return { vars: augmented, defaulted: [...missing] }
 }
 
+// ── Shaped (arched) glass cut area ───────────────────────────────────────────
+// Step AD decision 2: the cut shape is the sightline shape grown outward by
+// `cover` (= rebate − tolerance) on every edge — the sides and bottom move
+// out by `cover`, the arc stays CONCENTRIC at radius + cover. Exact area =
+// the rectangle up to where the arc meets the grown sides, plus the
+// circular segment above it. Reviewer's check for C (chord 726, rise 100,
+// cover 12): R = 708.845 + 12 = 720.845, W = 750, rectangle 0.2665 m² +
+// segment 0.0533 m² = 0.3199 → rounded 0.32, Integrate's figure; energy
+// qty 0.32 × 20 = 6.40 follows from the same area.
+export function shapedGlassCutAreaM2(sightlineWidth, sightlineHeight, riseMm, coverMm) {
+  const chord = Number(sightlineWidth)
+  const h     = Number(riseMm)
+  const Hs    = Number(sightlineHeight)
+  const g     = Number(coverMm) || 0
+  if (!(chord > 0) || !(h > 0) || !(Hs > h)) return null
+  const r    = (chord * chord / 4 + h * h) / (2 * h)  // sightline arc radius
+  const R    = r + g                                   // cut arc, concentric
+  const W    = chord + 2 * g                           // cut width
+  const half = W / 2
+  if (R <= half) return null                           // flatter than the cut is wide
+  const Hc    = Hs + 2 * g                             // cut height at the centre
+  const yc    = Hc - R                                 // arc centre above the cut bottom
+  const ySide = yc + Math.sqrt(R * R - half * half)    // arc meets the grown sides
+  if (!(ySide > 0)) return null
+  const alpha   = 2 * Math.asin(half / R)
+  const segment = (R * R / 2) * (alpha - Math.sin(alpha))
+  return (W * ySide + segment) / 1e6
+}
+
 // ── Part-level variable computation ──────────────────────────────────────────
 
 function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue = {}, profileValues = {}) {
@@ -309,10 +338,18 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
     const glassWidth  = sightlineWidth  + 2 * cover
     const glassHeight = sightlineHeight + 2 * cover
 
-    // actual_area: m² rounded to 2dp (from glass CUT SIZE, not sightline)
-    const actual_area  = (glassWidth > 0 && glassHeight > 0)
-      ? Math.round((glassWidth * glassHeight / 1e6) * 100) / 100
-      : 0
+    // actual_area: m² rounded to 2dp (from glass CUT SIZE, not sightline).
+    // An arched unit (Step AD decision 2) uses the EXACT area of the cut
+    // shape instead of the bounding rectangle; the weight keeps the
+    // rectangular envelope (sashWeight.js is untouched — C's steel
+    // weights 10.0/10.2 already equal Integrate's on that envelope).
+    const shapedArea = parentArch.archHead && parentArch.archHeight > 0
+      ? shapedGlassCutAreaM2(sightlineWidth, sightlineHeight, parentArch.archHeight, cover)
+      : null
+    const rawAreaM2 = shapedArea != null
+      ? shapedArea
+      : (glassWidth > 0 && glassHeight > 0 ? glassWidth * glassHeight / 1e6 : 0)
+    const actual_area = rawAreaM2 > 0 ? Math.round(rawAreaM2 * 100) / 100 : 0
     // rounded_area: actual_area (already 2dp) with 0.30 m² minimum.
     // Integrate definition (line 2168): "rounded up to 0.3 m2 if smaller".
     const rounded_area = Math.max(0.30, actual_area)
