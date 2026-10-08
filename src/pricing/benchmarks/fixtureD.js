@@ -105,7 +105,10 @@ const TREE = {
     staffBeadTypeId:   'small',
     partingBeadTypeId: 'standard',     // Integrate 280
     mouldingTypeId:    'ovolo',        // board-saved value (real tree 10)
-    floorLevel:        'ground_floor', // ASSUMPTION: not in the Integrate read (as L34046)
+    // Integrate item 4 is "Third Floor Front Bedroom" (facts file, second
+    // read 8 Oct — the first read filtered floor fields out by mistake).
+    // The "Third Floor 30 minutes" install rule (60 min) is D's 16th hour.
+    floorLevel:        'third_floor',
   },
   children: [
     {
@@ -182,7 +185,8 @@ const ASSUMPTIONS = [
   'Mullion: thicknessInFrame carries Integrate’s 144; no GlazePro field for isHollowMullion or mullion stop 16',
   'One cillPart (GlazePro shape); Integrate stores two cills, 743 each',
   'Surround architrave: no GlazePro field, but the "Surround timber" allocator (TP68) matches Integrate’s Ogee Architrave lines to the penny',
-  'installationMethod internally / floorLevel ground_floor: not in the Integrate read (as L34046)',
+  'floorLevel third_floor: Integrate item 4 "Third Floor Front Bedroom" (facts file, 8 Oct second read) — the "Third Floor 30 minutes" rule (60 min) is the 16th labour hour',
+  'installationMethod internally: ASSUMPTION, not in the Integrate read (as L34046)',
 ]
 
 const PROFILE_VALUES = {

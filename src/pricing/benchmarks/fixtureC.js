@@ -48,7 +48,9 @@ const TREE = {
     staffBeadTypeId:   'small',
     partingBeadTypeId: 'standard',     // Integrate 280
     mouldingTypeId:    'ovolo',        // board-saved value (real tree 9)
-    floorLevel:        'ground_floor', // ASSUMPTION: not in the Integrate read (as L34046)
+    // Integrate item 3 is "Ground Floor Front Bedroom" (facts file,
+    // second read 8 Oct) — no longer an assumption.
+    floorLevel:        'ground_floor',
   },
   children: [
     {
@@ -190,7 +192,8 @@ const ASSUMPTIONS = [
   'Shape: GlazePro board-saved arched box sash (real tree L507712 drawing 9) with Integrate’s values',
   'Arch (Step AD): top sash archHead/archHeight 100/isFrameLevelArch/archedOuterJamb, as Integrate; archRadius 708.8 and shoulderHeight 336.5 derived',
   'Surround architrave: no GlazePro field, but the "Surround timber" allocator (TP68) matches Integrate’s Ogee Architrave lines to the penny',
-  'installationMethod internally / floorLevel ground_floor: not in the Integrate read (as L34046)',
+  'floorLevel ground_floor: Integrate item 3 "Ground Floor Front Bedroom" (facts file, 8 Oct second read)',
+  'installationMethod internally: ASSUMPTION, not in the Integrate read (as L34046)',
   'Bar tail 4 / tailLinkType 1: board defaults; Integrate read gives thickness 22 and nib 4 only',
 ]
 
