@@ -218,6 +218,13 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
     const outerW = v.width  ?? 0
     const outerH = v.height ?? 0
 
+    // Frame width/height in METRES are rounded HALF UP to 2 dp, decimal-safe
+    // (1245 mm → 1.25 m, never 1.24 via binary float). INFERRED FROM ONE
+    // BENCHMARK (step-y brief §2): Integrate's Box Frame Staff Bead cost
+    // 19.88 = (1.25 + 1.78) × 2 × 3.28. Applied ONLY to these frame-level
+    // metre variables.
+    const metres2dp = mm => Math.floor(mm / 10 + 0.5) / 100
+
     // Cill child part (assemblyFramePart > cillPart)
     const cillNode = (partNode.children ?? []).find(c => c.part_type === 'cillPart')
     const cv = cillNode?.values ?? {}
@@ -229,8 +236,8 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
 
     return {
       to_be_replaced:          baseVars.is_complete_new ?? false,
-      width:                   outerW / 1000,   // metres (OUTER — Integrate convention)
-      height:                  outerH / 1000,   // metres (OUTER)
+      width:                   metres2dp(outerW),   // metres, 2 dp half-up (see above)
+      height:                  metres2dp(outerH),   // metres, 2 dp half-up
       frame_width_in_mm:       outerW,          // mm (OUTER)
       frame_height_in_mm:      outerH,          // mm (OUTER)
       frame_depth_in_mm:       cv.depth ?? v.frameDepth ?? 0,

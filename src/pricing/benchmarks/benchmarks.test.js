@@ -149,6 +149,27 @@ describe('Step V — glass sightline from the drawn sash sizes, cut rule unchang
   })
 })
 
+describe('Step Y — frame metre width/height round HALF UP to 2 dp, decimal-safe', () => {
+  // Inferred from one benchmark (step-y brief §2): Integrate's Box Frame
+  // Staff Bead 19.88 = 6.06 × 3.28 needs 1245 → 1.25 and 1779 → 1.78.
+  // 1.245 is not representable in binary floating point — the rounding is
+  // done from the mm integer, so it must still come out 1.25.
+  const PROBE = [{
+    id: 'probe_wh', rule_family: 'price', level: 'item', is_active: true,
+    group_name: 'probe', loop_target: 'frame', name: 'probe_width_height',
+    condition: 'true', quantity: '(width + height) * 2', value: '1', markup: 1, sort_order: 1,
+  }]
+
+  it('L34046 frame (1245 × 1779) gives (1.25 + 1.78) × 2 = 6.06', () => {
+    const res = runPricingOnTree(BENCHMARK_L34046.tree, PROBE, PF_VARIABLES,
+      { profileValues: SASH_PV })
+    const line = res.price.lines.find(l => l.name === 'probe_width_height' && l.fires)
+    // The VARIABLES are exactly 1.25 / 1.78; the probe's addition itself
+    // reintroduces float dust, so compare to 10 dp rather than identity
+    expect(line.quantity).toBeCloseTo(6.06, 10)
+  })
+})
+
 describe('Step V — fixture sash sizes equal Integrate’s drawn labels', () => {
   // Evidence table in docs/step-v-geometry-brief.md (read from Integrate's
   // drawing board, 7 Oct 2026)
