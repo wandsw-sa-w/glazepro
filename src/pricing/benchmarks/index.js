@@ -13,5 +13,5 @@
  */
 
 export { BENCHMARK_L34046 } from './fixtureL34046.js'
-export { BENCHMARK_A }      from './fixtureA.js'
+export { BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50 } from './fixtureA.js'
 export { BENCHMARK_B, BENCHMARK_B_UNCORRECTED } from './fixtureB.js'

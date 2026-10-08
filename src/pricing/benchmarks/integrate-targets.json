@@ -1,54 +1,206 @@
 {
-  "_DO_NOT_EDIT": "Figures read from Integrate (Price File Editor > Test Quote, PF30) on 6 Oct 2026. Never change these to match GlazePro output. If GlazePro disagrees, GlazePro is wrong or the gap is reported. Source text: docs/integrate-benchmarks-stage4.txt",
-
+  "_DO_NOT_EDIT": "Figures read from Integrate (Price File Editor > Test Quote, PF30) on 6 Oct 2026. Never change these to match GlazePro output. If GlazePro disagrees, GlazePro is wrong or the gap is reported. Source text: docs/integrate-benchmarks-stage4.txt benchmarkA35/40/50 added 8 Oct 2026 by the reviewer from the same Test Quote page; source text docs/integrate-benchmarks-thickness.txt",
   "L34046": {
     "source": "L34046 Quote 8, Item 7",
     "total_cost": 1241.56,
     "total_price": 2456.24,
     "groups": {
-      "glass_done":             { "cost": 136.66, "price":  273.30 },
-      "installation_materials": { "cost": 138.45, "price":  250.04 },
-      "manufacture":            { "cost": 549.42, "price": 1098.85 },
-      "labour":                 { "cost": 301.58, "price":  603.15 },
-      "manufacture_materials":  { "cost": 115.45, "price":  230.90 }
+      "glass_done": {
+        "cost": 136.66,
+        "price": 273.3
+      },
+      "installation_materials": {
+        "cost": 138.45,
+        "price": 250.04
+      },
+      "manufacture": {
+        "cost": 549.42,
+        "price": 1098.85
+      },
+      "labour": {
+        "cost": 301.58,
+        "price": 603.15
+      },
+      "manufacture_materials": {
+        "cost": 115.45,
+        "price": 230.9
+      }
     }
   },
-
   "benchmarkA": {
     "source": "L31115 Quote 1, Item 1, Drawing 4 (sash replacement)",
     "total_cost": 728.26,
     "total_price": 1408.66,
     "groups": {
-      "glass_done":             { "cost":  99.46, "price": 198.90 },
-      "installation_materials": { "cost": 133.98, "price": 220.15 },
-      "manufacture":            { "cost": 269.53, "price": 539.07 },
-      "labour":                 { "cost": 191.00, "price": 382.00 },
-      "manufacture_materials":  { "cost":  34.29, "price":  68.54 }
+      "glass_done": {
+        "cost": 99.46,
+        "price": 198.9
+      },
+      "installation_materials": {
+        "cost": 133.98,
+        "price": 220.15
+      },
+      "manufacture": {
+        "cost": 269.53,
+        "price": 539.07
+      },
+      "labour": {
+        "cost": 191.0,
+        "price": 382.0
+      },
+      "manufacture_materials": {
+        "cost": 34.29,
+        "price": 68.54
+      }
     }
   },
-
   "benchmarkB_uncorrected": {
     "source": "L31115 Quote 1, Item 2, Drawing 12 (draught seal), exactly as Integrate prices it",
     "total_cost": 233.79,
     "total_price": 573.55,
     "groups": {
-      "extra_services":         { "cost":  13.20, "price":  26.40 },
-      "installation_materials": { "cost":  32.29, "price":  64.57 },
-      "labour":                 { "cost": 160.84, "price": 321.68 },
-      "manufacture_materials":  { "cost":  25.46, "price":  50.90 },
-      "extra_profits":          { "cost":   2.00, "price": 110.00 }
+      "extra_services": {
+        "cost": 13.2,
+        "price": 26.4
+      },
+      "installation_materials": {
+        "cost": 32.29,
+        "price": 64.57
+      },
+      "labour": {
+        "cost": 160.84,
+        "price": 321.68
+      },
+      "manufacture_materials": {
+        "cost": 25.46,
+        "price": 50.9
+      },
+      "extra_profits": {
+        "cost": 2.0,
+        "price": 110.0
+      }
     }
   },
-
   "benchmarkB_corrected": {
     "source": "As above with the agreed correction (docs/integrate-differences.md): sash timber and glazing bead rules need to_be_replaced. Derived by removing the three Manufacture Materials lines.",
     "total_cost": 208.33,
     "total_price": 522.65,
     "groups": {
-      "extra_services":         { "cost":  13.20, "price":  26.40 },
-      "installation_materials": { "cost":  32.29, "price":  64.57 },
-      "labour":                 { "cost": 160.84, "price": 321.68 },
-      "extra_profits":          { "cost":   2.00, "price": 110.00 }
+      "extra_services": {
+        "cost": 13.2,
+        "price": 26.4
+      },
+      "installation_materials": {
+        "cost": 32.29,
+        "price": 64.57
+      },
+      "labour": {
+        "cost": 160.84,
+        "price": 321.68
+      },
+      "extra_profits": {
+        "cost": 2.0,
+        "price": 110.0
+      }
+    }
+  },
+  "benchmarkA35": {
+    "source": "L31115 Quote 1, Item 1, Drawing 4 changed to 35 mm sashes (Integrate set sash height (int) to 1701); read 8 Oct 2026, then restored to 45 mm",
+    "sash_thickness": 35,
+    "sash_height_int": 1701,
+    "lead_weight_qty_top_bottom": [
+      18.86,
+      18.75
+    ],
+    "total_cost": 724.24,
+    "total_price": 1403.1,
+    "groups": {
+      "glass_done": {
+        "cost": 99.46,
+        "price": 198.9
+      },
+      "installation_materials": {
+        "cost": 129.96,
+        "price": 214.59
+      },
+      "manufacture": {
+        "cost": 269.53,
+        "price": 539.07
+      },
+      "labour": {
+        "cost": 191.0,
+        "price": 382.0
+      },
+      "manufacture_materials": {
+        "cost": 34.29,
+        "price": 68.54
+      }
+    }
+  },
+  "benchmarkA40": {
+    "source": "L31115 Quote 1, Item 1, Drawing 4 changed to 40 mm sashes (Integrate set sash height (int) to 1701); read 8 Oct 2026, then restored to 45 mm",
+    "sash_thickness": 40,
+    "sash_height_int": 1701,
+    "lead_weight_qty_top_bottom": [
+      19.32,
+      19.32
+    ],
+    "total_cost": 726.73,
+    "total_price": 1406.84,
+    "groups": {
+      "glass_done": {
+        "cost": 99.46,
+        "price": 198.9
+      },
+      "installation_materials": {
+        "cost": 132.45,
+        "price": 218.33
+      },
+      "manufacture": {
+        "cost": 269.53,
+        "price": 539.07
+      },
+      "labour": {
+        "cost": 191.0,
+        "price": 382.0
+      },
+      "manufacture_materials": {
+        "cost": 34.29,
+        "price": 68.54
+      }
+    }
+  },
+  "benchmarkA50": {
+    "source": "L31115 Quote 1, Item 1, Drawing 4 changed to 50 mm sashes (Integrate set sash height (int) to 1699); read 8 Oct 2026, then restored to 45 mm",
+    "sash_thickness": 50,
+    "sash_height_int": 1699,
+    "lead_weight_qty_top_bottom": [
+      20.13,
+      20.36
+    ],
+    "total_cost": 730.2,
+    "total_price": 1411.57,
+    "groups": {
+      "glass_done": {
+        "cost": 99.46,
+        "price": 198.9
+      },
+      "installation_materials": {
+        "cost": 135.92,
+        "price": 223.06
+      },
+      "manufacture": {
+        "cost": 269.53,
+        "price": 539.07
+      },
+      "labour": {
+        "cost": 191.0,
+        "price": 382.0
+      },
+      "manufacture_materials": {
+        "cost": 34.29,
+        "price": 68.54
+      }
     }
   }
 }

@@ -12,7 +12,7 @@ import { fileURLToPath } from 'url'
 import { runPricingOnTree } from '../pricingEngine.js'
 import { computeDerived } from '../../drawingBoard/computeDerived.js'
 import { computeVariables } from '../computeVariables.js'
-import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_B, BENCHMARK_B_UNCORRECTED } from './index.js'
+import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_B, BENCHMARK_B_UNCORRECTED } from './index.js'
 import { resolveIronmongeryLines } from '../loadPricingContext.js'
 // The LIVE price-file snapshot (reviewer-checked, 8 Oct 2026) — the honest
 // benchmarks and the real-tree case price from this, never from the
@@ -190,6 +190,29 @@ describe('Step V — fixture sash sizes equal Integrate’s drawn labels', () =>
     expect(d[pair.key].topSashHeight).toBe(850.5)
     expect(d[pair.key].bottomSashHeight).toBe(889.5)
   })
+})
+
+describe('Step AA — thickness variants draw Integrate’s sash heights', () => {
+  // docs/integrate-benchmarks-thickness.txt: 35/40 → top 850.5, bottom
+  // 890.5; 50 → top 850.5, bottom 888.5. The fixtures record Integrate's
+  // resulting heights via sashSplit 'set_top' + fixedSashHeight 850.5
+  // (plain half_half at 1701 would draw 851/890 — not Integrate's drawing).
+  const CASES = [
+    [BENCHMARK_A35, 35, 1701, 850.5, 890.5],
+    [BENCHMARK_A40, 40, 1701, 850.5, 890.5],
+    [BENCHMARK_A50, 50, 1699, 850.5, 888.5],
+  ]
+  for (const [bm, t, H, top, bottom] of CASES) {
+    it(`${t} mm (int ${H}): top ${top} / bottom ${bottom}`, () => {
+      const d = computeDerived(bm.tree)
+      const pair = bm.tree.children.find(c => c.part_type === 'assemblyFramePart')
+        .children.find(c => c.part_type === 'sashPairPart')
+      expect(pair.values.sashThickness).toBe(t)
+      expect(d[pair.key].sashWidth).toBe(900)
+      expect(d[pair.key].topSashHeight).toBe(top)
+      expect(d[pair.key].bottomSashHeight).toBe(bottom)
+    })
+  }
 })
 
 describe('Benchmark A — sash replacement variables are correct', () => {
