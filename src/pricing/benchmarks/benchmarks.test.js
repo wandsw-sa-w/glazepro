@@ -533,8 +533,77 @@ describe('Real tree — L507712 drawing 1 prices with real vocabulary', () => {
     expect(firedLines('Box Frame Utile Cill').length).toBeGreaterThanOrEqual(1)
   })
 
-  it('produces no warnings', () => {
+  it('warns, by name, about the one line with no resolvable finish — and nothing else', () => {
+    // Step Z: this real drawing stores NO item ironmongery finish, and the
+    // live profile has no default, so the default claw-fastener line cannot
+    // resolve a finish. Before Step Z it silently priced Polished Brass
+    // (the reviewer's live finding — £26.25 where Integrate had £36.75 ABs);
+    // now it is a visible warning and the line is not priced.
+    expect(results.warnings).toEqual([
+      'Ironmongery line has no finish: z-claw_fastener_kit_wpulleys — set the item’s Ironmongery Finish (or a finish on the line); the line is NOT priced'
+        .replace('’', "'"),
+    ])
+  })
+
+  it('fixed-finish defaults (trickle vent, Wht) still price with no item finish', () => {
+    const trickle = results.price.lines.find(l => l.alloc_iron_part_code === 'RHZ665' && l.fires)
+    expect(trickle).toBeTruthy()
+    expect(trickle.line_cost).toBeCloseTo(3.15, 2)
+  })
+
+  it('never emits a £0 line for the unresolvable-finish product', () => {
+    const clawLines = results.price.lines.filter(l => l.alloc_iron_short_name === 'z-claw_fastener_kit_wpulleys')
+    expect(clawLines).toHaveLength(0)
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step Z — ironmongery lines follow the item's ironmongery finish
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('Step Z — empty line finish follows the item finish', () => {
+  // A minimal L34046-shaped tree with ONE tree-saved line whose finish is
+  // empty ("Item finish" on the board)
+  function treeWithItemFinish(itemFinish) {
+    const tree = JSON.parse(JSON.stringify(BENCHMARK_L34046.tree))
+    const paint = tree.children.find(c => c.part_type === 'paintAndIronmongeryPart')
+    paint.values.ironmongeryFinish = itemFinish
+    paint.values.ironmongeryLines = [
+      { product_short_name: 'z-claw_fastener_kit_wpulleys', finish_code: '', qty: 1, source: 'default' },
+    ]
+    return tree
+  }
+
+  it('item finish ABs + empty line finish → HKKS1075AB at £36.75 (snapshot: unit cost 35.30, Ironmongery Cost rule ×1.05 → 36.75 / ×2 → 73.50)', () => {
+    const results = runFromSnapshot(treeWithItemFinish('ABs'))
+    const line = results.price.lines.find(l => l.alloc_iron_part_code === 'HKKS1075AB' && l.fires)
+    expect(line).toBeTruthy()
+    expect(line.line_cost).toBeCloseTo(36.75, 2)
+    expect(line.line_total).toBeCloseTo(73.50, 2)
     expect(results.warnings).toEqual([])
+  })
+
+  it('changing the item finish re-resolves an empty-finish line (PB → ABs)', () => {
+    const pb = resolveIronmongeryLines(treeWithItemFinish('PB'), SNAPSHOT, SNAPSHOT.profileValues)
+    const abs = resolveIronmongeryLines(treeWithItemFinish('ABs'), SNAPSHOT, SNAPSHOT.profileValues)
+    expect(pb.find(l => l.product_short_name === 'z-claw_fastener_kit_wpulleys').finish_code).toBe('PB')
+    expect(abs.find(l => l.product_short_name === 'z-claw_fastener_kit_wpulleys').finish_code).toBe('ABs')
+  })
+
+  it('no item finish and no profile default → named warning, no £0 line', () => {
+    const tree = treeWithItemFinish(null)
+    const ironmongeryLines = resolveIronmongeryLines(tree, SNAPSHOT, {})  // no profile default
+    const results = runPricingOnTree(tree, SNAPSHOT.rules, SNAPSHOT.pfVariables, {
+      glassCatalogue:       SNAPSHOT.glassCatalogue,
+      partAllocationRules:  SNAPSHOT.partAllocationRules,
+      partCostMap:          SNAPSHOT.partCostMap,
+      ironmongeryLines,
+      ironmongeryCatalogue: SNAPSHOT.ironmongeryCatalogue,
+      profileValues:        SNAPSHOT.profileValues,
+    })
+    expect(results.warnings.some(w =>
+      w.includes('Ironmongery line has no finish: z-claw_fastener_kit_wpulleys'))).toBe(true)
+    expect(results.price.lines.filter(l => l.alloc_iron_short_name === 'z-claw_fastener_kit_wpulleys')).toHaveLength(0)
   })
 })
 
