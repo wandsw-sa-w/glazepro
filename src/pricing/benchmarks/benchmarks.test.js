@@ -12,7 +12,7 @@ import { fileURLToPath } from 'url'
 import { runPricingOnTree } from '../pricingEngine.js'
 import { computeDerived } from '../../drawingBoard/computeDerived.js'
 import { computeVariables } from '../computeVariables.js'
-import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_B_UNCORRECTED } from './index.js'
+import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_B_UNCORRECTED, BENCHMARK_C, BENCHMARK_D } from './index.js'
 import { resolveIronmongeryLines } from '../loadPricingContext.js'
 // The LIVE price-file snapshot (reviewer-checked, 8 Oct 2026) — the honest
 // benchmarks and the real-tree case price from this, never from the
@@ -215,6 +215,44 @@ describe('Steps AA/AB — thickness variants draw Integrate’s sash heights', (
       expect(d[pair.key].bottomSashHeight).toBe(bottom)
     })
   }
+})
+
+describe('Step AC — fixtures C and D drawn sizes vs Integrate', () => {
+  // Facts: docs/integrate-benchmarks-arched-doublebox.txt.
+  it('C: sash width 824, top sash 525.5, bottom 564.5 (glass 436.5)', () => {
+    const d = computeDerived(BENCHMARK_C.tree)
+    const pair = BENCHMARK_C.tree.children.find(c => c.part_type === 'assemblyFramePart')
+      .children.find(c => c.part_type === 'sashPairPart')
+    expect(d[pair.key].sashWidth).toBe(824)
+    expect(d[pair.key].topSashHeight).toBe(525.5)
+    expect(d[pair.key].bottomSashHeight).toBe(564.5)   // bottom glass 564.5 − 88 − 40 = 436.5
+  })
+
+  // Integrate's top-sash glass SHOULDER is 336.5 (glass 436.5 minus the
+  // 100 arch rise). GlazePro's geometry has no shoulder: topGlassHeight is
+  // the full 436.5 and the arch (stored on the FRAME) never reaches the
+  // sash or glass. No assertion possible — reported in step-ac-findings.
+
+  it('D: top sash 575.5 (glass 486.5) — heights match Integrate', () => {
+    const d = computeDerived(BENCHMARK_D.tree)
+    const frame = BENCHMARK_D.tree.children.find(c => c.part_type === 'assemblyFramePart')
+    const pairs = frame.children.filter(c => c.part_type === 'sashPairPart')
+    expect(pairs).toHaveLength(2)
+    expect(d[pairs[0].key].topSashHeight).toBe(575.5)  // glass 575.5 − 49 − 40 = 486.5
+  })
+
+  it('D: each pair draws 738 wide, as Integrate (TRUTHFUL FAILURE)', () => {
+    // GlazePro's derived geometry has no per-pair openings: the single
+    // sashPairPart geometry spans the whole interior (1630 − 5 = 1625) and
+    // the second pair has no derived geometry at all. Integrate draws each
+    // pair 738 wide (opening 743 − 5, mullion 144 between openings). This
+    // test states Integrate's fact and fails until per-pair geometry
+    // exists (step-ac brief: report and stop — the reviewer decides).
+    const d = computeDerived(BENCHMARK_D.tree)
+    const frame = BENCHMARK_D.tree.children.find(c => c.part_type === 'assemblyFramePart')
+    const pairs = frame.children.filter(c => c.part_type === 'sashPairPart')
+    for (const p of pairs) expect(d[p.key]?.sashWidth).toBe(738)
+  })
 })
 
 describe('Benchmark A — sash replacement variables are correct', () => {

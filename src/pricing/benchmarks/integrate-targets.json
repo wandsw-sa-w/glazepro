@@ -236,5 +236,59 @@
         "price": 68.53
       }
     }
+  },
+  "benchmarkC_arched": {
+    "source": "L31115 Quote 1, Item 3, Drawing 1 \u2014 complete new single box sash, arched head (frame-level arch), read 8 Oct 2026. Facts: docs/integrate-benchmarks-arched-doublebox.txt",
+    "total_cost": 1329.08,
+    "total_price": 2644.52,
+    "groups": {
+      "glass_done": {
+        "cost": 59.84,
+        "price": 119.67
+      },
+      "installation_materials": {
+        "cost": 97.22,
+        "price": 180.8
+      },
+      "manufacture": {
+        "cost": 795.78,
+        "price": 1591.56
+      },
+      "labour": {
+        "cost": 301.58,
+        "price": 603.15
+      },
+      "manufacture_materials": {
+        "cost": 74.66,
+        "price": 149.34
+      }
+    }
+  },
+  "benchmarkD_doublebox": {
+    "source": "L31115 Quote 1, Item 4, Drawing 1 \u2014 complete new double box sash (two pairs, hollow mullion), read 8 Oct 2026. Facts: docs/integrate-benchmarks-arched-doublebox.txt",
+    "total_cost": 1785.67,
+    "total_price": 3545.48,
+    "groups": {
+      "glass_done": {
+        "cost": 84.2,
+        "price": 168.36
+      },
+      "installation_materials": {
+        "cost": 150.63,
+        "price": 275.45
+      },
+      "manufacture": {
+        "cost": 772.6,
+        "price": 1545.2
+      },
+      "labour": {
+        "cost": 643.36,
+        "price": 1286.72
+      },
+      "manufacture_materials": {
+        "cost": 134.88,
+        "price": 269.75
+      }
+    }
   }
 }
