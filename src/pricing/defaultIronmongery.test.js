@@ -134,11 +134,14 @@ const INACTIVE_RULE = {
 }
 
 describe('defaultIronmonger — Item 7 (complete new, cord hung)', () => {
-  it('allocates z-claw_fastener_kit_wpulleys PB with qty 1 (0.5 × 2 sashes)', () => {
+  it('allocates z-claw_fastener_kit_wpulleys with an EMPTY finish (follows the item finish) and qty 1 (0.5 × 2 sashes)', () => {
+    // Step Z: default lines no longer carry the rule's own metal finish —
+    // empty means "use the item's ironmongery finish", resolved at
+    // pricing/display time
     const result = defaultIronmonger(FIXTURE_TREE, BASE_VARS, ITEM7_RULES, {}, PV)
     const claw = result.find(l => l.product_short_name === 'z-claw_fastener_kit_wpulleys')
     expect(claw).toBeDefined()
-    expect(claw.finish_code).toBe('PB')
+    expect(claw.finish_code).toBe('')
     expect(claw.qty).toBeCloseTo(1.0, 6)
   })
 

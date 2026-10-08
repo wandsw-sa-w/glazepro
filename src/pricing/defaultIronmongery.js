@@ -208,13 +208,15 @@ export function defaultIronmonger(tree, variables, rules, glassCatalogue = {}, p
         continue
       }
 
-      // Override the rule's default finish with the item's ironmongery_finish unless
-      // the rule's finish is a fixed non-metal code (e.g. 'Wht' for trickle vents).
+      // Step Z: default lines are created with an EMPTY finish, meaning
+      // "follow the item's ironmongery finish" — resolved at pricing/display
+      // time (resolveIronmongeryLines). A line only carries an explicit
+      // finish when the rule's finish is a fixed non-metal code (e.g. 'Wht'
+      // for trickle vents) or the user picks one on the board.
       const FIXED_FINISHES = ['Wht', 'PN']
-      const itemFinish = baseVars.ironmongery_finish
-      const finish_code = (itemFinish && !FIXED_FINISHES.includes(rule.finish_code))
-        ? itemFinish
-        : rule.finish_code
+      const finish_code = FIXED_FINISHES.includes(rule.finish_code)
+        ? rule.finish_code
+        : ''
 
       lines.push({
         product_short_name: rule.product_short_name,
