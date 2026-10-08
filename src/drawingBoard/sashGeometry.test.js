@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeSashGeometry, computeOpeningLayout, computeGlassWidth } from './sashGeometry.js'
+import { computeSashGeometry, computeOpeningLayout, computeGlassWidth, chamferAllowanceMm } from './sashGeometry.js'
 
 // ── Test helpers ──────────────────────────────────────────────────────────────
 
@@ -221,5 +221,28 @@ describe('computeGlassWidth', () => {
 
   it('returns null when sashWidth is missing', () => {
     expect(computeGlassWidth(null, 47)).toBeNull()
+  })
+})
+
+// ── chamferAllowanceMm ────────────────────────────────────────────────────────
+// Facts from docs/integrate-benchmarks-thickness.txt (second visit): the
+// allowance is round(thickness × tan(angle)) in whole millimetres —
+// 35/40 → 6, 45 → 7, 50 → 8 at the measured 9° rail.
+describe('chamferAllowanceMm', () => {
+  it('matches Integrate at 9° for every measured thickness', () => {
+    expect(chamferAllowanceMm(35, 9)).toBe(6)
+    expect(chamferAllowanceMm(40, 9)).toBe(6)
+    expect(chamferAllowanceMm(45, 9)).toBe(7)
+    expect(chamferAllowanceMm(50, 9)).toBe(8)
+  })
+
+  it('is 0 without a chamfer', () => {
+    expect(chamferAllowanceMm(45, 0)).toBe(0)
+    expect(chamferAllowanceMm(45, null)).toBe(0)
+    expect(chamferAllowanceMm(45, undefined)).toBe(0)
+  })
+
+  it('is 0 when the thickness is missing', () => {
+    expect(chamferAllowanceMm(null, 9)).toBe(0)
   })
 })

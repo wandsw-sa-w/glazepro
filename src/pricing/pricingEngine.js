@@ -35,6 +35,7 @@ import { computeVariables } from './computeVariables.js'
 import { evaluateCondition, evaluateNumber, getExpressionVariables } from './evaluator.js'
 import { loadDrawingParts } from '../drawingBoard/api.js'
 import { computeDerived } from '../drawingBoard/computeDerived.js'
+import { chamferAllowanceMm } from '../drawingBoard/sashGeometry.js'
 import { computeSashWeight, SASH_REPLACEMENT_ITEM_WEIGHT_FACTOR } from './sashWeight.js'
 import { allocateParts } from './partAllocator.js'
 import { treeHash } from './treeHash.js'
@@ -162,13 +163,13 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
     const hornLength = hornLengthMm(hornCode, storedHornLength)
 
     // Bottom sash: a chamfered bottom rail adds the internal/external
-    // measurement difference — sash thickness × tan(chamfer angle), the
-    // "7" Integrate labels on its drawings (45 mm × tan 9° = 7.13; only
-    // 9° / 45 mm is measured — step-y brief §1). Not chamfered → 0.
+    // measurement difference — round(thickness × tan(angle)) in WHOLE mm,
+    // the "7" Integrate labels on its drawings (35/40 → 6, 45 → 7, 50 → 8;
+    // docs/integrate-benchmarks-thickness.txt, step-ab brief §1). Not
+    // chamfered → 0.
     const sashThicknessForGross = pair?.values?.sashThickness ?? 45
     const chamferAngle = !isTop ? Number(v.chamferedBottomRailAngle ?? 0) : 0
-    const chamferAllowance = chamferAngle > 0
-      ? sashThicknessForGross * Math.tan(chamferAngle * Math.PI / 180) : 0
+    const chamferAllowance = chamferAllowanceMm(sashThicknessForGross, chamferAngle)
 
     // Gross sash height = drawn sash height (glass + own rail + meeting
     // rail — Integrate's drawn label) + horn + bottom chamfer allowance

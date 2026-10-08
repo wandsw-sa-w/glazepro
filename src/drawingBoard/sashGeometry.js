@@ -62,6 +62,21 @@ export function computeGlassWidth(sashWidth, stileWidth) {
   return Math.max(sw - 2 * st, 0)
 }
 
+// Chamfered bottom rail allowance — the internal/external measurement
+// difference Integrate labels on its drawings — in WHOLE millimetres:
+// round(thickness × tan(angle)). Read from Integrate's stored drawings
+// (docs/integrate-benchmarks-thickness.txt, second visit, 8 Oct 2026):
+// 35/40 mm → 6, 45 → 7, 50 → 8, and (bottom rail + allowance) is held at
+// 95. The 35 mm/1701 Test Quote (Laminated bottom 11.68) needs at least
+// 5.8 mm, so the allowance cannot be the unrounded 5.54 (step-ab brief).
+// No chamfer (angle missing/0) → 0.
+export function chamferAllowanceMm(thicknessMm, angleDeg) {
+  const t = safe(thicknessMm)
+  const a = safe(angleDeg)
+  if (t == null || a == null || a <= 0) return 0
+  return Math.round(t * Math.tan(a * Math.PI / 180))
+}
+
 export function computeSashGeometry(tree, derived) {
   derived = derived ?? {}
 
