@@ -11,6 +11,8 @@
  * and gets the same table without target columns.
  */
 
+import { useState } from 'react'
+
 // ── Styles (table subset shared by both pages) ───────────────────────────────
 
 export const TS = {
@@ -42,13 +44,25 @@ export function costPriceMatch(actualCost, actualPrice, targets) {
 
 // ── Price rules table ─────────────────────────────────────────────────────────
 
+// Step AE item 3: Integrate's Test Quote does not show lines that price at
+// 0.00 (Glazing Bar qty 0 on unbarred glass, Cill Replacement Profit 0.00,
+// Production Time on a draught seal). They stay stored and still count in
+// the group totals (they add nothing); the table just hides them unless
+// "show zero lines" is ticked.
+function isZeroLine(line) {
+  return line.fires && !line.error && line.line_cost === 0 && line.line_total === 0
+}
+
 export function PriceTable({ lines, targets }) {
+  const [showZeroLines, setShowZeroLines] = useState(false)
   if (!lines || lines.length === 0) return <p style={{ color: '#aaa' }}>No rules.</p>
 
   const hasTargets = targets != null
+  const zeroCount  = lines.filter(isZeroLine).length
 
   const groups = {}
   for (const line of lines) {
+    if (!showZeroLines && isZeroLine(line)) continue
     const g = line.group_name ?? '(ungrouped)'
     if (!groups[g]) groups[g] = { lines: [], cost: 0, price: 0 }
     groups[g].lines.push(line)
@@ -64,6 +78,17 @@ export function PriceTable({ lines, targets }) {
 
   return (
     <>
+      {zeroCount > 0 && (
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#555', marginBottom: 8, cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={showZeroLines}
+            onChange={e => setShowZeroLines(e.target.checked)}
+          />
+          Show zero lines ({zeroCount} hidden{showZeroLines ? ', shown' : ''}) — Integrate does not display 0.00 lines
+        </label>
+      )}
+
       {/* Per-group summary */}
       <table style={{ ...TS.table, width: 'auto', minWidth: '600px', marginBottom: '16px' }}>
         <thead>

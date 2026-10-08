@@ -185,7 +185,10 @@ const TARGETS = {
     'All Glass Energy Surcharge',
     'Lead Weight',
     'Steel Weight',
-    'Production Time',
+    // 'Production Time' removed (Step AE item 3): its rule condition is
+    // literally "true" in Integrate's own file, so it FIRES at qty 0 on a
+    // draught seal — Integrate just doesn't display 0.00 lines. The
+    // production_hours: 0 target below still asserts the truth.
     'Installation Consumables',
     'Laminated Softwood for Sashes',
     'Glazing Bead for Sashes',
@@ -223,7 +226,7 @@ const TARGETS_UNCORRECTED = {
     'All Glass Energy Surcharge',
     'Lead Weight',
     'Steel Weight',
-    'Production Time',
+    // 'Production Time' removed (Step AE item 3) — fires at qty 0, see above
     'Installation Consumables',
   ],
   production_hours: 0,
