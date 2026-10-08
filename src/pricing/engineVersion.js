@@ -24,6 +24,12 @@
  * sizes without the horn, glass at CUT size, bars at 0.302 kg/m, item
  * weight 1.1 × sashes for sash replacements): version-4 runs under-
  * weighted every cord-hung sash and mis-sized its counterweights.
+ * Version 6 closes the Step X open lines (step-y brief): gross sash
+ * height uses the drawing's horn length plus the chamfered-bottom-rail
+ * allowance (no 70 mm constant, no sashLip), frame metre width/height
+ * round half-up to 2 dp, pricing weight is cut to 1 dp, and null outer
+ * jambs mean no extension — version-5 runs were pennies off on every
+ * Laminated/bead/steel line.
  */
 
-export const PRICING_ENGINE_VERSION = 5
+export const PRICING_ENGINE_VERSION = 6
