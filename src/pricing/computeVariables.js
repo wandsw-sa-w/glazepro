@@ -254,15 +254,24 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
     const is_decoration_included           = item?.values?.decoration === true
     const is_installation_included         = true  // always true for GlazePro items
     const is_raked                         = frame?.values?.rakeFrame === true
+    // Step AD: the arch lives on the TOP SASH (archHead, archHeight = glass
+    // rise, isFrameLevelArch, archedOuterJamb); a frame-level archHead is a
+    // legacy drawing, read as a top-sash arch (collectVocabularyWarnings
+    // flags it). These item-level flags aggregate across sashes; the
+    // sliding_sash / glass_unit loop variables override them per part.
+    const legacyFrameArch = frame?.values?.archHead === true
     const is_sash_arched                   = allTopSashes.some(s => s.values?.archHead === true) ||
-                                             allBotSashes.some(s => s.values?.archHead === true)
+                                             allBotSashes.some(s => s.values?.archHead === true) ||
+                                             legacyFrameArch
     const is_curved_head_sash              = allTopSashes.some(s => s.values?.curvedSashHead === true) ||
                                              allBotSashes.some(s => s.values?.curvedSashHead === true)
     const has_curved_inner_head            = frame?.values?.curvedFrameHead === true || is_curved_head_sash
     const has_curved_outer_head            = frame?.values?.curvedFrameHead === true
-    const has_arched_outer_jamb            = frame?.values?.archedOuterJamb === true
+    const has_arched_outer_jamb            = frame?.values?.archedOuterJamb === true ||
+                                             allTopSashes.some(s => s.values?.archedOuterJamb === true)
     const is_square_top_with_arched_sightline = allGlassParts.some(
-      g => g.values?.isSquareTopWithArchedSightline === true)
+      g => g.values?.isSquareTopWithArchedSightline === true) ||
+      (is_sash_arched && !is_curved_head_sash)
 
     // Horn lengths and custom horn flag
     const topHornLen      = pair?.values?.topHornLength    ?? 0

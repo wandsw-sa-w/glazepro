@@ -13,6 +13,7 @@
 
 import React from 'react'
 import { computeOpeningLayout, computeGlassWidth } from './sashGeometry.js'
+import { resolveTopSashArch } from '../pricing/optionVocabulary.js'
 
 // ── Tree helpers ──────────────────────────────────────────────────────────────
 
@@ -251,9 +252,23 @@ export function SashElevation({
   // head/topHeight) = R 1004.3 (frame inner / sash outer); 1004.3 - 49
   // (sash top rail) = R 955.3 (glass top) — matches Integrate's three
   // radius labels exactly.
-  const hasArch      = fv.archHead === true
-  const archH        = hasArch ? n(fv.archHeight, 0) : 0
-  const archRadOuter = hasArch && archH > 0 ? archR(fW, archH) : null
+  // Step AD: the arch belongs to the top sash, measured at the GLASS
+  // (archHeight = rise of the glass sightline arc). The frame head is
+  // drawn CONCENTRIC from the sash arch — glass radius + top rail + frame
+  // head — which is approximate: Integrate's own outer-jamb label (C:
+  // "R 741.8" vs glass "R 708.8") does not follow a derivable offset
+  // rule, so the frame-head offset is NOT invented (step-ad brief §1).
+  // A legacy frame-level archHead keeps the old frame-anchored radius so
+  // existing drawings render unchanged.
+  const sashArch     = resolveTopSashArch(tree)
+  const hasArch      = sashArch.archHead
+  const archH        = hasArch ? n(sashArch.archHeight, 0) : 0
+  const glWForArch   = computeGlassWidth(geometry?.sashWidth, n(topSash?.values?.leftWidth, 47))
+  const archRadOuter = hasArch && archH > 0
+    ? (sashArch.legacyFrameArch || glWForArch == null || glWForArch <= 0
+        ? archR(fW, archH)
+        : archR(glWForArch, archH) + n(topSash?.values?.topHeight, 49) + topHeight)
+    : null
   // Shared centre: crown of the outer arc sits at (fW/2, 0); the centre is
   // directly below it by the outer radius.
   const archCX = fW / 2

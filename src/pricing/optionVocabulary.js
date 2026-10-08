@@ -195,6 +195,50 @@ function findAll(node, partType, acc = []) {
 }
 
 /**
+ * Step AD (docs/step-ad-arch-and-pairs-brief.md §1): the arch belongs to
+ * the TOP SASH, measured at the glass — Integrate stores archHeight as the
+ * rise of the glass sightline arc, shoulderHeight as the glass height at
+ * the sides, isFrameLevelArch (frame head follows the arch) and
+ * archedOuterJamb. GlazePro now stores the same four fields on the top
+ * sash. LEGACY drawings/templates stored archHead/archHeight on the FRAME:
+ * those are read as a top-sash arch with the stored rise taken as the
+ * glass rise, and collectVocabularyWarnings() flags the reinterpretation —
+ * a frame rise is not necessarily a glass rise, so the drawing should be
+ * re-saved with the arch on the top sash.
+ *
+ * @param {Object} tree     - root parts tree node
+ * @param {Object} [sashNode] - a specific topSashPart; the legacy frame
+ *   fallback only applies to the FIRST top sash (legacy drawings are
+ *   single-pair). Omitted → the first top sash.
+ */
+export function resolveTopSashArch(tree, sashNode = null) {
+  const topSash = sashNode ?? findFirst(tree, 'topSashPart')
+  const sv = topSash?.values ?? {}
+  if (sv.archHead === true) {
+    return {
+      archHead:         true,
+      archHeight:       Number(sv.archHeight) || 0,
+      isFrameLevelArch: sv.isFrameLevelArch === true,
+      archedOuterJamb:  sv.archedOuterJamb === true,
+      legacyFrameArch:  false,
+    }
+  }
+  const frame   = findFirst(tree, 'assemblyFramePart')
+  const fv      = frame?.values ?? {}
+  const isFirstTop = topSash != null && topSash === findFirst(tree, 'topSashPart')
+  if (fv.archHead === true && isFirstTop) {
+    return {
+      archHead:         true,
+      archHeight:       Number(fv.archHeight) || 0,
+      isFrameLevelArch: true,   // a frame-level arch, by definition
+      archedOuterJamb:  fv.archedOuterJamb === true,
+      legacyFrameArch:  true,
+    }
+  }
+  return { archHead: false, archHeight: 0, isFrameLevelArch: false, archedOuterJamb: false, legacyFrameArch: false }
+}
+
+/**
  * Scan a parts tree for option codes the engine depends on but does not
  * recognise or cannot price. Returns human-readable warnings, each naming
  * the field and the code — never a silent false.
@@ -234,6 +278,16 @@ export function collectVocabularyWarnings(tree) {
   // Jamb type
   const jt = frame?.values?.jambType
   if (jt && !JAMB_TYPE_CODES.includes(jt)) warn('jambType', jt)
+
+  // Legacy arch location (Step AD): the arch belongs to the top sash,
+  // measured at the glass. A frame-level archHead is read as a top-sash
+  // arch with the stored rise taken as the GLASS rise — not a silent
+  // reinterpretation.
+  if (frame?.values?.archHead === true && findFirst(tree, 'topSashPart')?.values?.archHead !== true) {
+    warnings.push(
+      `Arch stored on the FRAME (legacy drawing): read as a top-sash arch with rise ${frame.values.archHeight ?? '?'} mm at the glass. ` +
+      `Integrate measures the arch at the top sash glass — re-save the drawing with the arch on the top sash to confirm the rise.`)
+  }
 
   // Horns
   for (const field of ['topHornTypeShortName', 'bottomHornTypeShortName']) {

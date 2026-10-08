@@ -43,7 +43,7 @@ import { loadPricingContext, resolveIronmongeryLines } from './loadPricingContex
 import { PRICING_ENGINE_VERSION } from './engineVersion.js'
 import {
   glazingType, hornLengthMm, operationKind, glassSpacerMm,
-  isWarmEdgeSpacerColour, collectVocabularyWarnings,
+  isWarmEdgeSpacerColour, collectVocabularyWarnings, resolveTopSashArch,
 } from './optionVocabulary.js'
 import { fetchAllRows } from '../lib/fetchAllRows.js'
 import { sashSizes } from './derivedGeometry.js'
@@ -171,6 +171,13 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
     const chamferAngle = !isTop ? Number(v.chamferedBottomRailAngle ?? 0) : 0
     const chamferAllowance = chamferAllowanceMm(sashThicknessForGross, chamferAngle)
 
+    // Arch (Step AD): top sash from its stored fields (or the legacy
+    // frame-level archHead, flagged by collectVocabularyWarnings); a
+    // bottom sash is arched only by its own archHead.
+    const sashArch = isTop
+      ? resolveTopSashArch(tree, partNode)
+      : { archHead: v.archHead === true, archHeight: Number(v.archHeight) || 0 }
+
     // Gross sash height = drawn sash height (glass + own rail + meeting
     // rail — Integrate's drawn label) + horn + bottom chamfer allowance
     const drawnHeight = isTop ? sz.topSashHeight : sz.bottomSashHeight
@@ -197,7 +204,16 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
       is_cord_hung:    isCordHung(op),
       is_spiral_hung:  isSpiralHung(op),
       is_fixed_sash:   isFixed(op),
-      is_sash_arched:  v.archHead === true,
+      // Step AD: the arch lives on the TOP SASH, measured at the glass
+      // (legacy frame archHead is read as a top-sash arch —
+      // resolveTopSashArch). Integrate's own rules distinguish a SWEPT
+      // head (arched glass sightline — "Sash Swept Head" etc.) from a
+      // fully CURVED head sash (its own curvedSashHead field): C's 770
+      // missing minutes are exactly the swept-head rules (step-ad).
+      is_sash_arched:  sashArch.archHead,
+      is_curved_head_sash: v.curvedSashHead === true,
+      is_square_top_with_arched_sightline:
+        sashArch.archHead && v.curvedSashHead !== true,
       gross_sash_width_in_mm,
       gross_sash_height_in_mm,
       sash_sightline_width_in_mm,
@@ -251,6 +267,14 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
   if (pt === 'glassPart') {
     // Glass area from sash geometry
     const parentSash  = findParentSash(tree, partNode.key)
+
+    // Step AD: the Square/Shaped glass rules switch PER UNIT on the
+    // parent sash's arch ("not is_sash_arched" / "is_sash_arched" at
+    // glass_unit loop level) — an arched top sash prices Shaped while
+    // the square bottom sash of the same item prices Square.
+    const parentArch = parentSash?.part_type === 'topSashPart'
+      ? resolveTopSashArch(tree, parentSash)
+      : { archHead: parentSash?.values?.archHead === true, archHeight: Number(parentSash?.values?.archHeight) || 0 }
 
     // Glass sightline from the same drawn sash sizes as everything else
     // (Step V): sightlineWidth = sash width − 2 × stileWidth, sightline
@@ -338,6 +362,7 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
     return {
       actual_area,
       rounded_area,
+      is_sash_arched: parentArch.archHead,
       is_single_glazed: gType === 'single',
       is_double_glazed: gType === 'double',
       is_triple_glazed: gType === 'triple',

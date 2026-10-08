@@ -7,12 +7,10 @@
  * saves for an arched box sash) with Integrate's VALUES
  * (docs/integrate-benchmarks-arched-doublebox.txt — fact, read 8 Oct 2026).
  *
- * Shape differences carried as facts, not patched over (step-ac report):
- * - Integrate puts the arch on the TOP SASH (archHeight 100 at the glass,
- *   archRadius 708.9, shoulderHeight 336.5, isFrameLevelArch true,
- *   archedOuterJamb true). GlazePro's board stores archHead/archHeight on
- *   the FRAME and saves none of the other four fields, so this fixture has
- *   frame.archHead=true, frame.archHeight=100 and nothing else.
+ * Step AD: GlazePro now stores the arch as Integrate does — on the TOP
+ * SASH, measured at the glass (archHead, archHeight = glass rise,
+ * isFrameLevelArch, archedOuterJamb). archRadius 708.8 and shoulderHeight
+ * 336.5 are DERIVED (computeDerived), not stored.
  * - Integrate's "surround: architrave" has no GlazePro FIELD, but the
  *   snapshot's "Surround timber" allocator (TP68, fires on every replaced
  *   frame) produces the same two lines to the penny (step-ac findings).
@@ -82,8 +80,6 @@ const TREE = {
       values: {
         width:          999,
         height:         1199,
-        archHead:       true,   // GlazePro stores the arch on the FRAME
-        archHeight:     100,    // Integrate: archHeight 100 (at the glass, on the top sash)
         topHeight:      79,
         bottomHeight:   70,
         leftWidth:      85,
@@ -129,6 +125,15 @@ const TREE = {
                 leftWidth:  49,
                 rightWidth: 49,
                 operation:  'cord_hung',
+                // Step AD: the arch lives on the TOP SASH, as Integrate
+                // stores it — archHeight 100 is the rise of the GLASS
+                // sightline arc (chord 726 → R 708.8), shoulder 336.5
+                // derived, frame head follows (isFrameLevelArch), outer
+                // jamb arched ("R 741.8 F").
+                archHead:         true,
+                archHeight:       100,
+                isFrameLevelArch: true,
+                archedOuterJamb:  true,
               },
               children: [
                 {
@@ -183,7 +188,7 @@ const TARGETS = {
 
 const ASSUMPTIONS = [
   'Shape: GlazePro board-saved arched box sash (real tree L507712 drawing 9) with Integrate’s values',
-  'Arch: frame.archHead/archHeight 100 — Integrate stores it on the top sash with shoulderHeight 336.5, archRadius 708.9, isFrameLevelArch, archedOuterJamb; none of those have a board-saved GlazePro field',
+  'Arch (Step AD): top sash archHead/archHeight 100/isFrameLevelArch/archedOuterJamb, as Integrate; archRadius 708.8 and shoulderHeight 336.5 derived',
   'Surround architrave: no GlazePro field, but the "Surround timber" allocator (TP68) matches Integrate’s Ogee Architrave lines to the penny',
   'installationMethod internally / floorLevel ground_floor: not in the Integrate read (as L34046)',
   'Bar tail 4 / tailLinkType 1: board defaults; Integrate read gives thickness 22 and nib 4 only',

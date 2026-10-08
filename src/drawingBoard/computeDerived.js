@@ -20,6 +20,7 @@
 //   topSashPart.sashHeight / bottomSashPart.sashHeight    (from computeSashGeometry)
 
 import { computeSashGeometry, computeOpeningLayout, computeGlassWidth } from './sashGeometry.js'
+import { resolveTopSashArch } from '../pricing/optionVocabulary.js'
 
 // Safely convert to number; null/undefined/NaN → null
 function num(v) {
@@ -140,27 +141,9 @@ export function computeDerived(tree) {
   }
 
   // topSashPart / bottomSashPart: weight and travel (formula pending)
-  // archRadius and shoulderHeight when archHead=true
   for (const sash of [...topSashes, ...botSashes]) {
     entry(sash.key).weight = null  // formula pending
     entry(sash.key).travel = null  // formula pending
-    const sv = sash.values ?? {}
-    if (sv.archHead === true) {
-      // Sash width from pair derived (computed later by computeSashGeometry).
-      // We'll use the frame width minus stiles as a reasonable approximation;
-      // the SVG renderer can refine after geometry is known.
-      const fv = frame?.values ?? {}
-      const sw = num(fv.width) != null
-        ? num(fv.width) - 2 * (num(sash.values?.leftWidth) ?? 47)
-        : null
-      const h  = num(sv.archHeight)
-      const pH = null  // sash height not yet derived at this pass
-      const ag = archGeometry(sw, h, pH)
-      if (ag) {
-        entry(sash.key).archRadius     = ag.archRadius
-        // shoulderHeight requires sash height — deferred to post-geometry pass below
-      }
-    }
   }
 
   // Sash geometry: sashWidth, sash heights (derived)
@@ -174,53 +157,29 @@ export function computeDerived(tree) {
     for (const sash of topSashes) entry(sash.key).sashHeight = geo.topSashHeight
     for (const sash of botSashes) entry(sash.key).sashHeight = geo.bottomSashHeight
 
-    // Post-geometry arch pass: now that sash heights are known, compute shoulderHeight
+    // Post-geometry arch pass (Step AD): the arch belongs to the TOP SASH,
+    // measured at the GLASS — archHeight is the rise of the glass sightline
+    // arc, so the radius comes from the glass CHORD (glass width) and the
+    // shoulder is the glass height at the sides (glass height − rise).
+    // Integrate labels C's glass "R 708.8": chord 726, rise 100 →
+    // (363² + 100²) / 200 = 708.85. A legacy frame-level archHead resolves
+    // to the same model via resolveTopSashArch (flagged in the vocabulary
+    // warnings).
     for (const sash of topSashes) {
-      const sv = sash.values ?? {}
-      if (sv.archHead === true) {
-        const h   = num(sv.archHeight)
-        const pH  = geo.topSashHeight
-        if (h != null && pH != null) {
-          entry(sash.key).shoulderHeight = Math.round((pH - h) * 100) / 100
+      const arch = resolveTopSashArch(tree, sash)
+      if (!arch.archHead || !(arch.archHeight > 0)) continue
+      const stile = num(sash.values?.leftWidth) ?? 47
+      const chord = geo.sashWidth != null ? geo.sashWidth - 2 * stile : null
+      const ag = archGeometry(chord, arch.archHeight, geo.topGlassHeight)
+      if (ag) {
+        entry(sash.key).archRadius     = ag.archRadius
+        entry(sash.key).shoulderHeight = ag.shoulderHeight
+        const glassChild = (sash.children ?? []).find(c => c.part_type === 'glassPart')
+        if (glassChild) {
+          entry(glassChild.key).archRadius     = ag.archRadius
+          entry(glassChild.key).shoulderHeight = ag.shoulderHeight
         }
       }
-    }
-    for (const sash of botSashes) {
-      const sv = sash.values ?? {}
-      if (sv.archHead === true) {
-        const h   = num(sv.archHeight)
-        const pH  = geo.bottomSashHeight
-        if (h != null && pH != null) {
-          entry(sash.key).shoulderHeight = Math.round((pH - h) * 100) / 100
-        }
-      }
-    }
-  }
-
-  // glassPart: arch geometry + bar positions
-  for (const g of allGlass) {
-    const gv = g.values ?? {}
-
-    // Arch geometry on glass
-    if (gv.archHead === true) {
-      // Glass sightline width/height: approximate from parent sash values.
-      // The SVG renderer will use the precise computed glass dimensions.
-      const parentSash = (() => {
-        function findP(node, key) {
-          if (!node) return null
-          if ((node.children ?? []).some(c => c.key === key)) return node
-          for (const c of (node.children ?? [])) { const r = findP(c, key); if (r) return r }
-          return null
-        }
-        return findP(tree, g.key)
-      })()
-      const fv = frame?.values ?? {}
-      const stile = num(parentSash?.values?.leftWidth) ?? 47
-      const gw = num(fv.width) != null ? num(fv.width) - 2 * stile : null
-      const h  = num(gv.archHeight)
-      const pH = null  // glass height not readily available here
-      const ag = archGeometry(gw, h, pH)
-      if (ag) entry(g.key).archRadius = ag.archRadius
     }
   }
 
