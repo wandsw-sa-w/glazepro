@@ -486,6 +486,29 @@ describe('Honest benchmarks — live snapshot, real is_active flags', () => {
   it('Benchmark B matches the Integrate targets (corrected)', () => {
     expectMatchesIntegrate(runFromSnapshot(BENCHMARK_B.tree), INTEGRATE.benchmarkB_corrected)
   })
+
+  // Step AA thickness variants. These are truthful failures as of Step AA
+  // (see docs/step-aa-findings.md); the brief says report, don't tune:
+  //  - A50: +27p cost / +42p price. Mostly the anticipated top Lead Weight
+  //    miss (model 17.61 kg → 17.6 where Integrate shows 17.5), minus 1p
+  //    on the bottom Glazing Bead.
+  //  - A35: −1p cost / +1p price; A40: exact cost / +2p price. Penny-level
+  //    rounding on the bottom sash's Laminated and Glazing Bead lines:
+  //    GlazePro's chamfer allowance (thickness × tan 9°) and bottom glass
+  //    height vary with thickness, where Integrate holds those lines
+  //    identical at every thickness. Changing that needs an engine change,
+  //    which the brief rules out for this step.
+  it('Benchmark A35 matches the Integrate targets', () => {
+    expectMatchesIntegrate(runFromSnapshot(BENCHMARK_A35.tree), INTEGRATE.benchmarkA35)
+  })
+
+  it('Benchmark A40 matches the Integrate targets', () => {
+    expectMatchesIntegrate(runFromSnapshot(BENCHMARK_A40.tree), INTEGRATE.benchmarkA40)
+  })
+
+  it('Benchmark A50 matches the Integrate targets', () => {
+    expectMatchesIntegrate(runFromSnapshot(BENCHMARK_A50.tree), INTEGRATE.benchmarkA50)
+  })
 })
 
 // ══════════════════════════════════════════════════════════════════════════════

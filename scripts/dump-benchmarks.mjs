@@ -7,7 +7,7 @@ import { readFileSync } from 'fs'
 import { runPricingOnTree } from '../src/pricing/pricingEngine.js'
 import { computeSashWeight } from '../src/pricing/sashWeight.js'
 import { resolveIronmongeryLines } from '../src/pricing/loadPricingContext.js'
-import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_B } from '../src/pricing/benchmarks/index.js'
+import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_B } from '../src/pricing/benchmarks/index.js'
 import snapshot from '../src/pricing/benchmarks/pf30-snapshot.json'
 
 function dump(name, tree, { extraGlass = {} } = {}) {
@@ -37,6 +37,9 @@ function dump(name, tree, { extraGlass = {} } = {}) {
 
 dump(BENCHMARK_L34046.name, BENCHMARK_L34046.tree)
 dump(BENCHMARK_A.name, BENCHMARK_A.tree)
+dump(BENCHMARK_A35.name, BENCHMARK_A35.tree)
+dump(BENCHMARK_A40.name, BENCHMARK_A40.tree)
+dump(BENCHMARK_A50.name, BENCHMARK_A50.tree)
 dump(BENCHMARK_B.name, BENCHMARK_B.tree)
 
 const raw = JSON.parse(readFileSync(new URL('../src/pricing/benchmarks/real-trees/L507712-drawing1.raw.json', import.meta.url), 'utf8'))
