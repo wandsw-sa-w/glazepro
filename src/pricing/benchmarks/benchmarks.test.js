@@ -241,14 +241,11 @@ describe('Step AC — fixtures C and D drawn sizes vs Integrate', () => {
     expect(d[pairs[0].key].topSashHeight).toBe(575.5)  // glass 575.5 − 49 − 40 = 486.5
   })
 
-  it('D: each pair draws 738 wide, as Integrate (TRUTHFUL FAILURE)', () => {
-    // GlazePro's derived geometry has no per-pair openings: the single
-    // sashPairPart geometry spans the whole interior (1630 − 5 = 1625) and
-    // the second pair has no derived geometry at all. Integrate draws each
-    // pair 738 wide (opening 743 − 5, mullion 144 between openings). This
-    // test states Integrate's fact and fails until per-pair geometry
-    // exists (step-ac brief: report and stop — the reviewer decides).
-    const d = computeDerived(BENCHMARK_D.tree)
+  it('D: each pair draws 738 wide, as Integrate', () => {
+    // Step AD decision 3: openings subtract the mullion thickness (profile
+    // value thicknessInFrameHollow, 144) with offset = the mullion's LEFT
+    // face — interior 1630 → openings 743 / 743 → each pair 743 − 5 = 738.
+    const d = computeDerived(BENCHMARK_D.tree, BENCHMARK_D.profileValues)
     const frame = BENCHMARK_D.tree.children.find(c => c.part_type === 'assemblyFramePart')
     const pairs = frame.children.filter(c => c.part_type === 'sashPairPart')
     for (const p of pairs) expect(d[p.key]?.sashWidth).toBe(738)

@@ -12,7 +12,7 @@
 // All coordinates are in mm (the SVG coordinate space).
 
 import React from 'react'
-import { computeOpeningLayout, computeGlassWidth } from './sashGeometry.js'
+import { computeOpeningLayout, computeGlassWidth, mullionThicknessMm } from './sashGeometry.js'
 import { resolveTopSashArch } from '../pricing/optionVocabulary.js'
 
 // ── Tree helpers ──────────────────────────────────────────────────────────────
@@ -327,7 +327,10 @@ export function SashElevation({
   }
 
   // ── Opening layout (for single-opening this is just [{x:0, width:iW}]) ──────
-  const openings = computeOpeningLayout(frameMullions, iW)
+  // Render-only thickness fallback: the stored thicknessInFrame (no
+  // profile values are plumbed into the SVG; pricing uses the profile's
+  // thicknessInFrameHollow — Step AD decision 3)
+  const openings = computeOpeningLayout(frameMullions, iW, m => mullionThicknessMm(m, null))
 
   // ── Mirror (external view flips horizontally) ───────────────────────────────
   const mir = viewMode === 'external'

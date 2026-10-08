@@ -183,7 +183,7 @@ function computePartVarsForAllocator(partNode, tree, derived, baseVars, glassCat
  * }>}
  */
 export function allocateParts(tree, variables, rules, glassCatalogue = {}, includeInactive = false, profileValues = {}) {
-  const derived   = computeDerived(tree)
+  const derived   = computeDerived(tree, profileValues)
   const baseVars  = { ...variables }
   const allocated = []
 

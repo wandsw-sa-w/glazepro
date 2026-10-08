@@ -11,6 +11,7 @@
  */
 
 import { computeSashWeight } from './sashWeight.js'
+import { owningSashPair } from './derivedGeometry.js'
 import { evaluateCondition, evaluateNumber, getExpressionVariables } from './evaluator.js'
 import { computeDerived } from '../drawingBoard/computeDerived.js'
 import { operationKind } from './optionVocabulary.js'
@@ -85,7 +86,8 @@ function computePartVars(partNode, tree, derived, baseVars, glassCatalogue, prof
 
     const weightData = computeSashWeight(partNode, tree, glassCatalogue, profileValues)
 
-    const pair        = findFirst(tree, 'sashPairPart')
+    // Step AD decision 3: the sash's OWN pair on a multi-pair frame
+    const pair        = owningSashPair(tree, partNode)
     const pairDerived = pair ? (derived[pair.key] ?? {}) : {}
     const gross_sash_height_in_mm = isTop
       ? (pairDerived.topSashHeight    ?? weightData.gross_sash_height_in_mm)
@@ -175,7 +177,7 @@ function computePartVars(partNode, tree, derived, baseVars, glassCatalogue, prof
  * }>}
  */
 export function defaultIronmonger(tree, variables, rules, glassCatalogue = {}, profileValues = {}) {
-  const derived  = computeDerived(tree)
+  const derived  = computeDerived(tree, profileValues)
   const baseVars = { ...variables }
   const lines    = []
 

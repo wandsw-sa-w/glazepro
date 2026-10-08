@@ -212,7 +212,7 @@ export function resolveIronmongeryLines(tree, pricingContext, profileValues = {}
     return []
   }
 
-  const derived  = computeDerived(tree)
+  const derived  = computeDerived(tree, profileValues)
   const itemVars = computeVariables(tree, derived, pfVariables) ?? {}
   return withResolvedFinish(
     defaultIronmonger(tree, { ...pfVariables, ...itemVars }, ironmongeryRules, glassCatalogue, profileValues)

@@ -40,10 +40,40 @@ export function frameOverallSize(tree) {
 }
 
 /**
- * Sash and interior sizes for the (first) sash pair, from computeDerived.
+ * The sashPairPart that owns a node (a sash, a glass unit, or the pair
+ * itself). Step AD decision 3: on a multi-pair frame every engine loop
+ * uses the geometry of the sash's OWN pair, never the first pair's.
+ */
+export function owningSashPair(tree, node) {
+  if (!node) return findFirst(tree, 'sashPairPart')
+  if (node.part_type === 'sashPairPart') return node
+  function contains(root, key) {
+    if (!root) return false
+    if (root.key === key) return true
+    return (root.children ?? []).some(c => contains(c, key))
+  }
+  function search(n) {
+    if (!n) return null
+    if (n.part_type === 'sashPairPart' && contains(n, node.key)) return n
+    for (const c of (n.children ?? [])) {
+      const found = search(c)
+      if (found) return found
+    }
+    return null
+  }
+  return search(tree) ?? findFirst(tree, 'sashPairPart')
+}
+
+/**
+ * Sash and interior sizes for ONE sash pair, from computeDerived.
  * Pass the derived map when the caller already has one; otherwise it is
  * computed here — never re-derived with different formulas.
  *
+ * @param {Object} [refNode] - a sash / glass / pair node: sizes come from
+ *   ITS pair (Step AD decision 3). Omitted → the first pair, as before.
+ * @param {Object} [profileValues] - only used when `derived` must be
+ *   computed here: a multi-pair frame's openings need the mullion
+ *   thickness profile value.
  * @returns {{
  *   internalWidth, internalHeight,
  *   sashWidth, topSashHeight, bottomSashHeight,
@@ -51,11 +81,11 @@ export function frameOverallSize(tree) {
  *   topRail, bottomRail, midrail
  * }} — every field null when the tree has no sash pair / geometry fails
  */
-export function sashSizes(tree, derived = null) {
-  const d = derived && Object.keys(derived).length > 0 ? derived : computeDerived(tree)
-  const pair    = findFirst(tree, 'sashPairPart')
-  const topSash = findFirst(tree, 'topSashPart')
-  const botSash = findFirst(tree, 'bottomSashPart')
+export function sashSizes(tree, derived = null, refNode = null, profileValues = null) {
+  const d = derived && Object.keys(derived).length > 0 ? derived : computeDerived(tree, profileValues)
+  const pair    = refNode ? owningSashPair(tree, refNode) : findFirst(tree, 'sashPairPart')
+  const topSash = findFirst(pair ?? tree, 'topSashPart')
+  const botSash = findFirst(pair ?? tree, 'bottomSashPart')
   const pd = pair ? (d[pair.key] ?? {}) : {}
 
   const midrail    = pair?.values?.midrailHeight     ?? 40

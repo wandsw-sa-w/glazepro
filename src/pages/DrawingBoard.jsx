@@ -1467,12 +1467,9 @@ function DrawingBoard() {
     setDirty(isDirtyVsSaved(next))
   }
 
-  // ── Derived values (recompute whenever tree changes) ────────────────────────
-  const derived  = tree ? computeDerived(tree) : {}
-  const geometry = tree ? computeSashGeometry(tree, derived) : null
-
   // Profile values keyed by short field name (numbers parsed) — the measured
-  // sash-weight model needs the profile's glass rebate/tolerance
+  // sash-weight model needs the profile's glass rebate/tolerance, and the
+  // opening layout needs the mullion thickness (thicknessInFrameHollow)
   const profileValueMap = (() => {
     const map = {}
     for (const pv of (profileValues || [])) {
@@ -1482,6 +1479,12 @@ function DrawingBoard() {
     }
     return map
   })()
+
+  // ── Derived values (recompute whenever tree changes) ────────────────────────
+  // The profile value map sizes a multi-pair frame's openings (mullion
+  // thickness from thicknessInFrameHollow — Step AD decision 3)
+  const derived  = tree ? computeDerived(tree, profileValueMap) : {}
+  const geometry = tree ? computeSashGeometry(tree, derived) : null
 
   // ── Sash weights (recompute whenever tree changes) ─────────────────────────
   const sashWeights = (() => {

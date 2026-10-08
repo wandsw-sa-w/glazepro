@@ -13,9 +13,11 @@
  *   mullionPart {offset, thicknessInFrame} and ONE cillPart; there is no
  *   hollow flag and no mullion stop size. This fixture carries Integrate's
  *   144 in GlazePro's thicknessInFrame key.
- * - GlazePro's derived geometry has no per-pair openings: the single
- *   sashPairPart geometry spans the whole interior, so both pairs draw
- *   1625 wide where Integrate draws 738 each. Reported, not patched.
+ * - Step AD decision 3: each pair has its own opening — interior 1630,
+ *   mullion 144 at offset 743 (left face) → openings 743/743, each pair
+ *   738 wide, as Integrate draws it. The mullion thickness comes from
+ *   the profile value thicknessInFrameHollow (144), never the template's
+ *   stored thicknessInFrame.
  */
 
 import INTEGRATE_TARGETS from './integrate-targets.json'
@@ -188,6 +190,10 @@ const PROFILE_VALUES = {
   defaultDoubleGlazingTolerance: 2,
   defaultSingleGlazingRebateWidthForSash: 14,
   defaultSingleGlazingTolerance: 2,
+  // Step AD decision 3: a box-sash mullion is hollow — its thickness is
+  // this profile value (144 on the snapshot's Sash profile), not the
+  // template's stored thicknessInFrame. Missing value = error.
+  thicknessInFrameHollow: 144,
 }
 
 export const BENCHMARK_D = {

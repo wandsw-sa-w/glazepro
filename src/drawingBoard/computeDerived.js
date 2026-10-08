@@ -19,7 +19,7 @@
 //   sashPairPart.sashWidth/topSashHeight/bottomSashHeight (from computeSashGeometry)
 //   topSashPart.sashHeight / bottomSashPart.sashHeight    (from computeSashGeometry)
 
-import { computeSashGeometry, computeOpeningLayout, computeGlassWidth } from './sashGeometry.js'
+import { computeSashGeometry, computeOpeningLayout, computeGlassWidth, mullionThicknessMm } from './sashGeometry.js'
 import { resolveTopSashArch } from '../pricing/optionVocabulary.js'
 
 // Safely convert to number; null/undefined/NaN → null
@@ -84,7 +84,11 @@ function findAll(node, partType, acc = []) {
   return acc
 }
 
-export function computeDerived(tree) {
+// profileValues (optional, Step AD decision 3): needed to size the openings
+// of a multi-pair frame — a box-sash mullion's thickness is the profile
+// value thicknessInFrameHollow (missing = error). Display paths that have
+// no profile values fall back to the mullion's stored thicknessInFrame.
+export function computeDerived(tree, profileValues = null) {
   const out = {}
 
   function entry(key) {
@@ -95,7 +99,8 @@ export function computeDerived(tree) {
   const item        = findFirst(tree, 'drawingItemPart')
   const frame       = findFirst(tree, 'assemblyFramePart')
   const cill        = findFirst(tree, 'cillPart')
-  const pair        = findFirst(tree, 'sashPairPart')
+  const allPairs    = (frame?.children ?? []).filter(c => c.part_type === 'sashPairPart')
+  const pair        = allPairs[0] ?? findFirst(tree, 'sashPairPart')
   const topSashes   = findAll(tree, 'topSashPart')
   const botSashes   = findAll(tree, 'bottomSashPart')
   const allGlass    = findAll(tree, 'glassPart')
@@ -125,19 +130,34 @@ export function computeDerived(tree) {
     }
   }
 
-  // sashPairPart: internalWidth, internalHeight
-  // Optional sub-terms default to 0 so a partial frame still yields a value.
-  if (pair) {
-    entry(pair.key).internalWidth = sub(
-      frame?.values?.width,
-      frame?.values?.leftWidth  ?? 0,
-      frame?.values?.rightWidth ?? 0,
-    )
-    entry(pair.key).internalHeight = sub(
-      frame?.values?.height,
-      frame?.values?.topHeight  ?? 0,
-      cill?.values?.height      ?? 0,
-    )
+  // sashPairPart: internalWidth, internalHeight — PER PAIR (Step AD
+  // decision 3). Each frame-level sashPairPart takes its opening in
+  // document order; openings subtract the mullion thickness (offset =
+  // the mullion's LEFT face, thickness from the profile value
+  // thicknessInFrameHollow — mullionThicknessMm). The internal height is
+  // common to every pair. D: interior 1630, mullion 144 at 743 →
+  // openings 743 / 743 → each pair 738 wide, as Integrate draws it.
+  const frameMullions = (frame?.children ?? []).filter(c => c.part_type === 'mullionPart')
+  const interiorW = sub(
+    frame?.values?.width,
+    frame?.values?.leftWidth  ?? 0,
+    frame?.values?.rightWidth ?? 0,
+  )
+  const interiorH = sub(
+    frame?.values?.height,
+    frame?.values?.topHeight  ?? 0,
+    cill?.values?.height      ?? 0,
+  )
+  const openings = computeOpeningLayout(frameMullions, interiorW ?? 0,
+    m => mullionThicknessMm(m, profileValues))
+
+  const pairsInOrder = allPairs.length > 0 ? allPairs : (pair ? [pair] : [])
+  for (let i = 0; i < pairsInOrder.length; i++) {
+    const p = pairsInOrder[i]
+    entry(p.key).internalWidth  = frameMullions.length > 0
+      ? (openings[i]?.width ?? null)
+      : interiorW
+    entry(p.key).internalHeight = interiorH
   }
 
   // topSashPart / bottomSashPart: weight and travel (formula pending)
@@ -146,70 +166,67 @@ export function computeDerived(tree) {
     entry(sash.key).travel = null  // formula pending
   }
 
-  // Sash geometry: sashWidth, sash heights (derived)
-  const geo = computeSashGeometry(tree, out)
-  if (geo) {
-    if (pair) {
-      entry(pair.key).sashWidth        = geo.sashWidth
-      entry(pair.key).topSashHeight    = geo.topSashHeight
-      entry(pair.key).bottomSashHeight = geo.bottomSashHeight
-    }
-    for (const sash of topSashes) entry(sash.key).sashHeight = geo.topSashHeight
-    for (const sash of botSashes) entry(sash.key).sashHeight = geo.bottomSashHeight
-
-    // Post-geometry arch pass (Step AD): the arch belongs to the TOP SASH,
-    // measured at the GLASS — archHeight is the rise of the glass sightline
-    // arc, so the radius comes from the glass CHORD (glass width) and the
-    // shoulder is the glass height at the sides (glass height − rise).
-    // Integrate labels C's glass "R 708.8": chord 726, rise 100 →
-    // (363² + 100²) / 200 = 708.85. A legacy frame-level archHead resolves
-    // to the same model via resolveTopSashArch (flagged in the vocabulary
-    // warnings).
-    for (const sash of topSashes) {
-      const arch = resolveTopSashArch(tree, sash)
-      if (!arch.archHead || !(arch.archHeight > 0)) continue
-      const stile = num(sash.values?.leftWidth) ?? 47
-      const chord = geo.sashWidth != null ? geo.sashWidth - 2 * stile : null
-      const ag = archGeometry(chord, arch.archHeight, geo.topGlassHeight)
-      if (ag) {
-        entry(sash.key).archRadius     = ag.archRadius
-        entry(sash.key).shoulderHeight = ag.shoulderHeight
-        const glassChild = (sash.children ?? []).find(c => c.part_type === 'glassPart')
-        if (glassChild) {
-          entry(glassChild.key).archRadius     = ag.archRadius
-          entry(glassChild.key).shoulderHeight = ag.shoulderHeight
-        }
+  // Sash geometry: sashWidth, sash heights — per pair, from that pair's
+  // own opening and rails.
+  const geoByPair = new Map()
+  for (const p of pairsInOrder) {
+    const g = computeSashGeometry(tree, out, p)
+    geoByPair.set(p.key, g)
+    if (!g) continue
+    entry(p.key).sashWidth        = g.sashWidth
+    entry(p.key).topSashHeight    = g.topSashHeight
+    entry(p.key).bottomSashHeight = g.bottomSashHeight
+    const pTop = findFirst(p, 'topSashPart')
+    const pBot = findFirst(p, 'bottomSashPart')
+    if (pTop) entry(pTop.key).sashHeight = g.topSashHeight
+    if (pBot) entry(pBot.key).sashHeight = g.bottomSashHeight
+  }
+  // Post-geometry arch pass (Step AD): the arch belongs to the TOP SASH,
+  // measured at the GLASS — archHeight is the rise of the glass sightline
+  // arc, so the radius comes from the glass CHORD (glass width) and the
+  // shoulder is the glass height at the sides (glass height − rise).
+  // Integrate labels C's glass "R 708.8": chord 726, rise 100 →
+  // (363² + 100²) / 200 = 708.85. A legacy frame-level archHead resolves
+  // to the same model via resolveTopSashArch (flagged in the vocabulary
+  // warnings).
+  for (const p of pairsInOrder) {
+    const g = geoByPair.get(p.key)
+    if (!g) continue
+    const sash = findFirst(p, 'topSashPart')
+    if (!sash) continue
+    const arch = resolveTopSashArch(tree, sash)
+    if (!arch.archHead || !(arch.archHeight > 0)) continue
+    const stile = num(sash.values?.leftWidth) ?? 47
+    const chord = g.sashWidth != null ? g.sashWidth - 2 * stile : null
+    const ag = archGeometry(chord, arch.archHeight, g.topGlassHeight)
+    if (ag) {
+      entry(sash.key).archRadius     = ag.archRadius
+      entry(sash.key).shoulderHeight = ag.shoulderHeight
+      const glassChild = (sash.children ?? []).find(c => c.part_type === 'glassPart')
+      if (glassChild) {
+        entry(glassChild.key).archRadius     = ag.archRadius
+        entry(glassChild.key).shoulderHeight = ag.shoulderHeight
       }
     }
   }
 
   // Glazing bar positions — computed on the same glass sightline rectangle
   // renderElevation.jsx actually draws, per sash pair, so a bar's derived
-  // position always agrees with what's on screen. Previously this used
-  // frame.width as a stand-in for glass width, which skips the frame's jamb
-  // widths, mechanical clearances and sash stile widths (~180mm too wide on
-  // a typical box sash) and horizontal bars used the whole top sash height
-  // instead of the glass opening within it.
+  // position always agrees with what's on screen. Each pair uses its own
+  // geometry (Step AD).
   {
-    const framePairs     = findAll(tree, 'sashPairPart')
-    const frameMullions  = (frame?.children ?? []).filter(c => c.part_type === 'mullionPart')
-    const barsInteriorW  = sub(frame?.values?.width, frame?.values?.leftWidth ?? 0, frame?.values?.rightWidth ?? 0)
-    const openings       = computeOpeningLayout(frameMullions, barsInteriorW ?? 0)
+    const framePairs = pairsInOrder
 
-    function sashWidthForPairIndex(idx) {
-      if (idx === 0) return geo?.sashWidth ?? null
-      return openings[idx]?.width ?? null
-    }
-
-    framePairs.forEach((p, pairIdx) => {
+    framePairs.forEach((p) => {
+      const pGeo        = geoByPair.get(p.key) ?? null
       const tSashOfPair = findFirst(p, 'topSashPart')
       const stileW      = num(tSashOfPair?.values?.stileWidth)
-      const sashW       = sashWidthForPairIndex(pairIdx)
+      const sashW       = pGeo?.sashWidth ?? null
       const glassW      = sashW != null ? computeGlassWidth(sashW, stileW) : null
 
       const sashesOfPair = [
-        [findFirst(p, 'topSashPart'),    geo?.topGlassHeight    ?? null],
-        [findFirst(p, 'bottomSashPart'), geo?.bottomGlassHeight ?? null],
+        [findFirst(p, 'topSashPart'),    pGeo?.topGlassHeight    ?? null],
+        [findFirst(p, 'bottomSashPart'), pGeo?.bottomGlassHeight ?? null],
       ]
 
       for (const [sash, glassH] of sashesOfPair) {

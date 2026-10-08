@@ -46,7 +46,7 @@ import {
   isWarmEdgeSpacerColour, collectVocabularyWarnings, resolveTopSashArch,
 } from './optionVocabulary.js'
 import { fetchAllRows } from '../lib/fetchAllRows.js'
-import { sashSizes } from './derivedGeometry.js'
+import { sashSizes, owningSashPair } from './derivedGeometry.js'
 
 // ── Tree helpers (local copies, same logic as computeDerived.js) ──────────────
 
@@ -173,12 +173,14 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
     const is_complete_new = baseVars.is_complete_new ?? false
     const to_be_replaced  = is_complete_new || v.toBeReplaced === true
 
-    const pair = findFirst(tree, 'sashPairPart')
+    // Step AD decision 3: the sash's OWN pair — on a double box each pair
+    // has its own opening and every sash prices from its pair's geometry.
+    const pair = owningSashPair(tree, partNode)
 
     // Sash geometry from the drawing board's own derivation — ONE source
     // (Step V: assemblyFramePart.width/height are the OVERALL frame; the
     // drawn sash sizes come from computeDerived / computeSashGeometry).
-    const sz = sashSizes(tree, derived)
+    const sz = sashSizes(tree, derived, partNode)
 
     // Horn length from the drawing (stored length, else the length that
     // belongs to the horn type — optionVocabulary.js, step-y brief §1).
@@ -307,8 +309,9 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
 
     // Glass sightline from the same drawn sash sizes as everything else
     // (Step V): sightlineWidth = sash width − 2 × stileWidth, sightline
-    // height = the parent sash's glass height from computeDerived.
-    const gsz         = sashSizes(tree, derived)
+    // height = the parent sash's glass height from computeDerived — the
+    // PARENT SASH's own pair on a multi-pair frame (Step AD decision 3).
+    const gsz         = sashSizes(tree, derived, parentSash ?? partNode)
     const gStileWidth = parentSash?.values?.leftWidth ?? 47
     const sightlineWidth = gsz.sashWidth != null
       ? gsz.sashWidth - 2 * gStileWidth : 0
@@ -557,7 +560,9 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
   ironmongeryCatalogue = {},
   profileValues = {},
 } = {}) {
-  const derived  = computeDerived(tree)
+  // profileValues feed the opening layout: a multi-pair frame's mullion
+  // thickness is the profile value thicknessInFrameHollow (Step AD).
+  const derived  = computeDerived(tree, profileValues)
   const itemVars = computeVariables(tree, derived, pfVariables)
   if (!itemVars) return { error: 'computeVariables returned null', lines: [] }
 
@@ -963,7 +968,7 @@ export async function priceDrawing(drawingId, supabase, { priceFileId } = {}) {
     }
 
     // ── 7. Collect variables snapshot from the engine run ─────────────────────
-    const derived  = computeDerived(tree)
+    const derived  = computeDerived(tree, profileValues)
     const variables = computeVariables(tree, derived, pfVariables) ?? {}
     variables.std_labour_time          = engineResults.manufacture_labour.total_minutes / 60
     variables.installation_labour_time = engineResults.install_labour.total_minutes / 60

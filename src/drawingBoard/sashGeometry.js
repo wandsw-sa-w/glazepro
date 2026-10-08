@@ -34,20 +34,49 @@ function positiveOrNull(v) {
 // Given a frame's mullion children (unsorted) and the frame's interior width,
 // return an array of { x, width } for each opening, left to right.
 // This is the single source for opening layout — renderElevation.jsx and
-// computeDerived.js (bar positions) both call this so an opening's on-screen
-// width and its glazing-bar spacing can never drift apart.
-export function computeOpeningLayout(mullions, iW) {
+// computeDerived.js both call this so an opening's on-screen width and its
+// geometry can never drift apart.
+//
+// Step AD decision 3 (Integrate's model): a mullion's `offset` is the
+// distance from the interior's LEFT edge to the mullion's LEFT FACE, and
+// the mullion's THICKNESS is subtracted — the next opening starts at
+// offset + thickness. D: interior 1630, hollow mullion 144 at offset 743 →
+// openings 743 and 1630 − 743 − 144 = 743.
+// `thicknessFor(mullionNode)` supplies each mullion's thickness in mm;
+// omitted (legacy callers) it is 0.
+export function computeOpeningLayout(mullions, iW, thicknessFor = null) {
   function offsetOrZero(m) {
     const x = Number(m?.values?.offset)
     return isFinite(x) && x > 0 ? x : 0
   }
   const sorted = [...(mullions ?? [])].sort((a, b) => offsetOrZero(a) - offsetOrZero(b))
-  const edges  = [0, ...sorted.map(offsetOrZero), safe(iW) ?? 0]
   const result = []
-  for (let i = 0; i < edges.length - 1; i++) {
-    result.push({ x: edges[i], width: edges[i + 1] - edges[i] })
+  let left = 0
+  for (const m of sorted) {
+    const face = offsetOrZero(m)
+    const t    = thicknessFor ? (Number(thicknessFor(m)) || 0) : 0
+    result.push({ x: left, width: face - left })
+    left = face + t
   }
+  result.push({ x: left, width: (safe(iW) ?? 0) - left })
   return result
+}
+
+// A box-sash mullion is HOLLOW (it houses the weights): its thickness comes
+// from the profile value `thicknessInFrameHollow` (144 on the snapshot's
+// profile), not from the template's stored thicknessInFrame. A missing
+// profile value is an error, as elsewhere (step-ad brief §3). When no
+// profileValues are available (legacy display paths) the stored
+// thicknessInFrame is the fallback so the board can still draw.
+export function mullionThicknessMm(mullion, profileValues = null) {
+  if (profileValues != null) {
+    const t = safe(profileValues.thicknessInFrameHollow)
+    if (t == null) {
+      throw new Error('Missing profile value thicknessInFrameHollow for the box-sash mullion — check the drawing’s profile values.')
+    }
+    return t
+  }
+  return safe(mullion?.values?.thicknessInFrame) ?? 0
 }
 
 // Glass sightline width for a sash of the given width, minus its stile width
@@ -77,12 +106,15 @@ export function chamferAllowanceMm(thicknessMm, angleDeg) {
   return Math.round(t * Math.tan(a * Math.PI / 180))
 }
 
-export function computeSashGeometry(tree, derived) {
+// Step AD decision 3: geometry is PER PAIR — pass the sashPairPart whose
+// geometry is wanted (its internalWidth in `derived` is its own opening's
+// width on a multi-pair frame). Omitted → the first pair, as before.
+export function computeSashGeometry(tree, derived, pairNode = null) {
   derived = derived ?? {}
 
-  const pair      = findFirst(tree, 'sashPairPart')
-  const topSash   = findFirst(tree, 'topSashPart')
-  const botSash   = findFirst(tree, 'bottomSashPart')
+  const pair      = pairNode ?? findFirst(tree, 'sashPairPart')
+  const topSash   = findFirst(pair, 'topSashPart')
+  const botSash   = findFirst(pair, 'bottomSashPart')
 
   if (!pair) return null
 

@@ -25,7 +25,7 @@
  */
 
 import { timberFamily, TIMBER_FAMILY_DENSITIES, glazingType } from './optionVocabulary.js'
-import { sashSizes } from './derivedGeometry.js'
+import { sashSizes, owningSashPair } from './derivedGeometry.js'
 
 // ── Timber density constants (kg/m³) — from Integrate Weight Calc page ────────
 // Kept as an alias of the vocabulary module's family densities so existing
@@ -99,8 +99,10 @@ export function computeSashWeight(sashNode, tree, glassCatalogue = {}, profileVa
   const sv    = sashNode.values ?? {}
 
   // ── Structural nodes ──────────────────────────────────────────────────────
+  // Step AD decision 3: the sash's OWN pair — a double box sash weighs
+  // from its own 738-wide opening, not the whole interior.
   const item  = findFirst(tree, 'drawingItemPart')
-  const pair  = findFirst(tree, 'sashPairPart')
+  const pair  = owningSashPair(tree, sashNode)
   const pv    = pair?.values ?? {}
 
   const midrailHeight   = pv.midrailHeight  ?? 40
@@ -108,7 +110,7 @@ export function computeSashWeight(sashNode, tree, glassCatalogue = {}, profileVa
   const stileWidth      = sv.leftWidth ?? 47
 
   // ── Drawn sash sizes (one geometry source — derivedGeometry.js) ──────────
-  const sz = sashSizes(tree)
+  const sz = sashSizes(tree, null, sashNode, profileValues)
 
   const gross_sash_width  = sz.sashWidth ?? 0
   const sightlineWidth    = gross_sash_width - 2 * stileWidth
