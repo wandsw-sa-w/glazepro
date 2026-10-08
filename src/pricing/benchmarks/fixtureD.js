@@ -179,7 +179,7 @@ const ASSUMPTIONS = [
   'Shape: GlazePro board-saved double box sash (real tree L507712 drawing 10) with Integrate’s values',
   'Mullion: thicknessInFrame carries Integrate’s 144; no GlazePro field for isHollowMullion or mullion stop 16',
   'One cillPart (GlazePro shape); Integrate stores two cills, 743 each',
-  'Surround architrave (Ogee Architrave MDF): no GlazePro field; surround allocation not built',
+  'Surround architrave: no GlazePro field, but the "Surround timber" allocator (TP68) matches Integrate’s Ogee Architrave lines to the penny',
   'installationMethod internally / floorLevel ground_floor: not in the Integrate read (as L34046)',
 ]
 

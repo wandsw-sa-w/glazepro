@@ -13,8 +13,9 @@
  *   archedOuterJamb true). GlazePro's board stores archHead/archHeight on
  *   the FRAME and saves none of the other four fields, so this fixture has
  *   frame.archHead=true, frame.archHeight=100 and nothing else.
- * - Integrate's "surround: architrave" (the Ogee Architrave MDF component
- *   lines) has no GlazePro field at all.
+ * - Integrate's "surround: architrave" has no GlazePro FIELD, but the
+ *   snapshot's "Surround timber" allocator (TP68, fires on every replaced
+ *   frame) produces the same two lines to the penny (step-ac findings).
  */
 
 import INTEGRATE_TARGETS from './integrate-targets.json'
@@ -183,7 +184,7 @@ const TARGETS = {
 const ASSUMPTIONS = [
   'Shape: GlazePro board-saved arched box sash (real tree L507712 drawing 9) with Integrate’s values',
   'Arch: frame.archHead/archHeight 100 — Integrate stores it on the top sash with shoulderHeight 336.5, archRadius 708.9, isFrameLevelArch, archedOuterJamb; none of those have a board-saved GlazePro field',
-  'Surround architrave (Ogee Architrave MDF): no GlazePro field; surround allocation not built',
+  'Surround architrave: no GlazePro field, but the "Surround timber" allocator (TP68) matches Integrate’s Ogee Architrave lines to the penny',
   'installationMethod internally / floorLevel ground_floor: not in the Integrate read (as L34046)',
   'Bar tail 4 / tailLinkType 1: board defaults; Integrate read gives thickness 22 and nib 4 only',
 ]
