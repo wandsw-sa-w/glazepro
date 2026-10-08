@@ -39,6 +39,13 @@
  * millimetre — round(thickness × tan(angle)), as Integrate stores it
  * (35/40 → 6, 45 → 7, 50 → 8 at 9°) — version-7 runs used the unrounded
  * figure and were a penny out on bottom Laminated lines away from 45 mm.
+ * Version 9 is Step AD: the arch belongs to the top sash measured at the
+ * glass (shaped glass area = exact cut shape; swept-head time, bead/bar
+ * suppression and per-unit Square/Shaped switching now fire), each sash
+ * pair prices from its OWN opening (mullion thickness from the profile
+ * value thicknessInFrameHollow), and line money rounds decimal-safe
+ * half-up — version-8 runs priced arched and multi-pair drawings on the
+ * wrong geometry and could round a .xx5 line cost down.
  */
 
-export const PRICING_ENGINE_VERSION = 8
+export const PRICING_ENGINE_VERSION = 9

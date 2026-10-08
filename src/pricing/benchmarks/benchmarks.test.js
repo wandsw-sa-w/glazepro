@@ -564,17 +564,12 @@ describe('Honest benchmarks — live snapshot, real is_active flags', () => {
     expectMatchesIntegrate(runFromSnapshot(BENCHMARK_A35_H1700.tree), INTEGRATE.benchmarkA35_h1700)
   })
 
-  // Step AC: C and D are TRUTHFUL FAILURES by design — a gap report, not
-  // a regression. docs/step-ac-findings.md reconciles every penny:
-  //  - C (−316.77/−633.49): the board stores the arch on the FRAME, so
-  //    is_sash_arched never fires (12.84 h manufacture time missing), the
-  //    arched unit prices as square glass, and the bead/bar lines
-  //    Integrate suppresses on an arched sash still fire (+1p float
-  //    rounding on 0.35 × 58.5 = 20.475).
-  //  - D (+165.45/+300.22): no per-pair openings — both pairs price 1625
-  //    wide where Integrate draws 738 each (glass, energy, steel,
-  //    laminated, bead all off the same way); labour 15 h vs 16 h.
-  // Report and stop, per the step-ac brief; the reviewer decides.
+  // Step AD: C is EXACT (top-sash arch model + exact shaped cut area +
+  // decimal-safe line rounding). D remains a truthful failure
+  // (−39.67/−79.62, docs/step-ad-findings.md): Integrate's extra 1.00 h
+  // labour is not in the snapshot's install_labour rules, and the weight
+  // model runs 0.1 kg/sash heavy on the 738-wide double-box sashes
+  // (steel 9.3/10.0 vs Integrate 9.2/9.9) — reported, not tuned.
   it('Benchmark C (arched) matches the Integrate targets', () => {
     expectMatchesIntegrate(runFromSnapshot(BENCHMARK_C.tree), INTEGRATE.benchmarkC_arched)
   })
