@@ -10,7 +10,7 @@ import {
 import { buildNewBoxSash } from '../drawingBoard/buildTree.js'
 import { computeDerived } from '../drawingBoard/computeDerived.js'
 import { applyOperationDefaults } from '../drawingBoard/applyOperationDefaults.js'
-import { computeSashGeometry } from '../drawingBoard/sashGeometry.js'
+import { computeSashGeometry, chamferAllowanceMm } from '../drawingBoard/sashGeometry.js'
 import { computeSashWeight } from '../pricing/sashWeight.js'
 import { loadDrawingRunPrices } from '../quotes/drawingRunPrice.js'
 import { SashElevation } from '../drawingBoard/renderElevation.jsx'
@@ -1814,7 +1814,40 @@ function DrawingBoard() {
       patch[lengthProp] = kind === 'custom' ? null : (HORN_TYPE_DEFAULT_LENGTH_MM[kind] ?? null)
     }
 
+    // Changing the sash thickness (or the chamfer angle) on a pair whose
+    // bottom rail is chamfered: Integrate re-stores the bottom rail and
+    // the sash height so that (bottom rail + whole-mm allowance) and the
+    // EXTERNAL sash height stay constant (docs/integrate-benchmarks-
+    // thickness.txt, second visit; step-ab brief §3). Both adjusted
+    // fields appear in the saved history entry via diffTrees. This runs
+    // only on an actual edit — drawings that are not edited are never
+    // touched.
+    let chamferPatches = null
+    if (fieldKey === 'sashPairPart.sashThickness' || fieldKey === 'bottomSashPart.chamferedBottomRailAngle') {
+      const pairNode  = findFirst(tree, 'sashPairPart')
+      const botNode   = findFirst(tree, 'bottomSashPart')
+      const frameNode = findFirst(tree, 'assemblyFramePart')
+      const oldT = Number(pairNode?.values?.sashThickness ?? 45)
+      const oldA = Number(botNode?.values?.chamferedBottomRailAngle ?? 0)
+      const isThicknessEdit = fieldKey === 'sashPairPart.sashThickness'
+      const newT = isThicknessEdit ? Number(newValue) : oldT
+      const newA = isThicknessEdit ? oldA : Number(newValue ?? 0)
+      const valid = botNode && frameNode && isFinite(newT) && newT > 0 && isFinite(newA) && newA >= 0
+      const delta = valid
+        ? chamferAllowanceMm(oldT, oldA) - chamferAllowanceMm(newT, newA)
+        : 0
+      if (delta !== 0) {
+        const oldRail   = Number(botNode.values?.bottomHeight ?? 88)
+        const oldFrameH = Number(frameNode.values?.height)
+        chamferPatches = [[botNode.key, { bottomHeight: oldRail + delta }]]
+        if (isFinite(oldFrameH)) chamferPatches.push([frameNode.key, { height: oldFrameH + delta }])
+      }
+    }
+
     let newTree = updateNodeValues(tree, nodeKey, patch)
+    if (chamferPatches) {
+      for (const [k, p] of chamferPatches) newTree = updateNodeValues(newTree, k, p)
+    }
 
     // If an operation field changed, apply frame/cill defaults as ONE step
     if (OPERATION_FIELDS.has(fieldKey)) {
