@@ -202,9 +202,10 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
       sash_sightline_width_in_mm,
       sash_sightline_height_in_mm,
       unit_gb_qty:   0,  // NEEDS-DATA: glazing bars per sash not yet captured
-      // Sash weight variables (outer-frame-geometry based)
-      // weight_in_kg rounded to 1 dp before rule evaluation (Integrate behaviour)
-      weight_in_kg:            Math.round(weightData.weight_in_kg * 10) / 10,
+      // weight_in_kg is CUT to 1 dp before rule evaluation, not rounded —
+      // INFERRED FROM FOUR VALUES (step-y brief §3): 17.218→17.2,
+      // 17.318→17.3, 19.489→19.4, 20.444→20.4 (rounding fits only three).
+      weight_in_kg:            Math.floor(weightData.weight_in_kg * 10 + 1e-9) / 10,
       weight_in_lb:            weightData.weight_in_lb,
       weight_incl_panel_in_kg: weightData.weight_incl_panel_in_kg,
       weight_incl_panel_in_lb: weightData.weight_incl_panel_in_lb,

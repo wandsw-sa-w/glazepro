@@ -101,8 +101,9 @@ function computePartVarsForAllocator(partNode, tree, derived, baseVars, glassCat
       ? (pairDerived.topSashHeight    ?? weightData.gross_sash_height_in_mm)
       : (pairDerived.bottomSashHeight ?? weightData.gross_sash_height_in_mm)
 
-    // Round weight to 1 dp to match Integrate's internal rounding before band tests.
-    const weight_in_kg = Math.round(weightData.weight_in_kg * 10) / 10
+    // Weight is CUT to 1 dp before band tests, not rounded — inferred from
+    // four values (step-y brief §3), same as the pricing engine.
+    const weight_in_kg = Math.floor(weightData.weight_in_kg * 10 + 1e-9) / 10
 
     return {
       is_top_sash:              isTop,
