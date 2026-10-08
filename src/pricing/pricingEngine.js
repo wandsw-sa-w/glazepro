@@ -424,6 +424,17 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
   return {}
 }
 
+// ── Line money rounding (Step AD decision 4) ─────────────────────────────────
+// Decimal-safe HALF-UP to 2 dp: 0.35 × 58.50 = 20.475 must give Integrate's
+// 20.48, but the float product is 20.474999999999998 and a plain
+// Math.round lands on 20.47. Snapping the ×100 value to 12 significant
+// digits removes the float artefact before the half-up round — the same
+// treatment Step Y gave the frame metre rounding.
+function round2dpHalfUp(x) {
+  if (!isFinite(x)) return 0
+  return Math.round(Number((x * 100).toPrecision(12))) / 100
+}
+
 // ── Rule evaluation helpers ───────────────────────────────────────────────────
 
 /**
@@ -523,8 +534,8 @@ function evalPriceRuleLine(rule, vars, partNode) {
     // line_total = round(qty × value × markup, 2 dp)  — uses raw cost, not rounded cost
     const raw_cost  = line.quantity * line.value
     const markup    = rule.markup ?? 1
-    line.line_cost  = Math.round(raw_cost * 100) / 100
-    line.line_total = Math.round(raw_cost * markup * 100) / 100
+    line.line_cost  = round2dpHalfUp(raw_cost)
+    line.line_total = round2dpHalfUp(raw_cost * markup)
   } catch (e) {
     line.error = `calc: ${e.message}`
   }
