@@ -670,6 +670,10 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
     // loop_target may be stored as 'ironmongery_part' or 'ironmongery part' (rules export uses spaces).
     if (rule.loop_target === 'ironmongery_part' || rule.loop_target === 'ironmongery part') {
       for (const ironLine of ironmongeryLines) {
+        // Step Z: a line whose finish could not be resolved (no line finish,
+        // no item finish, no profile default) is NEVER priced as a £0 line —
+        // it is skipped here and warned about by name in the warnings pass.
+        if (ironLine.finish_code == null || ironLine.finish_code === '') continue
         const variantKey  = `${ironLine.product_short_name}:${ironLine.finish_code}`
         const variant     = ironmongeryCatalogue[variantKey] ?? null
         const kitParts    = variant?.parts ?? []
@@ -750,6 +754,12 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
   }
   // Ironmongery: check each line's variant key against the catalogue
   for (const il of ironmongeryLines) {
+    // A line with no resolvable finish was skipped by the pricing loop —
+    // name it here so it is a visible warning, never a silent omission
+    if (il.finish_code == null || il.finish_code === '') {
+      pricingWarnings.push(`Ironmongery line has no finish: ${il.product_short_name} — set the item's Ironmongery Finish (or a finish on the line); the line is NOT priced`)
+      continue
+    }
     const key = `${il.product_short_name}:${il.finish_code}`
     const variant = ironmongeryCatalogue[key]
     if (!variant) {

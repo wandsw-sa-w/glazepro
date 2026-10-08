@@ -155,6 +155,26 @@ export async function loadPricingContext(supabase, priceFileId) {
   }
 }
 
+// ── resolveIronmongeryFinish ─────────────────────────────────────────────────
+
+/**
+ * Step Z: a line whose finish is empty means "use the item's ironmongery
+ * finish". Resolution order: the line's own explicit finish → the item's
+ * ironmongery finish (paintAndIronmongeryPart.ironmongeryFinish) → the
+ * profile default → null. A null result must surface as a visible warning
+ * naming the line, never a £0 line (the engine enforces that).
+ *
+ * This is THE resolution — the board panel, the quote PDF and the grid
+ * resolve the same way.
+ */
+export function resolveIronmongeryFinish(lineFinish, itemFinish, profileValues = {}) {
+  if (lineFinish != null && lineFinish !== '') return lineFinish
+  if (itemFinish != null && itemFinish !== '') return itemFinish
+  const profFinish = profileValues?.ironmongeryFinish
+  if (profFinish != null && profFinish !== '') return profFinish
+  return null
+}
+
 // ── resolveIronmongeryLines ──────────────────────────────────────────────────
 
 /**
@@ -174,9 +194,17 @@ export function resolveIronmongeryLines(tree, pricingContext, profileValues = {}
   // Check for tree-saved ironmongery lines
   const paintNode = (tree.children ?? []).find(c => c.part_type === 'paintAndIronmongeryPart')
   const treeSavedLines = paintNode?.values?.ironmongeryLines ?? []
+  const itemFinish = paintNode?.values?.ironmongeryFinish ?? null
+
+  // Empty line finish = "use the item's ironmongery finish" (Step Z) —
+  // resolved here for both tree-saved and default lines
+  const withResolvedFinish = lines => lines.map(line => ({
+    ...line,
+    finish_code: resolveIronmongeryFinish(line.finish_code, itemFinish, profileValues),
+  }))
 
   if (treeSavedLines.length > 0) {
-    return treeSavedLines
+    return withResolvedFinish(treeSavedLines)
   }
 
   // No tree-saved lines — compute defaults
@@ -186,5 +214,7 @@ export function resolveIronmongeryLines(tree, pricingContext, profileValues = {}
 
   const derived  = computeDerived(tree)
   const itemVars = computeVariables(tree, derived, pfVariables) ?? {}
-  return defaultIronmonger(tree, { ...pfVariables, ...itemVars }, ironmongeryRules, glassCatalogue, profileValues)
+  return withResolvedFinish(
+    defaultIronmonger(tree, { ...pfVariables, ...itemVars }, ironmongeryRules, glassCatalogue, profileValues)
+  )
 }

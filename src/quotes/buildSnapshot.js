@@ -13,6 +13,7 @@ import { computeDerived } from '../drawingBoard/computeDerived.js'
 import { computeSashGeometry } from '../drawingBoard/sashGeometry.js'
 import { computeVariables } from '../pricing/computeVariables.js'
 import { defaultIronmonger } from '../pricing/defaultIronmongery.js'
+import { resolveIronmongeryFinish } from '../pricing/loadPricingContext.js'
 import { loadDrawingRunPrices, drawingQuoteItemNet } from './drawingRunPrice.js'
 import { computeQuoteTotals } from './quoteTotals.js'
 import { QUOTE_CONTENT } from './pdf/quoteContent.js'
@@ -439,8 +440,31 @@ export async function buildQuoteSnapshot({ quoteId, leadId, userId, userName, su
       const tree = trees[dwgId]
       if (!tree) continue
 
+      // Drawing profile values (short-keyed) — needed by the sash-weight
+      // model AND as the ironmongery-finish fallback (Step Z)
+      const dwgRow = drawings.find(d => String(d.id) === String(dwgId))
+      const profId = dwgRow?.default_profile_id ?? null
+      if (profId != null && !pvShortByProfile[profId]) {
+        try {
+          const { data: pvRows, error: pvErr } = await supabase
+            .from('default_profile_values')
+            .select('field_key, default_value')
+            .eq('profile_id', profId)
+          if (pvErr) throw new Error(`profile values: ${pvErr.message}`)
+          const m = {}
+          for (const pv of (pvRows || [])) {
+            const key = pv.field_key?.split('.')?.pop() ?? pv.field_key
+            const n = Number(pv.default_value)
+            m[key] = isNaN(n) ? pv.default_value : n
+          }
+          pvShortByProfile[profId] = m
+        } catch { /* fall through with no profile map */ }
+      }
+      const profMap = pvShortByProfile[profId] ?? {}
+
       // Try saved tree lines first
       const paintPart = findFirst(tree, 'paintAndIronmongeryPart')
+      const itemFinish = paintPart?.values?.ironmongeryFinish ?? null
       let lines = paintPart?.values?.ironmongeryLines
       if (!lines || !Array.isArray(lines) || lines.length === 0) lines = null
 
@@ -456,26 +480,8 @@ export async function buildQuoteSnapshot({ quoteId, leadId, userId, userName, su
         }
         if (defaultIronRules.length > 0) {
           try {
-            // The measured sash-weight model needs the drawing profile's
-            // glass rebate/tolerance values
-            const dwgRow = drawings.find(d => String(d.id) === String(dwgId))
-            const profId = dwgRow?.default_profile_id ?? null
-            if (profId != null && !pvShortByProfile[profId]) {
-              const { data: pvRows, error: pvErr } = await supabase
-                .from('default_profile_values')
-                .select('field_key, default_value')
-                .eq('profile_id', profId)
-              if (pvErr) throw new Error(`profile values: ${pvErr.message}`)
-              const m = {}
-              for (const pv of (pvRows || [])) {
-                const key = pv.field_key?.split('.')?.pop() ?? pv.field_key
-                const n = Number(pv.default_value)
-                m[key] = isNaN(n) ? pv.default_value : n
-              }
-              pvShortByProfile[profId] = m
-            }
             const vars = computeVariables(tree, computeDerived(tree), {})
-            lines = defaultIronmonger(tree, vars, defaultIronRules, {}, pvShortByProfile[profId] ?? {})
+            lines = defaultIronmonger(tree, vars, defaultIronRules, {}, profMap)
           } catch { /* leave null */ }
         }
       }
@@ -483,12 +489,14 @@ export async function buildQuoteSnapshot({ quoteId, leadId, userId, userName, su
       if (!lines || lines.length === 0) continue
       ironmongeryByDrawing[dwgId] = lines.map(line => {
         const shortName = line.product_short_name || ''
-        const finishCode = line.finish_code || ''
+        // Empty line finish = the item's ironmongery finish, then the
+        // profile default — the same resolution pricing uses (Step Z)
+        const finishCode = resolveIronmongeryFinish(line.finish_code, itemFinish, profMap) ?? ''
         const product = productByShortName[shortName] || {}
         const variant = variantByProductFinish[`${product.id}__${finishCode}`] || {}
         return {
           ironmongery_products: { name: product.name || shortName, category: product.category || '' },
-          ironmongery_variants: { finish_name: variant.finish_name || finishCode || '', photo_url: variant.photo_url || null },
+          ironmongery_variants: { finish_name: variant.finish_name || finishCode || '⚠ no finish set', photo_url: variant.photo_url || null },
           quantity: line.qty || 1,
         }
       })
