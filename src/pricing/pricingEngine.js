@@ -91,13 +91,34 @@ const LOOP_PART_TYPES = {
   panel:         ['panelPart'],
 }
 
-function getLoopParts(tree, loopTarget) {
+// Step AH: Integrate's glass_unit loop only VISITS glass that is being
+// supplied — the gate is per SASH and lives in the loop, not in the rule
+// conditions (docs/integrate-L31115-A-top-only.txt §2–3: Integrate's glass
+// conditions have no replaced-gate, yet with only A's top sash replaced it
+// priced ONE Square Glass / Multiple GB / Energy line). A glassPart under
+// a sliding sash is visited only when the item is complete new, THAT
+// sash's toBeReplaced is true, or the item is bi-glass (new glass into
+// existing sashes — not yet benchmarked). Glass NOT under a sliding sash
+// (direct glazed into the frame, casements, doors) is unchanged and
+// unverified.
+function glassUnitIsSupplied(glassNode, tree, baseVars) {
+  const parent = findParentSash(tree, glassNode.key)
+  if (!parent || (parent.part_type !== 'topSashPart' && parent.part_type !== 'bottomSashPart')) return true
+  if (baseVars?.is_complete_new === true) return true
+  if (baseVars?.is_bi_glass === true) return true
+  return parent.values?.toBeReplaced === true
+}
+
+function getLoopParts(tree, loopTarget, baseVars = null) {
   if (!loopTarget) return [null]
   const partTypes = LOOP_PART_TYPES[loopTarget]
   if (!partTypes) return []  // unknown loop_target → skip entirely
   const parts = []
   for (const pt of partTypes) {
     parts.push(...findAll(tree, pt))
+  }
+  if (loopTarget === 'glass_unit' && baseVars) {
+    return parts.filter(g => glassUnitIsSupplied(g, tree, baseVars))
   }
   return parts  // empty array = no matching parts in tree → skip entirely
 }
@@ -672,7 +693,7 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
   )
   let mfgMinutes = 0
   for (const rule of mfgRules) {
-    const loopParts = getLoopParts(tree, rule.loop_target)
+    const loopParts = getLoopParts(tree, rule.loop_target, baseVars)
     for (const partNode of loopParts) {
       const vars = partNode
         ? { ...baseVars, ...computePartVariables(partNode, tree, derived, baseVars, glassCatalogue, profileValues) }
@@ -694,7 +715,7 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
   )
   let instMinutes = 0
   for (const rule of instRules) {
-    const loopParts = getLoopParts(tree, rule.loop_target)
+    const loopParts = getLoopParts(tree, rule.loop_target, mfgVars)
     for (const partNode of loopParts) {
       const vars = partNode
         ? { ...mfgVars, ...computePartVariables(partNode, tree, derived, mfgVars, glassCatalogue, profileValues) }
@@ -796,8 +817,8 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
       continue
     }
 
-    // Normal tree-based loop
-    const loopParts = getLoopParts(tree, rule.loop_target)
+    // Normal tree-based loop (glass_unit gated per sash — Step AH)
+    const loopParts = getLoopParts(tree, rule.loop_target, priceVars)
     for (const partNode of loopParts) {
       const vars = partNode
         ? { ...priceVars, ...computePartVariables(partNode, tree, derived, priceVars, glassCatalogue, profileValues) }

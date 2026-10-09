@@ -46,6 +46,10 @@
  * value thicknessInFrameHollow), and line money rounds decimal-safe
  * half-up — version-8 runs priced arched and multi-pair drawings on the
  * wrong geometry and could round a .xx5 line cost down.
+ * Version 10 is Step AH: the glass_unit loop only visits glass that is
+ * being supplied (per sash — complete new, that sash's toBeReplaced, or
+ * bi-glass), as Integrate's loop does — version-9 runs priced stored
+ * glass on sashes that were not being replaced.
  */
 
-export const PRICING_ENGINE_VERSION = 9
+export const PRICING_ENGINE_VERSION = 10
