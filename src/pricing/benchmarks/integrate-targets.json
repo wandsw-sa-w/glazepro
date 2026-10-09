@@ -386,5 +386,67 @@
         "price": 36.5
       }
     }
+  },
+  "benchmarkE_spiral_complete_new": {
+    "source": "L31115 Item 3 Drawing 2 (ground floor): Integrate's Spiral Sash Window template, 1000 x 1500, complete new. Read 9 Oct 2026 via a temporary Quote 2 test quote. Facts: docs/integrate-L31115-spiral.txt",
+    "total_cost": 1010.4,
+    "total_price": 2020.74,
+    "groups": {
+      "glass_done": {
+        "cost": 68.1,
+        "price": 136.18
+      },
+      "installation_materials": {
+        "cost": 59.06,
+        "price": 118.11
+      },
+      "manufacture": {
+        "cost": 411.08,
+        "price": 822.16
+      },
+      "labour": {
+        "cost": 301.58,
+        "price": 603.15
+      },
+      "manufacture_materials": {
+        "cost": 170.58,
+        "price": 341.14
+      }
+    },
+    "hours": {
+      "production": 16.67,
+      "labour": 7.5
+    }
+  },
+  "benchmarkF_spiral_replacement": {
+    "source": "L31115 Item 1 Drawing 14 (third floor): benchmark A copied, both sashes set to Spiral Hung (Integrate switched the frame to solid spiral 28/28/28 and grew the sashes). Read 9 Oct 2026 via a temporary Quote 2 test quote. Facts: docs/integrate-L31115-spiral.txt",
+    "total_cost": 704.69,
+    "total_price": 1409.42,
+    "groups": {
+      "glass_done": {
+        "cost": 116.27,
+        "price": 232.56
+      },
+      "installation_materials": {
+        "cost": 40.81,
+        "price": 81.61
+      },
+      "manufacture": {
+        "cost": 269.53,
+        "price": 539.07
+      },
+      "labour": {
+        "cost": 191.0,
+        "price": 382.0
+      },
+      "manufacture_materials": {
+        "cost": 87.08,
+        "price": 174.18
+      }
+    },
+    "hours": {
+      "production": 10.93,
+      "labour": 4.75
+    }
   }
 }

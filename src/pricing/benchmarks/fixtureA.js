@@ -342,3 +342,55 @@ export const BENCHMARK_A50 = thicknessVariant(
 export const BENCHMARK_A35_H1700 = thicknessVariant(
   'Benchmark A35/h1700 — 35 mm with sash height set back to 1700',
   INTEGRATE_TARGETS.benchmarkA35_h1700, 35, 1700, 89)
+
+// ── Spiral variant (Step AK) ─────────────────────────────────────────────────
+// Benchmark F = L31115 Item 1 Drawing 14: a copy of A with BOTH sashes set to
+// Spiral Hung and saved. Integrate itself then changed the frame — jambType
+// hollow_box → solid_spiral and jambs/head 85/85/79 → 28/28/28, with the
+// frame width and height unchanged at 1070 x 1849 — so the sashes GREW:
+// width 900 → 1014, top sash 850.5 → 876.0, shoulders 761.5 → 787
+// (docs/integrate-L31115-spiral.txt). GlazePro derives those same sizes from
+// its one geometry source, so only the stored fields Integrate changed are
+// set here; everything else is A (third floor, no mechanical clearance, cill
+// stop 20, bars 2V + 1H on the top glass).
+//
+// Integrate reset the bar offsets to 0 on the copy (its default spacing), so
+// the offsets are cleared here too; bar offsets do not enter any priced
+// quantity (only the counts and the glass sightlines do).
+function spiralVariant(name, targets) {
+  const tree = JSON.parse(JSON.stringify(TREE))
+  const frame = tree.children.find(c => c.part_type === 'assemblyFramePart')
+  frame.values.jambType   = 'solid_spiral_for_sash'   // Integrate 'solid_spiral'
+  frame.values.leftWidth  = 28
+  frame.values.rightWidth = 28
+  frame.values.topHeight  = 28
+  const pair = frame.children.find(c => c.part_type === 'sashPairPart')
+  for (const sash of pair.children) {
+    if (sash.part_type === 'topSashPart' || sash.part_type === 'bottomSashPart') {
+      sash.values.operation = 'spiral_hung'   // Integrate operationId 14; code
+                                              // itself not verified (see below)
+      const glass = (sash.children ?? []).find(c => c.part_type === 'glassPart')
+      for (const bar of (glass?.children ?? [])) {
+        if (bar.values && 'offset' in bar.values) bar.values.offset = 0
+      }
+    }
+  }
+  return {
+    name,
+    tree,
+    targets,
+    partCostMap: PART_COST_MAP,
+    profileValues: PROFILE_VALUES,
+    ironmongeryLines: IRONMONGERY_LINES,          // claw kit without pulleys PB x1, as A
+    ironmongeryCatalogue: IRONMONGERY_CATALOGUE,
+    assumptions: [
+      ...ASSUMPTIONS,
+      'Derived from benchmark A: both sashes Spiral Hung, jambs and head 28, jambType solid spiral, bar offsets reset to 0 — the only fields Integrate changed on the copy (docs/integrate-L31115-spiral.txt)',
+      'Sash operation code "spiral_hung": NOT VERIFIED — the live sash_operation code for spiral is not in the repo (docs/pricing-vocabulary-audit.md records only the labels). Pricing matches the substring "spiral", so the spelling changes no figure',
+    ],
+  }
+}
+
+export const BENCHMARK_F = spiralVariant(
+  'Benchmark F — Spiral sash replacement (L31115 Item 1 Drawing 14)',
+  INTEGRATE_TARGETS.benchmarkF_spiral_replacement)

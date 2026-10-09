@@ -7,7 +7,7 @@ import { readFileSync } from 'fs'
 import { runPricingOnTree } from '../src/pricing/pricingEngine.js'
 import { computeSashWeight } from '../src/pricing/sashWeight.js'
 import { resolveIronmongeryLines } from '../src/pricing/loadPricingContext.js'
-import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_C, BENCHMARK_D } from '../src/pricing/benchmarks/index.js'
+import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F } from '../src/pricing/benchmarks/index.js'
 import snapshot from '../src/pricing/benchmarks/pf30-snapshot.json'
 
 function dump(name, tree, { extraGlass = {} } = {}) {
@@ -44,6 +44,8 @@ dump(BENCHMARK_A35_H1700.name, BENCHMARK_A35_H1700.tree)
 dump(BENCHMARK_B.name, BENCHMARK_B.tree)
 dump(BENCHMARK_C.name, BENCHMARK_C.tree)
 dump(BENCHMARK_D.name, BENCHMARK_D.tree)
+dump(BENCHMARK_E.name, BENCHMARK_E.tree)
+dump(BENCHMARK_F.name, BENCHMARK_F.tree)
 
 const raw = JSON.parse(readFileSync(new URL('../src/pricing/benchmarks/real-trees/L507712-drawing1.raw.json', import.meta.url), 'utf8'))
 const MAP = { '4mm Clear Pilkington K Toughened': 'GL100010', '4mm Clear Toughened': 'GL100080' }
