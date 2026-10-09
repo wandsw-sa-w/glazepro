@@ -924,19 +924,11 @@ describe('Step AM — cill replacement benchmarks', () => {
     expect(923.70 - 522.65).toBeCloseTo(401.05, 2)
   })
 
-  // Integrate's uncorrected figures are the corrected ones plus the three S4
-  // lines (deliberate difference 1), which is how B's pair is handled.
-  it('the uncorrected targets are the corrected ones plus the S4 lines', () => {
-    const S4_COST = 25.46, S4_PRICE = 50.90
-    const pairs = [
-      [INTEGRATE.benchmarkH_draught_seal_new_cill_uncorrected, INTEGRATE.benchmarkH_draught_seal_new_cill_corrected],
-      [INTEGRATE.benchmarkI_cill_only_uncorrected,             INTEGRATE.benchmarkI_cill_only_corrected],
-    ]
-    for (const [unc, corr] of pairs) {
-      expect(unc.total_cost - corr.total_cost).toBeCloseTo(S4_COST, 2)
-      expect(unc.total_price - corr.total_price).toBeCloseTo(S4_PRICE, 2)
-    }
-  })
+  // The uncorrected figures are no longer checked by arithmetic here: the
+  // "Step AN — uncorrected S4 lines" block below PRICES H's, I's and a
+  // no_work tree with Integrate's own ungated rules and shows the four
+  // lines totalling 25.46 / 50.90, so Integrate's 126.99 / 451.95 and
+  // 335.32 / 974.60 are reproduced by pricing, not by subtraction.
 
   it('G, H and I all price the cill block and no cill timber', () => {
     for (const bm of [BENCHMARK_G, BENCHMARK_H, BENCHMARK_I]) {
@@ -959,5 +951,150 @@ describe('Step AM — cill replacement benchmarks', () => {
       .filter(l => l.fires && !l.error && l.line_cost > 0)
       .map(l => l.alloc_label ?? l.name)
     expect(fired.sort()).toEqual(['Cill Replacement Profit', 'Labour'])
+  })
+})
+
+// ── Step AN: the three S4 rules, uncorrected and corrected ─────────────────
+// Integrate's own conditions, and GlazePro's deliberate S4 difference
+// (docs/integrate-differences.md difference 1). Module-level so both Step AN
+// blocks below can price real runs with them.
+const UNCORRECTED_S4_RULES = [
+  {
+    id: 'an_lam_bottom', rule_family: 'price', level: 'item', is_active: true,
+    group_name: 'manufacture_materials', loop_target: 'sliding_sash',
+    name: 'Laminated Softwood for Sashes (Bottom)',
+    condition: 'is_solid_redwood_sash and is_bottom_sash',
+    quantity: '((gross_sash_height_in_mm + (gross_sash_width_in_mm * 1.5)) / 1000) * 1.05',
+    value: '4.95', markup: 2, sort_order: 10,
+  },
+  {
+    id: 'an_lam_top', rule_family: 'price', level: 'item', is_active: true,
+    group_name: 'manufacture_materials', loop_target: 'sliding_sash',
+    name: 'Laminated Softwood for Sashes (Top)',
+    condition: 'is_solid_redwood_sash and is_top_sash',
+    quantity: '((gross_sash_height_in_mm + (gross_sash_width_in_mm * 1)) / 1000) * 1.05',
+    value: '4.95', markup: 2, sort_order: 15,
+  },
+  {
+    id: 'an_glaze_bead', rule_family: 'price', level: 'item', is_active: true,
+    group_name: 'manufacture_materials', loop_target: 'sliding_sash',
+    name: 'Glazing Bead for Sashes',
+    condition: 'not is_square_top_with_arched_sightline and not is_curved_head_sash',
+    quantity: '((sash_sightline_width_in_mm + sash_sightline_height_in_mm) / 1000) * 2',
+    value: '1.39', markup: 2, sort_order: 310,
+  },
+]
+
+const CORRECTED_S4_RULES = UNCORRECTED_S4_RULES.map(r => ({
+  ...r, condition: r.condition + ' and to_be_replaced',
+}))
+
+// ── Step AN — where the "no sash work" gate belongs ─────────────────────────
+// Facts (docs/integrate-L31115-cill.txt, last section): on the stand-alone
+// cill, and on the same drawing with "No Work", Integrate STILL priced the
+// sliding-sash PRICE rules Laminated Softwood ×2 and Glazing Bead ×2 —
+// £50.90 was No Work's entire price. What it skipped was the COMPONENT
+// staff/parting bead lines. So the gate belongs to the component allocator's
+// loop only, and these tests pin both halves of that.
+describe('Step AN — the gate is the component allocator’s, not the price loop’s', () => {
+  it('the price-rule sliding_sash loop still visits sashes nothing is done to', () => {
+    // An ungated sliding-sash price rule (Integrate has real ones, e.g.
+    // "Hardwood Sashes": is_solid_utile_hardwood_sash, no gate) must still
+    // fire on a stand-alone cill — that is what Integrate does.
+    const ungated = [{
+      id: 'ungated_sash_rule', rule_family: 'price', level: 'item', is_active: true,
+      group_name: 'manufacture_materials', loop_target: 'sliding_sash',
+      name: 'Ungated sliding sash rule',
+      condition: 'true', quantity: '1', value: '10', markup: 2, sort_order: 1,
+    }]
+    const results = runPricingOnTree(BENCHMARK_I.tree, ungated, SNAPSHOT.pfVariables, {
+      profileValues: SNAPSHOT.profileValues,
+    })
+    const fired = results.price.lines.filter(l => l.fires && !l.error)
+    expect(fired).toHaveLength(2)          // both sashes visited
+    expect(results.price.total_cost).toBe(20)
+  })
+
+  it('the component allocator still skips them (no staff or parting bead on I)', () => {
+    const fired = runFromSnapshot(BENCHMARK_I.tree).price.lines
+      .filter(l => l.fires && !l.error)
+      .map(l => l.alloc_label ?? l.name)
+    for (const label of ['Small staff bead – width', 'Small staff bead – height',
+                         'Parting bead – height', 'Parting bead – width']) {
+      expect(fired, label).not.toContain(label)
+    }
+  })
+
+  it('no ironmongery default fires on a stand-alone cill — so that loop needs no gate', () => {
+    // Integrate charged no ironmongery on I. Every default rule that could
+    // apply is excluded by its OWN condition: the Brighton kit needs
+    // needs_draughtsealing, the claw kits need nj_involved or
+    // is_complete_new, the trickle vent needs frame_to_be_replaced — all
+    // false on a cill-only item. defaultIronmongery.js therefore keeps its
+    // ungated loop copy.
+    const tree = JSON.parse(JSON.stringify(BENCHMARK_I.tree))
+    const paint = tree.children.find(c => c.part_type === 'paintAndIronmongeryPart')
+    paint.values.ironmongeryLines = []     // fall through to the defaults
+    expect(resolveIronmongeryLines(tree, SNAPSHOT, SNAPSHOT.profileValues)).toEqual([])
+  })
+})
+
+// ── Step AN item 2 — the uncorrected S4 lines, priced rather than subtracted ─
+// Integrate charges Laminated Softwood ×2 and Glazing Bead ×2 on a draught
+// seal, a stand-alone cill and a "No Work" item; GlazePro's S4 difference
+// gates them on to_be_replaced. These runs reproduce Integrate's uncorrected
+// figures from the rules instead of deriving them by subtraction.
+describe('Step AN — uncorrected S4 lines on H, I and a no_work tree', () => {
+  const S4_COST = 25.46, S4_PRICE = 50.90
+
+  function s4Only(tree, rules) {
+    const results = runPricingOnTree(tree, rules, SNAPSHOT.pfVariables, {
+      glassCatalogue: SNAPSHOT.glassCatalogue,
+      profileValues:  SNAPSHOT.profileValues,
+    })
+    return {
+      fired: results.price.lines.filter(l => l.fires && !l.error),
+      cost:  results.price.total_cost,
+      price: results.price.total,
+    }
+  }
+
+  const CASES = [
+    ['H (draught seal + new cill)', BENCHMARK_H.tree],
+    ['I (stand-alone cill)',        BENCHMARK_I.tree],
+    ['a no_work item',              (() => {
+      const t = JSON.parse(JSON.stringify(BENCHMARK_I.tree))
+      t.values.typeOfWork = 'no_work'
+      return t
+    })()],
+  ]
+
+  for (const [label, tree] of CASES) {
+    it(`${label}: the uncorrected rules fire four lines totalling 25.46 / 50.90`, () => {
+      const { fired, cost, price } = s4Only(tree, UNCORRECTED_S4_RULES)
+      expect(fired).toHaveLength(4)        // laminated bottom + top, bead ×2
+      expect(cost).toBeCloseTo(S4_COST, 2)
+      expect(price).toBeCloseTo(S4_PRICE, 2)
+    })
+
+    it(`${label}: the corrected rules fire nothing`, () => {
+      const { fired, cost } = s4Only(tree, CORRECTED_S4_RULES)
+      expect(fired).toHaveLength(0)
+      expect(cost).toBe(0)
+    })
+  }
+
+  it('so I’s uncorrected total is its corrected total plus those four lines', () => {
+    const corrected = runFromSnapshot(BENCHMARK_I.tree)
+    const { cost, price } = s4Only(BENCHMARK_I.tree, UNCORRECTED_S4_RULES)
+    expect(corrected.price.total_cost + cost).toBeCloseTo(INTEGRATE.benchmarkI_cill_only_uncorrected.total_cost, 2)
+    expect(corrected.price.total + price).toBeCloseTo(INTEGRATE.benchmarkI_cill_only_uncorrected.total_price, 2)
+  })
+
+  it('and H’s uncorrected total likewise', () => {
+    const corrected = runFromSnapshot(BENCHMARK_H.tree)
+    const { cost, price } = s4Only(BENCHMARK_H.tree, UNCORRECTED_S4_RULES)
+    expect(corrected.price.total_cost + cost).toBeCloseTo(INTEGRATE.benchmarkH_draught_seal_new_cill_uncorrected.total_cost, 2)
+    expect(corrected.price.total + price).toBeCloseTo(INTEGRATE.benchmarkH_draught_seal_new_cill_uncorrected.total_price, 2)
   })
 })
