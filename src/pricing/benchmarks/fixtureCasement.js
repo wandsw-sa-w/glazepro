@@ -145,7 +145,7 @@ function mullion() {
   return {
     key: 'mull1',
     part_type: 'mullionPart',
-    // internal width 1125 → (1125 − 27) / 2 = 549
+    // internal width 1125 → (1125 − 27) / 2 = 549 (Integrate's own offset)
     values: { offset: 549, thicknessInFrame: 27, mullionStopSize: 20 },
     children: [],
   }
@@ -153,7 +153,7 @@ function mullion() {
 
 // ── The tree ─────────────────────────────────────────────────────────────────
 
-function casementTree({ utile = false, thirdFloor = false, openings, withMullion = true }) {
+function casementTree({ utile = false, thirdFloor = false, openings, withMullion = true, width = 1199, height = 1299 }) {
   const timber = utile ? 'utile' : 'softwood'
   return {
     key: 'item1',
@@ -193,8 +193,8 @@ function casementTree({ utile = false, thirdFloor = false, openings, withMullion
         key: 'frame1',
         part_type: 'assemblyFramePart',
         values: {
-          width:  1199,
-          height: 1299,
+          width,
+          height,
           leftWidth:  37,
           rightWidth: 37,
           topHeight:  47,
@@ -286,6 +286,26 @@ export const BENCHMARK_M = {
   targets: { ...INTEGRATE_TARGETS.benchmarkM_single_direct_glazed },
   ...COMMON,
   assumptions: SHARED_ASSUMPTIONS,
+}
+
+// Benchmark P (step-ao addendum): the same drawing resized — 1599 x 1599,
+// the mullion removed and ONE opening casement, so its sash is 1517 x 1497.
+// It is the reading that proves the frame timber formula's rounding (33.45)
+// and the only benchmark whose casement sash is over the 25 kg "Any Sash
+// Overweight" threshold.
+export const BENCHMARK_P = {
+  name: 'Benchmark P — Single opening casement 1599 x 1599 (L31115 Item 2 Drawing 19)',
+  tree: casementTree({
+    width: 1599, height: 1599, withMullion: false,
+    openings: [casementSash('cas_a1', 'left_hand_hung')],
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkP_single_casement_1599 },
+  ...COMMON,
+  assumptions: [
+    ...SHARED_ASSUMPTIONS,
+    'Resized from the Drawing 19 state the reviewer read: 1599 x 1599, no mullion, one opening casement (sash 1517 x 1497, glass 1421 x 1380 = 1.96 m²)',
+    'Its sash is the only benchmark sash over 25 kg, so install rule 95 "Any Sash Overweight (Casement)" fires — the weight comes from Step W’s measured method, not a constant',
+  ],
 }
 
 export const BENCHMARK_N = {

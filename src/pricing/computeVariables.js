@@ -15,7 +15,9 @@ import {
   glassSpacerMm, isLambsTongueMoulding,
   casementIsFixed, casementOpensOut, casementOpensIn,
 } from './optionVocabulary.js'
-import { casementCillVolumeDm3, frameMuntinLengthM } from './casementGeometry.js'
+import {
+  casementCillVolumeDm3, frameMuntinLengthM, casementFrameTimberVolumeDm3,
+} from './casementGeometry.js'
 
 // ── Tree helpers (mirrored from computeDerived.js) ───────────────────────────
 
@@ -754,15 +756,14 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
       ? casementCillVolumeDm3(tree)
       : hardwood_cill_volume_m3
 
-    // Rule 160 "Softwood Casement Frame & Sashes" — OPEN. The reviewer is
-    // still measuring Integrate's casement frame section (step-ao §5), and
-    // the box sash frame model above (16 mm linings, 108 × 22 fixed jambs)
-    // is a different window entirely. Rather than price a casement frame
-    // from a box sash formula, this stays 0 on a casement frame, so K and N
-    // fail by exactly that one line (19.79 / 39.57) and the gap is visible
-    // instead of hidden behind a wrong number.
+    // Rule 160 "Softwood Casement Frame & Sashes": the reviewer's measured
+    // casement frame formula (step-ao addendum) — head + both jambs +
+    // each divider, at their OVERALL sections, 2 dp, then × 1.25 in the
+    // rule. It reproduces all four of the reviewer's readings exactly. The
+    // box sash frame model above is a different window and is kept for
+    // sash windows. Only a REDWOOD casement frame is charged by this rule.
     const solid_redwood_frame_excl_cill_volume = isCasementFrame
-      ? 0
+      ? (is_frame_redwood ? casementFrameTimberVolumeDm3(tree) : 0)
       : redwood_frame_volume_m3
 
     // Rule 121 "Casement Transoms & Mullions" (J): total divider length in

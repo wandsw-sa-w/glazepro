@@ -51,6 +51,7 @@ import { sashSizes, owningSashPair } from './derivedGeometry.js'
 import {
   isDirectGlazedUnit, directGlazedVisibleSize, directGlazedGlassSize,
   casementGlassSightline, casementSashSize, casementSashTimberVolumeDm3,
+  casementSashWeightKg,
 } from './casementGeometry.js'
 
 // ── Tree helpers (local copies, same logic as computeDerived.js) ──────────────
@@ -348,6 +349,7 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
     // charged at the redwood rate. Integrate has no hardwood casement sash
     // rule, which is why benchmark J shows no sash timber line at all.
     const itemNode = findFirst(tree, 'drawingItemPart')
+    const casementWeight = casementSashWeightKg(tree, partNode, glassCatalogue)
     const sashTimber = timberFamily(itemNode?.values?.sashMaterialId) === 'redwood'
       ? casementSashTimberVolumeDm3(tree, partNode)
       : 0
@@ -362,12 +364,13 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
       sash_sightline_width_in_mm:  sightline.width  ?? 0,
       sash_sightline_height_in_mm: sightline.height ?? 0,
       solid_redwood_volume: sashTimber,
-      // Casement sash weight is not modelled (Step W measured sliding
-      // sashes only). These sashes are far under the 25 kg the only rule
-      // that reads it tests for, so it evaluates without firing — flagged
-      // in docs/step-ao-findings.md rather than guessed at.
-      weight_in_kg: 0,
-      weight_in_lb: 0,
+      // Casement sash weight by Step W's measured method (timber volume ×
+      // the family density + glass at its cut size): install rule 95 "Any
+      // Sash Overweight (Casement)" fires above 25 kg, which benchmark P's
+      // 1517 × 1497 sash is and K and N's 541 × 1197 sashes are not —
+      // matching what Integrate charges on each.
+      weight_in_kg: casementWeight,
+      weight_in_lb: casementWeight * 2.20462,
     }
   }
 

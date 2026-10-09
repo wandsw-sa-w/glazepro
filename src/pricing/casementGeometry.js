@@ -28,6 +28,8 @@
  */
 
 import { computeOpeningLayout } from '../drawingBoard/sashGeometry.js'
+import { KG_PER_M2_PER_MM } from './sashWeight.js'
+import { timberFamily, TIMBER_FAMILY_DENSITIES } from './optionVocabulary.js'
 
 // ── Tree helpers (local copies — this module stays pure) ────────────────────
 
@@ -180,7 +182,73 @@ export function casementSashTimberVolumeDm3(tree, sashNode) {
   const head   = num(v.topHeight)    ?? 0
   const bottom = num(v.bottomHeight) ?? 0
   const mm3 = (2 * sash.height * stile + sash.width * head + sash.width * bottom) * thickness
-  return mm3 / 1e6
+  // 2 dp before the rule, as Integrate does (12.25 / 16.76 / 21.90 readings)
+  return round2dp(mm3 / 1e6)
+}
+
+/**
+ * Integrate rounds a casement timber volume to 2 dp before the price rule
+ * multiplies it (step-ao addendum). It is what makes the 1599 × 1599 frame
+ * read 33.45 (26.7555 → 26.76 → × 1.25 = 33.45 exactly, where the unrounded
+ * volume gives 33.4444), and it is consistent across every reading the
+ * reviewer took: frames 20.90 / 23.47 / 26.76 / 28.78, sashes 12.25 / 16.76
+ * / 21.90, cills 10.28 / 13.71.
+ */
+function round2dp(dm3) {
+  return Math.round(dm3 * 100) / 100
+}
+
+/**
+ * Casement FRAME timber volume in dm³ — Integrate's
+ * `solid_redwood_frame_excl_cill_volume` for price rule 160, which
+ * multiplies it by 1.25 (step-ao addendum §"Formula"):
+ *
+ *   head    = frame width      × frame depth × head overall    (47 + 20 stop)
+ *   jambs   = 2 × internal height × frame depth × jamb overall (37 + 20 stop)
+ *   mullion = mullion length   × frame depth × mullion overall (27 + 2 × 20)
+ *
+ * and no cill. The board shows those overall sizes as "Head 67",
+ * "Left/Right Jamb 57" and "Mullion 67" on a 96-deep frame.
+ *
+ * Reproduces all four of the reviewer's readings exactly:
+ *   1199 × 1299, no mullion  20.8995 → 20.90 → 26.125  (Integrate 26.13)
+ *   1599 × 1299, no mullion  23.4723 → 23.47 → 29.3375 (Integrate 29.34)
+ *   1599 × 1599, no mullion  26.7555 → 26.76 → 33.45   (Integrate 33.45)
+ *   1199 × 1299, mullion     28.7787 → 28.78 → 35.975  (Integrate 35.98)
+ *
+ * MEASURED ON ONE FRAME ONLY: the mullion length, internal height + 20
+ * (1225 on the 1299-high frame), comes from a single reading (K/N). Every
+ * other term is confirmed by the four readings above.
+ */
+export function casementFrameTimberVolumeDm3(tree) {
+  const frame = findFirst(tree, 'assemblyFramePart')
+  if (!frame) return 0
+  const fv = frame.values ?? {}
+  const width = num(fv.width)
+  const interior = frameInterior(tree)
+  const depth = num(fv.frameDepth)
+  if (!width || !depth || interior.height == null) return 0
+
+  const headOverall = (num(fv.topHeight)  ?? 0) + (num(fv.frameHeadStopSize)  ?? 0)
+  const jambOverall = (num(fv.leftWidth)  ?? 0) + (num(fv.frameStileStopSize) ?? 0)
+
+  let mm3 = width * depth * headOverall
+  mm3 += 2 * interior.height * depth * jambOverall
+
+  for (const child of (frame.children ?? [])) {
+    if (child.part_type !== 'mullionPart' && child.part_type !== 'transomPart') continue
+    const thickness = num(child.values?.thicknessInFrame) ?? 0
+    const stop = num(child.values?.mullionStopSize) ?? num(child.values?.transomStopSize) ?? 0
+    const overall = thickness + 2 * stop
+    // Mullion length = internal height + 20; transom length = internal
+    // width + 20, by the same reading (one frame only).
+    const length = child.part_type === 'mullionPart'
+      ? (interior.height ?? 0) + 20
+      : (interior.width  ?? 0) + 20
+    mm3 += length * depth * overall
+  }
+
+  return round2dp(mm3 / 1e6)
 }
 
 /**
@@ -202,7 +270,9 @@ export function casementCillVolumeDm3(tree) {
   const height = num(cill?.values?.height)
   const stop = num(frame?.values?.cillStopSize) ?? 0
   if (!width || !depth || !height) return 0
-  return width * depth * (height + stop) / 1e6
+  // 2 dp before the rule: 10.2826 → 10.28 → × 1.25 = 12.85 → × 1.085 = 13.94,
+  // which is Integrate's figure (the unrounded volume gives 13.95)
+  return round2dp(width * depth * (height + stop) / 1e6)
 }
 
 /**
@@ -221,4 +291,56 @@ export function frameMuntinLengthM(tree) {
     if (child.part_type === 'transomPart') mm += interior.width  ?? 0
   }
   return mm / 1000
+}
+
+/**
+ * Casement sash weight in kg, by the SAME method Step W measured for
+ * sliding sashes (docs/step-w-sash-weight-brief.md): timber volume ×
+ * the timber family's density, plus the glass at its CUT size ×
+ * (inner + outer pane thickness) × 2.5 kg/m²/mm. No constant is
+ * introduced here — both come from sashWeight.js / optionVocabulary.js.
+ *
+ * Needed by install labour rule 95 "Any Sash Overweight (Casement)",
+ * which fires above 25 kg. What it gives (step-ao addendum):
+ *   benchmark P's 1517 × 1497 sash  ≈ 50.4 kg  → the rule fires, as
+ *                                                Integrate charges it
+ *   K and N's  541 × 1197 sash      ≈ 15.8 kg  → it does not, as Integrate
+ *
+ * The glazing-bar and horn terms of the sliding-sash model do not apply:
+ * these sashes have no bars and no horns.
+ */
+export function casementSashWeightKg(tree, sashNode, glassCatalogue = {}) {
+  const v = sashNode?.values ?? {}
+  const item = findFirst(tree, 'drawingItemPart')
+
+  // Timber — the raw (unrounded) volume; the 2 dp rounding above is a
+  // pricing convention, and it moves this by under a gram.
+  const sash = casementSashSize(tree, sashNode)
+  const thickness = num(v.sashThickness)
+  if (sash.width == null || sash.height == null || !thickness) return 0
+  const stile  = num(v.leftWidth)    ?? 0
+  const head   = num(v.topHeight)    ?? 0
+  const bottom = num(v.bottomHeight) ?? 0
+  const timberMm3 =
+    (2 * sash.height * stile + sash.width * head + sash.width * bottom) * thickness
+  const family  = timberFamily(item?.values?.sashMaterialId)
+  const density = TIMBER_FAMILY_DENSITIES[family] ?? TIMBER_FAMILY_DENSITIES.redwood
+  const timberKg = (timberMm3 / 1e9) * density
+
+  // Glass at the cut size, from the glass part's own rebate and tolerance
+  const glass = (sashNode.children ?? []).find(c => c.part_type === 'glassPart')
+  let glassKg = 0
+  if (glass) {
+    const gv = glass.values ?? {}
+    const cover = (num(gv.glazingRebateWidth) ?? 0) - (num(gv.glazingTolerance) ?? 0)
+    const sl = casementGlassSightline(tree, sashNode)
+    if (sl.width != null && sl.height != null) {
+      const areaM2 = (sl.width + 2 * cover) * (sl.height + 2 * cover) / 1e6
+      const inner = glassCatalogue[gv.internalGlassPartNo]?.thickness_mm ?? 4
+      const outer = glassCatalogue[gv.externalGlassPartNo]?.thickness_mm ?? 4
+      glassKg = areaM2 * (inner + outer) * KG_PER_M2_PER_MM
+    }
+  }
+
+  return timberKg + glassKg
 }

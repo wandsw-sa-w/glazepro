@@ -45,8 +45,8 @@
         "price": 539.07
       },
       "labour": {
-        "cost": 191.0,
-        "price": 382.0
+        "cost": 191,
+        "price": 382
       },
       "manufacture_materials": {
         "cost": 34.29,
@@ -76,8 +76,8 @@
         "price": 50.9
       },
       "extra_profits": {
-        "cost": 2.0,
-        "price": 110.0
+        "cost": 2,
+        "price": 110
       }
     }
   },
@@ -99,8 +99,8 @@
         "price": 321.68
       },
       "extra_profits": {
-        "cost": 2.0,
-        "price": 110.0
+        "cost": 2,
+        "price": 110
       }
     }
   },
@@ -128,8 +128,8 @@
         "price": 539.07
       },
       "labour": {
-        "cost": 191.0,
-        "price": 382.0
+        "cost": 191,
+        "price": 382
       },
       "manufacture_materials": {
         "cost": 34.29,
@@ -161,8 +161,8 @@
         "price": 539.07
       },
       "labour": {
-        "cost": 191.0,
-        "price": 382.0
+        "cost": 191,
+        "price": 382
       },
       "manufacture_materials": {
         "cost": 34.29,
@@ -194,8 +194,8 @@
         "price": 539.07
       },
       "labour": {
-        "cost": 191.0,
-        "price": 382.0
+        "cost": 191,
+        "price": 382
       },
       "manufacture_materials": {
         "cost": 34.29,
@@ -228,8 +228,8 @@
         "price": 539.07
       },
       "labour": {
-        "cost": 191.0,
-        "price": 382.0
+        "cost": 191,
+        "price": 382
       },
       "manufacture_materials": {
         "cost": 34.28,
@@ -238,7 +238,7 @@
     }
   },
   "benchmarkC_arched": {
-    "source": "L31115 Quote 1, Item 3, Drawing 1 \u2014 complete new single box sash, arched head (frame-level arch), read 8 Oct 2026. Facts: docs/integrate-benchmarks-arched-doublebox.txt",
+    "source": "L31115 Quote 1, Item 3, Drawing 1 — complete new single box sash, arched head (frame-level arch), read 8 Oct 2026. Facts: docs/integrate-benchmarks-arched-doublebox.txt",
     "total_cost": 1329.08,
     "total_price": 2644.52,
     "groups": {
@@ -265,7 +265,7 @@
     }
   },
   "benchmarkD_doublebox": {
-    "source": "L31115 Quote 1, Item 4, Drawing 1 \u2014 complete new double box sash (two pairs, hollow mullion), read 8 Oct 2026. Facts: docs/integrate-benchmarks-arched-doublebox.txt",
+    "source": "L31115 Quote 1, Item 4, Drawing 1 — complete new double box sash (two pairs, hollow mullion), read 8 Oct 2026. Facts: docs/integrate-benchmarks-arched-doublebox.txt",
     "total_cost": 1785.67,
     "total_price": 3545.48,
     "groups": {
@@ -436,8 +436,8 @@
         "price": 539.07
       },
       "labour": {
-        "cost": 191.0,
-        "price": 382.0
+        "cost": 191,
+        "price": 382
       },
       "manufacture_materials": {
         "cost": 87.08,
@@ -475,8 +475,8 @@
         "price": 68.54
       },
       "extra_profits": {
-        "cost": 1.0,
-        "price": 200.0
+        "cost": 1,
+        "price": 200
       }
     }
   },
@@ -502,8 +502,8 @@
         "price": 50.9
       },
       "extra_profits": {
-        "cost": 3.0,
-        "price": 310.0
+        "cost": 3,
+        "price": 310
       }
     }
   },
@@ -525,8 +525,8 @@
         "price": 522.73
       },
       "extra_profits": {
-        "cost": 3.0,
-        "price": 310.0
+        "cost": 3,
+        "price": 310
       }
     }
   },
@@ -544,8 +544,8 @@
         "price": 50.9
       },
       "extra_profits": {
-        "cost": 1.0,
-        "price": 200.0
+        "cost": 1,
+        "price": 200
       }
     }
   },
@@ -559,8 +559,8 @@
         "price": 201.05
       },
       "extra_profits": {
-        "cost": 1.0,
-        "price": 200.0
+        "cost": 1,
+        "price": 200
       }
     }
   },
@@ -592,7 +592,7 @@
     },
     "hours": {
       "production": 18.83,
-      "labour": 12.0
+      "labour": 12
     }
   },
   "benchmarkK_casement_plus_direct_glazed": {
@@ -717,6 +717,37 @@
     "hours": {
       "production": 17.17,
       "labour": 10.5
+    }
+  },
+  "benchmarkP_single_casement_1599": {
+    "source": "L31115 Item 2 Drawing 19 (first floor): flush casement 1599 x 1599 redwood, one opening casement (LH hung), complete new. Read 9 Oct 2026 via a temporary Quote 2 test quote. Facts: docs/step-ao-addendum-frame-timber.md",
+    "total_cost": 976.16,
+    "total_price": 1952.33,
+    "groups": {
+      "glass_done": {
+        "cost": 121.32,
+        "price": 242.65
+      },
+      "installation_materials": {
+        "cost": 110.69,
+        "price": 221.37
+      },
+      "manufacture": {
+        "cost": 217.75,
+        "price": 435.5
+      },
+      "labour": {
+        "cost": 452.36,
+        "price": 904.73
+      },
+      "manufacture_materials": {
+        "cost": 74.04,
+        "price": 148.08
+      }
+    },
+    "hours": {
+      "production": 8.83,
+      "labour": 11.25
     }
   }
 }
