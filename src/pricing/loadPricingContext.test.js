@@ -211,6 +211,27 @@ describe('runPricingOnTree — ironmongery warnings instead of silent zeros', ()
       },
       profileValues: BENCHMARK_L34046.profileValues,
     })
-    expect(results.warnings).toContain('Ironmongery part cost not found: RHZ665 (trickle_vent_xr16)')
+    // Step AO extended this warning to cover a unit_cost of exactly 0 (the
+    // snapshot has real examples) and to name the set's own cost, so the
+    // part and product are asserted by prefix rather than the whole string.
+    expect(results.warnings.some(w =>
+      w.startsWith('Ironmongery part cost not found: RHZ665 (trickle_vent_xr16)'))).toBe(true)
+  })
+
+  it('warns when a kit line part costs exactly 0 — the same silent zero (Step AO)', () => {
+    const results = runPricingOnTree(BENCHMARK_L34046.tree, [], {}, {
+      ironmongeryLines: IRON_LINES,
+      ironmongeryCatalogue: {
+        'trickle_vent_xr16:Wht': {
+          cost: 3.0,
+          parts: [{ part_code: 'RHZ665', part_name: 'Trickle Vent XR16 Recessed Slot Vent White', qty: 1, unit_cost: 0 }],
+        },
+      },
+      profileValues: BENCHMARK_L34046.profileValues,
+    })
+    const warning = results.warnings.find(w => w.includes('RHZ665'))
+    expect(warning).toBeDefined()
+    expect(warning).toContain('the line prices at 0')
+    expect(warning).toContain('the set itself costs 3')
   })
 })

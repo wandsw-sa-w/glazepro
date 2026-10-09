@@ -44,9 +44,14 @@ import { PRICING_ENGINE_VERSION } from './engineVersion.js'
 import {
   glazingType, hornLengthMm, operationKind, glassSpacerMm,
   isWarmEdgeSpacerColour, collectVocabularyWarnings, resolveTopSashArch,
+  casementIsFixed, timberFamily,
 } from './optionVocabulary.js'
 import { fetchAllRows } from '../lib/fetchAllRows.js'
 import { sashSizes, owningSashPair } from './derivedGeometry.js'
+import {
+  isDirectGlazedUnit, directGlazedVisibleSize, directGlazedGlassSize,
+  casementGlassSightline, casementSashSize, casementSashTimberVolumeDm3,
+} from './casementGeometry.js'
 
 // ── Tree helpers (local copies, same logic as computeDerived.js) ──────────────
 
@@ -329,6 +334,43 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
     }
   }
 
+  // ── Casement sash (Step AO) ───────────────────────────────────────────────
+  // The casement_sash loop needs these: rule 1000 "Machining & Joining a
+  // Casement Sash" keys on to_be_replaced, rule 165 "Softwood Casement
+  // Sashes" on solid_redwood_volume (dm³, per sash) and rule 95 "Any Sash
+  // Overweight (Casement)" on weight_in_kg.
+  if (pt === 'casementSashPart') {
+    const is_complete_new = baseVars.is_complete_new ?? false
+    const size = casementSashSize(tree, partNode)
+    const sightline = casementGlassSightline(tree, partNode)
+    // Only REDWOOD sashes have a timber volume: rule 165's condition is
+    // literally "true", so a utile casement must give 0 or it would be
+    // charged at the redwood rate. Integrate has no hardwood casement sash
+    // rule, which is why benchmark J shows no sash timber line at all.
+    const itemNode = findFirst(tree, 'drawingItemPart')
+    const sashTimber = timberFamily(itemNode?.values?.sashMaterialId) === 'redwood'
+      ? casementSashTimberVolumeDm3(tree, partNode)
+      : 0
+    return {
+      to_be_replaced:  is_complete_new || v.toBeReplaced === true,
+      is_item_a_door:  baseVars.is_door ?? false,
+      is_raked:        v.rakeFrame === true,
+      is_fixed_casement_sash: casementIsFixed(partNode),
+      is_opening:      !casementIsFixed(partNode),
+      gross_sash_width_in_mm:  size.width  ?? 0,
+      gross_sash_height_in_mm: size.height ?? 0,
+      sash_sightline_width_in_mm:  sightline.width  ?? 0,
+      sash_sightline_height_in_mm: sightline.height ?? 0,
+      solid_redwood_volume: sashTimber,
+      // Casement sash weight is not modelled (Step W measured sliding
+      // sashes only). These sashes are far under the 25 kg the only rule
+      // that reads it tests for, so it evaluates without firing — flagged
+      // in docs/step-ao-findings.md rather than guessed at.
+      weight_in_kg: 0,
+      weight_in_lb: 0,
+    }
+  }
+
   if (pt === 'glassPart') {
     // Glass area from sash geometry
     const parentSash  = findParentSash(tree, partNode.key)
@@ -341,17 +383,39 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
       ? resolveTopSashArch(tree, parentSash)
       : { archHead: parentSash?.values?.archHead === true, archHeight: Number(parentSash?.values?.archHeight) || 0 }
 
-    // Glass sightline from the same drawn sash sizes as everything else
-    // (Step V): sightlineWidth = sash width − 2 × stileWidth, sightline
-    // height = the parent sash's glass height from computeDerived — the
-    // PARENT SASH's own pair on a multi-pair frame (Step AD decision 3).
-    const gsz         = sashSizes(tree, derived, parentSash ?? partNode)
-    const gStileWidth = parentSash?.values?.leftWidth ?? 47
-    const sightlineWidth = gsz.sashWidth != null
-      ? gsz.sashWidth - 2 * gStileWidth : 0
-    const sightlineHeight = (parentSash?.part_type === 'bottomSashPart'
-      ? gsz.bottomGlassHeight
-      : gsz.topGlassHeight) ?? 0
+    // Step AO: three kinds of glass unit, each with its own geometry —
+    //  - a DIRECT GLAZED unit (a glassPart that is a direct child of the
+    //    frame): its opening minus the mechanical clearance each side is
+    //    the visible size, and the glass is that plus the glass hidden in
+    //    the rebate;
+    //  - a CASEMENT sash's glass: the sash minus its stiles and rails;
+    //  - a sliding sash's glass: the drawn sash sizes, as before.
+    const isDirectGlazed = isDirectGlazedUnit(tree, partNode)
+    const isCasementGlass = parentSash?.part_type === 'casementSashPart'
+
+    let sightlineWidth = 0
+    let sightlineHeight = 0
+    if (isDirectGlazed) {
+      const vis = directGlazedVisibleSize(tree, partNode)
+      sightlineWidth  = vis.width  ?? 0
+      sightlineHeight = vis.height ?? 0
+    } else if (isCasementGlass) {
+      const sl = casementGlassSightline(tree, parentSash)
+      sightlineWidth  = sl.width  ?? 0
+      sightlineHeight = sl.height ?? 0
+    } else {
+      // Glass sightline from the same drawn sash sizes as everything else
+      // (Step V): sightlineWidth = sash width − 2 × stileWidth, sightline
+      // height = the parent sash's glass height from computeDerived — the
+      // PARENT SASH's own pair on a multi-pair frame (Step AD decision 3).
+      const gsz         = sashSizes(tree, derived, parentSash ?? partNode)
+      const gStileWidth = parentSash?.values?.leftWidth ?? 47
+      sightlineWidth = gsz.sashWidth != null
+        ? gsz.sashWidth - 2 * gStileWidth : 0
+      sightlineHeight = (parentSash?.part_type === 'bottomSashPart'
+        ? gsz.bottomGlassHeight
+        : gsz.topGlassHeight) ?? 0
+    }
 
     // Glass CUT SIZE: extends beyond the sightline by (rebateWidth - tolerance) per edge.
     // The rebate and tolerance come from profile values keyed by glazing type.
@@ -365,15 +429,26 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
       : gType === 'triple' ? 'defaultTripleGlazingTolerance'
       : gType === 'heritage' ? 'defaultHeritageGlazingTolerance'
       : 'defaultDoubleGlazingTolerance'
-    const rebateWidth = profileValues[rebateKey]
-    const tolerance   = profileValues[toleranceKey]
+    // Step AO: a casement sash's glass and a direct glazed unit carry their
+    // OWN rebate and tolerance, as Integrate stores them per glass part
+    // (casement sash glass 16/2, direct glazed 20/2) — only sliding sashes
+    // take them from the profile.
+    const storedRebate    = Number(v.glazingRebateWidth)
+    const storedTolerance = Number(v.glazingTolerance)
+    const hasStoredRebate = isFinite(storedRebate) && isFinite(storedTolerance)
+    const rebateWidth = hasStoredRebate ? storedRebate : profileValues[rebateKey]
+    const tolerance   = hasStoredRebate ? storedTolerance : profileValues[toleranceKey]
     if (rebateWidth == null || tolerance == null) {
       throw new Error(`Missing profile values for glass cut size: ${rebateKey}=${rebateWidth}, ${toleranceKey}=${tolerance}. Check the drawing's profile has glassPart rebate and tolerance values.`)
     }
     const cover       = rebateWidth - tolerance   // mm beyond sightline per edge
 
-    const glassWidth  = sightlineWidth  + 2 * cover
-    const glassHeight = sightlineHeight + 2 * cover
+    // A direct glazed unit's glass is its visible size plus the glass
+    // HIDDEN IN THE REBATE, which Integrate stores per edge on the unit
+    // (18 — the same figure its rebate minus tolerance gives).
+    const dgGlass = isDirectGlazed ? directGlazedGlassSize(tree, partNode) : null
+    const glassWidth  = dgGlass ? (dgGlass.width  ?? 0) : sightlineWidth  + 2 * cover
+    const glassHeight = dgGlass ? (dgGlass.height ?? 0) : sightlineHeight + 2 * cover
 
     // actual_area: m² rounded to 2dp (from glass CUT SIZE, not sightline).
     // An arched unit (Step AD decision 2) uses the EXACT area of the cut
@@ -452,6 +527,8 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
       actual_area,
       rounded_area,
       is_sash_arched: parentArch.archHead,
+      // Step AO: the Direct Glazed labour bands key on this per unit
+      is_direct_glazed_unit: isDirectGlazed,
       is_single_glazed: gType === 'single',
       is_double_glazed: gType === 'double',
       is_triple_glazed: gType === 'triple',
@@ -895,10 +972,16 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
       continue
     }
     // A kit line whose part has no catalogue cost prices at 0 — that must
-    // surface as a warning, never as a silent zero.
+    // surface as a warning, never as a silent zero. Step AO: a unit_cost of
+    // exactly 0 is the same silent zero, and the snapshot has real examples
+    // (every part of kenrick_extension_gear_box:PC is 0 while the SET costs
+    // 7.35), so it warns too and names the set's own cost.
     for (const kl of (variant.parts ?? [])) {
-      if (kl.unit_cost == null) {
-        pricingWarnings.push(`Ironmongery part cost not found: ${kl.part_code} (${il.product_short_name})`)
+      if (kl.unit_cost == null || Number(kl.unit_cost) === 0) {
+        pricingWarnings.push(
+          `Ironmongery part cost not found: ${kl.part_code} (${il.product_short_name})` +
+          ` — the line prices at 0` +
+          (variant.cost ? `, though the set itself costs ${variant.cost}` : ''))
       }
     }
   }

@@ -148,8 +148,12 @@ export function computeDerived(tree, profileValues = null) {
     frame?.values?.topHeight  ?? 0,
     cill?.values?.height      ?? 0,
   )
+  // Only a BOX SASH frame's mullion is hollow (it houses the weights). A
+  // casement frame's mullion is solid and carries its own thickness, so the
+  // hollow profile value is not required there (Step AO).
+  const isBoxSashFrame = findAll(tree, 'sashPairPart').length > 0
   const openings = computeOpeningLayout(frameMullions, interiorW ?? 0,
-    m => mullionThicknessMm(m, profileValues))
+    m => mullionThicknessMm(m, profileValues, { hollow: isBoxSashFrame }))
 
   const pairsInOrder = allPairs.length > 0 ? allPairs : (pair ? [pair] : [])
   for (let i = 0; i < pairsInOrder.length; i++) {

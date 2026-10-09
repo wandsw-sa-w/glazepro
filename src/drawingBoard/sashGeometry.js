@@ -68,8 +68,11 @@ export function computeOpeningLayout(mullions, iW, thicknessFor = null) {
 // profile value is an error, as elsewhere (step-ad brief §3). When no
 // profileValues are available (legacy display paths) the stored
 // thicknessInFrame is the fallback so the board can still draw.
-export function mullionThicknessMm(mullion, profileValues = null) {
-  if (profileValues != null) {
+// Step AO: `hollow` is false for a CASEMENT frame's mullion, which is solid
+// and carries its own thickness (27 on Integrate's flush casement
+// template) — it must not take the hollow box-sash profile value.
+export function mullionThicknessMm(mullion, profileValues = null, { hollow = true } = {}) {
+  if (hollow && profileValues != null) {
     const t = safe(profileValues.thicknessInFrameHollow)
     if (t == null) {
       throw new Error('Missing profile value thicknessInFrameHollow for the box-sash mullion — check the drawing’s profile values.')
