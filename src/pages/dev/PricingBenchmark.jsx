@@ -14,9 +14,9 @@ import { runPricingOnTree } from '../../pricing/pricingEngine.js'
 import { computeDerived } from '../../drawingBoard/computeDerived.js'
 import { loadPricingContext, resolveIronmongeryLines } from '../../pricing/loadPricingContext.js'
 import { PriceTable, fmt, costPriceMatch } from '../../pricing/PriceRuleTable.jsx'
-import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F } from '../../pricing/benchmarks/index.js'
+import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F, BENCHMARK_G, BENCHMARK_H, BENCHMARK_I } from '../../pricing/benchmarks/index.js'
 
-const ALL_BENCHMARKS = [BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F]
+const ALL_BENCHMARKS = [BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F, BENCHMARK_G, BENCHMARK_H, BENCHMARK_I]
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 

@@ -24,9 +24,12 @@ import { applySashesReplaced } from '../../drawingBoard/sashesReplaced.js'
 import { applyCompleteNewThickness } from '../../drawingBoard/sashThickness.js'
 import { computeDerived } from '../../drawingBoard/computeDerived.js'
 import { internalSizeOf, keepInternalSize, frameFromInternalSize } from '../../drawingBoard/internalSize.js'
+import {
+  NEW_CILL_REPAIR_CODE, CILL_ONLY_TYPE_OF_WORK, cillRepairApplies, applyCillRules,
+} from '../../drawingBoard/cillReplacement.js'
 import { runPricingOnTree } from '../pricingEngine.js'
 import { resolveIronmongeryLines } from '../loadPricingContext.js'
-import { BENCHMARK_A } from './index.js'
+import { BENCHMARK_A, BENCHMARK_B } from './index.js'
 import INTEGRATE from './integrate-targets.json'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -206,6 +209,75 @@ d('Step AL item 3 — board path: a replacement entered as 900 x 1700 internal',
     expect(der.sashWidth).toBe(900)
     expect(der.topSashHeight).toBe(850.5)
     expect(der.bottomSashHeight).toBe(889.5)
+  })
+})
+
+// ── Cill replacement set on the board (Step AM) ─────────────────────────────
+
+d('Step AM — board path: cill replacement', () => {
+  /** Choosing a Type of Work: the handler's order, now including the cill. */
+  function boardSetTypeOfWorkWithCill(tree, typeOfWork) {
+    let out = setValues(tree, 'drawingItemPart', { typeOfWork })
+    out = applyCompleteNewThickness(out).tree          // Step AI
+    out = applySashesReplaced(out).tree                // Step AJ
+    return applyCillRules(out).tree                    // Step AM
+  }
+
+  /** Choosing Cill > Repair = New Cill (an ordinary field edit). */
+  const boardSetNewCill = tree => setValues(tree, 'cillPart', { repair: NEW_CILL_REPAIR_CODE })
+
+  it('G: benchmark A + Repair "New Cill" prices 829.78 / 1,809.71', () => {
+    const base = JSON.parse(JSON.stringify(BENCHMARK_A.tree))
+    const cill = base.children.find(c => c.part_type === 'assemblyFramePart')
+      .children.find(c => c.part_type === 'cillPart')
+    delete cill.values.repair
+    expect(cillRepairApplies(base)).toBe(true)         // offered on a replacement
+
+    const drawn = boardSetNewCill(base)
+    expectTotals(priceFromSnapshot(drawn), INTEGRATE.benchmarkG_sash_replacement_new_cill)
+  })
+
+  it('H: benchmark B + Repair "New Cill" prices 309.86 / 923.70', () => {
+    const base = JSON.parse(JSON.stringify(BENCHMARK_B.tree))
+    expect(cillRepairApplies(base)).toBe(true)         // offered on a draught seal
+    const drawn = boardSetNewCill(base)
+    expectTotals(priceFromSnapshot(drawn), INTEGRATE.benchmarkH_draught_seal_new_cill_corrected)
+  })
+
+  it('I: benchmark B switched to "Cill Replacement Only" prices 101.53 / 401.05', () => {
+    // The type of work alone sets the cill Repair and takes the sashes out
+    // of replacement; the ironmongery line a draught seal sold is removed
+    // as a user would (a stand-alone cill sells no fastener kit).
+    const base = JSON.parse(JSON.stringify(BENCHMARK_B.tree))
+    const drawn = boardSetTypeOfWorkWithCill(base, CILL_ONLY_TYPE_OF_WORK)
+
+    const cill = drawn.children.find(c => c.part_type === 'assemblyFramePart')
+      .children.find(c => c.part_type === 'cillPart')
+    expect(cill.values.repair).toBe(NEW_CILL_REPAIR_CODE)   // set by the type of work
+    for (const sash of ['topSashPart', 'bottomSashPart']) {
+      const found = []
+      ;(function walk(n) { if (n.part_type === sash) found.push(n); (n.children ?? []).forEach(walk) })(drawn)
+      for (const sNode of found) expect(sNode.values.toBeReplaced).toBe(false)
+    }
+
+    const paint = drawn.children.find(c => c.part_type === 'paintAndIronmongeryPart')
+    paint.values.ironmongeryLines = []
+    expectTotals(priceFromSnapshot(drawn), INTEGRATE.benchmarkI_cill_only_corrected)
+  })
+
+  it('a complete new or no-work item is not offered a cill repair, and a stored one is cleared', () => {
+    const withCill = boardSetNewCill(JSON.parse(JSON.stringify(BENCHMARK_B.tree)))
+    for (const typeOfWork of ['complete_new', 'no_work']) {
+      const switched = boardSetTypeOfWorkWithCill(withCill, typeOfWork)
+      expect(cillRepairApplies(switched), typeOfWork).toBe(false)
+      const cill = switched.children.find(c => c.part_type === 'assemblyFramePart')
+        .children.find(c => c.part_type === 'cillPart')
+      expect(cill.values.repair, typeOfWork).toBeNull()
+      // ...so no cill is priced
+      const fired = priceFromSnapshot(switched).price.lines
+        .filter(l => l.fires && !l.error && l.line_cost > 0).map(l => l.name)
+      expect(fired, typeOfWork).not.toContain('Cill Replacement Profit')
+    }
   })
 })
 
