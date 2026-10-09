@@ -290,5 +290,101 @@
         "price": 269.75
       }
     }
+  },
+  "benchmarkA_topOnly_uncorrected": {
+    "source": "L31115 Item 1 Drawing 4 (benchmark A) with ONLY the bottom sash's To Be Replaced unticked (top sash still replaced). Integrate then stored newSashes false, draughtseal true; summary type of work 'New Top Sash(es)'. Read 9 Oct 2026 via a temporary Quote 2 test quote, then restored (both sashes replaced, newSashes true, GBP 1,408.66; Quote 2 emptied; test quote back to L34046/8). Facts: docs/integrate-L31115-A-top-only.txt",
+    "lines": {
+      "Square Glass Cost (top only)": [
+        38.03,
+        76.05
+      ],
+      "Square Glass Multiple Glazing Bar (top only)": [
+        18.98,
+        37.96
+      ],
+      "All Glass Energy Surcharge (top only)": [
+        2.21,
+        4.42
+      ],
+      "Lead Weight (top only, 19.78 qty)": [
+        47.67,
+        71.5
+      ],
+      "Laminated Softwood bottom 2.36": [
+        11.68,
+        23.35
+      ],
+      "Laminated Softwood top 1.92": [
+        9.49,
+        18.98
+      ],
+      "Glazing Bead for Sashes x2 (3.13 each)": [
+        8.7,
+        17.38
+      ],
+      "Glazing Bar 2.40": [
+        4.42,
+        8.83
+      ],
+      "Production Time 8.10 h": [
+        199.75,
+        399.49
+      ],
+      "Labour 8.13 h": [
+        326.91,
+        653.81
+      ]
+    },
+    "total_cost": 706.2,
+    "total_price": 1388.5,
+    "groups": {
+      "glass_done": {
+        "cost": 59.22,
+        "price": 118.43
+      },
+      "installation_materials": {
+        "cost": 86.03,
+        "price": 148.23
+      },
+      "manufacture": {
+        "cost": 199.75,
+        "price": 399.49
+      },
+      "labour": {
+        "cost": 326.91,
+        "price": 653.81
+      },
+      "manufacture_materials": {
+        "cost": 34.29,
+        "price": 68.54
+      }
+    }
+  },
+  "benchmarkA_topOnly_corrected": {
+    "source": "benchmarkA_topOnly_uncorrected with the deliberate S4 difference (docs/integrate-differences.md section 1): the bottom sash is not being made, so its Laminated Softwood (11.68/23.35) and its Glazing Bead (4.35/8.69) do not fire. Every other line exactly as Integrate.",
+    "total_cost": 690.17,
+    "total_price": 1356.46,
+    "groups": {
+      "glass_done": {
+        "cost": 59.22,
+        "price": 118.43
+      },
+      "installation_materials": {
+        "cost": 86.03,
+        "price": 148.23
+      },
+      "manufacture": {
+        "cost": 199.75,
+        "price": 399.49
+      },
+      "labour": {
+        "cost": 326.91,
+        "price": 653.81
+      },
+      "manufacture_materials": {
+        "cost": 18.26,
+        "price": 36.5
+      }
+    }
   }
 }
