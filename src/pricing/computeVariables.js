@@ -13,7 +13,9 @@
 import {
   timberFamily, glazingType, hornKind, operationKind,
   glassSpacerMm, isLambsTongueMoulding,
+  casementIsFixed, casementOpensOut, casementOpensIn,
 } from './optionVocabulary.js'
+import { casementCillVolumeDm3, frameMuntinLengthM } from './casementGeometry.js'
 
 // ── Tree helpers (mirrored from computeDerived.js) ───────────────────────────
 
@@ -74,6 +76,7 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
     const allGlassParts    = findAll(tree, 'glassPart')
     const allMullions      = findAll(tree, 'mullionPart')
     const allTransoms      = findAll(tree, 'transomPart')
+    const allCasementSashes = findAll(tree, 'casementSashPart')
 
     // ── GROUP 1 — Item type detection ─────────────────────────────────────────
     const hasSashPair      = !!pair
@@ -522,7 +525,8 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
       return op === 'fix' || op.includes('fix')
     }).length
 
-    const new_sash_qty          = new_sliding_sash_qty
+    // new_sash_qty is defined after the casement counts below (it includes
+    // them — Step AO).
     // new_cill_qty: 1 only when the cill is being replaced but NOT as part of a
     // complete-new job (complete_new includes the cill implicitly via
     // frame_to_be_replaced — Integrate's own new_cill_qty excludes it too).
@@ -538,12 +542,59 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
     // Full-length mullions: those without a non-zero offset2 (offset2>0 means partial/stub)
     const full_length_frame_mullion_qty = allMullions.filter(m => !(m.values?.offset2 > 0)).length
 
-    const new_casement_sash_qty = 0
+    // ── Casement sashes and direct glazed units (Step AO) ────────────────────
+    // Every quantity here is proved by Integrate's labour and production
+    // minute reconciliations (docs/integrate-L31115-direct-glazed.txt), not
+    // by the variable dictionary, which is wrong in one place (noted below).
+    //
+    // A FIXED casement sash (Integrate operationId 11) is still a sash: it
+    // takes sash timber, machining and finishing. Benchmark N's 1030
+    // production minutes only add up if the fixed sash counts in both
+    // casement_sash_qty and new_casement_sash_qty.
+    const casement_sash_qty = allCasementSashes.length
+    const new_casement_sash_qty = allCasementSashes.filter(
+      s => is_complete_new || s.values?.toBeReplaced === true).length
+    const fixed_casement_sash_qty = allCasementSashes.filter(
+      s => casementIsFixed(s)).length
+    // new_opening_casement_sash_qty: new and NOT fixed. The variable
+    // dictionary says "all casement sashes", which the minutes disprove —
+    // N charges "Opening Casement Sash with Frame" (90 min) once, not
+    // twice, and takes 60 min for the fixed one through its own rule.
+    const new_opening_casement_sash_qty = allCasementSashes.filter(
+      s => (is_complete_new || s.values?.toBeReplaced === true) && !casementIsFixed(s)).length
+    // Open-out / open-in: the casement type code. Integrate typeId 7 is
+    // "Open Out / Flush with Stops Internally"; no open-in type appears on
+    // any benchmark (both are 0 on J–N's opening-in count).
+    const opening_out_casement_sash_qty = allCasementSashes.filter(
+      s => !casementIsFixed(s) && casementOpensOut(s)).length
+    const opening_in_casement_sash_qty = allCasementSashes.filter(
+      s => !casementIsFixed(s) && casementOpensIn(s)).length
+
+    // direct_glazed_unit_qty: a glassPart whose parent is the FRAME is a
+    // direct glazed unit (Integrate's board label); glass inside a sash is
+    // not. Direct glazed units are NOT sashes — the production minutes on
+    // L and M have no sash machining or sash finishing at all.
+    const direct_glazed_unit_qty = allGlassParts.filter(
+      g => findParent(tree, g.key)?.part_type === 'assemblyFramePart').length
+
     const new_door_leaf_qty     = 0
     const door_leaf_qty         = 0
-    const casement_sash_qty     = 0
-    const direct_glazed_unit_qty    = 0
     const panel_qty             = 0
+
+    // new_sash_qty: "all sashes inc. door leaves" (variable dictionary) —
+    // sliding AND casement. Benchmark J proves casements count: its two
+    // utile sashes take 2 × 20 min of "Utile Sash (Finishing)", whose qty
+    // is new_sash_qty. No sash-window benchmark moves: they have no
+    // casement sashes, so the sum is unchanged there.
+    const new_sash_qty          = new_sliding_sash_qty + new_casement_sash_qty
+
+    // is_casement_range: Integrate's item "range" field, which GlazePro does
+    // not store (listed as not-storable in Step AG). Benchmark J's
+    // "Casement Transoms & Mullions" line fires in Integrate, and its
+    // condition needs this flag, so it is INFERRED from the item being a
+    // casement window rather than left missing (which would silently drop
+    // the line). Reported as an inference in docs/step-ao-findings.md.
+    const is_casement_range     = is_casement_window || is_casement_window_bay
 
     // ── GROUP 12 — Frame geometry (mm) ────────────────────────────────────────
     // assemblyFramePart.width/height ARE the overall frame (Step V decision,
@@ -684,8 +735,42 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
     const cill_volume                         = cill_volume_m3
     const accoya_volume                       = accoya_frame_volume_m3 + accoya_sash_volume_m3
     const solid_redwood_volume                = redwood_frame_volume_m3 + redwood_sash_volume_m3
-    const solid_redwood_frame_excl_cill_volume = redwood_frame_volume_m3
-    const solid_utile_hardwood_cill_volume    = hardwood_cill_volume_m3
+
+    // ── Casement frame timber (Step AO §3) ───────────────────────────────────
+    // CAREFUL WITH UNITS: the box sash volumes above are in m³; Integrate's
+    // casement timber rules work in dm³ (litres). No rule reads both — each
+    // of the three casement volume variables is used by exactly one
+    // casement-only price rule — so the two live side by side.
+    const isCasementFrame = is_casement_window || is_casement_window_bay
+
+    // Rule 166 "Hardwood Casement Cill": the FULL FRAME WIDTH × cill depth
+    // × (cill height + cill stop) = 1199 × 128 × 67 / 1e6 = 10.2826 dm³,
+    // and × 1.25 = 12.85, Integrate's printed quantity. Integrate stores one
+    // cill per bottom opening (two 549s) but prices the full width.
+    // Box sash cills are untouched: their price rule carries its own
+    // expression (cill_length × cill_profiled_height × frame_depth) and
+    // never reads this variable, so L34046, C, D and E cannot move.
+    const solid_utile_hardwood_cill_volume    = isCasementFrame
+      ? casementCillVolumeDm3(tree)
+      : hardwood_cill_volume_m3
+
+    // Rule 160 "Softwood Casement Frame & Sashes" — OPEN. The reviewer is
+    // still measuring Integrate's casement frame section (step-ao §5), and
+    // the box sash frame model above (16 mm linings, 108 × 22 fixed jambs)
+    // is a different window entirely. Rather than price a casement frame
+    // from a box sash formula, this stays 0 on a casement frame, so K and N
+    // fail by exactly that one line (19.79 / 39.57) and the gap is visible
+    // instead of hidden behind a wrong number.
+    const solid_redwood_frame_excl_cill_volume = isCasementFrame
+      ? 0
+      : redwood_frame_volume_m3
+
+    // Rule 121 "Casement Transoms & Mullions" (J): total divider length in
+    // metres. Each mullion runs the interior height, each transom the
+    // interior width.
+    const frame_muntin_to_be_replaced_length = isCasementFrame
+      ? frameMuntinLengthM(tree)
+      : 0
     const volume = is_frame_accoya ? accoya_volume
                  : is_solid_redwood_frame ? solid_redwood_volume
                  : 0
@@ -832,6 +917,9 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
       new_casement_sash_qty, new_door_leaf_qty,
       door_leaf_qty, casement_sash_qty,
       direct_glazed_unit_qty, full_length_frame_mullion_qty, panel_qty,
+      fixed_casement_sash_qty, new_opening_casement_sash_qty,
+      opening_out_casement_sash_qty, opening_in_casement_sash_qty,
+      is_casement_range,
 
       // Group 12 — Frame geometry
       frame_width, frame_height,
@@ -857,7 +945,8 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
       accoya_cill_volume_m3, hardwood_cill_volume_m3,
       accoya_sash_volume_m3, redwood_sash_volume_m3,
       // Integrate volume aliases
-      frame_excl_cill_volume, cill_volume, accoya_volume,
+      frame_excl_cill_volume, cill_volume,
+      frame_muntin_to_be_replaced_length, accoya_volume,
       solid_redwood_volume, solid_redwood_frame_excl_cill_volume,
       solid_utile_hardwood_cill_volume, volume,
 

@@ -134,6 +134,38 @@ export function operationKind(code) {
   return undefined
 }
 
+// ── Casement operations and types (Step AO) ──────────────────────────────────
+// Integrate's casement operationIds are 11 Fix, 15 Top Hung, 16 Bottom Hung,
+// 17 Left Hand Hung, 18 Right Hand Hung, and typeId 7 is "Open Out / Flush
+// with Stops Internally" (docs/integrate-L31115-direct-glazed.txt). The live
+// reference codes for these are not in the repo — only the three
+// sliding-sash labels are (docs/pricing-vocabulary-audit.md) — so these
+// helpers test by substring, the same way operationKind() does, and so are
+// insensitive to the exact spelling the board ends up storing.
+
+/** Is this casement sash FIXED? (Integrate operationId 11.) */
+export function casementIsFixed(sashNode) {
+  const code = String(sashNode?.values?.operation ?? '').toLowerCase()
+  return code.includes('fix')
+}
+
+/**
+ * Does it open OUT? Integrate's casement typeId 7 is an open-out type; a
+ * type code that says neither out nor in counts as open-out, because every
+ * casement Integrate priced on these benchmarks is an open-out flush unit
+ * and that is the only type GlazePro sells today. An explicit "in" code
+ * (open-in) is honoured.
+ */
+export function casementOpensOut(sashNode) {
+  return !casementOpensIn(sashNode)
+}
+
+/** Does it open IN? Only an explicit open-in type code says so. */
+export function casementOpensIn(sashNode) {
+  const t = String(sashNode?.values?.casementTypeId ?? '').toLowerCase()
+  return t.includes('_in') || t.includes('open_in') || t.includes('opening_in')
+}
+
 // ── Spacers ───────────────────────────────────────────────────────────────────
 // glazing_spacer_dimension codes are 'spacer_<mm>' (real tree: 'spacer_16';
 // heritage variants 'spacer_4'/'spacer_6' seeded by step-b1b). Saved drawings

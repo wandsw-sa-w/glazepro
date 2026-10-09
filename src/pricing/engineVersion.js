@@ -60,6 +60,11 @@
  * visits sashes nothing is being done to (item_has_sash_work false), so a
  * stand-alone cill replacement charges no staff or parting bead, as
  * Integrate does — version-11 runs charged four bead lines on one.
+ * Version 13 is Step AO: casement sashes and direct glazed units are
+ * counted, measured and priced (casement/direct-glazed quantities, the
+ * casement_sash loop's own variables, direct glazed glass areas and the
+ * casement sash/cill timber volumes) — version-12 runs priced a casement
+ * or direct glazed frame with every one of those quantities at zero.
  */
 
-export const PRICING_ENGINE_VERSION = 12
+export const PRICING_ENGINE_VERSION = 13
