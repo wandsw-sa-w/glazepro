@@ -120,15 +120,19 @@ function getLoopParts(tree, loopTarget, baseVars = null) {
   if (loopTarget === 'glass_unit' && baseVars) {
     return parts.filter(g => glassUnitIsSupplied(g, tree, baseVars))
   }
-  // Step AM: Integrate's sliding_sash loop does not visit sashes that
-  // nothing is being done to — a stand-alone cill replacement charges no
-  // staff or parting bead (docs/integrate-L31115-cill.txt, benchmark I) even
-  // though those component rules are conditioned only on "not
-  // frame_to_be_replaced". Same shape as the glass_unit gate above: the gate
-  // is in the loop, so Integrate's own rule conditions stay untouched.
-  if (loopTarget === 'sliding_sash' && baseVars && baseVars.item_has_sash_work === false) {
-    return []
-  }
+  // NOTE (Step AN): there is deliberately NO "no sash work" gate on this
+  // loop. Step AM put one here as well as in the component allocator, but
+  // the evidence is against it: on the stand-alone cill, and on the same
+  // drawing with "No Work", Integrate still priced the sliding-sash PRICE
+  // rules Laminated Softwood ×2 and Glazing Bead ×2 — £50.90 was No Work's
+  // entire price (docs/integrate-L31115-cill.txt, last section). So
+  // Integrate's price-rule loop DOES visit sashes nothing is being done to;
+  // what it skips is the COMPONENT staff/parting bead lines, and that gate
+  // lives in partAllocator.js. Those two price rules are gated here by
+  // GlazePro's own deliberate S4 difference (to_be_replaced), not by the
+  // loop, and a gate here would silently drop any OTHER ungated
+  // sliding_sash price rule (for instance "Hardwood Sashes":
+  // is_solid_utile_hardwood_sash, no gate).
   return parts  // empty array = no matching parts in tree → skip entirely
 }
 

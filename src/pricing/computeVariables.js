@@ -201,9 +201,15 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
     // no bead on a stand-alone cill (docs/integrate-L31115-cill.txt,
     // benchmark I: "no DSO rate, no ironmongery, no staff/parting beads, no
     // installation consumables"). As with the glass_unit loop in Step AH,
-    // the gate is in Integrate's LOOP, not in its conditions: it never
-    // visits a sash that nothing is being done to. This flag is what the
-    // sliding_sash loops use.
+    // the gate is in Integrate's LOOP, not in its conditions.
+    //
+    // Step AN narrowed where it applies: ONLY the component allocator's
+    // sliding_sash loop (partAllocator.js). Integrate's PRICE-rule loop
+    // does visit sashes nothing is being done to — on the stand-alone cill
+    // and on the same drawing with "No Work" it still charged Laminated
+    // Softwood ×2 and Glazing Bead ×2 (£50.90 was No Work's whole price).
+    // No ironmongery default needs it either: none of them fires on a
+    // stand-alone cill on its own conditions (asserted in benchmarks.test).
     const item_has_sash_work = nj_involved || needs_draughtsealing || is_bi_glass
 
     // ── GROUP 5 — Sash operations ─────────────────────────────────────────────
