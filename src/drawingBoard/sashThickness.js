@@ -113,13 +113,21 @@ export function thicknessChangePatches(tree, pairKey, { thickness = null, chamfe
   const botNode   = findFirst(pairNode, 'bottomSashPart')
   const frameNode = findFirst(tree, 'assemblyFramePart')
 
-  const oldT = Number(pairNode.values?.sashThickness ?? COMPLETE_NEW_SASH_THICKNESS_MM)
+  // The STORED thickness, and the one the geometry uses: a pair with no
+  // thickness yet (a blank board build) prices at 45 because every engine
+  // read defaults to 45, so the allowance difference below is measured from
+  // 45 — but the VALUE still has to be written, or the drawing keeps an
+  // empty field. Step AK's board-path proof found that: the old guard
+  // compared the new value against the `?? 45` default and so stored
+  // nothing. The comparison is now against what is really stored.
+  const storedT = pairNode.values?.sashThickness
+  const oldT = Number(storedT ?? COMPLETE_NEW_SASH_THICKNESS_MM)
   const oldA = Number(botNode?.values?.chamferedBottomRailAngle ?? 0)
   const newT = thickness    != null ? Number(thickness)    : oldT
   const newA = chamferAngle != null ? Number(chamferAngle) : oldA
 
   const patches = []
-  if (thickness != null && isFinite(newT) && newT > 0 && newT !== oldT) {
+  if (thickness != null && isFinite(newT) && newT > 0 && Number(storedT) !== newT) {
     patches.push([pairNode.key, { sashThickness: newT }])
   }
 

@@ -181,6 +181,25 @@ describe('applyCompleteNewThickness', () => {
     expect(out.tree).toBe(tree)
   })
 
+  // Step AK's board-path proof found this: a blank board build has no
+  // stored thickness at all. It already PRICED at 45 (every engine read
+  // defaults to 45), but the value has to be written or the drawing keeps
+  // an empty Sash Thickness field.
+  it('stores 45 on a pair that has no thickness stored yet', () => {
+    const tree = boxSash({ thickness: 45 })
+    let pairValues
+    ;(function walk(n) { if (n.part_type === 'sashPairPart') pairValues = n.values; (n.children ?? []).forEach(walk) })(tree)
+    delete pairValues.sashThickness
+    expect(valuesOf(tree, 'pair1').sashThickness).toBeUndefined()
+
+    const { tree: next, pairsChanged } = applyCompleteNewThickness(tree)
+    expect(pairsChanged).toEqual(['pair1'])
+    expect(valuesOf(next, 'pair1').sashThickness).toBe(45)
+    // Measured from the 45 default, so no rail or height movement
+    expect(valuesOf(next, 'bot1').bottomHeight).toBe(88)
+    expect(valuesOf(next, 'frame1').height).toBe(1849)
+  })
+
   it('never touches a sash replacement, draught seal or bi-glass', () => {
     for (const tow of ['new_pair_of_sashes', 'draught_seal', 'bi_glass']) {
       const tree = boxSash({ typeOfWork: tow, thickness: 35 })
