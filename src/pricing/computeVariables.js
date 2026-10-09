@@ -598,6 +598,21 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
     // the line). Reported as an inference in docs/step-ao-findings.md.
     const is_casement_range     = is_casement_window || is_casement_window_bay
 
+    // Step AP: the casement default_ironmongery rules also read these.
+    // is_casement_mpls — casements are multipoint by DEFAULT (Nathan,
+    // 9 Oct); the surveyor unticks "Casement MPLS" on Finish &
+    // Ironmongery. A drawing that stores neither is treated as multipoint,
+    // which is what the default is. (The casement_sash loop overrides this
+    // per sash with the same value.)
+    const is_casement_mpls = is_casement_window
+      ? (paintNode?.values?.isCasementMpls ?? true) === true
+      : false
+    // is_heritage_range: Integrate's product range again, which GlazePro
+    // does not store (Step AG). NEEDS-DATA — false until there is a field,
+    // so the heritage hinge/stay/fastener rules stay silent rather than
+    // firing on a range nobody chose.
+    const is_heritage_range = false
+
     // ── GROUP 12 — Frame geometry (mm) ────────────────────────────────────────
     // assemblyFramePart.width/height ARE the overall frame (Step V decision,
     // matching Integrate's drawn labels and computeDerived). outerWidth /
@@ -920,7 +935,7 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
       direct_glazed_unit_qty, full_length_frame_mullion_qty, panel_qty,
       fixed_casement_sash_qty, new_opening_casement_sash_qty,
       opening_out_casement_sash_qty, opening_in_casement_sash_qty,
-      is_casement_range,
+      is_casement_range, is_casement_mpls, is_heritage_range,
 
       // Group 12 — Frame geometry
       frame_width, frame_height,

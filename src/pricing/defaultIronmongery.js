@@ -12,9 +12,10 @@
 
 import { computeSashWeight } from './sashWeight.js'
 import { owningSashPair } from './derivedGeometry.js'
+import { casementSashSize, casementSashWeightKg } from './casementGeometry.js'
 import { evaluateCondition, evaluateNumber, getExpressionVariables } from './evaluator.js'
 import { computeDerived } from '../drawingBoard/computeDerived.js'
-import { operationKind } from './optionVocabulary.js'
+import { operationKind, casementIsFixed } from './optionVocabulary.js'
 
 // ── Tree helpers ──────────────────────────────────────────────────────────────
 
@@ -110,21 +111,36 @@ function computePartVars(partNode, tree, derived, baseVars, glassCatalogue, prof
   }
 
   if (pt === 'casementSashPart') {
-    const casementDerived = derived[partNode.key] ?? {}
+    // Step AP: Integrate's own casement default_ironmongery rules pick
+    // hinges, handles, gearboxes and extensions by the sash's OPERATION,
+    // its overall size and its weight, so all three have to be real here —
+    // the old stubs (hangType/handedness/isMpls fields no drawing stores,
+    // sizes from a sash-pair derived entry, weight 0) left every one of
+    // those rules either silent or wrong.
     const is_complete_new = baseVars.is_complete_new ?? false
     const to_be_replaced  = is_complete_new || v.toBeReplaced === true
+    const size = casementSashSize(tree, partNode)
+    const op = String(v.operation ?? '').toLowerCase()
+    const paint = findFirst(tree, 'paintAndIronmongeryPart')
     return {
       to_be_replaced,
-      is_opening:  v.operation !== 'fix',
-      is_side_hung: v.hangType === 'side',
-      is_top_hung:  v.hangType === 'top',
-      is_left_hand_hung_viewed_internally:  v.handedness === 'left',
-      is_right_hand_hung_viewed_internally: v.handedness === 'right',
-      is_french_casement_sash: v.isFrench   ?? false,
-      is_casement_mpls:        v.isMpls     ?? false,
-      gross_sash_width_in_mm:  casementDerived.sashWidth  ?? v.width  ?? 0,
-      gross_sash_height_in_mm: casementDerived.sashHeight ?? v.height ?? 0,
-      weight_in_kg: 0,  // casement weight not yet computed here
+      is_opening:   !casementIsFixed(partNode),
+      // A side-hung casement is left or right hand hung; top/bottom hung
+      // are their own operations (Integrate 15 / 16).
+      is_side_hung: op.includes('left_hand') || op.includes('right_hand'),
+      is_top_hung:    op.includes('top_hung'),
+      is_bottom_hung: op.includes('bottom_hung'),
+      is_left_hand_hung_viewed_internally:  op.includes('left_hand'),
+      is_right_hand_hung_viewed_internally: op.includes('right_hand'),
+      is_french_casement_sash: v.isFrenchCasement === true,
+      // Casements are multipoint by default (Nathan, 9 Oct); the surveyor
+      // unticks "Casement MPLS" on Finish & Ironmongery. An older drawing
+      // with neither field stored is treated as multipoint, which is what
+      // the default is.
+      is_casement_mpls: (paint?.values?.isCasementMpls ?? v.isMpls ?? true) === true,
+      gross_sash_width_in_mm:  size.width  ?? 0,
+      gross_sash_height_in_mm: size.height ?? 0,
+      weight_in_kg: casementSashWeightKg(tree, partNode, glassCatalogue),
     }
   }
 

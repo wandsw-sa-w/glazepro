@@ -51,7 +51,7 @@ import { sashSizes, owningSashPair } from './derivedGeometry.js'
 import {
   isDirectGlazedUnit, directGlazedVisibleSize, directGlazedGlassSize,
   casementGlassSightline, casementSashSize, casementSashTimberVolumeDm3,
-  casementSashWeightKg,
+  casementSashWeightKg, directGlazedWarnings,
 } from './casementGeometry.js'
 
 // ── Tree helpers (local copies, same logic as computeDerived.js) ──────────────
@@ -786,6 +786,10 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
   // Option codes the engine depends on but does not recognise must surface
   // as warnings naming the field and the code — never a silent false.
   pricingWarnings.push(...collectVocabularyWarnings(tree))
+
+  // Step AP: a direct glazed unit missing its hidden-in-rebate would price
+  // at its visible size, which is quietly too small.
+  pricingWarnings.push(...directGlazedWarnings(tree))
 
   const results = {
     manufacture_labour: { total_minutes: 0, lines: [] },

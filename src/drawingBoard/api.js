@@ -34,6 +34,26 @@ export async function loadProfile(code) {
   return data  // null if not found
 }
 
+/**
+ * A profile by id — the drawing's OWN default_profile_id.
+ *
+ * Step AP: the drawing board loaded the fallback 'sash' profile for every
+ * drawing, so a casement drawing got sash frame, sash and glass defaults
+ * and could not be built at all. It now loads the drawing's own profile and
+ * falls back to 'sash' only when it has none.
+ */
+export async function loadProfileById(id) {
+  if (!id) return null
+  const { data, error } = await supabase
+    .from('default_profiles')
+    .select('*')
+    .eq('id', id)
+    .eq('is_active', true)
+    .maybeSingle()
+  if (error) throw error
+  return data  // null if not found
+}
+
 export async function loadProfileValues(profileId) {
   const { data, error } = await supabase
     .from('default_profile_values')

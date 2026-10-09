@@ -4,7 +4,7 @@ import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
 import { Layout } from '../components/Layout'
 import {
-  loadFieldDefinitions, loadProfile, loadProfileValues,
+  loadFieldDefinitions, loadProfile, loadProfileById, loadProfileValues,
   loadReferenceOptions, loadContainment, loadDrawingParts, saveDrawingParts,
 } from '../drawingBoard/api.js'
 import { buildNewBoxSash } from '../drawingBoard/buildTree.js'
@@ -26,6 +26,11 @@ import {
 import {
   cillRepairApplies, showsFullCillReplacement, applyCillRules,
 } from '../drawingBoard/cillReplacement.js'
+import {
+  OPENING_KINDS, OPENING_KIND_LABELS, CASEMENT_OPERATIONS, openingKindOf,
+  openingNodes, matrixIndexOf, isCasementFrameTree, changeOpening,
+  setCasementOperation, casementProfileDefaults,
+} from '../drawingBoard/casementOpenings.js'
 import { computeSashWeight } from '../pricing/sashWeight.js'
 import { loadDrawingRunPrices } from '../quotes/drawingRunPrice.js'
 import { SashElevation } from '../drawingBoard/renderElevation.jsx'
@@ -236,7 +241,7 @@ function PartSelect({ value, onChange, partCategory, inputBorder }) {
   )
 }
 
-function PropertyField({ field, value, derivedValue, onChange, refOptions, required, partType, hiddenTagText, locked = null, enterable = null }) {
+function PropertyField({ field, value, derivedValue, onChange, refOptions, required, partType, hiddenTagText, locked = null, enterable = null, casementDrawing = false }) {
   const isRequired = required && (value === null || value === undefined || value === '')
   const inputBorder = isRequired ? '1px solid #e57373' : '1px solid #d8d5cf'
 
@@ -381,6 +386,16 @@ function PropertyField({ field, value, derivedValue, onChange, refOptions, requi
         opts = opts.filter(o => !o.applies_to?.length || o.applies_to.includes(partType))
       }
     }
+    // Step AP: on a casement or direct glazed drawing the only types of
+    // work are Complete New and No Work — every other one is a sash-window
+    // service (sash replacement, draught seal, bi-glass, cill only), and
+    // the sash-only board rules (sashThickness, sashesReplaced,
+    // internalSize, cillReplacement) are gated on isSashWindow so they
+    // never run here.
+    if (field.field_key === 'drawingItemPart.typeOfWork' && casementDrawing) {
+      opts = opts.filter(o => o.code === 'complete_new' || o.code === 'no_work')
+    }
+
     // All other reference fields: no applies_to filtering.
 
     return (
@@ -782,6 +797,7 @@ function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, o
             hiddenTagText={showHidden ? hiddenTag(visibilityMap[field.field_key], boardMode) : null}
             locked={lockedField(field.field_key, node)}
             enterable={enterableField(field.field_key)}
+            casementDrawing={isCasementFrameTree(tree)}
           />
         ))}
       </div>
@@ -1190,7 +1206,7 @@ function HistoryPanel({ entries, loading: historyLoading, error: historyError })
 // For mullion/transom: N cols × M rows → (N-1) vertical dividers + (M-1) horizontal dividers.
 // For glazing bars: the same, but children of a glassPart.
 
-function GridPickerDialog({ title, applyLabel = 'Apply', onApply, onClose, maxCols = 15, maxRows = 15, initialCols = 1, initialRows = 1, error = null }) {
+function GridPickerDialog({ title, applyLabel = 'Apply', onApply, onClose, maxCols = 15, maxRows = 15, initialCols = 1, initialRows = 1, error = null, note = null }) {
   const [hover, setHover] = useState({ cols: initialCols, rows: initialRows })
 
   const cellSize = 22
@@ -1202,6 +1218,9 @@ function GridPickerDialog({ title, applyLabel = 'Apply', onApply, onClose, maxCo
       <div style={{ background: '#fff', border: '1px solid #d8d5cf', borderRadius: 10, padding: 20, boxShadow: '0 8px 32px rgba(0,0,0,.18)', minWidth: 340, maxWidth: 420 }}
         onClick={e => e.stopPropagation()}>
         <div style={{ fontWeight: 700, fontSize: 14, color: '#1a1a1a', marginBottom: 12 }}>{title}</div>
+        {note && (
+          <div style={{ fontSize: 11, color: '#888', marginBottom: 8 }}>{note}</div>
+        )}
         {error && (
           <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 6, padding: '6px 10px', marginBottom: 10, fontSize: 12, color: '#991b1b' }}>
             {'⚠'} {error}
@@ -1768,12 +1787,18 @@ function DrawingBoard() {
           }
         }
 
-        // Load all reference data in parallel
-        const [fDefs, profile, cont] = await Promise.all([
+        // Load all reference data in parallel.
+        // Step AP: the profile is the DRAWING'S OWN (casement drawings need
+        // the casement profile's frame, sash, mullion and direct-glazed
+        // defaults); the 'sash' profile is only the fallback for a drawing
+        // that has none. Before this, every drawing loaded 'sash', so a
+        // casement drawing could not be built.
+        const [fDefs, ownProfile, cont] = await Promise.all([
           loadFieldDefinitions(),
-          loadProfile(FALLBACK_PROFILE_CODE),
+          loadProfileById(dwg?.default_profile_id),
           loadContainment(),
         ])
+        const profile = ownProfile ?? await loadProfile(FALLBACK_PROFILE_CODE)
         if (!profile) throw new Error(`Profile with code "${FALLBACK_PROFILE_CODE}" not found in default_profiles`)
 
         const [pVals, rOpts] = await Promise.all([
@@ -2049,6 +2074,27 @@ function DrawingBoard() {
     if (sashesChanged.length > 0) commit(newTree)
   }, [tree])  // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Step AP: change the selected opening's kind, or a casement sash's
+  // operation. Both go through casementOpenings.js, the same module the
+  // templates are built with, so the board and a template agree.
+  const handleChangeOpeningKind = useCallback((kind) => {
+    if (!tree || !selectedKey) return
+    const { tree: next, changed } = changeOpening(tree, selectedKey, kind, profileValueMap)
+    if (!changed) return
+    // The replacement is a new node, so move the selection to it
+    const frame = findFirst(next, 'assemblyFramePart')
+    const idx = (findFirst(tree, 'assemblyFramePart')?.children ?? []).findIndex(c => c.key === selectedKey)
+    const replacement = (frame?.children ?? [])[idx]
+    commit(next)
+    if (replacement) setSelectedKey(replacement.key)
+  }, [tree, selectedKey, profileValueMap])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSetCasementOperation = useCallback((operation) => {
+    if (!tree || !selectedKey) return
+    const { tree: next, changed } = setCasementOperation(tree, selectedKey, operation)
+    if (changed) commit(next)
+  }, [tree, selectedKey])  // eslint-disable-line react-hooks/exhaustive-deps
+
   // Step AL §1: typing the pair's Internal Width / Height sets the frame —
   // overall = internal + jambs (width) / + head + cill height (height), as
   // Integrate does. The frame stays the stored source of truth, so the
@@ -2118,7 +2164,11 @@ function DrawingBoard() {
     try {
       // Step AE item 1: a box sash mullion is hollow — thickness from the
       // profile value thicknessInFrameHollow; missing = visible error.
-      const newTree = applyDividers(tree, frame.key, cols, rows, iW, iH, profileValueMap)
+      // Step AP: which mullion the drawing's PROFILE uses — a casement
+      // frame's is solid (thicknessInFrameSolid), a box sash frame's is
+      // hollow. Decided from the drawing, not guessed from the tree.
+      const mullionKind = isCasementFrameTree(tree) ? 'solid' : 'hollow'
+      const newTree = applyDividers(tree, frame.key, cols, rows, iW, iH, profileValueMap, mullionKind)
       setDividerError(null)
       commit(newTree)
       setDividerDialog(false)
@@ -2200,6 +2250,18 @@ function DrawingBoard() {
   const selType     = selectedNode?.part_type ?? null
   const canRemove   = ['mullionPart', 'transomPart', 'verticalGlazingBarPart', 'horizontalGlazingBarPart'].includes(selType)
   const canAddBars  = selType === 'glassPart'
+
+  // Step AP: casement / direct glazed openings. An opening is a
+  // casementSashPart or a glassPart that is a direct child of the frame;
+  // "Change to" swaps its kind in place and the operation buttons set a
+  // casement sash's operation.
+  const isCasementDrawing = tree ? isCasementFrameTree(tree) : false
+  const selectedOpeningKind = isCasementDrawing && selectedNode
+    ? (openingNodes(tree).some(n => n.key === selectedNode.key) ? openingKindOf(selectedNode) : null)
+    : null
+  const selectedOpeningIndex = selectedOpeningKind
+    ? openingNodes(tree).findIndex(n => n.key === selectedNode.key)
+    : -1
 
   // ── Render ────────────────────────────────────────────────────────────────────
   if (loadError) {
@@ -2514,6 +2576,59 @@ function DrawingBoard() {
                 Transom / Mullion…
               </button>
 
+              {/* Step AP: Change to / operation, for a selected opening on a
+                  casement or direct glazed frame (Integrate's "Change..."
+                  list and its operation buttons) */}
+              {selectedOpeningKind && (
+                <>
+                  <div style={{ width: 1, height: 20, background: '#e8e6e0', flexShrink: 0, margin: '0 2px' }} />
+                  <span style={{ fontSize: 11, color: '#888', flexShrink: 0 }}>
+                    {matrixIndexOf(selectedOpeningIndex)} change to:
+                  </span>
+                  {OPENING_KINDS.map(kind => (
+                    <button
+                      key={kind}
+                      onClick={() => handleChangeOpeningKind(kind)}
+                      disabled={kind === selectedOpeningKind}
+                      title={OPENING_KIND_LABELS[kind]}
+                      style={{
+                        fontSize: 11, padding: '3px 10px', borderRadius: 6, flexShrink: 0,
+                        cursor: kind === selectedOpeningKind ? 'default' : 'pointer',
+                        border: `1px solid ${kind === selectedOpeningKind ? '#3d35a8' : '#d8d5cf'}`,
+                        background: kind === selectedOpeningKind ? '#f0eefc' : '#fff',
+                        color: kind === selectedOpeningKind ? '#3d35a8' : '#555',
+                      }}
+                    >
+                      {OPENING_KIND_LABELS[kind]}
+                    </button>
+                  ))}
+                  {selectedOpeningKind !== 'direct_glazed' && (
+                    <>
+                      <span style={{ fontSize: 11, color: '#888', flexShrink: 0 }}>operation:</span>
+                      {CASEMENT_OPERATIONS.map(op => {
+                        const active = selectedNode?.values?.operation === op
+                        return (
+                          <button
+                            key={op}
+                            onClick={() => handleSetCasementOperation(op)}
+                            style={{
+                              fontSize: 11, padding: '3px 8px', borderRadius: 6, flexShrink: 0,
+                              cursor: active ? 'default' : 'pointer',
+                              border: `1px solid ${active ? '#3d35a8' : '#d8d5cf'}`,
+                              background: active ? '#f0eefc' : '#fff',
+                              color: active ? '#3d35a8' : '#555',
+                            }}
+                          >
+                            {op.replace(/_/g, ' ').replace('hand hung', 'hung')}
+                          </button>
+                        )
+                      })}
+                    </>
+                  )}
+                  <div style={{ width: 1, height: 20, background: '#e8e6e0', flexShrink: 0, margin: '0 2px' }} />
+                </>
+              )}
+
               {/* Glazing bar (only when a glassPart is selected) */}
               <button
                 onClick={() => setBarDialog(true)}
@@ -2633,11 +2748,13 @@ function DrawingBoard() {
       {/* Transom / Mullion grid picker dialog */}
       {dividerDialog && (
         <GridPickerDialog
-          title="Transom / Mullion — choose grid"
+          title={isCasementDrawing ? 'Mullion — choose columns' : 'Transom / Mullion — choose grid'}
           applyLabel="Apply to frame"
           onApply={handleApplyDividers}
           onClose={() => { setDividerError(null); setDividerDialog(false) }}
           error={dividerError}
+          maxRows={isCasementDrawing ? 1 : 15}
+          note={isCasementDrawing ? 'Transoms and fanlights come in a later step' : null}
         />
       )}
 
