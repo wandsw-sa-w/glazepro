@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { regenerateKeys, clearItemValues, templateGlassNameWarnings } from './templates.js'
+import { regenerateKeys, clearItemValues, templateGlassNameWarnings, prepareTemplateTree } from './templates.js'
 
 // ── Fixture: minimal box sash tree ──────────────────────────────────────────
 
@@ -238,5 +238,75 @@ describe('templateGlassNameWarnings', () => {
       singleGlassPartNo:   '',
     }
     expect(templateGlassNameWarnings(clean, 'Clean')).toHaveLength(0)
+  })
+})
+
+// ── Step AJ: creating a drawing from a template applies the board rules ─────
+// prepareTemplateTree is exactly what createDrawingFromTemplate runs, so a
+// drawing created from a sash-replacement template arrives with both sashes
+// To Be Replaced (the gap: a board-drawn replacement stored null and priced
+// with no sashes) and a complete-new template arrives at 45 mm.
+describe('prepareTemplateTree', () => {
+  function template({ typeOfWork, thickness = 45, replaced = null }) {
+    const stored = replaced === null ? {} : { toBeReplaced: replaced }
+    return {
+      key: 't_item', part_type: 'drawingItemPart',
+      values: { typeOfWork, location: 'Front bedroom', sheetQty: 3 },
+      children: [{
+        key: 't_frame', part_type: 'assemblyFramePart',
+        values: { width: 1070, height: 1849 },
+        children: [
+          { key: 't_cill', part_type: 'cillPart', values: { height: 70 }, children: [] },
+          {
+            key: 't_pair', part_type: 'sashPairPart', values: { sashThickness: thickness },
+            children: [
+              { key: 't_top', part_type: 'topSashPart', values: { topHeight: 49, ...stored }, children: [] },
+              { key: 't_bot', part_type: 'bottomSashPart', values: { bottomHeight: 88, chamferedBottomRailAngle: 9, ...stored }, children: [] },
+            ],
+          },
+        ],
+      }],
+    }
+  }
+
+  function sashValues(tree) {
+    const out = []
+    ;(function walk(n) {
+      if (n.part_type === 'topSashPart' || n.part_type === 'bottomSashPart') out.push(n.values?.toBeReplaced)
+      ;(n.children ?? []).forEach(walk)
+    })(tree)
+    return out
+  }
+
+  it('a sash-replacement template arrives with both sashes To Be Replaced', () => {
+    const { tree, adjustments } = prepareTemplateTree(template({ typeOfWork: 'new_pair_of_sashes' }))
+    expect(sashValues(tree)).toEqual([true, true])
+    expect(adjustments).toEqual(['sashes set To Be Replaced = true (type of work)'])
+  })
+
+  it('a draught-seal template arrives with both sashes NOT replaced', () => {
+    const { tree } = prepareTemplateTree(template({ typeOfWork: 'draught_seal' }))
+    expect(sashValues(tree)).toEqual([false, false])
+  })
+
+  it('a complete-new template at 57 mm arrives at 45 mm AND replaced', () => {
+    const { tree, adjustments } = prepareTemplateTree(template({ typeOfWork: 'complete_new', thickness: 57 }))
+    let pair
+    ;(function walk(n) { if (n.part_type === 'sashPairPart') pair = n.values; (n.children ?? []).forEach(walk) })(tree)
+    expect(pair.sashThickness).toBe(45)
+    expect(sashValues(tree)).toEqual([true, true])
+    expect(adjustments).toHaveLength(2)
+  })
+
+  it('records nothing when the template already agrees', () => {
+    const { adjustments } = prepareTemplateTree(template({ typeOfWork: 'new_pair_of_sashes', replaced: true }))
+    expect(adjustments).toEqual([])
+  })
+
+  it('still regenerates keys and clears item values', () => {
+    const { tree } = prepareTemplateTree(template({ typeOfWork: 'new_pair_of_sashes' }))
+    expect(tree.key).not.toBe('t_item')
+    expect(tree.values.location).toBeNull()
+    expect(tree.values.sheetQty).toBe(1)
   })
 })

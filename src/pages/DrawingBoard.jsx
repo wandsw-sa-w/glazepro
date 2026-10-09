@@ -16,6 +16,9 @@ import {
   isCompleteNewSashWindow, thicknessChangePatches, applyPatches,
   applyCompleteNewThickness, owningPair,
 } from '../drawingBoard/sashThickness.js'
+import {
+  SASHES_REPLACED_NOTE, isSashWindow, sashesDisagreeing, applySashesReplaced,
+} from '../drawingBoard/sashesReplaced.js'
 import { computeSashWeight } from '../pricing/sashWeight.js'
 import { loadDrawingRunPrices } from '../quotes/drawingRunPrice.js'
 import { SashElevation } from '../drawingBoard/renderElevation.jsx'
@@ -246,19 +249,38 @@ function PropertyField({ field, value, derivedValue, onChange, refOptions, requi
   }
 
   if (field.data_type === 'boolean') {
+    // `locked` (Step AJ): the value is owned by another field, so the
+    // toggle is read-only with the rule stated under it and a button to
+    // apply it when the stored value disagrees (no silent edits).
+    const toggle = locked ? undefined : () => onChange(!value)
     return (
-      <div style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div
-          onClick={() => onChange(!value)}
-          style={{ width: 32, height: 18, borderRadius: 999, background: value ? '#3d35a8' : '#d8d5cf', position: 'relative', cursor: 'pointer', flexShrink: 0, transition: 'background .15s' }}
-        >
-          <div style={{ width: 14, height: 14, borderRadius: '50%', background: '#fff', position: 'absolute', top: 2, left: value ? 16 : 2, transition: 'left .15s' }} />
+      <div style={{ marginBottom: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div
+            onClick={toggle}
+            style={{ width: 32, height: 18, borderRadius: 999, background: value ? (locked ? '#b9b4e3' : '#3d35a8') : '#d8d5cf', position: 'relative', cursor: locked ? 'not-allowed' : 'pointer', flexShrink: 0, transition: 'background .15s' }}
+          >
+            <div style={{ width: 14, height: 14, borderRadius: '50%', background: '#fff', position: 'absolute', top: 2, left: value ? 16 : 2, transition: 'left .15s' }} />
+          </div>
+          <label title={field.field_key} style={{ fontSize: 12, color: locked ? '#888' : '#555', cursor: locked ? 'default' : 'pointer', userSelect: 'none' }} onClick={toggle}>
+            {field.label}
+            <InfoNoteIcon note={field.info_note} />
+            <HiddenBadge text={hiddenTagText} />
+          </label>
         </div>
-        <label title={field.field_key} style={{ fontSize: 12, color: '#555', cursor: 'pointer', userSelect: 'none' }} onClick={() => onChange(!value)}>
-          {field.label}
-          <InfoNoteIcon note={field.info_note} />
-          <HiddenBadge text={hiddenTagText} />
-        </label>
+        {locked && (
+          <div style={{ fontSize: 11, color: '#888', marginTop: 3 }}>
+            {locked.note}
+            {locked.onFix && (
+              <button
+                onClick={locked.onFix}
+                style={{ marginLeft: 8, fontSize: 11, padding: '2px 8px', border: '1px solid #d6d0f5', borderRadius: 5, background: '#f3f1fc', color: '#3d35a8', fontWeight: 600, cursor: 'pointer' }}
+              >
+                {locked.fixLabel}
+              </button>
+            )}
+          </div>
+        )}
       </div>
     )
   }
@@ -583,7 +605,7 @@ function IronmongeryPanel({ node, tree, derived, refOptions, onChangeField, onAu
 
 // ── PropertyEditor ────────────────────────────────────────────────────────────
 
-function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, onAutoApplyDefaults, onPrev, onNext, prevDisabled, nextDisabled, prevLabel, nextLabel, visibilityMap, boardMode, showHidden, tree, ironmongeryRules, ironmongeryProducts, onShowPriceBreakdown, profileValueMap, onSetCompleteNewThickness }) {
+function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, onAutoApplyDefaults, onPrev, onNext, prevDisabled, nextDisabled, prevLabel, nextLabel, visibilityMap, boardMode, showHidden, tree, ironmongeryRules, ironmongeryProducts, onShowPriceBreakdown, profileValueMap, onSetCompleteNewThickness, onSetSashesReplaced }) {
   if (!node) {
     return (
       <div style={{ padding: 16, color: '#aaa', fontSize: 12, textAlign: 'center', paddingTop: 48 }}>
@@ -602,14 +624,28 @@ function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, o
   // A drawing that was saved at another thickness is NOT changed on load —
   // the button applies 45 through the hand-edit path instead.
   function lockedField(fieldKey, partNode) {
-    if (fieldKey !== 'sashPairPart.sashThickness') return null
-    if (!isCompleteNewSashWindow(tree)) return null
-    const current = Number(partNode.values?.sashThickness)
-    return {
-      note: COMPLETE_NEW_THICKNESS_NOTE,
-      fixLabel: `Set to ${COMPLETE_NEW_SASH_THICKNESS_MM} mm`,
-      onFix: current !== COMPLETE_NEW_SASH_THICKNESS_MM ? onSetCompleteNewThickness : null,
+    if (fieldKey === 'sashPairPart.sashThickness') {
+      if (!isCompleteNewSashWindow(tree)) return null
+      const current = Number(partNode.values?.sashThickness)
+      return {
+        note: COMPLETE_NEW_THICKNESS_NOTE,
+        fixLabel: `Set to ${COMPLETE_NEW_SASH_THICKNESS_MM} mm`,
+        onFix: current !== COMPLETE_NEW_SASH_THICKNESS_MM ? onSetCompleteNewThickness : null,
+      }
     }
+    // Step AJ 1: a box sash window's To Be Replaced is owned by the type
+    // of work. Read-only, with the button only when the saved value
+    // disagrees (casements and doors keep their own editable toggle).
+    if (fieldKey === 'topSashPart.toBeReplaced' || fieldKey === 'bottomSashPart.toBeReplaced') {
+      if (!isSashWindow(tree)) return null
+      const disagrees = sashesDisagreeing(tree).some(s => s.key === partNode.key)
+      return {
+        note: SASHES_REPLACED_NOTE,
+        fixLabel: 'Set sashes to match type of work',
+        onFix: disagrees ? onSetSashesReplaced : null,
+      }
+    }
+    return null
   }
 
   return (
@@ -1896,8 +1932,11 @@ function DrawingBoard() {
     // uses the same thicknessChangePatches path as a hand edit, so the
     // bottom rails and frame height shift identically and every changed
     // value appears in the drawing's history on save.
+    // Step AJ 1: the type of work also owns the sashes' To Be Replaced —
+    // a sash replacement always replaces both sashes.
     if (fieldKey === 'drawingItemPart.typeOfWork') {
       newTree = applyCompleteNewThickness(newTree).tree
+      newTree = applySashesReplaced(newTree).tree
     }
 
     commit(newTree)
@@ -1911,6 +1950,16 @@ function DrawingBoard() {
     if (!tree) return
     const { tree: newTree, pairsChanged } = applyCompleteNewThickness(tree)
     if (pairsChanged.length > 0) commit(newTree)
+  }, [tree])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Step AJ 1: "Set sashes to match type of work" beside the read-only To
+  // Be Replaced toggle, for a saved drawing whose sashes disagree with its
+  // type of work. Same single path as the type-of-work change; nothing is
+  // changed on load.
+  const handleSetSashesReplaced = useCallback(() => {
+    if (!tree) return
+    const { tree: newTree, sashesChanged } = applySashesReplaced(tree)
+    if (sashesChanged.length > 0) commit(newTree)
   }, [tree])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-apply defaults (e.g. default ironmongery on load) without marking dirty.
@@ -2337,6 +2386,7 @@ function DrawingBoard() {
               onShowPriceBreakdown={() => setBreakdownOpen(true)}
               profileValueMap={profileValueMap}
               onSetCompleteNewThickness={handleSetCompleteNewThickness}
+              onSetSashesReplaced={handleSetSashesReplaced}
             />
           </div>
 

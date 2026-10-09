@@ -8,6 +8,7 @@ import { supabase } from '../supabase.js'
 import { saveDrawingParts } from './api.js'
 import { insertDrawingHistory } from './drawingHistory.js'
 import { applyCompleteNewThickness, COMPLETE_NEW_SASH_THICKNESS_MM } from './sashThickness.js'
+import { applySashesReplaced } from './sashesReplaced.js'
 
 // ── Key regeneration ─────────────────────────────────────────────────────────
 
@@ -87,6 +88,48 @@ export function templateGlassNameWarnings(tree, templateName = 'template') {
     for (const c of (n.children ?? [])) walk(c)
   })(tree)
   return warnings
+}
+
+// ── Creation-time tree preparation ───────────────────────────────────────────
+
+/**
+ * The tree a new drawing starts from: the template's tree with fresh keys
+ * and item-specific values cleared, then the board's business rules applied
+ * once, at creation.
+ *
+ * Pure, and exported so it can be tested directly — createDrawingFromTemplate
+ * calls exactly this, so the test and the real creation path cannot drift.
+ *
+ * Step AI 1b: a COMPLETE NEW sash window is always 45 mm (Nathan, 9 Oct
+ * 2026), so a complete-new template stored at another thickness is set to 45
+ * through the same thicknessChangePatches path as a hand edit (bottom rails
+ * and frame height shift identically).
+ * Step AJ 1: the sashes' To Be Replaced follows the type of work (a sash
+ * replacement always replaces both sashes), through the same single path the
+ * board uses.
+ * An EXISTING drawing is never touched by either rule — that is the board's
+ * "Set to 45 mm" / "Set sashes to match type of work" buttons.
+ *
+ * @returns {{tree: Object, adjustments: string[]}} adjustments are for the
+ *   drawing's history note, so the creation records what it changed.
+ */
+export function prepareTemplateTree(templateTree) {
+  let tree = clearItemValues(regenerateKeys(templateTree))
+  const adjustments = []
+
+  const thicknessFix = applyCompleteNewThickness(tree)
+  tree = thicknessFix.tree
+  if (thicknessFix.pairsChanged.length > 0) {
+    adjustments.push(`sash thickness set to ${COMPLETE_NEW_SASH_THICKNESS_MM} mm (complete new)`)
+  }
+
+  const replacedFix = applySashesReplaced(tree)
+  tree = replacedFix.tree
+  if (replacedFix.sashesChanged.length > 0) {
+    adjustments.push(`sashes set To Be Replaced = ${replacedFix.target} (type of work)`)
+  }
+
+  return { tree, adjustments }
 }
 
 // ── Template CRUD ────────────────────────────────────────────────────────────
@@ -178,16 +221,7 @@ export async function createDrawingFromTemplate(jobItemId, template, nextDrawing
     .single()
   if (error) throw error
 
-  // Copy the template tree with fresh keys and cleared values.
-  // Step AI 1b: a COMPLETE NEW sash window is always 45 mm (Nathan,
-  // 9 Oct 2026), so a complete-new template stored at another thickness is
-  // set to 45 as the drawing is created — through the same
-  // thicknessChangePatches path as a hand edit, so the bottom rails and the
-  // frame height shift identically. An EXISTING drawing is never touched
-  // (that is the board's "Set to 45 mm" button, item 1c).
-  let freshTree = clearItemValues(regenerateKeys(template.tree))
-  const thicknessFix = applyCompleteNewThickness(freshTree)
-  freshTree = thicknessFix.tree
+  const { tree: freshTree, adjustments } = prepareTemplateTree(template.tree)
   await saveDrawingParts(newDwg.id, freshTree)
 
   // Record 'created_from_template' history event (non-blocking)
@@ -204,8 +238,8 @@ export async function createDrawingFromTemplate(jobItemId, template, nextDrawing
       userId: authUser?.id ?? null,
       userName,
       event: 'created_from_template',
-      note: thicknessFix.pairsChanged.length > 0
-        ? `Template: ${template.name} — sash thickness set to ${COMPLETE_NEW_SASH_THICKNESS_MM} mm (complete new)`
+      note: adjustments.length > 0
+        ? `Template: ${template.name} — ${adjustments.join('; ')}`
         : `Template: ${template.name}`,
     })
   } catch (histE) {
