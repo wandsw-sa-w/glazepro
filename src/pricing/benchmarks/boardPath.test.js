@@ -23,7 +23,7 @@ import { applyOperationDefaults } from '../../drawingBoard/applyOperationDefault
 import { applySashesReplaced } from '../../drawingBoard/sashesReplaced.js'
 import { applyCompleteNewThickness } from '../../drawingBoard/sashThickness.js'
 import { computeDerived } from '../../drawingBoard/computeDerived.js'
-import { internalSizeOf, keepInternalSize } from '../../drawingBoard/internalSize.js'
+import { internalSizeOf, keepInternalSize, frameFromInternalSize } from '../../drawingBoard/internalSize.js'
 import { runPricingOnTree } from '../pricingEngine.js'
 import { resolveIronmongeryLines } from '../loadPricingContext.js'
 import { BENCHMARK_A } from './index.js'
@@ -167,6 +167,45 @@ d('Step AK item 3 — board path: spiral sash replacement (F)', () => {
     const toSpiral = boardSetOperation(BENCHMARK_A.tree, 'spiral_hung')
     const backToCord = boardSetOperation(toSpiral, 'cord_hung')
     expectTotals(priceFromSnapshot(backToCord), INTEGRATE.benchmarkA)
+  })
+})
+
+// ── A sash replacement entered by SASH size (Step AL) ──────────────────────
+
+d('Step AL item 3 — board path: a replacement entered as 900 x 1700 internal', () => {
+  it('produces benchmark A’s frame and prices 728.26 / 1,408.66', () => {
+    // A surveyor measures the sashes, not the box frame. Start from
+    // benchmark A's drawing with the frame size NOT yet entered, type the
+    // sash size through the Step AL path, and the cord jambs give A's frame
+    // and A's price to the penny.
+    const blankFrame = JSON.parse(JSON.stringify(BENCHMARK_A.tree))
+    const frame = blankFrame.children.find(c => c.part_type === 'assemblyFramePart')
+    delete frame.values.width
+    delete frame.values.height
+    expect(internalSizeOf(blankFrame)).toEqual({ width: null, height: null })
+
+    // Typing Internal Width / Height (the board's handleChangeInternalSize)
+    const drawn = frameFromInternalSize(blankFrame, { width: 900, height: 1700 })
+
+    const f = drawn.children.find(c => c.part_type === 'assemblyFramePart')
+    expect([f.values.width, f.values.height]).toEqual([1070, 1849])   // A's frame
+    expect(internalSizeOf(drawn)).toEqual({ width: 900, height: 1700 })
+
+    expectTotals(priceFromSnapshot(drawn), INTEGRATE.benchmarkA)
+  })
+
+  it('and the drawn sash sizes are A’s', () => {
+    const blankFrame = JSON.parse(JSON.stringify(BENCHMARK_A.tree))
+    const fr = blankFrame.children.find(c => c.part_type === 'assemblyFramePart')
+    delete fr.values.width
+    delete fr.values.height
+    const drawn = frameFromInternalSize(blankFrame, { width: 900, height: 1700 })
+    const pair = drawn.children.find(c => c.part_type === 'assemblyFramePart')
+      .children.find(c => c.part_type === 'sashPairPart')
+    const der = computeDerived(drawn)[pair.key]
+    expect(der.sashWidth).toBe(900)
+    expect(der.topSashHeight).toBe(850.5)
+    expect(der.bottomSashHeight).toBe(889.5)
   })
 })
 
