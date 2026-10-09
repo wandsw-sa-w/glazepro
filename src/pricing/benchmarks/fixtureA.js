@@ -391,6 +391,40 @@ function spiralVariant(name, targets) {
   }
 }
 
+// ── New cill variant (Step AM) ───────────────────────────────────────────────
+// Benchmark G = L31115 Item 1 Drawing 15: a copy of A with the cill's Repair
+// set to New Cill (Integrate CillPart.cillRepairId 2), third floor,
+// isBrickToBrickCill false. Everything else is exactly A
+// (docs/integrate-L31115-cill.txt). Integrate charges the same cill block on
+// all three cill benchmarks: a Cill Replacement line 1.00 -> 200.00 and
+// 2.50 h of install labour, so G's labour is A's 4.75 + 2.50 = 7.25 h and
+// no cill timber is priced.
+function newCillVariant(name, targets) {
+  const tree = JSON.parse(JSON.stringify(TREE))
+  const frame = tree.children.find(c => c.part_type === 'assemblyFramePart')
+  const cill = frame.children.find(c => c.part_type === 'cillPart')
+  cill.values.repair = 'new_cill'              // Integrate cillRepairId 2
+  cill.values.isBrickToBrickCill = false       // Integrate: left unticked on G
+  return {
+    name,
+    tree,
+    targets,
+    partCostMap: PART_COST_MAP,
+    profileValues: PROFILE_VALUES,
+    ironmongeryLines: IRONMONGERY_LINES,
+    ironmongeryCatalogue: IRONMONGERY_CATALOGUE,
+    assumptions: [
+      ...ASSUMPTIONS,
+      'Derived from benchmark A: cill Repair = New Cill, Full Cill Replacement unticked — the only fields Integrate changed on the copy (docs/integrate-L31115-cill.txt)',
+      'Full Cill Replacement changes no price in Integrate (GBP 1,809.71 both ways) and none here either: GlazePro derives cill_length_in_mm from the frame width already',
+    ],
+  }
+}
+
+export const BENCHMARK_G = newCillVariant(
+  'Benchmark G — Sash replacement + new cill (L31115 Item 1 Drawing 15)',
+  INTEGRATE_TARGETS.benchmarkG_sash_replacement_new_cill)
+
 export const BENCHMARK_F = spiralVariant(
   'Benchmark F — Spiral sash replacement (L31115 Item 1 Drawing 14)',
   INTEGRATE_TARGETS.benchmarkF_spiral_replacement)

@@ -46,10 +46,18 @@ const LOOP_PART_TYPES = {
   panel:         ['panelPart'],
 }
 
-function getLoopParts(tree, loopTarget) {
+function getLoopParts(tree, loopTarget, variables = null) {
   if (!loopTarget) return [null]        // item scope: run once with no part
   const partTypes = LOOP_PART_TYPES[loopTarget]
   if (!partTypes) return []
+  // Step AM: the sliding_sash loop skips sashes nothing is being done to.
+  // Integrate charges no staff or parting bead on a stand-alone cill
+  // replacement (docs/integrate-L31115-cill.txt, benchmark I), and those
+  // component rules are conditioned only on "not frame_to_be_replaced", so
+  // the gate is in the loop — the same shape as Step AH's glass_unit gate.
+  if (loopTarget === 'sliding_sash' && variables && variables.item_has_sash_work === false) {
+    return []
+  }
   const parts = []
   for (const pt of partTypes) parts.push(...findAll(tree, pt))
   return parts
@@ -196,7 +204,7 @@ export function allocateParts(tree, variables, rules, glassCatalogue = {}, inclu
   })
 
   for (const rule of activeRules) {
-    const loopParts = getLoopParts(tree, rule.loop_target ?? null)
+    const loopParts = getLoopParts(tree, rule.loop_target ?? null, baseVars)
 
     for (const partNode of loopParts) {
       // Build variable context for this loop iteration

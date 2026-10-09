@@ -13,7 +13,7 @@ import { runPricingOnTree, shapedGlassCutAreaM2 } from '../pricingEngine.js'
 import { applySashesReplaced } from '../../drawingBoard/sashesReplaced.js'
 import { computeDerived } from '../../drawingBoard/computeDerived.js'
 import { computeVariables } from '../computeVariables.js'
-import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_B_UNCORRECTED, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F } from './index.js'
+import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_B_UNCORRECTED, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F, BENCHMARK_G, BENCHMARK_H, BENCHMARK_I } from './index.js'
 import { resolveIronmongeryLines } from '../loadPricingContext.js'
 // The LIVE price-file snapshot (reviewer-checked, 8 Oct 2026) — the honest
 // benchmarks and the real-tree case price from this, never from the
@@ -877,5 +877,87 @@ describe('Step AK — spiral benchmarks', () => {
     expect(barQty(BENCHMARK_A.tree)).toEqual([2.4])
     expect(barQty(BENCHMARK_L34046.tree)).toEqual([2.5, 2.5])
     expect(barQty(BENCHMARK_F.tree)).toEqual([2.56])
+  })
+})
+
+// ── Step AM — cill replacement benchmarks G, H and I ────────────────────────
+// Facts: docs/integrate-L31115-cill.txt. Integrate charges the same cill
+// block on all three — a Cill Replacement line 1.00 → 200.00 and 2.50 h of
+// install labour — and no cill timber.
+describe('Step AM — cill replacement benchmarks', () => {
+  it('G (sash replacement + new cill) matches the Integrate targets', () => {
+    expectMatchesIntegrate(runFromSnapshot(BENCHMARK_G.tree), INTEGRATE.benchmarkG_sash_replacement_new_cill)
+  })
+
+  it('H (draught seal + new cill) matches the corrected target', () => {
+    expectMatchesIntegrate(runFromSnapshot(BENCHMARK_H.tree), INTEGRATE.benchmarkH_draught_seal_new_cill_corrected)
+  })
+
+  it('I (stand-alone cill) matches the corrected target', () => {
+    expectMatchesIntegrate(runFromSnapshot(BENCHMARK_I.tree), INTEGRATE.benchmarkI_cill_only_corrected)
+  })
+
+  // The cill block is 2.50 h of install labour plus the Cill Replacement
+  // line, so each benchmark is its source plus 2.50 h and +1.00/+200.00.
+  // The TOTAL difference is a penny apart between G and H (101.52 vs
+  // 101.53) because the labour line is rounded once, as a whole: A 4.75 h
+  // -> 191.00 and G 7.25 h -> 291.52 differ by 100.52, while B 4.00 h ->
+  // 160.84 and H 6.50 h -> 261.37 differ by 100.53. Integrate's own totals
+  // show the same penny, so the invariant to assert is the hours and the
+  // cill line, not a constant block.
+  it('each one is its source benchmark plus 2.50 h and the cill line', () => {
+    const HOURS = [
+      [BENCHMARK_G, 7.25, 829.78 - 728.26],      // A's 4.75 + 2.50
+      [BENCHMARK_H, 6.50, 309.86 - 208.33],      // B's 4.00 + 2.50
+      [BENCHMARK_I, 2.50, 101.53],               // the block on its own
+    ]
+    for (const [bm, hours, costDelta] of HOURS) {
+      const r = runFromSnapshot(bm.tree)
+      expect(r.install_labour.total_minutes / 60, bm.name).toBeCloseTo(hours, 2)
+      const labour = r.price.lines.find(l => l.fires && l.name === 'Labour')
+      expect(labour.quantity, bm.name).toBeCloseTo(hours, 2)
+      // and the cill block is the whole difference from the source total
+      expect(costDelta, bm.name).toBeCloseTo(r.price.total_cost - (bm === BENCHMARK_I ? 0 : (bm === BENCHMARK_G ? 728.26 : 208.33)), 2)
+    }
+    // Price side: +401.05 on both copies, and I is the block itself
+    expect(1809.71 - 1408.66).toBeCloseTo(401.05, 2)
+    expect(923.70 - 522.65).toBeCloseTo(401.05, 2)
+  })
+
+  // Integrate's uncorrected figures are the corrected ones plus the three S4
+  // lines (deliberate difference 1), which is how B's pair is handled.
+  it('the uncorrected targets are the corrected ones plus the S4 lines', () => {
+    const S4_COST = 25.46, S4_PRICE = 50.90
+    const pairs = [
+      [INTEGRATE.benchmarkH_draught_seal_new_cill_uncorrected, INTEGRATE.benchmarkH_draught_seal_new_cill_corrected],
+      [INTEGRATE.benchmarkI_cill_only_uncorrected,             INTEGRATE.benchmarkI_cill_only_corrected],
+    ]
+    for (const [unc, corr] of pairs) {
+      expect(unc.total_cost - corr.total_cost).toBeCloseTo(S4_COST, 2)
+      expect(unc.total_price - corr.total_price).toBeCloseTo(S4_PRICE, 2)
+    }
+  })
+
+  it('G, H and I all price the cill block and no cill timber', () => {
+    for (const bm of [BENCHMARK_G, BENCHMARK_H, BENCHMARK_I]) {
+      const fired = runFromSnapshot(bm.tree).price.lines.filter(l => l.fires && !l.error && l.line_cost > 0)
+      const cill = fired.filter(l => l.name === 'Cill Replacement Profit')
+      expect(cill, bm.name).toHaveLength(1)
+      expect(cill[0].line_cost, bm.name).toBe(1)
+      expect(cill[0].line_total, bm.name).toBe(200)
+      // Integrate prices no cill timber for a repair: Box Frame Utile Cill
+      // only fires when the frame is replaced.
+      expect(fired.map(l => l.name), bm.name).not.toContain('Box Frame Utile Cill')
+    }
+  })
+
+  // I is a stand-alone cill: nothing is being done to the sashes, so
+  // Integrate charges no staff or parting bead, no DSO rate, no DSO extra
+  // profits, no ironmongery and no installation consumables.
+  it('I prices the labour and the cill only', () => {
+    const fired = runFromSnapshot(BENCHMARK_I.tree).price.lines
+      .filter(l => l.fires && !l.error && l.line_cost > 0)
+      .map(l => l.alloc_label ?? l.name)
+    expect(fired.sort()).toEqual(['Cill Replacement Profit', 'Labour'])
   })
 })

@@ -53,10 +53,13 @@
  * Version 11 is Step AK: the glazing bar run is measured at the glass CUT
  * size and rounded half-up to 2 dp (three Integrate readings fit only that
  * rule) — version-10 runs were up to 6p/m short on wider bars.
- * Version 12 is Step AM: new_cill_qty also reads the board's cill Repair
- * field (cillPart.repair = 'new_cill'), not only the older
+ * Version 12 is Step AM, two changes: new_cill_qty also reads the board's
+ * cill Repair field (cillPart.repair = 'new_cill'), not only the older
  * cillPart.toBeReplaced flag — version-11 runs priced no cill replacement
- * for a cill chosen on the board.
+ * for a cill chosen on the board; and the sliding_sash loop no longer
+ * visits sashes nothing is being done to (item_has_sash_work false), so a
+ * stand-alone cill replacement charges no staff or parting bead, as
+ * Integrate does — version-11 runs charged four bead lines on one.
  */
 
 export const PRICING_ENGINE_VERSION = 12

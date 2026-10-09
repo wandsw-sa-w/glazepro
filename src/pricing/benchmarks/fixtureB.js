@@ -323,3 +323,83 @@ export const BENCHMARK_B_UNCORRECTED = {
   ironmongeryCatalogue: IRONMONGERY_CATALOGUE,
   assumptions: ASSUMPTIONS,
 }
+
+// ── New cill variants (Step AM) ──────────────────────────────────────────────
+// Facts: docs/integrate-L31115-cill.txt. Integrate charges the same cill
+// block on all three cill benchmarks — a Cill Replacement line 1.00 -> 200.00
+// (extra_profits, markup 200) and 2.50 h of install labour ("Hardwood Cill
+// Replacement", 150 min) — and NO cill timber, because the Box Frame Utile
+// Cill rule only fires when the frame is replaced.
+//
+//   H = B + New Cill (first floor), L31115 Item 2 Drawing 13. Labour 6.50 h
+//       (B's 4.00 + 2.50). Corrected target 309.86 / 923.70 = B corrected
+//       208.33 / 522.65 + the cill block 101.53 / 401.05. Integrate's own
+//       (uncorrected) figure is 335.32 / 974.60, which is B uncorrected
+//       233.79 / 573.55 + the same cill block — reported, not asserted, the
+//       way BENCHMARK_B_UNCORRECTED is.
+//   I = a stand-alone cill, L31115 Item 2 Drawing 14: B's tree with type of
+//       work cill_only, the sashes NOT replaced and New Cill. Integrate
+//       stores every item flag false and calls it "Other". Expected lines:
+//       Labour 2.50 h (100.53 / 201.05) and Cill Replacement 1.00 / 200.00
+//       only — no DSO rate, no DSO extra profits, no ironmongery, no
+//       staff/parting beads, no installation consumables. Corrected target
+//       101.53 / 401.05; Integrate's own figure 126.99 / 451.95 includes the
+//       three S4 lines (deliberate difference 1).
+
+function newCillTree({ typeOfWork = null } = {}) {
+  const tree = JSON.parse(JSON.stringify(TREE))
+  if (typeOfWork) tree.values.typeOfWork = typeOfWork
+  const frame = tree.children.find(c => c.part_type === 'assemblyFramePart')
+  const cill  = frame.children.find(c => c.part_type === 'cillPart')
+  cill.values.repair = 'new_cill'            // Integrate cillRepairId 2
+  cill.values.isBrickToBrickCill = false
+  return tree
+}
+
+const CILL_BLOCK_NOTE =
+  'Integrate’s cill block, identical on G/H/I: Cill Replacement 1.00 → 200.00 and 2.50 h install labour; no cill timber (docs/integrate-L31115-cill.txt)'
+
+export const BENCHMARK_H = {
+  name:   'Benchmark H — Draught seal + new cill (L31115 Item 2 Drawing 13, corrected)',
+  tree:   newCillTree(),
+  targets: { ...INTEGRATE_TARGETS.benchmarkH_draught_seal_new_cill_corrected },
+  glassCatalogue: {},
+  partCostMap: PART_COST_MAP,
+  profileValues: PROFILE_VALUES,
+  ironmongeryLines: IRONMONGERY_LINES,
+  ironmongeryCatalogue: IRONMONGERY_CATALOGUE,
+  assumptions: [
+    ...ASSUMPTIONS,
+    'Derived from benchmark B: cill Repair = New Cill — the only field Integrate changed on the copy',
+    CILL_BLOCK_NOTE,
+    'Integrate’s own figure is 335.32 / 974.60; the corrected target 309.86 / 923.70 removes the three S4 lines (deliberate difference 1), exactly as for B',
+  ],
+}
+
+export const BENCHMARK_I = {
+  name:   'Benchmark I — Stand-alone cill replacement (L31115 Item 2 Drawing 14, corrected)',
+  tree:   newCillTree({ typeOfWork: 'cill_only' }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkI_cill_only_corrected },
+  glassCatalogue: {},
+  partCostMap: PART_COST_MAP,
+  profileValues: PROFILE_VALUES,
+  // No ironmongery: a stand-alone cill is not a draught seal, so Integrate
+  // prices no fastener kit. B's stored lines are deliberately NOT carried
+  // over (the tree's own paintAndIronmongeryPart lines are dropped below).
+  ironmongeryCatalogue: IRONMONGERY_CATALOGUE,
+  assumptions: [
+    ...ASSUMPTIONS,
+    'Derived from benchmark B: type of work cill_only (Integrate: every item flag false, summary "Other"), sashes not replaced, cill Repair = New Cill',
+    CILL_BLOCK_NOTE,
+    'Integrate’s own figure is 126.99 / 451.95; the corrected target 101.53 / 401.05 removes the three S4 lines (deliberate difference 1)',
+  ],
+}
+
+// A stand-alone cill sells no ironmongery: Integrate's I has no fastener kit
+// line (its default_ironmongery rule needs needs_draughtsealing). B's tree
+// carries a stored Brighton kit line, so it is removed here — a stored line
+// would otherwise price regardless of the type of work (Step Z resolution).
+;(function stripIronmongeryLines(tree) {
+  const paint = tree.children.find(c => c.part_type === 'paintAndIronmongeryPart')
+  if (paint?.values?.ironmongeryLines) paint.values.ironmongeryLines = []
+})(BENCHMARK_I.tree)

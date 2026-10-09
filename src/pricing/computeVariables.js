@@ -190,6 +190,22 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
     // and multiply by interior_qty to control how many bead lengths per sash)
     const interior_qty = 1
 
+    // item_has_sash_work (Step AM): are the sashes being worked on at all?
+    // True when they are made new (complete new or a sash replacement),
+    // drawn out and re-hung (draught seal) or re-glazed (bi-glass). FALSE on
+    // a stand-alone cill replacement and on "no work", where the sashes stay
+    // where they are.
+    //
+    // Integrate's sliding-sash COMPONENT rules (staff and parting bead) are
+    // conditioned only on "not frame_to_be_replaced", yet Integrate charges
+    // no bead on a stand-alone cill (docs/integrate-L31115-cill.txt,
+    // benchmark I: "no DSO rate, no ironmongery, no staff/parting beads, no
+    // installation consumables"). As with the glass_unit loop in Step AH,
+    // the gate is in Integrate's LOOP, not in its conditions: it never
+    // visits a sash that nothing is being done to. This flag is what the
+    // sliding_sash loops use.
+    const item_has_sash_work = nj_involved || needs_draughtsealing || is_bi_glass
+
     // ── GROUP 5 — Sash operations ─────────────────────────────────────────────
     const topOp = operationKind(topSash?.values?.operation)
     const botOp = operationKind(botSash?.values?.operation)
@@ -721,7 +737,7 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
       // Group 4c — Profiled frame interior dimensions
       profiled_frame_interior_width_in_mm,
       profiled_frame_interior_height_in_mm,
-      interior_qty,
+      interior_qty, item_has_sash_work,
 
       // Group 5 — Sash operations
       is_top_sash_cord_hung, is_top_sash_spiral_hung, is_top_sash_fixed,

@@ -72,6 +72,8 @@ describe('applySashesReplaced — every type of work', () => {
     ['draught_seal',       false],
     ['bi_glass',           false],
     ['no_work',            false],
+    // Step AM: a stand-alone cill replacement replaces no sashes
+    ['cill_only',          false],
   ]
 
   for (const [typeOfWork, expected] of CASES) {
