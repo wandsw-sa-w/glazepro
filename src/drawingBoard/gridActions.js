@@ -73,8 +73,11 @@ export function applyDividers(tree, frameKey, cols, rows, iW, iH, profileValues 
       key:       makeKey('mull'),
       part_type: 'mullionPart',
       // offset = LEFT face; the resolved hollow thickness is stored, as
-      // Integrate stores it (144 on the snapshot's Sash profile)
-      values:    { offset: (idx + 1) * openingW + idx * mullionT, thicknessInFrame: mullionT },
+      // Integrate stores it (144 on the snapshot's Sash profile).
+      // Step AH 3b: stored offsets are rounded to 0.1 mm — Integrate
+      // stores to 1 dp (e.g. 252.7); unrounded thirds stored
+      // 180.66666666666666.
+      values:    { offset: Math.round(((idx + 1) * openingW + idx * mullionT) * 10) / 10, thicknessInFrame: mullionT },
       children:  [],
     }))
     const transoms = Array.from({ length: rows - 1 }, (_, i) => ({

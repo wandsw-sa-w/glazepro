@@ -129,6 +129,17 @@ describe('applyDividers — runs the actual Transom/Mullion... handler', () => {
     expect(offsets[1]).toBeCloseTo(2 * opening + T, 6)
   })
 
+  it('stored offsets are rounded to 0.1 mm (Step AH 3b)', () => {
+    // iW 1000, t 144, 3 cols: opening = 712/3 = 237.33̅ → offsets 237.3
+    // and 2 × 237.33̅ + 144 = 618.66̅ → 618.7 (Integrate stores 1 dp).
+    const tree = freshBoxSash()
+    const frame = findFirst(tree, 'assemblyFramePart')
+    const next = applyDividers(tree, frame.key, 3, 1, 1000, 800, PV)
+    const offsets = findAll(next, 'mullionPart').map(m => m.values.offset).sort((a, b) => a - b)
+    expect(offsets[0]).toBe(237.3)
+    expect(offsets[1]).toBe(618.7)
+  })
+
   it('the second pair is a real copy — same values, distinct keys, bars preserved', () => {
     const tree = freshBoxSash()
     const frame = findFirst(tree, 'assemblyFramePart')

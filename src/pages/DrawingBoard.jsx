@@ -824,7 +824,7 @@ function Summary({ tree, fieldDefs, derived, refOptions, onSelectKey, drawingMet
               onClick={() => onSelectKey(issue.key)}
               style={{ display: 'block', width: '100%', textAlign: 'left', fontSize: 11, padding: '3px 6px', marginBottom: 2, border: '1px solid #fca5a5', borderRadius: 5, background: '#fef2f2', color: '#b91c1c', cursor: 'pointer' }}
             >
-              {PART_LABELS[issue.partType] ?? issue.partType} \u2192 {issue.label}
+              {PART_LABELS[issue.partType] ?? issue.partType} {'\u2192'} {issue.label}
             </button>
           ))}
         </div>
@@ -1494,14 +1494,14 @@ function DrawingBoard() {
   // ── Sash weights (recompute whenever tree changes) ─────────────────────────
   const sashWeights = (() => {
     if (!tree) return null
+    // Step AH 3a: EVERY sash in every pair — the summary weight on a
+    // 3-opening frame showed only the first pair's total. Display only.
     const result = {}
-    const topSash = findFirst(tree, 'topSashPart')
-    const botSash = findFirst(tree, 'bottomSashPart')
+    const sashes = [...findAll(tree, 'topSashPart'), ...findAll(tree, 'bottomSashPart')]
     try {
-      if (topSash) result.top = computeSashWeight(topSash, tree, {}, profileValueMap)
-      if (botSash) result.bottom = computeSashWeight(botSash, tree, {}, profileValueMap)
+      for (const s of sashes) result[s.key] = computeSashWeight(s, tree, {}, profileValueMap)
     } catch { /* weight is optional — don't break the board */ }
-    return (result.top || result.bottom) ? result : null
+    return Object.keys(result).length > 0 ? result : null
   })()
 
   // ── Lazy-load ironmongery data when paintAndIronmongeryPart is first selected ─

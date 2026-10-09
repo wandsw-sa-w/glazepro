@@ -154,7 +154,7 @@ const TEMPLATE_FAMILIES = [
   { key: 'free_text', label: 'Other' },
 ]
 
-function TemplatePickerDialog({ templates, onSelect, onClose }) {
+function TemplatePickerDialog({ templates, onSelect, onClose, creating = false }) {
   const [familyTab, setFamilyTab] = useState('sash')
 
   const filtered = templates.filter(t => t.family === familyTab)
@@ -207,17 +207,21 @@ function TemplatePickerDialog({ templates, onSelect, onClose }) {
                   {items.map(t => (
                     <div
                       key={t.id}
-                      onClick={() => onSelect(t)}
+                      // Step AH 3c: cards are inert while a drawing is
+                      // being created (double-click made duplicates)
+                      onClick={creating ? undefined : () => onSelect(t)}
                       style={{
-                        width: 140, border: '1px solid #e0def0', borderRadius: 8, overflow: 'hidden', cursor: 'pointer',
+                        width: 140, border: '1px solid #e0def0', borderRadius: 8, overflow: 'hidden',
+                        cursor: creating ? 'wait' : 'pointer',
+                        opacity: creating ? 0.5 : 1,
                         transition: 'border-color .1s, box-shadow .1s',
                       }}
-                      onMouseEnter={e => { e.currentTarget.style.borderColor = '#3d35a8'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(61,53,168,.15)' }}
-                      onMouseLeave={e => { e.currentTarget.style.borderColor = '#e0def0'; e.currentTarget.style.boxShadow = 'none' }}
+                      onMouseEnter={creating ? undefined : e => { e.currentTarget.style.borderColor = '#3d35a8'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(61,53,168,.15)' }}
+                      onMouseLeave={creating ? undefined : e => { e.currentTarget.style.borderColor = '#e0def0'; e.currentTarget.style.boxShadow = 'none' }}
                     >
                       <TemplateThumb tree={t.tree} />
                       <div style={{ padding: '5px 8px', fontSize: 11, fontWeight: 500, color: '#333', borderTop: '1px solid #f0eef8', textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {t.name}
+                        {creating ? 'Creating…' : t.name}
                       </div>
                     </div>
                   ))}
@@ -256,6 +260,7 @@ export default function QuoteMatrixPage() {
   const [selectedItemIds, setSelectedItemIds] = useState(new Set())
   const [templatePickerFor, setTemplatePickerFor] = useState(null) // jobItemId
   const [templateGlassWarn, setTemplateGlassWarn] = useState(null) // { warnings, drawingId } — Step AE item 2
+  const [creatingFromTemplate, setCreatingFromTemplate] = useState(false) // Step AH 3c: double-click guard
   const [breakdownDrawingId, setBreakdownDrawingId] = useState(null) // Price breakdown dialog
   const [priceFileModal, setPriceFileModal] = useState(false)
   const [allTemplates, setAllTemplates] = useState([]) // drawing_templates rows
@@ -556,9 +561,14 @@ export default function QuoteMatrixPage() {
   }
 
   async function addDrawingFromTemplate(item, template) {
+    // Step AH 3c: clicking a card twice created two drawings with the
+    // same drawing_number — ignore clicks while a creation is running.
+    if (creatingFromTemplate) return
+    setCreatingFromTemplate(true)
     const nextNum = Math.max(0, ...drawings.filter(d => d.job_item_id === item.id).map(d => d.drawing_number || 0)) + 1
     try {
       const newDwg = await createDrawingFromTemplate(item.id, template, nextNum)
+      setCreatingFromTemplate(false)
       setTemplatePickerFor(null)
       if (!newDwg) return
       // Step AE item 2: a template that still stores a glass NAME prices
@@ -571,6 +581,7 @@ export default function QuoteMatrixPage() {
       navigate(`/drawing-board/${newDwg.id}`)
     } catch (e) {
       console.error('Failed to create drawing from template:', e)
+      setCreatingFromTemplate(false)
       setTemplatePickerFor(null)
     }
   }
@@ -1136,11 +1147,12 @@ export default function QuoteMatrixPage() {
       {templatePickerFor && (
         <TemplatePickerDialog
           templates={allTemplates}
+          creating={creatingFromTemplate}
           onSelect={template => {
             const item = jobItems.find(i => i.id === templatePickerFor)
             if (item) addDrawingFromTemplate(item, template)
           }}
-          onClose={() => setTemplatePickerFor(null)}
+          onClose={() => { if (!creatingFromTemplate) setTemplatePickerFor(null) }}
         />
       )}
 
