@@ -3,6 +3,9 @@ import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { describe, it, expect } from 'vitest'
 import { validateDrawing, validateQuote, countBySeverity, hasErrors } from './validate.js'
+import { computeVariables } from '../pricing/computeVariables.js'
+import { computeDerived } from '../drawingBoard/computeDerived.js'
+import { BENCHMARK_L34046, BENCHMARK_A35 } from '../pricing/benchmarks/index.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -468,5 +471,69 @@ describe('import-validation-rules fixMessage', () => {
 
   it('mixed: "cannot" kept, "VENTSnot" fixed', () => {
     expect(fixMessage('You cannot use VENTSnot items')).toBe('You cannot use VENTS! items')
+  })
+})
+
+// ── Step AI: the complete-new 45 mm rule ────────────────────────────────────
+// Nathan's business rule (9 Oct 2026, sash windows only): a complete new sash
+// window is always made 45 mm thick. The reviewer wrote the rule in
+// sql/step-ai1-complete-new-45mm-rule.sql (Nathan runs it); this test reads
+// the condition out of that file, so the rule the app will hold is the rule
+// under test, and evaluates it against REAL item variables from
+// computeVariables on real benchmark drawings.
+
+describe('step-ai1 complete-new 45mm validation rule', () => {
+  const sql = readFileSync(resolve(__dirname, '../../sql/step-ai1-complete-new-45mm-rule.sql'), 'utf-8')
+  // The condition is the SQL string literal containing sash_thickness
+  const condition = sql.match(/'([^']*sash_thickness[^']*)'/)?.[1]
+
+  function itemVars(tree) {
+    const derived = computeDerived(tree)
+    return computeVariables(tree, derived, {}) ?? {}
+  }
+
+  function evaluate(tree) {
+    const rules = [makeRule({ condition, level: 'item', loop_target: null, severity: 'warning' })]
+    const results = validateDrawing(tree, itemVars(tree), rules, {})
+    expect(results).toHaveLength(1)
+    return results[0]
+  }
+
+  // A complete-new box sash at another thickness: L34046 with 57 mm stored
+  function completeNewAt(mm) {
+    const tree = JSON.parse(JSON.stringify(BENCHMARK_L34046.tree))
+    const frame = tree.children.find(c => c.part_type === 'assemblyFramePart')
+    frame.children.find(c => c.part_type === 'sashPairPart').values.sashThickness = mm
+    return tree
+  }
+
+  it('is the condition the reviewer wrote', () => {
+    expect(condition).toBe('is_sw and frame_to_be_replaced and sash_thickness != 45')
+  })
+
+  it('evaluates — every variable it names exists (never "unevaluable")', () => {
+    for (const tree of [completeNewAt(57), completeNewAt(45), BENCHMARK_A35.tree]) {
+      const r = evaluate(tree)
+      expect(r.status).not.toBe('unevaluable')
+      expect(r.missing).toEqual([])
+    }
+    const vars = itemVars(completeNewAt(45))
+    for (const name of ['is_sw', 'frame_to_be_replaced', 'sash_thickness']) {
+      expect(name in vars, name).toBe(true)
+    }
+  })
+
+  it('fires on a complete-new sash window at 57 mm', () => {
+    expect(evaluate(completeNewAt(57)).status).toBe('fired')
+  })
+
+  it('does not fire on a complete-new sash window at 45 mm', () => {
+    expect(evaluate(completeNewAt(45)).status).toBe('passed')
+  })
+
+  it('does not fire on a sash replacement at 35 mm (benchmark A35)', () => {
+    const r = evaluate(BENCHMARK_A35.tree)
+    expect(itemVars(BENCHMARK_A35.tree).sash_thickness).toBe(35)
+    expect(r.status).toBe('passed')
   })
 })
