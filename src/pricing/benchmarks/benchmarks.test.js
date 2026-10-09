@@ -10,6 +10,7 @@ import { readFileSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { runPricingOnTree, shapedGlassCutAreaM2 } from '../pricingEngine.js'
+import { applySashesReplaced } from '../../drawingBoard/sashesReplaced.js'
 import { computeDerived } from '../../drawingBoard/computeDerived.js'
 import { computeVariables } from '../computeVariables.js'
 import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_B_UNCORRECTED, BENCHMARK_C, BENCHMARK_D } from './index.js'
@@ -721,3 +722,79 @@ describe('Step Z — empty line finish follows the item finish', () => {
   })
 })
 
+
+// ── Step AJ — a board-drawn sash replacement prices like Integrate ──────────
+// The gap (reviewer's live test, 9 Oct 2026): nothing on the board set the
+// sashes' toBeReplaced, so a saved "New Pair of Sashes" drawing stored null
+// on both sashes and priced with no sashes at all. Benchmark A only passed
+// because its FIXTURE sets toBeReplaced by hand. These tests take that hand
+// setting away — the tree a board drawing really holds — apply the Step AJ
+// path, and price from the snapshot: the result must be Integrate's figure to
+// the penny. This is the end-to-end proof of the fix.
+describe('Step AJ — board-shaped trees price like Integrate', () => {
+  /** The tree as the board saved it before Step AJ: no toBeReplaced at all. */
+  function withoutHandSetReplaced(tree) {
+    const stripped = JSON.parse(JSON.stringify(tree))
+    ;(function walk(n) {
+      if (n.part_type === 'topSashPart' || n.part_type === 'bottomSashPart') {
+        delete n.values.toBeReplaced
+      }
+      ;(n.children ?? []).forEach(walk)
+    })(stripped)
+    return stripped
+  }
+
+  const sashValues = tree => {
+    const out = []
+    ;(function walk(n) {
+      if (n.part_type === 'topSashPart' || n.part_type === 'bottomSashPart') out.push(n.values?.toBeReplaced)
+      ;(n.children ?? []).forEach(walk)
+    })(tree)
+    return out
+  }
+
+  it('A (new_pair_of_sashes): board tree + the Step AJ path = 728.26 / 1,408.66', () => {
+    const boardTree = withoutHandSetReplaced(BENCHMARK_A.tree)
+    expect(sashValues(boardTree)).toEqual([undefined, undefined])
+
+    // Priced as the board saved it, the sashes are not priced at all.
+    const before = runFromSnapshot(boardTree)
+    expect(before.price.total_cost).toBeLessThan(INTEGRATE.benchmarkA.total_cost)
+
+    const { tree, sashesChanged } = applySashesReplaced(boardTree)
+    expect(sashesChanged).toHaveLength(2)
+    expect(sashValues(tree)).toEqual([true, true])
+    expectMatchesIntegrate(runFromSnapshot(tree), INTEGRATE.benchmarkA)
+  })
+
+  it('B (draught_seal): board tree + the Step AJ path = 208.33 / 522.65', () => {
+    const boardTree = withoutHandSetReplaced(BENCHMARK_B.tree)
+    expect(sashValues(boardTree)).toEqual([undefined, undefined])
+
+    const { tree, sashesChanged } = applySashesReplaced(boardTree)
+    expect(sashesChanged).toHaveLength(2)
+    expect(sashValues(tree)).toEqual([false, false])
+    expectMatchesIntegrate(runFromSnapshot(tree), INTEGRATE.benchmarkB_corrected)
+  })
+
+  // The brief's "confirm complete_new → true moves no benchmark": the path
+  // stores true where the complete-new fixtures leave it unset (C, D) or
+  // already set it (L34046), and every total stays exact.
+  it('complete_new: storing true moves no benchmark', () => {
+    const CASES = [
+      [BENCHMARK_L34046, INTEGRATE.L34046],
+      [BENCHMARK_C,      INTEGRATE.benchmarkC_arched],
+    ]
+    for (const [bm, target] of CASES) {
+      const { tree } = applySashesReplaced(bm.tree)
+      expect(sashValues(tree).every(v => v === true), bm.name).toBe(true)
+      expectMatchesIntegrate(runFromSnapshot(tree), target)
+    }
+    // D is a truthful failure on its steel weights (step-ad findings), so
+    // assert it is unchanged by the path rather than exact.
+    const dBefore = runFromSnapshot(BENCHMARK_D.tree)
+    const dAfter  = runFromSnapshot(applySashesReplaced(BENCHMARK_D.tree).tree)
+    expect(dAfter.price.total_cost).toBeCloseTo(dBefore.price.total_cost, 10)
+    expect(dAfter.price.total).toBeCloseTo(dBefore.price.total, 10)
+  })
+})
