@@ -106,3 +106,36 @@ to_be_replaced`, Spiral Balances on `is_spiral_hung and to_be_replaced` — so o
 - Full Cill Replacement changes no price in Integrate (GBP 1,809.71 both ways) and none here
   either, because GlazePro already derives `cill_length_in_mm` from the frame width; the tick
   is stored for the workshop. Not verified beyond that one Integrate reading.
+
+---
+
+## Step AN correction — the gate is the component allocator's only
+
+Step AM put the `item_has_sash_work` gate on **both** sliding_sash loops. The reviewer then
+read Integrate again (`docs/integrate-L31115-cill.txt`, last section) and the evidence only
+supports one of them:
+
+- On the stand-alone cill, and on the same drawing with **"No Work"**, Integrate **still
+  priced** the sliding-sash PRICE rules Laminated Softwood ×2 and Glazing Bead ×2 — **£50.90
+  was No Work's entire price**. So Integrate's price-rule loop *does* visit sashes nothing is
+  being done to.
+- What Integrate skipped on the stand-alone cill was the **component** staff/parting bead
+  lines (and ironmongery).
+
+So the gate was removed from `pricingEngine.js`'s loop and kept in `partAllocator.js`. The
+corrected totals were right either way — GlazePro's own S4 difference gates those two price
+rules on `to_be_replaced` — but a gate on the price loop is a rule Integrate does not have, and
+it would silently drop any other ungated sliding_sash price rule (for instance "Hardwood
+Sashes": `is_solid_utile_hardwood_sash`, no gate).
+
+`defaultIronmongery.js` keeps its ungated loop copy: every default that could apply on a
+stand-alone cill is already excluded by its own condition (the Brighton kit needs
+`needs_draughtsealing`, the claw kits `nj_involved` or `is_complete_new`, the trickle vent
+`frame_to_be_replaced`), and `resolveIronmongeryLines` returning nothing on benchmark I is
+asserted in the tests.
+
+**Verification:** a full dump diff across all fifteen priced trees is byte-identical, so the
+engine's output changes for no tree and there is **no version bump** — v12 stands, and its note
+now describes the gate at its correct, narrower scope. Integrate's uncorrected figures are no
+longer derived by subtraction: H, I and a no_work tree are each priced with Integrate's own
+ungated rules and produce exactly the four lines totalling 25.46 / 50.90.
