@@ -19,6 +19,10 @@ import {
 import {
   SASHES_REPLACED_NOTE, isSashWindow, sashesDisagreeing, applySashesReplaced,
 } from '../drawingBoard/sashesReplaced.js'
+import {
+  INTERNAL_ENTRY_NOTE, JAMB_SIZE_FIELDS, sizeEntryMode, internalSizeOf,
+  frameFromInternalSize, keepInternalSize,
+} from '../drawingBoard/internalSize.js'
 import { computeSashWeight } from '../pricing/sashWeight.js'
 import { loadDrawingRunPrices } from '../quotes/drawingRunPrice.js'
 import { SashElevation } from '../drawingBoard/renderElevation.jsx'
@@ -229,11 +233,40 @@ function PartSelect({ value, onChange, partCategory, inputBorder }) {
   )
 }
 
-function PropertyField({ field, value, derivedValue, onChange, refOptions, required, partType, hiddenTagText, locked = null }) {
+function PropertyField({ field, value, derivedValue, onChange, refOptions, required, partType, hiddenTagText, locked = null, enterable = null }) {
   const isRequired = required && (value === null || value === undefined || value === '')
   const inputBorder = isRequired ? '1px solid #e57373' : '1px solid #d8d5cf'
 
   if (field.role === 'derived') {
+    // `enterable` (Step AL): a derived field the surveyor may TYPE — the
+    // pair's Internal Width / Height, which set the frame. The field
+    // definition still says 'derived' (its role lives in the database and
+    // this step writes no SQL), so the board decides, per drawing, whether
+    // it can be typed; the value shown is still the derived one.
+    if (enterable) {
+      return (
+        <div style={{ marginBottom: 10 }}>
+          <label title={field.field_key} style={{ fontSize: 11, fontWeight: 500, color: '#666', display: 'block', marginBottom: 3 }}>
+            {field.label}
+            {field.unit ? <span style={{ fontWeight: 400, color: '#aaa' }}> ({field.unit})</span> : null}
+            <InfoNoteIcon note={field.info_note} />
+            <HiddenBadge text={hiddenTagText} />
+          </label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <input
+              type="number"
+              value={derivedValue ?? ''}
+              onChange={e => enterable.onChange(e.target.value === '' ? null : Number(e.target.value))}
+              style={{ ...SI, border: inputBorder, flex: 1 }}
+            />
+            {field.unit && <span style={{ fontSize: 11, color: '#aaa', flexShrink: 0 }}>{field.unit}</span>}
+          </div>
+          {enterable.note && (
+            <div style={{ fontSize: 11, color: '#888', marginTop: 3 }}>{enterable.note}</div>
+          )}
+        </div>
+      )
+    }
     return (
       <div style={{ marginBottom: 10 }}>
         <label title={field.field_key} style={{ fontSize: 11, fontWeight: 500, color: '#aaa', display: 'block', marginBottom: 3 }}>
@@ -605,7 +638,7 @@ function IronmongeryPanel({ node, tree, derived, refOptions, onChangeField, onAu
 
 // ── PropertyEditor ────────────────────────────────────────────────────────────
 
-function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, onAutoApplyDefaults, onPrev, onNext, prevDisabled, nextDisabled, prevLabel, nextLabel, visibilityMap, boardMode, showHidden, tree, ironmongeryRules, ironmongeryProducts, onShowPriceBreakdown, profileValueMap, onSetCompleteNewThickness, onSetSashesReplaced }) {
+function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, onAutoApplyDefaults, onPrev, onNext, prevDisabled, nextDisabled, prevLabel, nextLabel, visibilityMap, boardMode, showHidden, tree, ironmongeryRules, ironmongeryProducts, onShowPriceBreakdown, profileValueMap, onSetCompleteNewThickness, onSetSashesReplaced, onChangeInternalSize }) {
   if (!node) {
     return (
       <div style={{ padding: 16, color: '#aaa', fontSize: 12, textAlign: 'center', paddingTop: 48 }}>
@@ -645,7 +678,30 @@ function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, o
         onFix: disagrees ? onSetSashesReplaced : null,
       }
     }
+    // Step AL 1: on a sash replacement the surveyor enters the SASH size,
+    // so Frame Width / Height are read-only and derived from it. On a
+    // complete new both are editable, as Integrate allows.
+    if (fieldKey === 'assemblyFramePart.width' || fieldKey === 'assemblyFramePart.height') {
+      if (sizeEntryMode(tree) !== 'internal') return null
+      return { note: INTERNAL_ENTRY_NOTE, fixLabel: null, onFix: null }
+    }
     return null
+  }
+
+  // Step AL 1: the pair's Internal Width / Height are typeable when the
+  // drawing is entered by sash size (always on a sash replacement, and as
+  // the alternative on a complete new). Multi-opening frames, casements and
+  // doors keep frame-only entry.
+  function enterableField(fieldKey) {
+    const axis = fieldKey === 'sashPairPart.internalWidth'  ? 'width'
+      :          fieldKey === 'sashPairPart.internalHeight' ? 'height' : null
+    if (!axis) return null
+    const mode = sizeEntryMode(tree)
+    if (mode === 'frame_only') return null
+    return {
+      onChange: v => onChangeInternalSize(axis, v),
+      note: mode === 'internal' ? INTERNAL_ENTRY_NOTE : null,
+    }
   }
 
   return (
@@ -710,6 +766,7 @@ function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, o
             partType={node.part_type}
             hiddenTagText={showHidden ? hiddenTag(visibilityMap[field.field_key], boardMode) : null}
             locked={lockedField(field.field_key, node)}
+            enterable={enterableField(field.field_key)}
           />
         ))}
       </div>
@@ -1962,6 +2019,15 @@ function DrawingBoard() {
     if (sashesChanged.length > 0) commit(newTree)
   }, [tree])  // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Step AL §1: typing the pair's Internal Width / Height sets the frame —
+  // overall = internal + jambs (width) / + head + cill height (height), as
+  // Integrate does. The frame stays the stored source of truth, so the
+  // change reaches history through the normal save diff.
+  const handleChangeInternalSize = useCallback((axis, value) => {
+    if (!tree) return
+    commit(frameFromInternalSize(tree, { [axis]: value }))
+  }, [tree])  // eslint-disable-line react-hooks/exhaustive-deps
+
   // Auto-apply defaults (e.g. default ironmongery on load) without marking dirty.
   // Updates both the tree and the saved baseline so isDirtyVsSaved stays false.
   const handleAutoApplyDefaults = useCallback((nodeKey, propertyName, newValue) => {
@@ -2387,6 +2453,7 @@ function DrawingBoard() {
               profileValueMap={profileValueMap}
               onSetCompleteNewThickness={handleSetCompleteNewThickness}
               onSetSashesReplaced={handleSetSashesReplaced}
+              onChangeInternalSize={handleChangeInternalSize}
             />
           </div>
 
