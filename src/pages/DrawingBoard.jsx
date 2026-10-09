@@ -10,7 +10,12 @@ import {
 import { buildNewBoxSash } from '../drawingBoard/buildTree.js'
 import { computeDerived } from '../drawingBoard/computeDerived.js'
 import { applyOperationDefaults } from '../drawingBoard/applyOperationDefaults.js'
-import { computeSashGeometry, chamferAllowanceMm } from '../drawingBoard/sashGeometry.js'
+import { computeSashGeometry } from '../drawingBoard/sashGeometry.js'
+import {
+  COMPLETE_NEW_SASH_THICKNESS_MM, COMPLETE_NEW_THICKNESS_NOTE,
+  isCompleteNewSashWindow, thicknessChangePatches, applyPatches,
+  applyCompleteNewThickness, owningPair,
+} from '../drawingBoard/sashThickness.js'
 import { computeSashWeight } from '../pricing/sashWeight.js'
 import { loadDrawingRunPrices } from '../quotes/drawingRunPrice.js'
 import { SashElevation } from '../drawingBoard/renderElevation.jsx'
@@ -221,7 +226,7 @@ function PartSelect({ value, onChange, partCategory, inputBorder }) {
   )
 }
 
-function PropertyField({ field, value, derivedValue, onChange, refOptions, required, partType, hiddenTagText }) {
+function PropertyField({ field, value, derivedValue, onChange, refOptions, required, partType, hiddenTagText, locked = null }) {
   const isRequired = required && (value === null || value === undefined || value === '')
   const inputBorder = isRequired ? '1px solid #e57373' : '1px solid #d8d5cf'
 
@@ -259,6 +264,9 @@ function PropertyField({ field, value, derivedValue, onChange, refOptions, requi
   }
 
   if (field.data_type === 'number') {
+    // `locked` (Step AI): the value is fixed by a business rule — the input
+    // is read-only, the rule is stated in one line underneath, and when the
+    // stored value does not match, a button applies it (no silent edits).
     return (
       <div style={{ marginBottom: 10 }}>
         <label title={field.field_key} style={{ fontSize: 11, fontWeight: 500, color: '#666', display: 'block', marginBottom: 3 }}>
@@ -271,11 +279,28 @@ function PropertyField({ field, value, derivedValue, onChange, refOptions, requi
           <input
             type="number"
             value={value ?? ''}
-            onChange={e => onChange(e.target.value === '' ? null : Number(e.target.value))}
-            style={{ ...SI, border: inputBorder, flex: 1 }}
+            readOnly={!!locked}
+            onChange={locked ? undefined : e => onChange(e.target.value === '' ? null : Number(e.target.value))}
+            style={{
+              ...SI, border: inputBorder, flex: 1,
+              ...(locked ? { background: '#f7f6f2', color: '#888', cursor: 'not-allowed' } : null),
+            }}
           />
           {field.unit && <span style={{ fontSize: 11, color: '#aaa', flexShrink: 0 }}>{field.unit}</span>}
         </div>
+        {locked && (
+          <div style={{ fontSize: 11, color: '#888', marginTop: 3 }}>
+            {locked.note}
+            {locked.onFix && (
+              <button
+                onClick={locked.onFix}
+                style={{ marginLeft: 8, fontSize: 11, padding: '2px 8px', border: '1px solid #d6d0f5', borderRadius: 5, background: '#f3f1fc', color: '#3d35a8', fontWeight: 600, cursor: 'pointer' }}
+              >
+                {locked.fixLabel}
+              </button>
+            )}
+          </div>
+        )}
       </div>
     )
   }
@@ -558,7 +583,7 @@ function IronmongeryPanel({ node, tree, derived, refOptions, onChangeField, onAu
 
 // ── PropertyEditor ────────────────────────────────────────────────────────────
 
-function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, onAutoApplyDefaults, onPrev, onNext, prevDisabled, nextDisabled, prevLabel, nextLabel, visibilityMap, boardMode, showHidden, tree, ironmongeryRules, ironmongeryProducts, onShowPriceBreakdown, profileValueMap }) {
+function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, onAutoApplyDefaults, onPrev, onNext, prevDisabled, nextDisabled, prevLabel, nextLabel, visibilityMap, boardMode, showHidden, tree, ironmongeryRules, ironmongeryProducts, onShowPriceBreakdown, profileValueMap, onSetCompleteNewThickness }) {
   if (!node) {
     return (
       <div style={{ padding: 16, color: '#aaa', fontSize: 12, textAlign: 'center', paddingTop: 48 }}>
@@ -571,6 +596,21 @@ function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, o
     f => f.role !== 'config' && !isFieldHidden(visibilityMap[f.field_key], boardMode, showHidden)
   )
   const derivedMap = derived?.[node.key] ?? {}
+
+  // Step AI 1a/1c: on a COMPLETE NEW sash window the sash thickness is
+  // always 45 mm, so the field is read-only with the rule stated under it.
+  // A drawing that was saved at another thickness is NOT changed on load —
+  // the button applies 45 through the hand-edit path instead.
+  function lockedField(fieldKey, partNode) {
+    if (fieldKey !== 'sashPairPart.sashThickness') return null
+    if (!isCompleteNewSashWindow(tree)) return null
+    const current = Number(partNode.values?.sashThickness)
+    return {
+      note: COMPLETE_NEW_THICKNESS_NOTE,
+      fixLabel: `Set to ${COMPLETE_NEW_SASH_THICKNESS_MM} mm`,
+      onFix: current !== COMPLETE_NEW_SASH_THICKNESS_MM ? onSetCompleteNewThickness : null,
+    }
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -633,6 +673,7 @@ function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, o
             required={field.is_required}
             partType={node.part_type}
             hiddenTagText={showHidden ? hiddenTag(visibilityMap[field.field_key], boardMode) : null}
+            locked={lockedField(field.field_key, node)}
           />
         ))}
       </div>
@@ -1829,41 +1870,48 @@ function DrawingBoard() {
     // thickness.txt, second visit; step-ab brief §3). Both adjusted
     // fields appear in the saved history entry via diffTrees. This runs
     // only on an actual edit — drawings that are not edited are never
-    // touched.
+    // touched. Step AI moved the arithmetic to sashThickness.js so the
+    // 45 mm complete-new rule takes exactly this path.
     let chamferPatches = null
     if (fieldKey === 'sashPairPart.sashThickness' || fieldKey === 'bottomSashPart.chamferedBottomRailAngle') {
-      const pairNode  = findFirst(tree, 'sashPairPart')
-      const botNode   = findFirst(tree, 'bottomSashPart')
-      const frameNode = findFirst(tree, 'assemblyFramePart')
-      const oldT = Number(pairNode?.values?.sashThickness ?? 45)
-      const oldA = Number(botNode?.values?.chamferedBottomRailAngle ?? 0)
       const isThicknessEdit = fieldKey === 'sashPairPart.sashThickness'
-      const newT = isThicknessEdit ? Number(newValue) : oldT
-      const newA = isThicknessEdit ? oldA : Number(newValue ?? 0)
-      const valid = botNode && frameNode && isFinite(newT) && newT > 0 && isFinite(newA) && newA >= 0
-      const delta = valid
-        ? chamferAllowanceMm(oldT, oldA) - chamferAllowanceMm(newT, newA)
-        : 0
-      if (delta !== 0) {
-        const oldRail   = Number(botNode.values?.bottomHeight ?? 88)
-        const oldFrameH = Number(frameNode.values?.height)
-        chamferPatches = [[botNode.key, { bottomHeight: oldRail + delta }]]
-        if (isFinite(oldFrameH)) chamferPatches.push([frameNode.key, { height: oldFrameH + delta }])
+      const pairNode = owningPair(tree, nodeKey)
+      if (pairNode) {
+        chamferPatches = thicknessChangePatches(tree, pairNode.key, isThicknessEdit
+          ? { thickness: Number(newValue) }
+          : { chamferAngle: Number(newValue ?? 0) })
       }
     }
 
     let newTree = updateNodeValues(tree, nodeKey, patch)
-    if (chamferPatches) {
-      for (const [k, p] of chamferPatches) newTree = updateNodeValues(newTree, k, p)
-    }
+    if (chamferPatches) newTree = applyPatches(newTree, chamferPatches)
 
     // If an operation field changed, apply frame/cill defaults as ONE step
     if (OPERATION_FIELDS.has(fieldKey)) {
       newTree = applyOperationDefaults(newTree, profileValues, refOptions)
     }
 
+    // Step AI 1b: choosing "Complete New" makes it a complete new sash
+    // window, which is ALWAYS 45 mm (Nathan, 9 Oct 2026). Setting it here
+    // uses the same thicknessChangePatches path as a hand edit, so the
+    // bottom rails and frame height shift identically and every changed
+    // value appears in the drawing's history on save.
+    if (fieldKey === 'drawingItemPart.typeOfWork') {
+      newTree = applyCompleteNewThickness(newTree).tree
+    }
+
     commit(newTree)
   }, [tree, profileValues, refOptions])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Step AI 1c: "Set to 45 mm" beside the read-only thickness field on a
+  // complete-new sash window saved at another thickness. Same path as a
+  // hand edit (thicknessChangePatches), so the bottom rails and the frame
+  // height shift the same way and the change is in the history on save.
+  const handleSetCompleteNewThickness = useCallback(() => {
+    if (!tree) return
+    const { tree: newTree, pairsChanged } = applyCompleteNewThickness(tree)
+    if (pairsChanged.length > 0) commit(newTree)
+  }, [tree])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-apply defaults (e.g. default ironmongery on load) without marking dirty.
   // Updates both the tree and the saved baseline so isDirtyVsSaved stays false.
@@ -2288,6 +2336,7 @@ function DrawingBoard() {
               ironmongeryProducts={ironmongeryProducts}
               onShowPriceBreakdown={() => setBreakdownOpen(true)}
               profileValueMap={profileValueMap}
+              onSetCompleteNewThickness={handleSetCompleteNewThickness}
             />
           </div>
 

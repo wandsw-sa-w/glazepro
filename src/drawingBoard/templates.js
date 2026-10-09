@@ -7,6 +7,7 @@
 import { supabase } from '../supabase.js'
 import { saveDrawingParts } from './api.js'
 import { insertDrawingHistory } from './drawingHistory.js'
+import { applyCompleteNewThickness, COMPLETE_NEW_SASH_THICKNESS_MM } from './sashThickness.js'
 
 // ── Key regeneration ─────────────────────────────────────────────────────────
 
@@ -177,8 +178,16 @@ export async function createDrawingFromTemplate(jobItemId, template, nextDrawing
     .single()
   if (error) throw error
 
-  // Copy the template tree with fresh keys and cleared values
-  const freshTree = clearItemValues(regenerateKeys(template.tree))
+  // Copy the template tree with fresh keys and cleared values.
+  // Step AI 1b: a COMPLETE NEW sash window is always 45 mm (Nathan,
+  // 9 Oct 2026), so a complete-new template stored at another thickness is
+  // set to 45 as the drawing is created — through the same
+  // thicknessChangePatches path as a hand edit, so the bottom rails and the
+  // frame height shift identically. An EXISTING drawing is never touched
+  // (that is the board's "Set to 45 mm" button, item 1c).
+  let freshTree = clearItemValues(regenerateKeys(template.tree))
+  const thicknessFix = applyCompleteNewThickness(freshTree)
+  freshTree = thicknessFix.tree
   await saveDrawingParts(newDwg.id, freshTree)
 
   // Record 'created_from_template' history event (non-blocking)
@@ -195,7 +204,9 @@ export async function createDrawingFromTemplate(jobItemId, template, nextDrawing
       userId: authUser?.id ?? null,
       userName,
       event: 'created_from_template',
-      note: `Template: ${template.name}`,
+      note: thicknessFix.pairsChanged.length > 0
+        ? `Template: ${template.name} — sash thickness set to ${COMPLETE_NEW_SASH_THICKNESS_MM} mm (complete new)`
+        : `Template: ${template.name}`,
     })
   } catch (histE) {
     console.warn('History insert for template creation failed:', histE)
