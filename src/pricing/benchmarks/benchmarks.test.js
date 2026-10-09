@@ -13,7 +13,7 @@ import { runPricingOnTree, shapedGlassCutAreaM2 } from '../pricingEngine.js'
 import { applySashesReplaced } from '../../drawingBoard/sashesReplaced.js'
 import { computeDerived } from '../../drawingBoard/computeDerived.js'
 import { computeVariables } from '../computeVariables.js'
-import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_B_UNCORRECTED, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F, BENCHMARK_G, BENCHMARK_H, BENCHMARK_I } from './index.js'
+import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_B_UNCORRECTED, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F, BENCHMARK_G, BENCHMARK_H, BENCHMARK_I, BENCHMARK_J, BENCHMARK_K, BENCHMARK_L, BENCHMARK_M, BENCHMARK_N, BENCHMARK_P } from './index.js'
 import { resolveIronmongeryLines } from '../loadPricingContext.js'
 // The LIVE price-file snapshot (reviewer-checked, 8 Oct 2026) — the honest
 // benchmarks and the real-tree case price from this, never from the
@@ -1096,5 +1096,161 @@ describe('Step AN — uncorrected S4 lines on H, I and a no_work tree', () => {
     const { cost, price } = s4Only(BENCHMARK_H.tree, UNCORRECTED_S4_RULES)
     expect(corrected.price.total_cost + cost).toBeCloseTo(INTEGRATE.benchmarkH_draught_seal_new_cill_uncorrected.total_cost, 2)
     expect(corrected.price.total + price).toBeCloseTo(INTEGRATE.benchmarkH_draught_seal_new_cill_uncorrected.total_price, 2)
+  })
+})
+
+// ── Step AO — casement and direct glazed benchmarks J, K, L, M, N, P ────────
+// Facts: docs/integrate-L31115-direct-glazed.txt (trees, sizes, every price
+// line, and the labour and production minutes reconciled rule by rule).
+//
+// All six are short by exactly 14.70 cost / 29.40 price, and only that: every
+// part of the snapshot's kenrick_extension_gear_box:PC carries unit_cost 0
+// while the set itself costs 7.35, so its two sets price at nothing. The
+// engine now warns by name instead of pricing a silent zero; the figure is
+// NOT invented (docs/step-ao-findings.md). J is additionally 0.34 short on
+// its mullion length (Integrate's implies ~1230 mm where GlazePro uses the
+// 1205 interior height).
+describe('Step AO — casement and direct glazed benchmarks', () => {
+  const GEARBOX_GAP_COST = 14.70, GEARBOX_GAP_PRICE = 29.40
+
+  const CASES = [
+    ['J', BENCHMARK_J, INTEGRATE.benchmarkJ_casement_two_opening_utile,   18.83, 12.00, 0.34],
+    ['K', BENCHMARK_K, INTEGRATE.benchmarkK_casement_plus_direct_glazed,  14.42, 10.67, 0],
+    ['L', BENCHMARK_L, INTEGRATE.benchmarkL_two_direct_glazed_mullion,    12.17, 14.33, 0],
+    ['M', BENCHMARK_M, INTEGRATE.benchmarkM_single_direct_glazed,          7.83,  7.17, 0],
+    ['N', BENCHMARK_N, INTEGRATE.benchmarkN_casement_plus_fixed_casement, 17.17, 10.50, 0],
+    ['P', BENCHMARK_P, INTEGRATE.benchmarkP_single_casement_1599,          8.83, 11.25, 0],
+  ]
+
+  // The hours are the strongest check in this step: the facts file
+  // reconciles every minute rule by rule, so an hours match means every
+  // casement and direct-glazed quantity is right.
+  for (const [label, bm, target, production, labour] of CASES) {
+    it(`${label}: production ${production} h and labour ${labour} h, exactly`, () => {
+      const r = runFromSnapshot(bm.tree)
+      expect(r.manufacture_labour.total_minutes / 60, label).toBeCloseTo(production, 2)
+      expect(r.install_labour.total_minutes / 60, label).toBeCloseTo(labour, 2)
+      expect(r.price.lines.find(l => l.fires && l.name === 'Production Time').quantity, label)
+        .toBeCloseTo(production, 2)
+      expect(r.price.lines.find(l => l.fires && l.name === 'Labour').quantity, label)
+        .toBeCloseTo(labour, 2)
+    })
+  }
+
+  for (const [label, bm, target, , , extraGap] of CASES) {
+    it(`${label}: every line matches Integrate but the gear box${extraGap ? ' and the mullion length' : ''}`, () => {
+      const r = runFromSnapshot(bm.tree)
+      expect(r.price.total_cost, label).toBeCloseTo(target.total_cost - GEARBOX_GAP_COST - extraGap, 2)
+      expect(r.price.total, label).toBeCloseTo(target.total_price - GEARBOX_GAP_PRICE - extraGap * 2, 2)
+    })
+  }
+
+  it('the gear box is the whole gap, and it warns rather than pricing a silent zero', () => {
+    const r = runFromSnapshot(BENCHMARK_K.tree)
+    const zeroLines = r.price.lines.filter(l =>
+      l.fires && !l.error && l.line_cost === 0 && /RJZ17/.test(l.alloc_iron_part_code ?? ''))
+    expect(zeroLines).toHaveLength(4)      // the four strike parts
+    const warnings = r.warnings.filter(w => w.includes('kenrick_extension_gear_box'))
+    expect(warnings).toHaveLength(4)
+    for (const w of warnings) expect(w).toContain('the set itself costs 7.35')
+  })
+
+  // L and M have no casement sash, so they are NOT casement windows: no
+  // frame timber, no cill and no LTW consumables, matching Integrate
+  // (Nathan's decision 1 — a known gap in both systems' rules, not a
+  // GlazePro difference).
+  it('a direct-glazed-only frame prices no frame timber, cill or LTW', () => {
+    for (const bm of [BENCHMARK_L, BENCHMARK_M]) {
+      const fired = runFromSnapshot(bm.tree).price.lines
+        .filter(l => l.fires && !l.error && l.line_cost > 0).map(l => l.name)
+      for (const name of ['Softwood Casement Frame & Sashes', 'Hardwood Casement Cill',
+                          'LTW General Consumables', 'Softwood Casement Sashes']) {
+        expect(fired, `${bm.name} / ${name}`).not.toContain(name)
+      }
+    }
+  })
+
+  it('the variables the minutes prove', () => {
+    const vars = bm => computeVariables(bm.tree, computeDerived(bm.tree), PF_VARIABLES)
+    // A FIXED casement sash is still a sash (N), and direct glazed units
+    // are not sashes (K, L, M).
+    const n = vars(BENCHMARK_N)
+    expect([n.casement_sash_qty, n.new_casement_sash_qty]).toEqual([2, 2])
+    expect([n.fixed_casement_sash_qty, n.new_opening_casement_sash_qty]).toEqual([1, 1])
+    expect(n.direct_glazed_unit_qty).toBe(0)
+
+    const k = vars(BENCHMARK_K)
+    expect([k.casement_sash_qty, k.new_opening_casement_sash_qty, k.direct_glazed_unit_qty]).toEqual([1, 1, 1])
+
+    const l = vars(BENCHMARK_L)
+    expect([l.casement_sash_qty, l.direct_glazed_unit_qty, l.is_casement_window]).toEqual([0, 2, false])
+    expect(vars(BENCHMARK_M).direct_glazed_unit_qty).toBe(1)
+
+    // new_sash_qty counts casements — J's two utile sashes take 2 × 20 min
+    expect(vars(BENCHMARK_J).new_sash_qty).toBe(2)
+    // and none of these are sash windows
+    for (const bm of [BENCHMARK_J, BENCHMARK_K, BENCHMARK_L, BENCHMARK_M, BENCHMARK_N, BENCHMARK_P]) {
+      const v = vars(bm)
+      expect([v.is_sw, v.is_box_sash], bm.name).toEqual([false, false])
+    }
+  })
+
+  it('the glass areas Integrate shows', () => {
+    const areas = bm => runFromSnapshot(bm.tree).price.lines
+      .filter(l => l.fires && l.name === 'Square Glass Cost')
+      .map(l => Number(l.quantity.toFixed(4)))
+    expect(areas(BENCHMARK_K)).toEqual([0.48, 0.65])   // casement sash, direct glazed
+    expect(areas(BENCHMARK_L)).toEqual([0.65, 0.65])
+    expect(areas(BENCHMARK_M)).toEqual([1.35])         // no mullion
+    expect(areas(BENCHMARK_N)).toEqual([0.48, 0.48])
+    expect(areas(BENCHMARK_P)).toEqual([1.96])
+  })
+
+  it('the timber quantities Integrate shows', () => {
+    const qty = (bm, name) => runFromSnapshot(bm.tree).price.lines
+      .filter(l => l.fires && l.name === name)
+      .map(l => Number(l.quantity.toFixed(4)))
+    // Frame timber: the reviewer's §5 formula, 2 dp before the × 1.25
+    expect(qty(BENCHMARK_K, 'Softwood Casement Frame & Sashes')).toEqual([35.975])
+    expect(qty(BENCHMARK_N, 'Softwood Casement Frame & Sashes')).toEqual([35.975])
+    expect(qty(BENCHMARK_P, 'Softwood Casement Frame & Sashes')).toEqual([33.45])
+    // Sash timber: one line per casement sash, the fixed one included
+    expect(qty(BENCHMARK_K, 'Softwood Casement Sashes')).toEqual([12.25])
+    expect(qty(BENCHMARK_N, 'Softwood Casement Sashes')).toEqual([12.25, 12.25])
+    expect(qty(BENCHMARK_P, 'Softwood Casement Sashes')).toEqual([21.9])
+    // J is utile: the length rules instead, and NO sash timber charged.
+    // Rule 165's condition is literally "true", so it still fires once per
+    // casement sash — at quantity 0, because only a redwood sash has a
+    // redwood volume. Integrate shows no sash timber line on J for the same
+    // reason (it has no hardwood casement sash rule), and a 0.00 line is
+    // hidden by the Step AE zero-line toggle.
+    expect(qty(BENCHMARK_J, 'Softwood Casement Sashes')).toEqual([0, 0])
+    expect(runFromSnapshot(BENCHMARK_J.tree).price.lines
+      .filter(l => l.fires && l.name === 'Softwood Casement Sashes' && l.line_cost > 0)).toHaveLength(0)
+    expect(qty(BENCHMARK_J, 'Casement Frame Jambs & Cills')).toEqual([2.7478])
+    expect(qty(BENCHMARK_J, 'Casement Frame Head')).toEqual([1.3189])
+    // Cill: full frame width, 2 dp before the rule → 13.94 and 18.59
+    expect(qty(BENCHMARK_K, 'Hardwood Casement Cill')).toEqual([12.85])
+    expect(qty(BENCHMARK_P, 'Hardwood Casement Cill')).toEqual([17.1375])
+  })
+
+  it('P’s sash is over 25 kg and K’s is not, so the overweight rule fires once', () => {
+    const overweight = bm => runFromSnapshot(bm.tree).install_labour.lines
+      .filter(l => l.fires && l.name === 'Any Sash Overweight (Casement)').length
+    expect(overweight(BENCHMARK_P)).toBe(1)
+    expect(overweight(BENCHMARK_K)).toBe(0)
+    expect(overweight(BENCHMARK_N)).toBe(0)
+  })
+
+  it('a stored ironmongery list is not topped up by the complete-new defaults', () => {
+    // Integrate never changes the surveyor's list when openings change, and
+    // GlazePro prices whatever is stored: resolveIronmongeryLines returns
+    // the tree's own lines, so no default is added on top.
+    for (const bm of [BENCHMARK_K, BENCHMARK_P]) {
+      const lines = resolveIronmongeryLines(bm.tree, SNAPSHOT, SNAPSHOT.profileValues)
+      expect(lines, bm.name).toHaveLength(6)
+      expect(lines.map(l => l.product_short_name).sort(), bm.name)
+        .toEqual(bm.ironmongeryLines.map(l => l.product_short_name).sort())
+    }
   })
 })
