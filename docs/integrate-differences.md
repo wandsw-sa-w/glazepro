@@ -89,3 +89,48 @@ L34046 Item 7, C (arched) and D (double box) — and the rule is a board and
 validation rule, not a pricing rule: no price rule, variable or engine
 behaviour changed, and the full benchmark line dump is byte-identical to
 Step AH (`PRICING_ENGINE_VERSION` stays 10).
+
+---
+
+## 3. A sash replacement keeps the sash size when the jambs change
+
+**Date:** 9 October 2026
+**Decided by:** Nathan Smith
+**Code:** `src/drawingBoard/internalSize.js` (board), Step AL
+
+**What differs:**
+
+When the frame's jamb, head or cill sizes change on a **sash replacement** —
+most visibly when switching the sashes to Spiral Hung, which stamps the
+profile's 28 mm spiral jambs over 85 mm cord jambs — GlazePro keeps the
+**internal (sash) size** and recomputes the overall frame around it.
+
+Integrate does the opposite: it keeps the **overall frame** and lets the
+sashes grow. That is exactly what benchmark F records
+(`docs/integrate-L31115-spiral.txt`): benchmark A's frame stayed 1070 x 1849
+and the sash width went 900 → 1014 as the jambs went 85 → 28.
+
+| | Integrate | GlazePro |
+|---|---|---|
+| Frame | 1070 x 1849 (kept) | 956 x 1798 (recomputed) |
+| Internal / sash size | 900 → 1014 (grown) | 900 x 1700 (kept) |
+
+On a **complete new** item GlazePro keeps the overall frame, exactly as
+Integrate does — no change there.
+
+**Why:**
+
+On a sash replacement the surveyor measures the sashes, not the frame: the
+box frame is already in the wall. A size the surveyor never measured must not
+change because a hardware choice changed the jamb thickness, or the new
+sashes will not fit the opening.
+
+**Effect on price:**
+
+None on any benchmark. Benchmark F's fixture holds Integrate's own stored
+geometry as explicit values (frame 1070 x 1849 with 28 mm jambs), so it still
+prices 704.69 / 1,409.42 exactly; this difference changes only what the BOARD
+does when a user makes that change, and the board path is tested separately
+(`src/pricing/benchmarks/boardPath.test.js`). No price rule, variable or
+engine behaviour changed, and the full benchmark line dump is byte-identical
+(`PRICING_ENGINE_VERSION` stays 11).

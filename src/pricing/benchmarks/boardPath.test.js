@@ -23,6 +23,7 @@ import { applyOperationDefaults } from '../../drawingBoard/applyOperationDefault
 import { applySashesReplaced } from '../../drawingBoard/sashesReplaced.js'
 import { applyCompleteNewThickness } from '../../drawingBoard/sashThickness.js'
 import { computeDerived } from '../../drawingBoard/computeDerived.js'
+import { internalSizeOf, keepInternalSize } from '../../drawingBoard/internalSize.js'
 import { runPricingOnTree } from '../pricingEngine.js'
 import { resolveIronmongeryLines } from '../loadPricingContext.js'
 import { BENCHMARK_A } from './index.js'
@@ -94,11 +95,16 @@ function boardSetTypeOfWork(tree, typeOfWork) {
   return out
 }
 
-/** Choosing a sash Operation: the field, then the frame/cill defaults. */
+/**
+ * Choosing a sash Operation: the field, then the frame/cill defaults, then
+ * Step AL's "keep the sash size" on a sash replacement — the handler's order.
+ */
 function boardSetOperation(tree, operation) {
+  const internalBefore = internalSizeOf(tree)
   let out = setValues(tree, 'topSashPart', { operation })
   out = setValues(out, 'bottomSashPart', { operation })
-  return applyOperationDefaults(out, profileValues, refOptions)   // OPERATION_FIELDS
+  out = applyOperationDefaults(out, profileValues, refOptions)    // OPERATION_FIELDS
+  return keepInternalSize(out, internalBefore)                    // Step AL §2
 }
 
 function priceFromSnapshot(tree) {
@@ -123,26 +129,38 @@ const d = describe.skipIf(SNAPSHOT === null)
 // ── F: a cord sash replacement switched to spiral, as Integrate made it ─────
 
 d('Step AK item 3 — board path: spiral sash replacement (F)', () => {
-  it('benchmark A + "both sashes Spiral Hung" prices exactly like F', () => {
-    // This is Integrate's own experiment (facts file: F is "a copy of
-    // benchmark A with BOTH sashes set to Spiral Hung and saved", after
-    // which Integrate switched the frame to solid spiral 28/28/28 itself).
-    // GlazePro does the frame switch in applyOperationDefaults.
+  // Step AL §2 changed this deliberately. Integrate kept the overall frame
+  // (1070 x 1849) and let the sashes grow 900 -> 1014 when the spiral jambs
+  // went on, which is what benchmark F records. GlazePro keeps the SASH size
+  // a surveyor measured and recomputes the frame instead
+  // (docs/integrate-differences.md difference 3), so the same action on the
+  // board no longer reproduces F's figure — F's fixture still does, and
+  // still prices exactly (benchmarks.test.js).
+  it('benchmark A + "both sashes Spiral Hung" keeps the sash size (difference 3)', () => {
+    const before = internalSizeOf(BENCHMARK_A.tree)
+    expect(before).toEqual({ width: 900, height: 1700 })
+
     const drawn = boardSetOperation(BENCHMARK_A.tree, 'spiral_hung')
 
-    // The board's own frame switch, not a fixture value:
+    // The board made the frame switch Integrate makes...
     const frame = drawn.children.find(c => c.part_type === 'assemblyFramePart')
     expect(frame.values.jambType).toBe('solid_spiral_for_sash')
     expect([frame.values.leftWidth, frame.values.rightWidth, frame.values.topHeight]).toEqual([28, 28, 28])
 
-    // ...which grows the sashes to the sizes Integrate drew:
+    // ...but kept the sash size and recomputed the frame around it:
+    // 900 + 28 + 28 = 956 and 1700 + 28 + 70 = 1798.
+    expect(internalSizeOf(drawn)).toEqual({ width: 900, height: 1700 })
+    expect([frame.values.width, frame.values.height]).toEqual([956, 1798])
+
     const pair = frame.children.find(c => c.part_type === 'sashPairPart')
     const der = computeDerived(drawn)[pair.key]
-    expect(der.sashWidth).toBe(1014)
-    expect(der.topSashHeight).toBe(876.0)
-    expect(der.topSashHeight - 49 - 40).toBe(787)
+    expect(der.sashWidth).toBe(900)          // unchanged, as the surveyor measured
+    expect(der.topSashHeight).toBe(850.5)    // = A's
 
-    expectTotals(priceFromSnapshot(drawn), INTEGRATE.benchmarkF_spiral_replacement)
+    // Integrate's F geometry (sashes grown to 1014) is therefore NOT what
+    // this board action produces, and its price is not F's.
+    const priced = priceFromSnapshot(drawn)
+    expect(priced.price.total).not.toBeCloseTo(INTEGRATE.benchmarkF_spiral_replacement.total_price, 2)
   })
 
   it('and switching back to Cord Hung prices exactly like A again', () => {

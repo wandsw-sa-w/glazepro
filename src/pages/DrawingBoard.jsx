@@ -1976,6 +1976,15 @@ function DrawingBoard() {
       }
     }
 
+    // Step AL §2: on a sash replacement the surveyor measured the SASHES,
+    // so a change to the jambs, head or cill height — including the spiral
+    // jambs an operation change stamps on — keeps the internal (sash) size
+    // and recomputes the frame around it. A DELIBERATE DIFFERENCE from
+    // Integrate, which keeps the overall frame and grows the sashes
+    // (docs/integrate-differences.md difference 3). Read before the change.
+    const keepsInternal = JAMB_SIZE_FIELDS.has(fieldKey) || OPERATION_FIELDS.has(fieldKey)
+    const internalBefore = keepsInternal ? internalSizeOf(tree) : null
+
     let newTree = updateNodeValues(tree, nodeKey, patch)
     if (chamferPatches) newTree = applyPatches(newTree, chamferPatches)
 
@@ -1983,6 +1992,8 @@ function DrawingBoard() {
     if (OPERATION_FIELDS.has(fieldKey)) {
       newTree = applyOperationDefaults(newTree, profileValues, refOptions)
     }
+
+    if (internalBefore) newTree = keepInternalSize(newTree, internalBefore)
 
     // Step AI 1b: choosing "Complete New" makes it a complete new sash
     // window, which is ALWAYS 45 mm (Nathan, 9 Oct 2026). Setting it here
