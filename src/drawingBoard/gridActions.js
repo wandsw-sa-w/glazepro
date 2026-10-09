@@ -36,61 +36,88 @@ export function cloneWithNewKeys(node) {
 // horizontal row (via computeOpeningLayout on the frame's mullions only),
 // so a true N x M grid needs per-row vertical geometry the renderer
 // doesn't have yet. Columns (mullions) are fully supported.
-export function applyDividers(tree, frameKey, cols, rows, iW, iH, profileValues = null) {
-  // Step AE item 1: a new MULLION on a box sash frame is HOLLOW (it houses
-  // the weights). Its thickness is the profile value thicknessInFrameHollow
-  // (missing = error, shown by the caller), and offsets are LEFT faces
-  // giving equal openings — Integrate's model (step-ad brief §3):
+// Step AP: `mullionKind` says which mullion the drawing's PROFILE uses —
+// 'hollow' for a box sash frame (it houses the weights; thickness from the
+// profile's thicknessInFrameHollow) or 'solid' for a casement frame
+// (thickness from thicknessInFrameSolid). The caller decides from the
+// drawing's profile, not by guessing from the tree. On a casement frame the
+// new openings copy the FIRST OPENING (a casement sash or direct glazed
+// unit) rather than a sash pair, and transoms are out of scope for this
+// step — the picker offers columns only.
+export function applyDividers(tree, frameKey, cols, rows, iW, iH, profileValues = null, mullionKind = 'hollow') {
+  // Step AE item 1: a new MULLION on a BOX SASH frame is HOLLOW (it houses
+  // the weights); on a CASEMENT frame it is SOLID (Step AP). Either way its
+  // thickness comes from the drawing's profile — thicknessInFrameHollow or
+  // thicknessInFrameSolid — and a missing value is an error the caller
+  // shows, never a guessed section. Offsets are LEFT faces giving equal
+  // openings, Integrate's model (step-ad brief §3):
   //   opening  = (iW − n × t) / (n + 1)        n mullions of thickness t
   //   offset_i = i × opening + (i − 1) × t     i = 1..n
-  // TRANSOMS are NOT changed in this step: still centre-line offset
-  // round(iH × row / rows) with thicknessInFrame 40 (step-ae brief §1 —
-  // report only). GlazePro has no casement mullions (the board builds box
-  // sash windows only).
+  // TRANSOMS are unchanged and out of scope on a casement frame: still the
+  // centre-line offset round(iH × row / rows) with thicknessInFrame 40
+  // (step-ae brief §1, step-ap brief §3 — the casement picker offers
+  // columns only and says transoms come later).
+  const solid = mullionKind === 'solid'
   const nMullions = Math.max(0, cols - 1)
   let mullionT = 0
   if (nMullions > 0) {
-    mullionT = Number(profileValues?.thicknessInFrameHollow)
+    const key = solid ? 'thicknessInFrameSolid' : 'thicknessInFrameHollow'
+    mullionT = Number(profileValues?.[key])
     if (!isFinite(mullionT) || mullionT <= 0) {
       throw new Error(
-        'Missing profile value thicknessInFrameHollow — a box sash mullion is hollow and takes its thickness from the profile. No mullions were added; check the drawing’s profile values.')
+        `Missing profile value ${key} — a ${solid ? 'casement mullion is solid' : 'box sash mullion is hollow'} and takes its thickness from the profile. No mullions were added; check the drawing's profile values.`)
     }
   }
   const openingW = (iW - nMullions * mullionT) / (nMullions + 1)
+  const mullionStop = solid
+    ? (Number(profileValues?.mullionStopSize) || Number(profileValues?.frameStileStopSize) || 0)
+    : null
 
   function process(node) {
     if (node.key !== frameKey) {
       return { ...node, children: (node.children ?? []).map(process) }
     }
 
-    const existingPairs = (node.children ?? []).filter(c => c.part_type === 'sashPairPart')
-    const templatePair   = existingPairs[0] ?? null
+    // What an opening is depends on the frame: a sash pair on a box sash
+    // frame, or a casement sash / direct glazed unit on a casement frame.
+    const OPENING_TYPES = solid
+      ? ['casementSashPart', 'glassPart']
+      : ['sashPairPart']
+    const existingOpenings = (node.children ?? []).filter(c => OPENING_TYPES.includes(c.part_type))
+    const templateOpening  = existingOpenings[0] ?? null
     const others = (node.children ?? []).filter(
-      c => c.part_type !== 'mullionPart' && c.part_type !== 'transomPart' && c.part_type !== 'sashPairPart'
+      c => c.part_type !== 'mullionPart' && c.part_type !== 'transomPart' &&
+           !OPENING_TYPES.includes(c.part_type)
     )
 
     const mullions = Array.from({ length: nMullions }, (_, idx) => ({
       key:       makeKey('mull'),
       part_type: 'mullionPart',
-      // offset = LEFT face; the resolved hollow thickness is stored, as
-      // Integrate stores it (144 on the snapshot's Sash profile).
+      // offset = LEFT face; the resolved thickness is stored, as Integrate
+      // stores it (144 hollow on the Sash profile, 27 solid on Casement).
       // Step AH 3b: stored offsets are rounded to 0.1 mm — Integrate
       // stores to 1 dp (e.g. 252.7); unrounded thirds stored
       // 180.66666666666666.
-      values:    { offset: Math.round(((idx + 1) * openingW + idx * mullionT) * 10) / 10, thicknessInFrame: mullionT },
+      values: {
+        offset: Math.round(((idx + 1) * openingW + idx * mullionT) * 10) / 10,
+        thicknessInFrame: mullionT,
+        ...(solid ? { mullionStopSize: mullionStop } : {}),
+      },
       children:  [],
     }))
-    const transoms = Array.from({ length: rows - 1 }, (_, i) => ({
+    // A casement frame takes no transoms in this step
+    const transoms = solid ? [] : Array.from({ length: rows - 1 }, (_, i) => ({
       key:       makeKey('trans'),
       part_type: 'transomPart',
       values:    { offset: Math.round(iH * (i + 1) / rows), thicknessInFrame: 40 },
       children:  [],
     }))
-    const pairs = templatePair
-      ? Array.from({ length: cols }, (_, i) => (i === 0 ? templatePair : cloneWithNewKeys(templatePair)))
+    // New openings COPY the first one (its kind and values), with fresh keys
+    const openings = templateOpening
+      ? Array.from({ length: cols }, (_, i) => (i === 0 ? templateOpening : cloneWithNewKeys(templateOpening)))
       : []
 
-    return { ...node, children: [...mullions, ...transoms, ...pairs, ...others] }
+    return { ...node, children: [...mullions, ...transoms, ...openings, ...others] }
   }
   return process(tree)
 }
