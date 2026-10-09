@@ -1107,14 +1107,14 @@ describe('Step AN — uncorrected S4 lines on H, I and a no_work tree', () => {
 // part of the snapshot's kenrick_extension_gear_box:PC carries unit_cost 0
 // while the set itself costs 7.35, so its two sets price at nothing. The
 // engine now warns by name instead of pricing a silent zero; the figure is
-// NOT invented (docs/step-ao-findings.md). J is additionally 0.34 short on
-// its mullion length (Integrate's implies ~1230 mm where GlazePro uses the
-// 1205 interior height).
+// NOT invented (docs/step-ao-findings.md). J's extra 0.34 is now closed: the
+// step-ap addendum measured the mullion length for rule 121 as internal
+// height + 25, which gives 1.3530 → 16.78, Integrate's own figure.
 describe('Step AO — casement and direct glazed benchmarks', () => {
   const GEARBOX_GAP_COST = 14.70, GEARBOX_GAP_PRICE = 29.40
 
   const CASES = [
-    ['J', BENCHMARK_J, INTEGRATE.benchmarkJ_casement_two_opening_utile,   18.83, 12.00, 0.34],
+    ['J', BENCHMARK_J, INTEGRATE.benchmarkJ_casement_two_opening_utile,   18.83, 12.00, 0],
     ['K', BENCHMARK_K, INTEGRATE.benchmarkK_casement_plus_direct_glazed,  14.42, 10.67, 0],
     ['L', BENCHMARK_L, INTEGRATE.benchmarkL_two_direct_glazed_mullion,    12.17, 14.33, 0],
     ['M', BENCHMARK_M, INTEGRATE.benchmarkM_single_direct_glazed,          7.83,  7.17, 0],
@@ -1229,6 +1229,10 @@ describe('Step AO — casement and direct glazed benchmarks', () => {
       .filter(l => l.fires && l.name === 'Softwood Casement Sashes' && l.line_cost > 0)).toHaveLength(0)
     expect(qty(BENCHMARK_J, 'Casement Frame Jambs & Cills')).toEqual([2.7478])
     expect(qty(BENCHMARK_J, 'Casement Frame Head')).toEqual([1.3189])
+    // Mullion length = internal height + 25 (step-ap addendum), where the
+    // FRAME timber volume uses + 20 for the same mullion — two Integrate
+    // rules, two measured lengths.
+    expect(qty(BENCHMARK_J, 'Casement Transoms & Mullions')).toEqual([1.353])
     // Cill: full frame width, 2 dp before the rule → 13.94 and 18.59
     expect(qty(BENCHMARK_K, 'Hardwood Casement Cill')).toEqual([12.85])
     expect(qty(BENCHMARK_P, 'Hardwood Casement Cill')).toEqual([17.1375])

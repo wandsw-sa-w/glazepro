@@ -133,3 +133,12 @@ Casement Frame Head 1.32 x 12.40 = 16.35 ; Casement Transoms & Mullions 1.35 x 1
 # Minutes — labour 675 = Base Casement Frame 480 + Opening Casement 90 + "1500 Wide Casement Frame" 60 (overall
 # width >= 1.5) + "Any Sash Overweight" 45 (casement_sash loop, weight_in_kg > 25). Production 530 = frame 180 +
 # sash 180 + glazing 20 + sash finish 60 + frame finish 90.
+
+## Added by the reviewer 9 Oct 2026 — J's mullion LENGTH for rule 121 (step-ap addendum)
+# L31115 item 2 drawing 20 (drawingId 310319) = a copy of J (1/12, utile, mullion), read through a temporary
+# Quote 2 test quote (Quote 2 emptied and the test quote set back to L34046 / 8 afterwards). Fact, not assumption.
+# - As copied (head 47, internal height 1205): Casement Transoms & Mullions 1.35 x 12.40 = 16.78 -> length ~1230.
+# - Head (profiled) changed 47 -> 57 (internal height 1195): 1.34 x 12.40 = 16.64 -> qty 1.3419 -> length 1220.
+# So for rule 121's frame_muntin_to_be_replaced_length a casement mullion is INTERNAL HEIGHT + 25: it follows the
+# head, not the overall height. The frame-timber volume (step-ao addendum) uses internal height + 20 for the SAME
+# mullion — Integrate really does use two lengths in two rules; both are kept, each commented with its reading.

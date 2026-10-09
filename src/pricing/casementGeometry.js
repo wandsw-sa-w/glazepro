@@ -163,6 +163,32 @@ export function directGlazedGlassSize(tree, glassNode) {
 }
 
 /**
+ * Step AP: a direct glazed unit with NO hidden-in-rebate stored would price
+ * its VISIBLE size — smaller glass, quietly cheaper. The board stores the
+ * value (rebate − tolerance = 18), so a missing one means the unit was
+ * built some other way and must be a visible warning, never a silent
+ * under-measure.
+ *
+ * @returns {string[]} one warning per direct glazed unit that is missing it
+ */
+export function directGlazedWarnings(tree) {
+  const warnings = []
+  const frame = findFirst(tree, 'assemblyFramePart')
+  for (const child of (frame?.children ?? [])) {
+    if (child.part_type !== 'glassPart') continue
+    const v = child.values ?? {}
+    const sides = ['hiddenInRebateLeft', 'hiddenInRebateRight', 'hiddenInRebateTop', 'hiddenInRebateBottom']
+    const missing = sides.filter(k => num(v[k]) == null)
+    if (missing.length > 0) {
+      warnings.push(
+        `Direct glazed unit has no glass hidden in the rebate (${missing.join(', ')}) — ` +
+        `it is priced at its VISIBLE size; set the unit's rebate and tolerance so the board can store it`)
+    }
+  }
+  return warnings
+}
+
+/**
  * Casement sash timber volume in dm³ (litres) — Integrate's
  * `solid_redwood_volume` for price rule 165, one line per casement sash:
  *   (2 × sash height × stile + sash width × head + sash width × bottom rail)
@@ -278,8 +304,18 @@ export function casementCillVolumeDm3(tree) {
 /**
  * Total mullion and transom length in metres — Integrate's
  * `frame_muntin_to_be_replaced_length` (price rule 121, J's "Casement
- * Transoms & Mullions" line). Each divider runs the full interior height
- * (a mullion) or interior width (a transom).
+ * Transoms & Mullions" line).
+ *
+ * A mullion is INTERNAL HEIGHT + 25 here (step-ap addendum). The reviewer
+ * proved it by moving the head on a copy of J: with head 47 (internal
+ * height 1205) the line read 1.35 → length ~1230, and with head 57
+ * (internal height 1195) it read 1.3419 → length 1220. So the length
+ * follows the head, not the overall frame.
+ *
+ * NOTE the +25 here against the +20 the FRAME TIMBER volume uses for the
+ * same mullion (casementFrameTimberVolumeDm3, Step AO §5, measured at
+ * 1225 on the same 1299-high frame). Integrate really does use two lengths
+ * in two rules; both are kept, each with its own reading.
  */
 export function frameMuntinLengthM(tree) {
   const frame = findFirst(tree, 'assemblyFramePart')
@@ -287,8 +323,8 @@ export function frameMuntinLengthM(tree) {
   const interior = frameInterior(tree)
   let mm = 0
   for (const child of (frame.children ?? [])) {
-    if (child.part_type === 'mullionPart') mm += interior.height ?? 0
-    if (child.part_type === 'transomPart') mm += interior.width  ?? 0
+    if (child.part_type === 'mullionPart') mm += (interior.height ?? 0) + 25
+    if (child.part_type === 'transomPart') mm += (interior.width  ?? 0) + 25
   }
   return mm / 1000
 }

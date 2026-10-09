@@ -36,8 +36,9 @@
  * rest are live-only), so these fixtures use Integrate's own names in
  * GlazePro's code style — 'left_hand_hung' (Integrate 17),
  * 'right_hand_hung' (18) and 'fix' (11) — and the casement type code
- * 'open_out_flush' (Integrate typeId 7 "Open Out / Flush with Stops
- * Internally"). Only `fix` is read by a priced rule
+ * 'open_out', which Step AP confirmed IS a live sash_type option (the live
+ * list is open_out / open_in / stormproof — there is no 'open_out_flush',
+ * which is what this fixture first guessed). Only `fix` is read by a priced rule
  * (fixed_casement_sash_qty), through the same substring test
  * optionVocabulary.operationKind uses, so the other spellings change no
  * figure.
@@ -90,7 +91,7 @@ function casementSash(key, operation) {
     part_type: 'casementSashPart',
     values: {
       operation,                      // Integrate operationId 17 / 18 / 11
-      casementTypeId: 'open_out_flush',  // Integrate typeId 7
+      casementTypeId: 'open_out',  // Integrate typeId 7
       sashThickness: 54,
       topHeight:     62,              // head
       leftWidth:     62,              // stiles
