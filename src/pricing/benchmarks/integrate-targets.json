@@ -563,5 +563,160 @@
         "price": 200.0
       }
     }
+  },
+  "benchmarkJ_casement_two_opening_utile": {
+    "source": "L31115 Item 1 Drawing 12 (third floor): flush casement 1199 x 1299, mullion, two opening casements (LH + RH hung), Solid Utile Hardwood frame/sash/cill, complete new. Read 9 Oct 2026 via a temporary Quote 2 test quote. Facts: docs/integrate-L31115-direct-glazed.txt",
+    "total_cost": 1233.57,
+    "total_price": 2467.13,
+    "groups": {
+      "glass_done": {
+        "cost": 59.42,
+        "price": 118.84
+      },
+      "installation_materials": {
+        "cost": 107.84,
+        "price": 215.67
+      },
+      "manufacture": {
+        "cost": 464.35,
+        "price": 928.7
+      },
+      "labour": {
+        "cost": 482.52,
+        "price": 965.04
+      },
+      "manufacture_materials": {
+        "cost": 119.44,
+        "price": 238.88
+      }
+    },
+    "hours": {
+      "production": 18.83,
+      "labour": 12.0
+    }
+  },
+  "benchmarkK_casement_plus_direct_glazed": {
+    "source": "L31115 Item 2 Drawing 15 (first floor): flush casement 1199 x 1299 redwood, mullion, A1 opening casement (LH hung) + B1 direct glazed unit, complete new. Read 9 Oct 2026 via a temporary Quote 2 test quote. Facts: docs/integrate-L31115-direct-glazed.txt",
+    "total_cost": 1027.9,
+    "total_price": 2055.76,
+    "groups": {
+      "glass_done": {
+        "cost": 69.95,
+        "price": 139.89
+      },
+      "installation_materials": {
+        "cost": 107.84,
+        "price": 215.67
+      },
+      "manufacture": {
+        "cost": 355.6,
+        "price": 711.19
+      },
+      "labour": {
+        "cost": 429.04,
+        "price": 858.08
+      },
+      "manufacture_materials": {
+        "cost": 65.47,
+        "price": 130.93
+      }
+    },
+    "hours": {
+      "production": 14.42,
+      "labour": 10.67
+    }
+  },
+  "benchmarkL_two_direct_glazed_mullion": {
+    "source": "L31115 Item 2 Drawing 16 (first floor): frame 1199 x 1299 redwood, mullion, two direct glazed units, no casement sash, complete new. Read 9 Oct 2026 via a temporary Quote 2 test quote. Facts: docs/integrate-L31115-direct-glazed.txt",
+    "total_cost": 1064.64,
+    "total_price": 2129.25,
+    "groups": {
+      "glass_done": {
+        "cost": 80.48,
+        "price": 160.94
+      },
+      "installation_materials": {
+        "cost": 107.84,
+        "price": 215.67
+      },
+      "manufacture": {
+        "cost": 300.11,
+        "price": 600.22
+      },
+      "labour": {
+        "cost": 576.21,
+        "price": 1152.42
+      },
+      "manufacture_materials": {
+        "cost": 0,
+        "price": 0
+      }
+    },
+    "hours": {
+      "production": 12.17,
+      "labour": 14.33
+    }
+  },
+  "benchmarkM_single_direct_glazed": {
+    "source": "L31115 Item 2 Drawing 17 (first floor): frame 1199 x 1299 redwood, one direct glazed unit, no mullion, no casement sash, complete new. Read 9 Oct 2026 via a temporary Quote 2 test quote. Facts: docs/integrate-L31115-direct-glazed.txt",
+    "total_cost": 672.81,
+    "total_price": 1345.59,
+    "groups": {
+      "glass_done": {
+        "cost": 83.57,
+        "price": 167.13
+      },
+      "installation_materials": {
+        "cost": 107.84,
+        "price": 215.67
+      },
+      "manufacture": {
+        "cost": 193.09,
+        "price": 386.18
+      },
+      "labour": {
+        "cost": 288.31,
+        "price": 576.61
+      },
+      "manufacture_materials": {
+        "cost": 0,
+        "price": 0
+      }
+    },
+    "hours": {
+      "production": 7.83,
+      "labour": 7.17
+    }
+  },
+  "benchmarkN_casement_plus_fixed_casement": {
+    "source": "L31115 Item 2 Drawing 18 (first floor): flush casement 1199 x 1299 redwood, mullion, A1 opening casement (LH hung) + B1 FIXED casement sash, complete new. Read 9 Oct 2026 via a temporary Quote 2 test quote. Facts: docs/integrate-L31115-direct-glazed.txt",
+    "total_cost": 1085.09,
+    "total_price": 2170.15,
+    "groups": {
+      "glass_done": {
+        "cost": 59.42,
+        "price": 118.84
+      },
+      "installation_materials": {
+        "cost": 107.84,
+        "price": 215.67
+      },
+      "manufacture": {
+        "cost": 423.41,
+        "price": 846.82
+      },
+      "labour": {
+        "cost": 422.21,
+        "price": 844.41
+      },
+      "manufacture_materials": {
+        "cost": 72.21,
+        "price": 144.41
+      }
+    },
+    "hours": {
+      "production": 17.17,
+      "labour": 10.5
+    }
   }
 }

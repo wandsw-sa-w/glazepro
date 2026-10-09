@@ -1,0 +1,100 @@
+# Integrate facts — direct glazed and casement frames (read 9 Oct 2026, wandsworth.work, test lead L31115).
+# Benchmark sources: L31115 item 2 drawings 15-18 (in no quote) plus item 1 drawing 12. Read through a temporary
+# Quote 2 test quote, one drawing at a time; Quote 2 emptied and the test quote set back to L34046 / 8 afterwards.
+# All PF30. "Redwood" = Integrate material "Softwood with Hardwood Cill" (sash 38 Solid Redwood, frame 38, cill 44 Solid Utile Hardwood).
+# Prices are cost / price (x2 markup) for the item alone, BEFORE the quote-level InstallSure line.
+
+## How Integrate stores these (GetDrawing /SurveySystem/GetDrawing/Lead/L31115/{item}/{drawingNo}/Edit)
+# - AssemblyFramePart is the only frame. Mullions and transoms are NOT child parts: they live in the frame's
+#   `dividers` array (MullionPart / TransomPart with thickness, offset, offset2, stop size, startDivider/endDivider).
+# - The frame's children are a flat list of openings, each tagged matrixIndex = column letter + row number
+#   (A1 = left/top, B1 = next column, A2 = next row down), followed by one CillPart per bottom-row opening
+#   (cill width = that opening's internal width).
+# - An opening is EITHER a CasementSashPart (with its own GlassPart child) OR a GlassPart directly in the frame.
+#   A GlassPart directly under the frame IS a direct glazed unit (board label "Direct Glazed Unit"). It carries the
+#   opening-level fields itself: toBeReplaced=1, matrixIndex, shoulderHeight, thickness 56, mechanicalClearance 20 all
+#   round, hiddenInRebate 18 all round, glazingRebateWidth 20 (casement sash glass: rebate 16, no clearance fields).
+# - Board: select an opening -> "Change ..." -> Product list: Direct Glazed Unit, Panel to Frame, Pair of Sashes,
+#   Casement, French Casement, Floating Transom Casement, Door, French Door, Stable Door.
+# - Casement operationId: 11 Fix, 15 Top Hung, 16 Bottom Hung, 17 Left Hand Hung, 18 Right Hand Hung.
+#   A FIXED casement sash is a CasementSashPart with operationId 11 (still a sash: sash timber, sash machining, sash finishing).
+#   Casement typeId 7 = "Open Out / Flush with Stops Internally". Sash 54 thick, head 62, stiles 62, bottom rail 83, clearance 4.
+# - Frame (flush casement template): jambs 37, head 47, cill 47, frame depth 96, cill depth 128, mullion 27 (profiled; 67 overall,
+#   20 machined from mullion), frame stop 40.
+# - Item type follows the content: itemTypeId 3 while the frame holds any casement sash; it switched to 25 (and newSashes=false)
+#   when every opening became a direct glazed unit. Validation adds "ADD QUOTE NOTE: Due to direct glazed panes, some fixing
+#   points may be situated on visible parts of the frame..." whenever a direct glazed unit is present.
+# - The ironmongery list is the surveyor's explicit list; changing openings does NOT change it (all four drawings below still
+#   carry the original handle/hinge/shootbolt set, priced as listed). "Default for Casement Window" did not change it either.
+
+## Trees (frame 1199 x 1299, PF30, redwood; mullion at 549 where present)
+--- 2/15 (drawingId 310266) K: opening casement + direct glazed unit
+AssemblyFramePart: width=1199 height=1299 replaceFrame=true jambType=solid_profiled leftWidth=37 rightWidth=37 topHeight=47 bottomHeight=47 frameDepth=96 cillDepth=128 dividers=Mullion(thk 27, offset 549/549, stop 20)
+  CasementSashPart A1: operationId=17 typeId=7 thickness=54 head 62 stiles 62 bottom 83 clearance 4 shoulderHeight=1052 toBeReplaced=true
+    GlassPart: glazingRebateWidth=16 glazingTolerance=2 glazingId=2 spacer 116 GL100010/GL100080
+  GlassPart B1 (direct glazed): toBeReplaced=1 thickness=56 clearance 20 all round, hiddenInRebate 18 all round, glazingRebateWidth=20, shoulderHeight=1165
+  CillPart: width=549 cillMaterialId=44
+  CillPart: width=549 cillMaterialId=44
+--- 2/16 (drawingId 310271) L: two direct glazed units with mullion (itemTypeId 25)
+  GlassPart A1 + GlassPart B1 (direct glazed, as above), two CillParts 549
+--- 2/17 (drawingId 310272) M: single direct glazed unit, no mullion (itemTypeId 25)
+  GlassPart A1 (direct glazed), one CillPart width=1125
+--- 2/18 (drawingId 310273) N: opening casement (op 17) + FIXED casement sash (op 11) with mullion
+  CasementSashPart A1 op17 + CasementSashPart B1 op11, each with GlassPart; two CillParts 549
+
+## Sizes
+# Direct glazed visible size = opening - 2 x 20 clearance: 549 x 1205 opening -> 509 x 1165 shown on the board.
+# Direct glazed glass = visible + 2 x 18 hidden in rebate: 545 x 1201 = 0.6545 -> rounded_area 0.65.  Single (no mullion):
+# opening 1125 x 1205 -> 1085 x 1165 -> glass 1121 x 1201 = 1.3463 -> 1.35.  Casement sash glass in a 541 x 1197 sash: 0.48.
+
+## Price lines (PF30)
+--- K 2/15 opening casement + direct glazed — 1,027.90 / 2,055.76
+Square Glass Cost 0.48 x 58.50 = 28.08 ; 0.65 x 58.50 = 38.03
+All Glass Energy Surcharge 9.60 x 0.17 = 1.63 ; 13.00 x 0.17 = 2.21
+Ironmongery (9 lines, unchanged list) 66.15 ; Components (Ogee Architrave MDF 2.80 m + 1.30 m) 7.98 + 3.71 ; Installation Consumables 30.00
+Production Time 14.42 h x 24.66 = 355.60
+Labour 10.67 h x 40.21 = 429.04
+Softwood Casement Frame & Sashes 35.98 x 0.55 = 19.79
+Softwood Casement Sashes 12.25 x 0.55 = 6.74   (one line: only the casement sash)
+Hardwood Casement Cill 12.85 x 1.09 = 13.94
+LTW General Consumables 25.00
+Groups: Glass 69.95 ; Installation Materials 107.84 ; Manufacture 355.60 ; Labour 429.04 ; Manufacture Materials 65.47
+--- L 2/16 two direct glazed + mullion — 1,064.64 / 2,129.25
+Square Glass Cost 0.65 x 58.50 = 38.03 (x2) ; Energy 13.00 x 0.17 = 2.21 (x2) ; Installation Materials 107.84 (same ironmongery/components/consumables)
+Production Time 12.17 h = 300.11 ; Labour 14.33 h = 576.21
+NO frame timber, NO cill, NO LTW consumables lines (is_casement_window is false without a casement sash).
+--- M 2/17 single direct glazed, no mullion — 672.81 / 1,345.59
+Square Glass Cost 1.35 x 58.50 = 78.98 ; Energy 27.00 x 0.17 = 4.59 ; Installation Materials 107.84
+Production Time 7.83 h = 193.09 ; Labour 7.17 h = 288.31 ; no timber / cill / LTW lines.
+--- N 2/18 opening casement + fixed casement sash — 1,085.09 / 2,170.15
+Square Glass Cost 0.48 x 58.50 = 28.08 (x2) ; Energy 9.60 x 0.17 = 1.63 (x2) ; Installation Materials 107.84
+Production Time 17.17 h = 423.41 ; Labour 10.50 h = 422.21
+Softwood Casement Frame & Sashes 35.98 x 0.55 = 19.79 ; Softwood Casement Sashes 12.25 x 0.55 = 6.74 (x2) ; Hardwood Casement Cill 13.94 ; LTW 25.00
+--- J 1/12 (drawingId 307539) two opening casements (op17 + op18), mullion, UTILE (44/44/44) — 1,233.57 / 2,467.13
+Glass 0.48 x2 ; Production 18.83 h = 464.35 ; Labour 12.00 h = 482.52 ; Casement Frame Jambs & Cills 2.75 x 17.24 = 47.37 ;
+Casement Frame Head 1.32 x 12.40 = 16.35 ; Casement Transoms & Mullions 1.35 x 12.40 = 16.78 ; Hardwood Casement Cill 13.94 ; LTW 25.00
+(no sash timber line for utile sashes). Installation Materials 107.84 ; Manufacture Materials 119.44.
+
+## Labour and production reconcile exactly with docs/integrate-rules-export.txt
+# Labour (installation) minutes:
+#  M: Direct Glazed 15 base in frame without other work 360 x direct_glazed_unit_qty(1) + 16 (<1.75 m2, per glass unit) 70 = 430 = 7.17 h
+#  L: 360 x 2 + 70 x 2 = 860 = 14.33 h
+#  K: Casements 13 base casement frame 480 + 14 opening casement 90 + Direct Glazed 16 70 = 640 = 10.67 h
+#     (Direct Glazed 15 does not fire because casement_sash_qty > 0; Direct Glazed 10 never fires — it needs a bi-fold AND a door AND a casement)
+#  N: 480 + 90 + Casements 15 fixed casement 60 = 630 = 10.50 h
+# Production minutes:
+#  M: 1100 casement frame 180 + 1103 extra over direct glazed 180 + Glass 30 glazing 20 + Finishing 210 frame 90 = 470 = 7.83 h
+#  L: 180 + 180 + 1105 mullion 180 + glazing 20 x 2 + 210 frame 90 + 211 mullion 60 = 730 = 12.17 h
+#  K: 180 + 1105 180 + 1000 casement sash 180 + glazing 20 x 2 + 200 sash finish 60 + 210 90 + 211 60 + 240 direct glazed AND openers 75 = 865 = 14.42 h
+#  N: 180 + 180 + 1000 180 x 2 + glazing 40 + 200 60 x 2 + 210 90 + 211 60 = 1030 = 17.17 h
+#     => new_casement_sash_qty and casement_sash_qty count FIXED casement sashes too; direct glazed units are not sashes.
+
+## Nathan's decisions (9 Oct 2026)
+# 1. Direct-glazed-only frames: MATCH Integrate (no frame timber / cill / LTW consumables lines when the frame has no casement sash).
+#    Known gap to fix later in the pricing rules of both systems — not a GlazePro difference.
+# 2. Labour rule "Base Direct Glazed Unit in Frame" (Direct Glazed group, sort 10) never fires (needs bi-fold AND door AND casement):
+#    MATCH Integrate exactly. Flag for a later rule change ("should apply when the frame also has a casement or door").
+# 3. Ironmongery: GlazePro's board DEFAULTS the list per opening when openings change (opening casements get handles/hinges/
+#    shootbolts; fixed casement sashes and direct glazed units get none); the surveyor can still edit the list. This is a board
+#    behaviour difference from Integrate (which never changes the list) — record in docs/integrate-differences.md when built.
+#    Prices still follow whatever list is stored, so benchmarks K-N are checked with Integrate's stored list.

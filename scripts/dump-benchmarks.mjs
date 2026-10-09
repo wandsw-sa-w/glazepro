@@ -7,7 +7,7 @@ import { readFileSync } from 'fs'
 import { runPricingOnTree } from '../src/pricing/pricingEngine.js'
 import { computeSashWeight } from '../src/pricing/sashWeight.js'
 import { resolveIronmongeryLines } from '../src/pricing/loadPricingContext.js'
-import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F, BENCHMARK_G, BENCHMARK_H, BENCHMARK_I } from '../src/pricing/benchmarks/index.js'
+import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F, BENCHMARK_G, BENCHMARK_H, BENCHMARK_I, BENCHMARK_J, BENCHMARK_K, BENCHMARK_L, BENCHMARK_M, BENCHMARK_N } from '../src/pricing/benchmarks/index.js'
 import snapshot from '../src/pricing/benchmarks/pf30-snapshot.json'
 
 function dump(name, tree, { extraGlass = {} } = {}) {
@@ -49,6 +49,7 @@ dump(BENCHMARK_F.name, BENCHMARK_F.tree)
 dump(BENCHMARK_G.name, BENCHMARK_G.tree)
 dump(BENCHMARK_H.name, BENCHMARK_H.tree)
 dump(BENCHMARK_I.name, BENCHMARK_I.tree)
+for (const bm of [BENCHMARK_J, BENCHMARK_K, BENCHMARK_L, BENCHMARK_M, BENCHMARK_N]) dump(bm.name, bm.tree)
 
 const raw = JSON.parse(readFileSync(new URL('../src/pricing/benchmarks/real-trees/L507712-drawing1.raw.json', import.meta.url), 'utf8'))
 const MAP = { '4mm Clear Pilkington K Toughened': 'GL100010', '4mm Clear Toughened': 'GL100080' }
