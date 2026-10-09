@@ -13,7 +13,7 @@ import { runPricingOnTree, shapedGlassCutAreaM2 } from '../pricingEngine.js'
 import { applySashesReplaced } from '../../drawingBoard/sashesReplaced.js'
 import { computeDerived } from '../../drawingBoard/computeDerived.js'
 import { computeVariables } from '../computeVariables.js'
-import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_B_UNCORRECTED, BENCHMARK_C, BENCHMARK_D } from './index.js'
+import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_B_UNCORRECTED, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F } from './index.js'
 import { resolveIronmongeryLines } from '../loadPricingContext.js'
 // The LIVE price-file snapshot (reviewer-checked, 8 Oct 2026) — the honest
 // benchmarks and the real-tree case price from this, never from the
@@ -796,5 +796,86 @@ describe('Step AJ — board-shaped trees price like Integrate', () => {
     const dAfter  = runFromSnapshot(applySashesReplaced(BENCHMARK_D.tree).tree)
     expect(dAfter.price.total_cost).toBeCloseTo(dBefore.price.total_cost, 10)
     expect(dAfter.price.total).toBeCloseTo(dBefore.price.total, 10)
+  })
+})
+
+// ── Step AK — spiral balance benchmarks E and F ─────────────────────────────
+// Facts: docs/integrate-L31115-spiral.txt. E is a complete new spiral sash
+// window from Integrate's own spiral template; F is benchmark A with both
+// sashes set to Spiral Hung, which made Integrate switch the frame to solid
+// spiral 28/28/28 and grow the sashes.
+describe('Step AK — spiral benchmarks', () => {
+  it('E (complete new spiral) matches the Integrate targets', () => {
+    expectMatchesIntegrate(runFromSnapshot(BENCHMARK_E.tree), INTEGRATE.benchmarkE_spiral_complete_new)
+  })
+
+  it('F (spiral sash replacement) matches the Integrate targets', () => {
+    expectMatchesIntegrate(runFromSnapshot(BENCHMARK_F.tree), INTEGRATE.benchmarkF_spiral_replacement)
+  })
+
+  // Integrate drew F's sashes 1014 wide with the top sash 876.0 and both
+  // shoulders 787 once it switched the frame to solid spiral; E's template
+  // drew 939 wide, top sash 701.5, shoulders 612.5. Both must come out of
+  // GlazePro's one geometry source (step-ak brief §1).
+  const GEOMETRY = [
+    [BENCHMARK_F, 1014, 876.0, 787],
+    [BENCHMARK_E,  939, 701.5, 612.5],
+  ]
+  for (const [bm, sashWidth, topSashHeight, shoulder] of GEOMETRY) {
+    it(`${bm === BENCHMARK_E ? 'E' : 'F'}: sash ${sashWidth} wide, top ${topSashHeight}, shoulders ${shoulder}`, () => {
+      const d = computeDerived(bm.tree)
+      const pair = bm.tree.children.find(c => c.part_type === 'assemblyFramePart')
+        .children.find(c => c.part_type === 'sashPairPart')
+      expect(d[pair.key].sashWidth).toBe(sashWidth)
+      expect(d[pair.key].topSashHeight).toBe(topSashHeight)
+      // Integrate's "shoulder" is the glass sightline height
+      expect(d[pair.key].topSashHeight - 49 - 40).toBe(shoulder)
+      expect(d[pair.key].bottomSashHeight - 88 - 40).toBe(shoulder)
+    })
+  }
+
+  // Spiral is recognised from the sash operation and the jamb type, not from
+  // an item type: Integrate's itemTypeId 2 has no GlazePro field.
+  it('the spiral variables are what the trees produce', () => {
+    for (const bm of [BENCHMARK_E, BENCHMARK_F]) {
+      const vars = computeVariables(bm.tree, computeDerived(bm.tree), PF_VARIABLES)
+      expect(vars.is_sw, bm.name).toBe(true)
+      expect(vars.is_box_sash, bm.name).toBe(true)
+      expect(vars.is_spiral_hung, bm.name).toBe(true)
+      expect(vars.is_cord_hung, bm.name).toBe(false)
+      expect(vars.is_solid_spiral_jamb, bm.name).toBe(true)
+      // is_spiral_sash keys on a spiralSashPairPart that GlazePro never
+      // builds, so it is false — and no PF30 rule uses it.
+      expect(vars.is_spiral_sash, bm.name).toBe(false)
+    }
+  })
+
+  // Spiral means no counterweights at all, and E swaps the box frame
+  // linings for the spiral frame lines.
+  it('no Lead or Steel Weight; E prices Spiral Frame, not Box Frame Linings', () => {
+    const names = r => r.price.lines.filter(l => l.fires && !l.error).map(l => l.name)
+    for (const bm of [BENCHMARK_E, BENCHMARK_F]) {
+      const fired = names(runFromSnapshot(bm.tree))
+      expect(fired, bm.name).not.toContain('Lead Weight')
+      expect(fired, bm.name).not.toContain('Steel Weight')
+      expect(fired.filter(n => n === 'Spiral Balances'), bm.name).toHaveLength(2)
+    }
+    const e = names(runFromSnapshot(BENCHMARK_E.tree))
+    expect(e).toContain('Softwood Spiral Frame')
+    expect(e).toContain('Softwood Spiral Frame Linings')
+    expect(e).not.toContain('Softwood Box Frame Linings')
+    expect(e).not.toContain('Softwood Pulley Stiles and Head')
+  })
+
+  // The one engine change this step needed: the glazing bar run is measured
+  // at the glass CUT size, rounded half-up to 2 dp. Only that rule fits all
+  // three Integrate readings — A 2.40, L34046 2.50, F 2.56.
+  it('the glazing bar quantity matches Integrate on all three readings', () => {
+    const barQty = tree => runFromSnapshot(tree).price.lines
+      .filter(l => l.fires && !l.error && l.name === 'Glazing Bar' && l.quantity > 0)
+      .map(l => Number(l.quantity.toFixed(4)))
+    expect(barQty(BENCHMARK_A.tree)).toEqual([2.4])
+    expect(barQty(BENCHMARK_L34046.tree)).toEqual([2.5, 2.5])
+    expect(barQty(BENCHMARK_F.tree)).toEqual([2.56])
   })
 })

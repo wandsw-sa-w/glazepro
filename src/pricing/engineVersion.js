@@ -50,6 +50,9 @@
  * being supplied (per sash — complete new, that sash's toBeReplaced, or
  * bi-glass), as Integrate's loop does — version-9 runs priced stored
  * glass on sashes that were not being replaced.
+ * Version 11 is Step AK: the glazing bar run is measured at the glass CUT
+ * size and rounded half-up to 2 dp (three Integrate readings fit only that
+ * rule) — version-10 runs were up to 6p/m short on wider bars.
  */
 
-export const PRICING_ENGINE_VERSION = 10
+export const PRICING_ENGINE_VERSION = 11

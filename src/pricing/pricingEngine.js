@@ -390,10 +390,25 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
     const barsHigh = hasActualBars ? hBarParts.length : (v.barsHigh ?? 0)
     const unit_gb_qty = barsWide + barsHigh
 
-    // internal_spacer_length: total run of glazing bar material in this unit (metres).
-    // Uses sightline dimensions (bars run within the visible area).
-    // Ceiled to 0.1 m precision to match Integrate's behaviour (ceil(mm/100)/10).
-    const internal_spacer_length = Math.ceil((barsWide * sightlineHeight + barsHigh * sightlineWidth) / 100) / 10
+    // internal_spacer_length: total run of glazing bar material in this unit
+    // (metres), at the glass CUT size — the same cut the glass price uses —
+    // rounded half-up to 2 dp.
+    //
+    // Step AK: three Integrate readings fix this, and only this rule fits
+    // all three. Bar run in mm at sightline / at cut (+2 × cover per axis),
+    // against Integrate's printed quantity:
+    //   A       2 × 761.5 + 802 = 2325 | cut 2397 → 2.40  = Integrate 2.40
+    //   L34046  2 × 726.5 + 972 = 2425 | cut 2497 → 2.50  = Integrate 2.50
+    //   F       2 × 787.0 + 916 = 2490 | cut 2562 → 2.56  = Integrate 2.56
+    // The previous rule (ceil(sightline/100)/10) matched A and L34046 by
+    // coincidence — both round up to the same 0.1 — but gives F 2.50
+    // against Integrate's 2.56 (11p cost / 22p price short). Cut size with
+    // ceil-to-0.1 gives F 2.60, and sightline with 2 dp gives A 2.33, so
+    // neither fits. No constant was tuned: the cut size is the existing
+    // glassWidth/glassHeight and the rounding is the engine's own
+    // decimal-safe half-up.
+    const internal_spacer_length = round2dpHalfUp(
+      (barsWide * glassHeight + barsHigh * glassWidth) / 1000)
 
     // Glass costs — look up from parts catalogue using part codes; fall back to fixture values
     const innerEntry  = glassCatalogue[v.internalGlassPartNo] ?? null
