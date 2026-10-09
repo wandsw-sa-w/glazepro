@@ -23,6 +23,9 @@ import {
   INTERNAL_ENTRY_NOTE, JAMB_SIZE_FIELDS, sizeEntryMode, internalSizeOf,
   frameFromInternalSize, keepInternalSize,
 } from '../drawingBoard/internalSize.js'
+import {
+  cillRepairApplies, showsFullCillReplacement, applyCillRules,
+} from '../drawingBoard/cillReplacement.js'
 import { computeSashWeight } from '../pricing/sashWeight.js'
 import { loadDrawingRunPrices } from '../quotes/drawingRunPrice.js'
 import { SashElevation } from '../drawingBoard/renderElevation.jsx'
@@ -647,8 +650,20 @@ function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, o
     )
   }
 
+  // Step AM: the cill repair fields appear only where they apply — a cill
+  // repair is a sash-window service and is not offered on a complete new
+  // frame or on "No Work" (Integrate greys it out there), and Full Cill
+  // Replacement appears only once Repair = New Cill, as Integrate reveals it.
+  function cillFieldHidden(fieldKey) {
+    if (fieldKey === 'cillPart.repair') return !cillRepairApplies(tree)
+    if (fieldKey === 'cillPart.isBrickToBrickCill') return !showsFullCillReplacement(tree)
+    return false
+  }
+
   const fields = (fieldDefs[node.part_type] ?? []).filter(
-    f => f.role !== 'config' && !isFieldHidden(visibilityMap[f.field_key], boardMode, showHidden)
+    f => f.role !== 'config' &&
+         !isFieldHidden(visibilityMap[f.field_key], boardMode, showHidden) &&
+         !cillFieldHidden(f.field_key)
   )
   const derivedMap = derived?.[node.key] ?? {}
 
@@ -2005,6 +2020,10 @@ function DrawingBoard() {
     if (fieldKey === 'drawingItemPart.typeOfWork') {
       newTree = applyCompleteNewThickness(newTree).tree
       newTree = applySashesReplaced(newTree).tree
+      // Step AM: "Cill Replacement Only" IS a new cill; and where a cill
+      // repair is not offered (complete new, no work) a stored one is
+      // cleared rather than left priced.
+      newTree = applyCillRules(newTree).tree
     }
 
     commit(newTree)

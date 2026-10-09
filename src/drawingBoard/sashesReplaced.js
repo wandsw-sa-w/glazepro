@@ -34,6 +34,8 @@ export const SASHES_REPLACED_BY_TYPE_OF_WORK = {
   draught_seal:       false,
   bi_glass:           false,
   no_work:            false,
+  // Step AM: a stand-alone cill replacement replaces no sashes
+  cill_only:          false,
 }
 
 const SLIDING_SASH_TYPES = ['topSashPart', 'bottomSashPart']

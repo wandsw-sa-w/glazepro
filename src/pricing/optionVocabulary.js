@@ -171,7 +171,12 @@ export function isLambsTongueMoulding(code) {
 }
 
 // ── Known full code sets for warning checks ──────────────────────────────────
-const TYPE_OF_WORK_CODES = ['complete_new', 'new_pair_of_sashes', 'draught_seal', 'bi_glass', 'no_work']
+// 'cill_only' is GlazePro's named type of work for a stand-alone cill
+// replacement (sql/step-am1-cill-replacement-fields.sql). Integrate has no
+// such option: it stores every item flag false plus New Cill and calls the
+// result "Other" (docs/integrate-L31115-cill.txt), which is what this code
+// produces — every service flag false.
+const TYPE_OF_WORK_CODES = ['complete_new', 'new_pair_of_sashes', 'draught_seal', 'bi_glass', 'no_work', 'cill_only']
 const JAMB_TYPE_CODES    = ['solid_profiled', 'solid_with_plant_on_stop', 'solid_spiral_for_sash', 'hollow_box_for_sash']
 const STAFF_BEAD_CODES   = ['small', 'large', 'custom']
 

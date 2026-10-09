@@ -53,6 +53,10 @@
  * Version 11 is Step AK: the glazing bar run is measured at the glass CUT
  * size and rounded half-up to 2 dp (three Integrate readings fit only that
  * rule) — version-10 runs were up to 6p/m short on wider bars.
+ * Version 12 is Step AM: new_cill_qty also reads the board's cill Repair
+ * field (cillPart.repair = 'new_cill'), not only the older
+ * cillPart.toBeReplaced flag — version-11 runs priced no cill replacement
+ * for a cill chosen on the board.
  */
 
-export const PRICING_ENGINE_VERSION = 11
+export const PRICING_ENGINE_VERSION = 12

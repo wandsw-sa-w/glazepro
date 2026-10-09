@@ -502,9 +502,13 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
 
     const new_sash_qty          = new_sliding_sash_qty
     // new_cill_qty: 1 only when the cill is being replaced but NOT as part of a
-    // complete-new job (complete_new includes the cill implicitly via frame_to_be_replaced).
-    // A cill-only replacement sets cillPart.toBeReplaced = true on a non-complete_new job.
-    const new_cill_qty          = !is_complete_new && cill?.values?.toBeReplaced === true ? 1 : 0
+    // complete-new job (complete_new includes the cill implicitly via
+    // frame_to_be_replaced — Integrate's own new_cill_qty excludes it too).
+    // The board stores the choice as cillPart.repair = 'new_cill' (Integrate's
+    // Cill > Repair, cillRepairId 2 — step-am brief §1); the older
+    // cillPart.toBeReplaced flag keeps working.
+    const new_cill_qty          = !is_complete_new &&
+      (cill?.values?.repair === 'new_cill' || cill?.values?.toBeReplaced === true) ? 1 : 0
 
     // Mullion / transom counts from actual parts in the tree
     const frame_mullion_qty     = allMullions.length

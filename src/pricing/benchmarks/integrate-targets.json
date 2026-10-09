@@ -448,5 +448,120 @@
       "production": 10.93,
       "labour": 4.75
     }
+  },
+  "benchmarkG_sash_replacement_new_cill": {
+    "source": "L31115 Item 1 Drawing 15: benchmark A + cill Repair 'New Cill'. Facts: docs/integrate-L31115-cill.txt (read 9 Oct 2026 via a temporary Quote 2 test quote).",
+    "total_cost": 829.78,
+    "total_price": 1809.71,
+    "groups": {
+      "glass_done": {
+        "cost": 99.46,
+        "price": 198.9
+      },
+      "installation_materials": {
+        "cost": 133.98,
+        "price": 220.15
+      },
+      "manufacture": {
+        "cost": 269.53,
+        "price": 539.07
+      },
+      "labour": {
+        "cost": 291.52,
+        "price": 583.05
+      },
+      "manufacture_materials": {
+        "cost": 34.29,
+        "price": 68.54
+      },
+      "extra_profits": {
+        "cost": 1.0,
+        "price": 200.0
+      }
+    }
+  },
+  "benchmarkH_draught_seal_new_cill_uncorrected": {
+    "source": "L31115 Item 2 Drawing 13: benchmark B + cill Repair 'New Cill', Integrate exactly (S4 lines included). Facts: docs/integrate-L31115-cill.txt (read 9 Oct 2026 via a temporary Quote 2 test quote).",
+    "total_cost": 335.32,
+    "total_price": 974.6,
+    "groups": {
+      "extra_services": {
+        "cost": 13.2,
+        "price": 26.4
+      },
+      "installation_materials": {
+        "cost": 32.29,
+        "price": 64.57
+      },
+      "labour": {
+        "cost": 261.37,
+        "price": 522.73
+      },
+      "manufacture_materials": {
+        "cost": 25.46,
+        "price": 50.9
+      },
+      "extra_profits": {
+        "cost": 3.0,
+        "price": 310.0
+      }
+    }
+  },
+  "benchmarkH_draught_seal_new_cill_corrected": {
+    "source": "H with deliberate difference 1 (S4): the sashes are not being made, so no laminated timber / glazing bead. Facts: docs/integrate-L31115-cill.txt (read 9 Oct 2026 via a temporary Quote 2 test quote).",
+    "total_cost": 309.86,
+    "total_price": 923.7,
+    "groups": {
+      "extra_services": {
+        "cost": 13.2,
+        "price": 26.4
+      },
+      "installation_materials": {
+        "cost": 32.29,
+        "price": 64.57
+      },
+      "labour": {
+        "cost": 261.37,
+        "price": 522.73
+      },
+      "extra_profits": {
+        "cost": 3.0,
+        "price": 310.0
+      }
+    }
+  },
+  "benchmarkI_cill_only_uncorrected": {
+    "source": "L31115 Item 2 Drawing 14: stand-alone new cill (all item flags false, Integrate 'Other'), Integrate exactly. Facts: docs/integrate-L31115-cill.txt (read 9 Oct 2026 via a temporary Quote 2 test quote).",
+    "total_cost": 126.99,
+    "total_price": 451.95,
+    "groups": {
+      "labour": {
+        "cost": 100.53,
+        "price": 201.05
+      },
+      "manufacture_materials": {
+        "cost": 25.46,
+        "price": 50.9
+      },
+      "extra_profits": {
+        "cost": 1.0,
+        "price": 200.0
+      }
+    }
+  },
+  "benchmarkI_cill_only_corrected": {
+    "source": "I with deliberate difference 1 (S4). Facts: docs/integrate-L31115-cill.txt (read 9 Oct 2026 via a temporary Quote 2 test quote).",
+    "total_cost": 101.53,
+    "total_price": 401.05,
+    "groups": {
+      "labour": {
+        "cost": 100.53,
+        "price": 201.05
+      },
+      "extra_profits": {
+        "cost": 1.0,
+        "price": 200.0
+      }
+    }
   }
 }
