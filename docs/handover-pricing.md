@@ -24,7 +24,10 @@ reviewer who checks everything you say against the repository and the live site
    data is missing). Never write "matches", "passes" or "unchanged" about the live site. State
    what your tests show and what you could not check.
 4. **Never run SQL.** Write SQL files in `sql/` with a rollback section headed "DO NOT RUN", and
-   list them in run order. Nathan runs them.
+   list them in run order. Nathan runs them. List only the files **that step wrote** — do not
+   carry a running "SQL to run" list forward from earlier steps. Everything up to and including
+   `sql/step-ai1-complete-new-45mm-rule.sql` has been run (checked 9 Oct 2026: step-t1/t2 and
+   step-u1/u1b long since, step-ah1 templates at 45 mm, step-ai1 rule id 159 active).
 5. **Git:** stage only files you changed, by name (never `git add -A`); one commit per numbered
    item; push at the end. The working tree has unrelated modified files with line-ending noise
    (several `sql/step-*.sql`, `src/drawingBoard/renderElevation.jsx`, `src/pages/LeadDetail.jsx`,
@@ -129,5 +132,6 @@ Reuse the benchmark page's table component so the two cannot drift.
 
 ## Report format
 
-For each item: files changed; SQL files in run order; what the tests show; what is not verified
-against the live database; anything that did not behave as this note describes.
+For each item: files changed; any SQL files **this step wrote**, in run order (nothing if the
+step wrote none — never repeat files from earlier steps); what the tests show; what is not
+verified against the live database; anything that did not behave as this note describes.
