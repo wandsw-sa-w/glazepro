@@ -35,6 +35,7 @@ import { computeSashWeight } from '../pricing/sashWeight.js'
 import { loadDrawingRunPrices } from '../quotes/drawingRunPrice.js'
 import { SashElevation } from '../drawingBoard/renderElevation.jsx'
 import { applyDividers, applyBars, frameGrid } from '../drawingBoard/gridActions.js'
+import { isDirectGlazedUnit } from '../pricing/casementGeometry.js'
 import { saveAsTemplate, listTemplates, templateGlassNameWarnings } from '../drawingBoard/templates.js'
 import { diffTrees } from '../drawingBoard/diffTrees.js'
 import { insertDrawingHistory, loadDrawingHistory } from '../drawingBoard/drawingHistory.js'
@@ -62,6 +63,7 @@ const PART_LABELS = {
   glassPart:               'Glazing',
   containerPart:           'Container',
   visionPanelGlassPart:    'Vision Panel Glazing',
+  casementSashPart:        'Casement Sash',
   mullionPart:             'Mullion',
   transomPart:             'Transom',
   verticalGlazingBarPart:  'Vertical GB',
@@ -147,8 +149,18 @@ function findRequiredEmpty(tree, fieldDefs, visibilityMap = {}, boardMode = 'sal
   return issues
 }
 
-function partLabel(node) {
-  return node.label_override || PART_LABELS[node.part_type] || node.part_type
+// Step AQ item 4: "casementSashPart" used to show raw in the parts list
+// because PART_LABELS had no entry for it, and a DIRECT GLAZED unit showed
+// "Glazing" — it is a glassPart, but a glassPart that is a direct child of
+// the frame is a direct glazed unit, which is what Integrate calls it. The
+// tree is needed to tell the two apart, so it is optional here and the
+// label falls back to "Glazing" without it.
+function partLabel(node, tree = null) {
+  if (node?.label_override) return node.label_override
+  if (tree && node?.part_type === 'glassPart' && isDirectGlazedUnit(tree, node)) {
+    return 'Direct Glazed Unit'
+  }
+  return PART_LABELS[node.part_type] || node.part_type
 }
 
 // ── InfoNoteIcon ─────────────────────────────────────────────────────────────
@@ -739,7 +751,7 @@ function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, o
       {/* Panel header */}
       <div style={{ padding: '12px 14px 10px', borderBottom: '1px solid #e8e6e0', flexShrink: 0 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 6 }}>
-          {partLabel(node)}
+          {partLabel(node, tree)}
         </div>
         <div style={{ display: 'flex', gap: 4 }}>
           <button onClick={onPrev} disabled={prevDisabled} style={{ flex: 1, fontSize: 11, padding: '4px 0', border: '1px solid #d8d5cf', borderRadius: 6, background: '#fff', cursor: prevDisabled ? 'default' : 'pointer', color: prevDisabled ? '#ccc' : '#555' }}>
@@ -807,7 +819,7 @@ function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, o
 
 // ── ExplorerNode ──────────────────────────────────────────────────────────────
 
-function ExplorerNode({ node, selectedKey, onSelect, depth = 0 }) {
+function ExplorerNode({ node, selectedKey, onSelect, depth = 0, tree = null }) {
   const [open, setOpen] = useState(true)
   const hasChildren = (node.children ?? []).length > 0
   const isSelected = node.key === selectedKey
@@ -835,7 +847,7 @@ function ExplorerNode({ node, selectedKey, onSelect, depth = 0 }) {
           <span style={{ width: 10, flexShrink: 0 }} />
         )}
         <span style={{ fontSize: 12, color: isSelected ? '#3d35a8' : '#444', fontWeight: isSelected ? 500 : 400 }}>
-          {partLabel(node)}
+          {partLabel(node, tree ?? node)}
         </span>
       </div>
       {open && hasChildren && node.children.map(child => (
@@ -845,6 +857,7 @@ function ExplorerNode({ node, selectedKey, onSelect, depth = 0 }) {
           selectedKey={selectedKey}
           onSelect={onSelect}
           depth={depth + 1}
+          tree={tree ?? node}
         />
       ))}
     </div>
@@ -2736,6 +2749,7 @@ function DrawingBoard() {
                 node={tree}
                 selectedKey={selectedKey}
                 onSelect={setSelectedKey}
+                tree={tree}
               />
             </div>
             {/* Summary */}

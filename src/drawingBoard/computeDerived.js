@@ -21,6 +21,7 @@
 
 import { computeSashGeometry, computeOpeningLayout, computeGlassWidth, mullionThicknessMm } from './sashGeometry.js'
 import { resolveTopSashArch } from '../pricing/optionVocabulary.js'
+import { frameOpenings, casementSashSize, directGlazedVisibleSize } from '../pricing/casementGeometry.js'
 
 // Safely convert to number; null/undefined/NaN → null
 function num(v) {
@@ -162,6 +163,32 @@ export function computeDerived(tree, profileValues = null) {
       ? (openings[i]?.width ?? null)
       : interiorW
     entry(p.key).internalHeight = interiorH
+  }
+
+  // casementSashPart / direct glazed glassPart: the OPENING the part sits in
+  // (Integrate's read-only Internal Frame Width / Height on its Casement Sash
+  // panel), plus the part's own size. Step AQ item 4: these come from
+  // casementGeometry.js, the module that PRICES them, so the panel cannot
+  // disagree with the quote.
+  const casementOpenings = frameOpenings(tree)
+  const casementNodes = (frame?.children ?? []).filter(
+    c => c.part_type === 'casementSashPart' || c.part_type === 'glassPart'
+  )
+  for (let i = 0; i < casementNodes.length; i++) {
+    const node = casementNodes[i]
+    const opening = casementOpenings[i] ?? null
+    entry(node.key).internalWidth  = opening?.width  ?? null
+    entry(node.key).internalHeight = opening?.height ?? null
+    if (node.part_type === 'casementSashPart') {
+      const size = casementSashSize(tree, node)
+      entry(node.key).sashWidth  = size.width
+      entry(node.key).sashHeight = size.height
+    } else {
+      // A direct glazed unit: Integrate shows its VISIBLE size
+      const visible = directGlazedVisibleSize(tree, node)
+      entry(node.key).visibleWidth  = visible.width
+      entry(node.key).visibleHeight = visible.height
+    }
   }
 
   // topSashPart / bottomSashPart: weight and travel (formula pending)

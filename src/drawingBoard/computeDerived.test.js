@@ -282,3 +282,64 @@ describe('computeDerived — glazing bar positions use the true glass sightline 
     expect(d['auto']?.position).toBeUndefined()
   })
 })
+
+// ── Step AQ item 4 — the casement panel's read-only sizes ──────────────────
+describe('computeDerived — casement sash and direct glazed unit', () => {
+  // K's shape, at Integrate's own figures: frame 1199 x 1299, jambs 37,
+  // head 47, cill 47, one solid mullion 27 -> two 549 openings.
+  function casementTree() {
+    return {
+      key: 'item', part_type: 'drawingItemPart', values: {}, children: [{
+        key: 'frame', part_type: 'assemblyFramePart',
+        values: { width: 1199, height: 1299, leftWidth: 37, rightWidth: 37, topHeight: 47 },
+        children: [
+          { key: 'mull', part_type: 'mullionPart', values: { offset: 549, thicknessInFrame: 27 }, children: [] },
+          { key: 'cas', part_type: 'casementSashPart',
+            values: { operation: 'left_hand_hung', thickness: 54, topHeight: 62,
+                      leftWidth: 62, rightWidth: 62, bottomHeight: 83,
+                      mechanicalClearanceLeft: 4, mechanicalClearanceRight: 4,
+                      mechanicalClearanceTop: 4, mechanicalClearanceBottom: 4 },
+            children: [{ key: 'casglass', part_type: 'glassPart', values: {}, children: [] }] },
+          { key: 'dgu', part_type: 'glassPart',
+            values: { mechanicalClearanceLeft: 20, mechanicalClearanceRight: 20,
+                      mechanicalClearanceTop: 20, mechanicalClearanceBottom: 20,
+                      hiddenInRebateLeft: 18, hiddenInRebateRight: 18,
+                      hiddenInRebateTop: 18, hiddenInRebateBottom: 18 },
+            children: [] },
+          { key: 'cill', part_type: 'cillPart', values: { height: 47 }, children: [] },
+        ],
+      }],
+    }
+  }
+
+  it('a casement sash gets its opening (read-only) and its own size', () => {
+    const d = computeDerived(casementTree())
+    // Integrate's Casement Sash panel: Internal Frame 549 x 1205, sash 541 x 1197
+    expect(d.cas.internalWidth).toBe(549)
+    expect(d.cas.internalHeight).toBe(1205)
+    expect(d.cas.sashWidth).toBe(541)
+    expect(d.cas.sashHeight).toBe(1197)
+  })
+
+  it('a direct glazed unit gets its opening and its VISIBLE size', () => {
+    const d = computeDerived(casementTree())
+    expect(d.dgu.internalWidth).toBe(549)
+    expect(d.dgu.internalHeight).toBe(1205)
+    // 549 - 20 - 20 = 509, 1205 - 20 - 20 = 1165 — what Integrate shows
+    expect(d.dgu.visibleWidth).toBe(509)
+    expect(d.dgu.visibleHeight).toBe(1165)
+  })
+
+  it("a casement sash's glass child is not treated as an opening", () => {
+    // Only a glassPart that is a DIRECT CHILD of the frame is a unit
+    const d = computeDerived(casementTree())
+    expect(d.casglass?.internalWidth).toBeUndefined()
+    expect(d.casglass?.visibleWidth).toBeUndefined()
+  })
+
+  it('a box sash frame is unaffected', () => {
+    const d = computeDerived(casementTree())
+    // sanity: the casement pass must not invent sashPairPart entries
+    expect(Object.keys(d)).not.toContain('pair1')
+  })
+})
