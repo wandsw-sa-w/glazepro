@@ -321,3 +321,113 @@ export const BENCHMARK_N = {
     'A FIXED casement sash (Integrate operationId 11) is still a sash: it counts in casement_sash_qty and new_casement_sash_qty, and takes sash timber, machining and finishing — the minute reconciliations prove it (facts "Production minutes")',
   ],
 }
+
+// ── Step AR — fanlights (transoms): benchmarks Q, R and S ───────────────────
+//
+// Integrate's own drawings, read 12 Oct 2026
+// (docs/integrate-L31115-fanlights.txt):
+//   Q  L31115 item 2 drawing 21 — 1040 x 980, top-hung fanlight A1 over a
+//      left-hand-hung casement A2
+//   R  drawing 22 — as Q but A1 is a FIXED casement sash
+//   S  drawing 23 — 1199 x 1499, the same layout on a taller frame
+//
+// A transom is stored exactly as a mullion is, turned through 90°: a
+// `transomPart` child of the frame whose `offset` is the height of the
+// opening ABOVE it. Integrate's own values: thickness 27 (solid, 67 overall
+// with its two 20 stops), offset 356, and on the 980-high frame the internal
+// height 886 = 356 + 27 + 503.
+//
+// Openings are in matrix order A1 then A2 — the top row first, as Integrate
+// tags them, which is the order frameOpenings returns.
+
+/** The solid casement transom: offset = the opening ABOVE it. */
+function transom(offset) {
+  return {
+    key: 'trans1',
+    part_type: 'transomPart',
+    values: { offset, thicknessInFrame: 27, transomStopSize: 20 },
+    children: [],
+  }
+}
+
+// The stored ironmongery list on all three (copied from drawing 1/10 by
+// Integrate, and priced as stored). It reconciles to Integrate's 27.30 over
+// eight printed lines, each part rounded to whole pounds then x 1.05:
+//   Connoisseur Handle LH PB 1        7.55 -> 8    -> 8.40
+//   Defender 310mm PC 1 (top hung)    5.10 -> 5    -> 5.25
+//   Kenrick gearbox set PC 1          four parts   -> 4.20 + 2.10 + 1.05 + 1.05
+//   Kenrick Extension 490mm PC 2      2 x 1.10 -> 2 -> 2.10
+//   Trickle Vent XR16 Wht 1           3.25 -> 3    -> 3.15
+// = 27.30 exactly, in 8 lines, as the facts file records.
+const FANLIGHT_IRONMONGERY_LINES = [
+  { product_short_name: 'connoisseur_handle_lh',     finish_code: 'PB',  qty: 1, source: 'survey' },
+  { product_short_name: 'defender_310mm',            finish_code: 'PC',  qty: 1, source: 'survey' },
+  { product_short_name: 'kenrick_extension_gear_box', finish_code: 'PC', qty: 1, source: 'survey' },
+  { product_short_name: 'kenrick_extension_490mm',   finish_code: 'PC',  qty: 2, source: 'survey' },
+  { product_short_name: 'trickle_vent_xr16',         finish_code: 'Wht', qty: 1, source: 'survey' },
+]
+
+/** A fanlight tree: one column, two rows, the fanlight on top. */
+function fanlightTree({ width, height, transomOffset, fanlightOperation }) {
+  const tree = casementTree({
+    width, height,
+    withMullion: false,
+    openings: [
+      casementSash('cas_a1', fanlightOperation),   // the FANLIGHT, above
+      casementSash('cas_a2', 'left_hand_hung'),    // the casement below
+    ],
+  })
+  const frame = tree.children.find(c => c.part_type === 'assemblyFramePart')
+  // The transom goes first, as the mullion does
+  frame.children.unshift(transom(transomOffset))
+  // These three carry their own ironmongery list, not J-N's
+  const paint = tree.children.find(c => c.part_type === 'paintAndIronmongeryPart')
+  paint.values.ironmongeryLines = FANLIGHT_IRONMONGERY_LINES.map(l => ({ ...l }))
+  return tree
+}
+
+const FANLIGHT_COMMON = {
+  partCostMap: PART_COST_MAP,
+  profileValues: PROFILE_VALUES,
+  ironmongeryLines: FANLIGHT_IRONMONGERY_LINES,
+  glassCatalogue: {},
+}
+
+const FANLIGHT_ASSUMPTIONS = [
+  'Frame, transom, openings, cill, glass and ironmongery: Integrate’s saved drawings (docs/integrate-L31115-fanlights.txt, read 12 Oct 2026)',
+  'A transom is a transomPart child of the frame with offset = the opening ABOVE it, as GlazePro stores mullions (Integrate keeps both in the frame’s dividers array)',
+  'Transom thickness 27 and stops 20/20 are Integrate’s stored values. The casement profile has NO transom thickness key — the solid MULLION value is 27, which matches, and is what the board uses (reported in docs/step-ar-findings.md)',
+  'Casement operation codes not verified: top_hung is Integrate operationId 15, fix is 11. Only "fix" is read by a priced rule',
+  'Rule 121 (Casement Transoms & Mullions length) uses internal WIDTH + 25 for a transom, by analogy with the mullion’s internal height + 25 — NOT VERIFIED, there is no transom reading for it (these three are softwood, so rule 121 does not fire on them)',
+  'installationMethod internally: ASSUMPTION, as the other fixtures; the engine does not read it',
+]
+
+export const BENCHMARK_Q = {
+  name: 'Benchmark Q — Top-hung fanlight over a casement (L31115 Item 2 Drawing 21)',
+  tree: fanlightTree({ width: 1040, height: 980, transomOffset: 356, fanlightOperation: 'top_hung' }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkQ_fanlight_tophung_over_side },
+  ...FANLIGHT_COMMON,
+  assumptions: FANLIGHT_ASSUMPTIONS,
+}
+
+export const BENCHMARK_R = {
+  name: 'Benchmark R — FIXED fanlight over a casement (L31115 Item 2 Drawing 22)',
+  tree: fanlightTree({ width: 1040, height: 980, transomOffset: 356, fanlightOperation: 'fix' }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkR_fixed_fanlight_over_side },
+  ...FANLIGHT_COMMON,
+  assumptions: [
+    ...FANLIGHT_ASSUMPTIONS,
+    'R differs from Q only in the fanlight’s operation: a fixed casement sash takes 60 install minutes instead of an opener’s 90, so labour is 10.50 h against 11.00 h and nothing else moves',
+  ],
+}
+
+export const BENCHMARK_S = {
+  name: 'Benchmark S — Fanlight over a casement, 1199 x 1499 (L31115 Item 2 Drawing 23)',
+  tree: fanlightTree({ width: 1199, height: 1499, transomOffset: 356, fanlightOperation: 'top_hung' }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkS_fanlight_1199x1499 },
+  ...FANLIGHT_COMMON,
+  assumptions: [
+    ...FANLIGHT_ASSUMPTIONS,
+    'S’s lower sash (1117 x 1014, a 0.92 m² unit) is over 25 kg, so install rule 95 "Any Sash Overweight" adds 45 minutes — labour 11.75 h',
+  ],
+}

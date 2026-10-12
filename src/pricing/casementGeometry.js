@@ -71,23 +71,73 @@ export function frameInterior(tree) {
   }
 }
 
+/** A divider's thickness in the frame, as the part itself stores it. */
+function dividerThickness(d) {
+  return num(d?.values?.thicknessInFrame) ?? 0
+}
+
 /**
- * The frame's openings, left to right: [{ width, height }].
+ * The frame's COLUMN slots, left to right, from its mullions.
  *
  * A CASEMENT mullion is SOLID, so its thickness is the value stored on the
  * mullion itself (27 on these drawings) — never the hollow box-sash profile
  * value `thicknessInFrameHollow`, which is what Step AE's box sash mullions
  * use.
  */
-export function frameOpenings(tree) {
+export function frameColumns(tree) {
   const frame = findFirst(tree, 'assemblyFramePart')
-  if (!frame) return []
   const interior = frameInterior(tree)
-  if (interior.width == null) return []
+  if (!frame || interior.width == null) return []
   const mullions = (frame.children ?? []).filter(c => c.part_type === 'mullionPart')
-  const slots = computeOpeningLayout(mullions, interior.width,
-    m => num(m?.values?.thicknessInFrame) ?? 0)
-  return slots.map(s => ({ width: s.width, height: interior.height }))
+  return computeOpeningLayout(mullions, interior.width, dividerThickness)
+}
+
+/**
+ * The frame's ROW slots, TOP TO BOTTOM, from its transoms (Step AR).
+ *
+ * A transom is stored exactly as a mullion is, turned through 90°: its
+ * `offset` is the height of the opening ABOVE it and its thickness is its
+ * own `thicknessInFrame` (27, solid, 67 overall with its two 20 stops). On
+ * Integrate's 980-high fanlight frame the transom sits at 356 and the
+ * internal height 886 = 356 + 27 + 503, which is what makes the row above
+ * it 356 and the one below 503.
+ *
+ * Row 1 is the TOP row, so the fanlight is A1 and the casement below it A2,
+ * as Integrate tags them.
+ */
+export function frameRows(tree) {
+  const frame = findFirst(tree, 'assemblyFramePart')
+  const interior = frameInterior(tree)
+  if (!frame || interior.height == null) return []
+  const transoms = (frame.children ?? []).filter(c => c.part_type === 'transomPart')
+  return computeOpeningLayout(transoms, interior.height, dividerThickness)
+}
+
+/** How many columns and rows the frame is divided into. */
+export function frameGridSize(tree) {
+  return { cols: Math.max(frameColumns(tree).length, 1), rows: Math.max(frameRows(tree).length, 1) }
+}
+
+/**
+ * The frame's openings as a flat list in Integrate's matrix order:
+ * A1, B1, …, then A2, B2, … — across the top row first, then down.
+ *
+ * Opening nodes take these slots in tree order, so the tree's order of
+ * openings IS this order (see openingNodes).
+ */
+export function frameOpenings(tree) {
+  const cols = frameColumns(tree)
+  const rows = frameRows(tree)
+  if (cols.length === 0 || rows.length === 0) return []
+  const out = []
+  for (const row of rows) {
+    for (const col of cols) {
+      // computeOpeningLayout returns { x, width } along whichever axis it was
+      // given, so a ROW's `width` is its height and its `x` is its top edge.
+      out.push({ width: col.width, height: row.width, x: col.x, y: row.x })
+    }
+  }
+  return out
 }
 
 /** The frame's opening NODES, in tree order (Integrate's matrixIndex order). */

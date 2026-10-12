@@ -885,6 +885,15 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
         // Component measure is in mm. PF30 price rules use `length * qty` where
         // length is metres rounded UP to the next 0.1 m (Integrate convention).
         // e.g. 1875 mm → ceil(1875/100)/10 = 1.9 m; 1355 mm → 1.4 m.
+        //
+        // Step AR: ceiling is CONFIRMED by two readings that round-half-up
+        // would get wrong — L34046's surround width 1345 mm → 1.4 m and
+        // benchmark S's surround head board 1349 mm → 1.4 m. Benchmark Q
+        // disagrees (surround width 1140 mm → Integrate prints 1.10 m, not
+        // 1.20), and that 28p is Q's whole remaining gap after the gearbox
+        // part costs. Changing the rounding here to satisfy Q breaks L34046
+        // and S, so the measure, not the rounding, is what differs on Q —
+        // left alone and reported (docs/step-ar-findings.md).
         const lengthMetres = Math.ceil(allocPart.measure / 100) / 10
         const compVars = {
           ...priceVars,

@@ -13,7 +13,8 @@ import { runPricingOnTree, shapedGlassCutAreaM2 } from '../pricingEngine.js'
 import { applySashesReplaced } from '../../drawingBoard/sashesReplaced.js'
 import { computeDerived } from '../../drawingBoard/computeDerived.js'
 import { computeVariables } from '../computeVariables.js'
-import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_B_UNCORRECTED, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F, BENCHMARK_G, BENCHMARK_H, BENCHMARK_I, BENCHMARK_J, BENCHMARK_K, BENCHMARK_L, BENCHMARK_M, BENCHMARK_N, BENCHMARK_P } from './index.js'
+import { frameGridSize, frameOpenings, casementSashSize, casementSashWeightKg, casementFrameTimberVolumeDm3, frameMuntinLengthM } from '../casementGeometry.js'
+import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_B_UNCORRECTED, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F, BENCHMARK_G, BENCHMARK_H, BENCHMARK_I, BENCHMARK_J, BENCHMARK_K, BENCHMARK_L, BENCHMARK_M, BENCHMARK_N, BENCHMARK_P, BENCHMARK_Q, BENCHMARK_R, BENCHMARK_S } from './index.js'
 import { resolveIronmongeryLines } from '../loadPricingContext.js'
 // The LIVE price-file snapshot (reviewer-checked, 8 Oct 2026) — the honest
 // benchmarks and the real-tree case price from this, never from the
@@ -1256,5 +1257,151 @@ describe('Step AO — casement and direct glazed benchmarks', () => {
       expect(lines.map(l => l.product_short_name).sort(), bm.name)
         .toEqual(bm.ironmongeryLines.map(l => l.product_short_name).sort())
     }
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step AR — fanlights (transoms): benchmarks Q, R and S
+// ══════════════════════════════════════════════════════════════════════════════
+// docs/integrate-L31115-fanlights.txt, read 12 Oct 2026. The facts file
+// reconciles every minute, every timber volume and the glass minimum, so an
+// hours-and-quantities match means the transom model is right.
+//
+// Two gaps are subtracted, both named and neither tuned:
+//  - ONE Kenrick gearbox set per drawing, whose four parts carry unit_cost 0
+//    in the snapshot (the £14.70 of J–P at two sets; 8.40 at one). The
+//    reviewer's sql/step-ap0-gearbox-part-costs.sql is the data fix.
+//  - Q and R only: the surround WIDTH component. Integrate's own rule
+//    measures 1000 × width + 100 = 1140 mm and Integrate prints 1.10 m,
+//    while GlazePro ceils to 1.20 m — 28p. Ceiling is confirmed by L34046
+//    (1345 mm → 1.4 m) and by S's own head board (1349 mm → 1.4 m), so the
+//    rounding is NOT what differs and was left alone (docs/step-ar-findings.md).
+describe('Step AR — casement fanlight benchmarks', () => {
+  const GEARBOX_GAP_COST = 8.40, GEARBOX_GAP_PRICE = 16.80
+  const SURROUND_OVER_COST = 0.28, SURROUND_OVER_PRICE = 0.57
+
+  /** The frame's casement sashes, in matrix order. */
+  const sashesOf = bm => bm.tree.children
+    .find(c => c.part_type === 'assemblyFramePart').children
+    .filter(c => c.part_type === 'casementSashPart')
+
+  const CASES = [
+    ['Q', BENCHMARK_Q, INTEGRATE.benchmarkQ_fanlight_tophung_over_side, 17.17, 11.00, true],
+    ['R', BENCHMARK_R, INTEGRATE.benchmarkR_fixed_fanlight_over_side,   17.17, 10.50, true],
+    ['S', BENCHMARK_S, INTEGRATE.benchmarkS_fanlight_1199x1499,         17.17, 11.75, false],
+  ]
+
+  for (const [label, bm, target, production, labour] of CASES) {
+    it(`${label}: production ${production} h and labour ${labour} h, exactly`, () => {
+      const r = runFromSnapshot(bm.tree)
+      expect(r.manufacture_labour.total_minutes / 60, label).toBeCloseTo(production, 2)
+      expect(r.install_labour.total_minutes / 60, label).toBeCloseTo(labour, 2)
+    })
+  }
+
+  for (const [label, bm, target, , , surroundGap] of CASES) {
+    it(`${label}: every line matches Integrate but the gear box${surroundGap ? ' and the 28p surround' : ''}`, () => {
+      const r = runFromSnapshot(bm.tree)
+      const costGap  = GEARBOX_GAP_COST  - (surroundGap ? SURROUND_OVER_COST  : 0)
+      const pricegap = GEARBOX_GAP_PRICE - (surroundGap ? SURROUND_OVER_PRICE : 0)
+      expect(r.price.total_cost, label).toBeCloseTo(target.total_cost - costGap, 2)
+      expect(r.price.total, label).toBeCloseTo(target.total_price - pricegap, 2)
+    })
+  }
+
+  it('the transom splits the internal height into Integrate’s own rows', () => {
+    // Q: internal 886 = 356 + 27 + 503, so the fanlight row is 356 and the
+    // row below it 503. Row 1 is the TOP row, as Integrate tags A1 / A2.
+    expect(frameGridSize(BENCHMARK_Q.tree)).toEqual({ cols: 1, rows: 2 })
+    expect(frameOpenings(BENCHMARK_Q.tree).map(o => [o.width, o.height]))
+      .toEqual([[966, 356], [966, 503]])
+    // S: internal 1405 = 356 + 27 + 1022 — the fanlight keeps its 356
+    expect(frameOpenings(BENCHMARK_S.tree).map(o => [o.width, o.height]))
+      .toEqual([[1125, 356], [1125, 1022]])
+  })
+
+  it('the sashes are the opening less 4 mm clearance all round', () => {
+    const sizes = bm => sashesOf(bm)
+      .map(s => { const z = casementSashSize(bm.tree, s); return [z.width, z.height] })
+    expect(sizes(BENCHMARK_Q)).toEqual([[958, 348], [958, 495]])
+    expect(sizes(BENCHMARK_S)).toEqual([[1117, 348], [1117, 1014]])
+  })
+
+  it('production is 1030 minutes: the transom adds 180 + 60', () => {
+    // frame 180 + transom 180 (rule 1105, frame_transom_qty) + 2 sashes x 180
+    // + glazing 2 x 20 + sash finish 2 x 60 + frame finish 90 + transom
+    // finish 60 (rule 211) = 1030 on all three
+    for (const [label, bm] of CASES.map(c => [c[0], c[1]])) {
+      expect(runFromSnapshot(bm.tree).manufacture_labour.total_minutes, label).toBe(1030)
+    }
+    const v = computeVariables(BENCHMARK_Q.tree, computeDerived(BENCHMARK_Q.tree), PF_VARIABLES)
+    expect(v.frame_transom_qty).toBe(1)
+    expect(v.frame_mullion_qty).toBe(0)
+  })
+
+  it('a fixed fanlight costs 60 install minutes, an opener 90', () => {
+    // R is Q with the fanlight fixed and nothing else changed
+    const q = runFromSnapshot(BENCHMARK_Q.tree).install_labour.total_minutes
+    const r = runFromSnapshot(BENCHMARK_R.tree).install_labour.total_minutes
+    expect(q).toBe(660)
+    expect(r).toBe(630)
+    expect(q - r).toBe(30)
+  })
+
+  it('S’s lower sash is over 25 kg, so Any Sash Overweight fires', () => {
+    const sashes = sashesOf(BENCHMARK_S)
+    const weights = sashes.map(s => casementSashWeightKg(BENCHMARK_S.tree, s, {}))
+    expect(weights[0]).toBeLessThan(25)        // the fanlight
+    expect(weights[1]).toBeGreaterThan(25)     // 1117 x 1014 with a 0.92 m2 unit
+    // and that is the whole 45-minute difference from Q
+    expect(runFromSnapshot(BENCHMARK_S.tree).install_labour.total_minutes).toBe(705)
+    expect(705 - 660).toBe(45)
+  })
+
+  it('the fanlight glass takes the 0.30 m2 minimum', () => {
+    // 958 - 124 + 28 = 862 by 348 - 145 + 28 = 231 -> 0.199 m2 -> 0.30
+    const areas = bm => runFromSnapshot(bm.tree).price.lines
+      .filter(l => l.fires && l.name === 'Square Glass Cost').map(l => l.quantity)
+    expect(areas(BENCHMARK_Q)).toEqual([0.30, 0.33])
+    expect(areas(BENCHMARK_S)).toEqual([0.30, 0.92])
+  })
+
+  it('the frame timber includes the transom at internal width + 20', () => {
+    // head W x 96 x 67 + jambs 2 x internal height x 96 x 57
+    //   + transom (internal width + 20) x 96 x 67
+    // Q: 6.689 + 9.696 + 986 x 6432 = 6.342 -> 22.73
+    // S: 7.712 + 15.376 + 1145 x 6432 = 7.365 -> 30.45
+    expect(casementFrameTimberVolumeDm3(BENCHMARK_Q.tree)).toBeCloseTo(22.73, 2)
+    expect(casementFrameTimberVolumeDm3(BENCHMARK_S.tree)).toBeCloseTo(30.45, 2)
+    const qty = (bm, name) => runFromSnapshot(bm.tree).price.lines
+      .filter(l => l.fires && l.name === name).map(l => l.quantity)
+    // x 1.25 is the rule's own multiplier
+    expect(qty(BENCHMARK_Q, 'Softwood Casement Frame & Sashes')).toEqual([28.4125])
+    expect(qty(BENCHMARK_S, 'Softwood Casement Frame & Sashes')).toEqual([38.0625])
+  })
+
+  it('sash timber and the cill are per Integrate', () => {
+    const qty = (bm, name) => runFromSnapshot(bm.tree).price.lines
+      .filter(l => l.fires && l.name === name).map(l => l.quantity)
+    // (2 x H x 62 + W x (62 + 83)) x 54, 2 dp
+    expect(qty(BENCHMARK_Q, 'Softwood Casement Sashes')).toEqual([9.83, 10.82])
+    expect(qty(BENCHMARK_S, 'Softwood Casement Sashes')).toEqual([11.08, 15.54])
+    // cill = FULL frame width x 128 x 67 x 1.25
+    expect(qty(BENCHMARK_Q, 'Hardwood Casement Cill')).toEqual([11.15])
+    expect(qty(BENCHMARK_S, 'Hardwood Casement Cill')).toEqual([12.85])
+  })
+
+  it('rule 121 is not fired by these three, and its transom length is unverified', () => {
+    // Q/R/S are softwood, so the utile "Casement Transoms & Mullions" rule
+    // does not fire. frameMuntinLengthM still has to answer for the board,
+    // and its TRANSOM length — internal width + 25 — is by analogy with the
+    // mullion's internal height + 25. There is no Integrate reading for it.
+    for (const [label, bm] of CASES.map(c => [c[0], c[1]])) {
+      const fired = runFromSnapshot(bm.tree).price.lines
+        .filter(l => l.fires && l.name === 'Casement Transoms & Mullions')
+      expect(fired, label).toEqual([])
+    }
+    // internal width 966 + 25 = 991 mm
+    expect(frameMuntinLengthM(BENCHMARK_Q.tree)).toBeCloseTo(0.991, 3)
   })
 })
