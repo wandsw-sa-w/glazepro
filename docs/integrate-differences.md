@@ -134,3 +134,54 @@ does when a user makes that change, and the board path is tested separately
 (`src/pricing/benchmarks/boardPath.test.js`). No price rule, variable or
 engine behaviour changed, and the full benchmark line dump is byte-identical
 (`PRICING_ENGINE_VERSION` stays 11).
+
+---
+
+## 4. A new casement drawing starts with no stored ironmongery list
+
+**Date:** 9 October 2026
+**Decided by:** Nathan Smith (decision 3)
+**Code:** `src/drawingBoard/casementOpenings.js`, `src/pricing/defaultIronmongery.js`, Step AP
+
+**What differs:**
+
+Integrate stores an ironmongery list on the drawing and **never changes it
+when the openings change**. A new Integrate casement drawing carries whatever
+list its template had, so a surveyor who turns an opening casement into a
+fixed one still has the handle, gearbox and extensions on the list and has to
+delete them by hand.
+
+GlazePro's casement templates store **no list at all** (`sql/step-ap1`). The
+default ironmongery rules — Integrate's own, already in
+`part_allocation_rules` — price the ironmongery from the tree, so the list
+follows the openings automatically:
+
+| | Integrate | GlazePro |
+|---|---|---|
+| New drawing | the template's stored list | no list; the rules price it |
+| B1 opening → fixed | list unchanged (handle, gearbox and extensions stay) | handle, gearbox and extensions drop out |
+| Surveyor edits the list | stored from then on | stored from then on (same) |
+
+The last row is the important one: as soon as a surveyor edits the list it is
+stored on the drawing and from then on the stored list is used, exactly as on
+a sash window. The difference applies only to a drawing nobody has touched.
+
+**Why:**
+
+A stored list that does not follow the drawing is a silent overcharge: the
+surveyor changes a sash to Fix, the price keeps the handle and the multipoint
+gear for it, and nothing on screen says so. Deriving the list from the tree
+means the quote always matches the window that was drawn. Nathan also wanted
+"Casement MPLS" on by default (casements are multipoint by default here) with
+the surveyor able to untick it — `sql/step-ap2` adds that field.
+
+**Effect on price:**
+
+None on any benchmark. J–P all hold Integrate's own stored list as explicit
+fixture values, so they price exactly as Step AO recorded them; this
+difference changes only what a NEW drawing does before anyone edits its list.
+The default lists the rules produce are reported in `docs/step-ap-findings.md`
+— and three of them currently price 0.00, because the default line resolves
+to the item's ironmongery finish (PB) while the friction hinge, the gearbox
+and the Kenrick extensions exist only in PC. That is an unresolved data
+question for the reviewer, not part of this difference.
