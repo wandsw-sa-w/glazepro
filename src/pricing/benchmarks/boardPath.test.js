@@ -605,4 +605,106 @@ describe('Step AP — the board builds the casement benchmarks', () => {
     expect(applyCompleteNewThickness(tree).pairsChanged).toEqual([])
     expect(applyCillRules(tree).changed).toEqual([])
   })
+
+  // Reads either thickness key, so this block is unaffected by item 3's
+  // migration from sashThickness to thickness.
+  const sashThicknessOf = s => s.values.thickness ?? s.values.sashThickness
+
+  // ── Step AQ item 2 — making an opening fixed keeps its sections ──────────
+  // The reviewer's live test (12 Oct, L507712 item 8): B1 was an opening
+  // casement copied from A1 (62/62/62/83, 54 thick, clearance 4), and
+  // "Change to: Fixed casement" saved it as 94/94/94/47, 58 thick,
+  // clearance 2 — glass 0.42 instead of 0.48, sash timber 17.55 instead of
+  // 12.25. changeOpening rebuilt the sash from the profile instead of just
+  // setting the operation.
+  it('N: Double template at 1199 → B1 Fixed casement → exactly N', () => {
+    // Built at the final size so the mullion is centred (549) and this test
+    // is about §2 alone, not the resize behaviour of §7.
+    let { tree } = buildCasementFrame(PV, {
+      width: 1199, height: 1299,
+      openings: ['opening_casement', 'opening_casement'],
+    })
+    const b1 = openingNodes(tree)[1]
+    const { tree: next, changed } = changeOpening(tree, b1.key, 'fixed_casement', PV)
+    expect(changed).toBe(true)
+    tree = next
+
+    // The sash is the SAME node, with only its operation changed
+    const after = openingNodes(tree)
+    expect(after[1].key).toBe(b1.key)
+    expect(after.map(openingKindOf)).toEqual(['opening_casement', 'fixed_casement'])
+    expect(after[1].values.operation).toBe('fix')
+
+    // Every section survives — these are the numbers the live save lost
+    for (const sash of after) {
+      expect(sash.values.topHeight).toBe(62)
+      expect(sash.values.leftWidth).toBe(62)
+      expect(sash.values.rightWidth).toBe(62)
+      expect(sash.values.bottomHeight).toBe(83)
+      expect(sashThicknessOf(sash)).toBe(54)
+      expect(sash.values.mechanicalClearanceLeft).toBe(4)
+      expect(sash.values.mechanicalClearanceRight).toBe(4)
+    }
+    expectSameAsFixture(withFixtureIronmongery(tree, BENCHMARK_N), BENCHMARK_N, 'N')
+  })
+
+  it('the "Fixed casement" change and the "fix" button give the same tree', () => {
+    // Integrate's Fix is one operation reached two ways; they must not differ
+    const build = () => buildCasementFrame(PV, {
+      width: 1199, height: 1299,
+      openings: ['opening_casement', 'opening_casement'],
+    }).tree
+    const viaChange = (() => {
+      const t = build()
+      return changeOpening(t, openingNodes(t)[1].key, 'fixed_casement', PV).tree
+    })()
+    const viaButton = (() => {
+      const t = build()
+      return setCasementOperation(t, openingNodes(t)[1].key, 'fix').tree
+    })()
+    const strip = t => JSON.stringify(openingNodes(t).map(n => n.values))
+    expect(strip(viaChange)).toBe(strip(viaButton))
+    expect(priceFromSnapshot(withFixtureIronmongery(viaChange, BENCHMARK_N)).price.total)
+      .toBeCloseTo(priceFromSnapshot(withFixtureIronmongery(viaButton, BENCHMARK_N)).price.total, 2)
+  })
+
+  it('a sash the surveyor has altered keeps its own sections when fixed', () => {
+    // The real reason this must not rebuild: the sections may be the
+    // surveyor's, not the profile's.
+    let { tree } = buildCasementFrame(PV, { width: 1199, height: 1299, openings: ['opening_casement'] })
+    const sash = openingNodes(tree)[0]
+    sash.values.topHeight = 70
+    sash.values.bottomHeight = 120
+    tree = changeOpening(tree, sash.key, 'fixed_casement', PV).tree
+    const after = openingNodes(tree)[0]
+    expect(after.values.topHeight).toBe(70)
+    expect(after.values.bottomHeight).toBe(120)
+    expect(after.values.operation).toBe('fix')
+  })
+
+  it('fixed → opening casement gives it a hinge side and keeps its sections', () => {
+    let { tree } = buildCasementFrame(PV, { width: 1199, height: 1299, openings: ['opening_casement'] })
+    const sash = openingNodes(tree)[0]
+    tree = changeOpening(tree, sash.key, 'fixed_casement', PV).tree
+    tree = changeOpening(tree, sash.key, 'opening_casement', PV).tree
+    const after = openingNodes(tree)[0]
+    expect(after.key).toBe(sash.key)
+    expect(after.values.operation).toBe('left_hand_hung')
+    expect(after.values.topHeight).toBe(62)
+    expect(sashThicknessOf(after)).toBe(54)
+  })
+
+  it('a direct glazed unit becoming a casement DOES build a new sash', () => {
+    // There is no sash to keep, so the profile is the only source — the one
+    // case where building is right (brief §2).
+    let { tree } = buildCasementFrame(PV, { width: 1199, height: 1299, openings: ['direct_glazed'] })
+    const dgu = openingNodes(tree)[0]
+    const { tree: next, changed } = changeOpening(tree, dgu.key, 'opening_casement', PV)
+    expect(changed).toBe(true)
+    const after = openingNodes(next)[0]
+    expect(after.part_type).toBe('casementSashPart')
+    expect(after.key).not.toBe(dgu.key)
+    expect(after.values.topHeight).toBe(62)
+    expect(sashThicknessOf(after)).toBe(54)
+  })
 })

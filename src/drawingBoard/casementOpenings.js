@@ -333,6 +333,28 @@ export function changeOpening(tree, openingKey, kind, profileValues) {
   if (!OPENING_TYPES.includes(current.part_type)) return { tree, changed: false }
   if (openingKindOf(current) === kind) return { tree, changed: false }
 
+  // Step AQ: a sash that is ALREADY a sash only changes its OPERATION.
+  //
+  // This used to fall through to buildOpening, which built a brand new sash
+  // from the profile and threw away the sections the sash actually had. On
+  // the reviewer's live test (12 Oct) B1 was an opening casement copied from
+  // A1 — 62/62/62/83, 54 thick, clearance 4 — and "Change to: Fixed
+  // casement" saved it as 94/94/94/47, 58 thick, clearance 2, which priced
+  // 0.42 m² of glass instead of 0.48 and 17.55 dm³ of sash timber instead of
+  // 12.25. Integrate's Fix changes nothing but the operation (2/18 kept
+  // 62/62/62/83, 54, 4).
+  //
+  // This is also the only correct behaviour: the surveyor may have changed
+  // the sash's sections by hand, and a fixed casement is still the same sash
+  // (Step AO proved it from Integrate's own minutes). Building a new one is
+  // right only when there is no sash yet — a direct glazed unit becoming a
+  // casement, below.
+  if (current.part_type === 'casementSashPart' &&
+      (kind === 'fixed_casement' || kind === 'opening_casement')) {
+    const operation = kind === 'fixed_casement' ? 'fix' : DEFAULT_CASEMENT_OPERATION
+    return setCasementOperation(tree, openingKey, operation)
+  }
+
   // Carry the glass codes over: on a casement sash they live on its glass
   // child, on a direct glazed unit on the unit itself.
   const glassSource = current.part_type === 'casementSashPart'
