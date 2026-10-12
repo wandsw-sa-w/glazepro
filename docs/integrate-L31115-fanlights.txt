@@ -57,3 +57,17 @@ Groups: glass 75.52 ; installation materials 70.13 ; manufacture 423.41 ; labour
 # Sash timber per sash: (2 x H x 62 + W x (62 + 83)) x 54: 958 x 348 -> 9.83 ; 958 x 495 -> 10.82 ; 1117 x 348 -> 11.08 ;
 #   1117 x 1014 -> 15.54.  Cill: W x 128 x 67: 1040 -> 8.92 -> 11.15 ; 1199 -> 12.85.
 # Glass: fanlight 958 - 124 + 28 = 862 x (348 - 145 + 28) = 231 -> 0.199 m2 -> the 0.30 minimum. S lower: 1021 x 897 = 0.92.
+
+## Surround lengths (read 12 Oct)
+# Integrate's board stores each drawing's surround list (`surround` on DrawingItemPart: qty, length in mm,
+# lockToItemWidth/Height 0). The price lines then use those stored lengths. So there are TWO roundings:
+#   1. the board snaps the rule's length (1000 x width/height + 100) UP to the next 10 mm;
+#   2. the price uses that length to the NEAREST 0.1 m, halves up.
+# | Drawing            | Frame        | Rule 1000 x w/h + 100 | Stored length   | Integrate prints |
+# | L34046 7/1         | 1245 x 1779  | width 1345 / ht 1879  | 1350 / 2 x 1880 | 1.40 / 2 x 1.90  |
+# | L31115 2/21,2/22 QR| 1040 x 980   | 1140 / 1080           | 1140 / 2 x 1080 | 1.10 / 2.20      |
+# | L31115 2/23 (S)    | 1199 x 1499  | 1299 / 1599           | 1300 / 2 x 1600 | 1.30 / 3.20      |
+# | L31115 3/1 (C)     | 999 x 1199   | 1099 / 1299           | 1100 / 2 x 1300 | 1.10 / 2.60      |
+# | L31115 4/1 (D)     | 1800 x 1299  | 1900 / 1399           | 1900 / 2 x 1400 | 1.90 / 2.80      |
+# A single ceiling to 0.1 m gives the same answer everywhere EXCEPT Q/R's width (1140 -> 1.2 not 1.1).
+# The +100 allowance is the same on a casement as on a box sash — the earlier question is answered.

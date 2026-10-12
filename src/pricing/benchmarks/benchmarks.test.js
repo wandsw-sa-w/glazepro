@@ -1278,7 +1278,6 @@ describe('Step AO — casement and direct glazed benchmarks', () => {
 //    rounding is NOT what differs and was left alone (docs/step-ar-findings.md).
 describe('Step AR — casement fanlight benchmarks', () => {
   const GEARBOX_GAP_COST = 8.40, GEARBOX_GAP_PRICE = 16.80
-  const SURROUND_OVER_COST = 0.28, SURROUND_OVER_PRICE = 0.57
 
   /** The frame's casement sashes, in matrix order. */
   const sashesOf = bm => bm.tree.children
@@ -1286,9 +1285,9 @@ describe('Step AR — casement fanlight benchmarks', () => {
     .filter(c => c.part_type === 'casementSashPart')
 
   const CASES = [
-    ['Q', BENCHMARK_Q, INTEGRATE.benchmarkQ_fanlight_tophung_over_side, 17.17, 11.00, true],
-    ['R', BENCHMARK_R, INTEGRATE.benchmarkR_fixed_fanlight_over_side,   17.17, 10.50, true],
-    ['S', BENCHMARK_S, INTEGRATE.benchmarkS_fanlight_1199x1499,         17.17, 11.75, false],
+    ['Q', BENCHMARK_Q, INTEGRATE.benchmarkQ_fanlight_tophung_over_side, 17.17, 11.00],
+    ['R', BENCHMARK_R, INTEGRATE.benchmarkR_fixed_fanlight_over_side,   17.17, 10.50],
+    ['S', BENCHMARK_S, INTEGRATE.benchmarkS_fanlight_1199x1499,         17.17, 11.75],
   ]
 
   for (const [label, bm, target, production, labour] of CASES) {
@@ -1299,15 +1298,24 @@ describe('Step AR — casement fanlight benchmarks', () => {
     })
   }
 
-  for (const [label, bm, target, , , surroundGap] of CASES) {
-    it(`${label}: every line matches Integrate but the gear box${surroundGap ? ' and the 28p surround' : ''}`, () => {
+  for (const [label, bm, target] of CASES) {
+    it(`${label}: every line matches Integrate but the gear box`, () => {
       const r = runFromSnapshot(bm.tree)
-      const costGap  = GEARBOX_GAP_COST  - (surroundGap ? SURROUND_OVER_COST  : 0)
-      const pricegap = GEARBOX_GAP_PRICE - (surroundGap ? SURROUND_OVER_PRICE : 0)
-      expect(r.price.total_cost, label).toBeCloseTo(target.total_cost - costGap, 2)
-      expect(r.price.total, label).toBeCloseTo(target.total_price - pricegap, 2)
+      expect(r.price.total_cost, label).toBeCloseTo(target.total_cost - GEARBOX_GAP_COST, 2)
+      expect(r.price.total, label).toBeCloseTo(target.total_price - GEARBOX_GAP_PRICE, 2)
     })
   }
+
+  it('the surround lengths are Integrate’s own printed figures', () => {
+    // Step AR addendum: Q's width surround measures 1140 mm and prints
+    // 1.10 m (it used to ceil to 1.20); its height surrounds are 2 x 1080
+    // = 2.20. S's are 1299 -> 1.30 and 2 x 1599 -> 3.20.
+    const surrounds = bm => runFromSnapshot(bm.tree).price.lines
+      .filter(l => l.fires && l.name === 'Component Cost')
+      .map(l => l.value)   // a Component Cost line is cost x LENGTH
+    expect(surrounds(BENCHMARK_Q)).toEqual([2.2, 1.1])
+    expect(surrounds(BENCHMARK_S)).toEqual([3.2, 1.3])
+  })
 
   it('the transom splits the internal height into Integrate’s own rows', () => {
     // Q: internal 886 = 356 + 27 + 503, so the fanlight row is 356 and the

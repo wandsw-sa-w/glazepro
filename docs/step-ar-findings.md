@@ -52,29 +52,37 @@ MULLION's section, and `mullionPart.thicknessInFrameSolid` is 27. So
 agreement, rather than writing 27 in as a constant. If a transom key does
 exist under a spelling I could not see, it should go first in that function.
 
-## 2. The 28p on Q — a reading that contradicts a fix
+## 2. The 28p on Q — RESOLVED by the addendum
 
-Q is short of Integrate by 8.12 and S by 8.40. S's 8.40 is the gearbox (below).
-Q's extra 28p is the surround:
+**Closed.** The reviewer read Integrate's stored surround lists on five
+drawings (now in `docs/integrate-L31115-fanlights.txt` under "Surround
+lengths"), which show Integrate doing **two** roundings, not one:
 
-Integrate's own allocation rule measures `1000 × width + 100`, so Q's
-1040-wide frame gives **1140 mm**. Integrate prints **1.10 m** (£3.14);
-GlazePro ceils to 1.20 m (£3.42).
+1. the board snaps the rule's length (`1000 × width/height + 100`) **up to
+   the next 10 mm** — 1345 → 1350, 1879 → 1880, 1299 → 1300;
+2. the price uses that length to the **nearest 0.1 m, halves up** — 1350 →
+   1.4, 1140 → 1.1, 1080 → 1.1.
 
-I changed the rounding to half-up — and it broke two other readings:
+That fits every reading at once, including the three that defeated a single
+rounding mode:
 
-| benchmark | part | measure | ceil | round | Integrate |
+| benchmark | part | measure | snapped | Integrate | GlazePro now |
 |---|---|---|---|---|---|
-| L34046 | surround width | 1345 mm | 1.4 | 1.3 | **1.4** |
-| S | surround head board | 1349 mm | 1.4 | 1.3 | **1.4** |
-| Q | surround width | 1140 mm | 1.2 | 1.1 | **1.1** |
+| L34046 | surround width | 1345 mm | 1350 | 1.40 | 1.40 |
+| S | surround head board | 1349 mm | 1350 | 1.40 | 1.40 |
+| **Q** | surround width | 1140 mm | 1140 | **1.10** | **1.10** |
 
-Two readings confirm ceiling and one contradicts it, so **the rounding is not
-what differs — the measure is**. I reverted the change (L34046 is exact again)
-and left the 28p as a truthful gap. The question for you: is the surround
-width allowance (+100 mm) different on a casement from a box sash? Q's own
-HEIGHT line confirms the +100 there — 2 × (980 + 100) = 2160 mm → 2.20 m,
-which Integrate prints — so it is the width term alone that disagrees.
+`componentLengthMetres(measure, group)` in `pricingEngine.js` applies it to
+the **surrounds** group only; every other component keeps the plain ceiling to
+0.1 m, because there is no Integrate reading for those and changing them
+unasked would risk benchmarks that are exact. Engine version **16**.
+
+**My §2 question is answered: the +100 allowance is NOT different on a
+casement.** The width measure was right all along; only the rounding was
+wrong. Q and R each dropped 28p, and all three fanlight benchmarks now sit
+exactly 8.40 from Integrate — the same figure, which is itself the evidence
+that the surround is right on every one of them. The 8.40 is the gearbox
+(§3), nothing else.
 
 ## 3. The gearbox part costs, again
 
@@ -165,7 +173,8 @@ like "the opposite order".
 
 ## 7. What the tests show
 
-Full suite: **1,294 passing, 8 failing** — the standing eight only:
+Full suite after the addendum: **1,301 passing, 8 failing** — the standing
+eight only:
 
 - **A50** top Lead Weight 17.6 against Integrate's 17.5
 - **D** double-box steel counterweights, +0.54 and +0.80
@@ -201,5 +210,4 @@ exists in the item's finish, PC from the rule where it does not.
   reporting which it used; your 12 Oct reading lists none, and
   `defaultFanlightBottomHeight` (83) is the bottom RAIL, not the height.
 - **Where 94 and 58 came from** (§4) — the mechanism is fixed either way.
-- **The surround width allowance on a casement** (§2).
 - `is_heritage_range` is still hard-coded `false`.

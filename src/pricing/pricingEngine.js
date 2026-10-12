@@ -60,6 +60,34 @@ const FINISH_SOURCE_LABELS = {
   profile: 'profile finish',
 }
 
+/**
+ * A component's length in metres, for the price rules' `length * qty`.
+ *
+ * SURROUNDS (architrave height and width, head board, bullnose & packer) go
+ * through Integrate's TWO roundings, which the reviewer read from the stored
+ * surround lists on five drawings (docs/step-ar-addendum-surround-rounding.md):
+ *   1. the board snaps the rule's length UP to the next 10 mm (1345 → 1350);
+ *   2. the price uses that to the NEAREST 0.1 m, halves up (1350 → 1.4).
+ * That fits every reading, including the three that a single rounding mode
+ * cannot fit together: L34046's 1345 → 1.4, benchmark S's 1349 → 1.4 and
+ * benchmark Q's 1140 → 1.1.
+ *
+ * EVERY OTHER component keeps the plain ceiling to the next 0.1 m. There is
+ * no Integrate reading for those, and changing them unasked would risk
+ * benchmarks that are exact today.
+ *
+ * Worked in whole millimetres so no float error can land a value on the
+ * wrong side of a 50 mm boundary.
+ */
+export function componentLengthMetres(measure, group = null) {
+  const mm = Number(measure) || 0
+  if (group === 'surrounds') {
+    const snapped = Math.ceil(mm / 10 - 1e-9) * 10
+    return Math.floor((snapped + 50) / 100) / 10
+  }
+  return Math.ceil(mm / 100) / 10
+}
+
 export function ironmongeryLineLabel(ironLine) {
   const name = ironLine?.product_short_name ?? null
   if (!name) return null
@@ -882,19 +910,11 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
     if (rule.loop_target === 'component') {
       for (const allocPart of componentParts) {
         const unitCost = partCostMap[allocPart.part_code] ?? 0
-        // Component measure is in mm. PF30 price rules use `length * qty` where
-        // length is metres rounded UP to the next 0.1 m (Integrate convention).
-        // e.g. 1875 mm → ceil(1875/100)/10 = 1.9 m; 1355 mm → 1.4 m.
-        //
-        // Step AR: ceiling is CONFIRMED by two readings that round-half-up
-        // would get wrong — L34046's surround width 1345 mm → 1.4 m and
-        // benchmark S's surround head board 1349 mm → 1.4 m. Benchmark Q
-        // disagrees (surround width 1140 mm → Integrate prints 1.10 m, not
-        // 1.20), and that 28p is Q's whole remaining gap after the gearbox
-        // part costs. Changing the rounding here to satisfy Q breaks L34046
-        // and S, so the measure, not the rounding, is what differs on Q —
-        // left alone and reported (docs/step-ar-findings.md).
-        const lengthMetres = Math.ceil(allocPart.measure / 100) / 10
+        // Component measure is in mm; price rules use `length * qty` in metres.
+        // See docs/step-ar-addendum-surround-rounding.md for how Integrate
+        // rounds a SURROUND length, and why every other component still
+        // ceils to the next 0.1 m.
+        const lengthMetres = componentLengthMetres(allocPart.measure, allocPart.group)
         const compVars = {
           ...priceVars,
           cost:      unitCost,

@@ -82,6 +82,11 @@
  * every sash benchmark, are unaffected: those products exist in the item's
  * finish. A drawing with NO item finish at all still warns rather than
  * guessing a metal finish, exactly as Step Z established.
+ * Version 16 is the Step AR addendum: a SURROUND component's length snaps up
+ * to the next 10 mm and then goes to the nearest 0.1 m with halves up, as
+ * Integrate's own stored surround lists do — version-15 runs ceiled straight
+ * to 0.1 m, overcharging any surround whose length fell in the lower half of
+ * a 100 mm band (benchmarks Q and R by 28p each).
  */
 
-export const PRICING_ENGINE_VERSION = 15
+export const PRICING_ENGINE_VERSION = 16

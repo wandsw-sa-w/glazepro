@@ -21,7 +21,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { runPricingOnTree } from './pricingEngine.js'
+import { componentLengthMetres, runPricingOnTree } from './pricingEngine.js'
 // Profile rebate/tolerance for the measured sash-weight glass cut (Sash profile: 14 / 2)
 const PV = { defaultDoubleGlazingRebateWidthForSash: 14, defaultDoubleGlazingTolerance: 2 }
 
@@ -108,5 +108,72 @@ describe('runPricingOnTree — cost excludes labour minutes (item 2)', () => {
     const results = runPricingOnTree(tree, [inactiveMfg, PRICE_RULE], {}, { profileValues: PV })
     expect(results.manufacture_labour.total_minutes).toBe(0)
     expect(results.price.total_cost).toBeCloseTo(820.11, 2)
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step AR addendum — surround (architrave) length rounding
+// ══════════════════════════════════════════════════════════════════════════════
+// docs/step-ar-addendum-surround-rounding.md. Integrate does TWO roundings on
+// a surround: the board snaps the rule's length up to the next 10 mm, and the
+// price uses that to the nearest 0.1 m with halves up. Every figure below is
+// a reading from a stored surround list, not a chosen example.
+describe('componentLengthMetres', () => {
+  const surround = mm => componentLengthMetres(mm, 'surrounds')
+
+  it('matches every surround length the reviewer read', () => {
+    // Q and R (1040 x 980): the two that a single ceiling got wrong
+    expect(surround(1140)).toBe(1.1)      // width  1040 + 100
+    expect(surround(1080)).toBe(1.1)      // height  980 + 100, x 2 = 2.20
+    // L34046 7/1 (1245 x 1779)
+    expect(surround(1345)).toBe(1.4)      // snaps to 1350
+    expect(surround(1879)).toBe(1.9)      // snaps to 1880
+    // S (1199 x 1499)
+    expect(surround(1299)).toBe(1.3)      // snaps to 1300
+    expect(surround(1599)).toBe(1.6)      // snaps to 1600, x 2 = 3.20
+    expect(surround(1349)).toBe(1.4)      // the head board, snaps to 1350
+    // C (999 x 1199) and D (1800 x 1299)
+    expect(surround(1099)).toBe(1.1)      // snaps to 1100
+    expect(surround(1399)).toBe(1.4)      // snaps to 1400
+    expect(surround(1900)).toBe(1.9)
+    // already on a 10 mm boundary
+    expect(surround(1350)).toBe(1.4)
+  })
+
+  it('an exact half goes UP', () => {
+    expect(surround(1050)).toBe(1.1)
+    expect(surround(1150)).toBe(1.2)
+  })
+
+  it('the 10 mm snap happens BEFORE the 0.1 m rounding', () => {
+    // 1349 rounded to the nearest 0.1 m directly would be 1.3; snapping to
+    // 1350 first makes it 1.4, which is what Integrate prints. This is the
+    // whole reason there are two roundings.
+    expect(Math.round(1349 / 100) / 10).toBe(1.3)
+    expect(surround(1349)).toBe(1.4)
+  })
+
+  it('a non-surround component still ceils to the next 0.1 m', () => {
+    // No Integrate reading exists for these, so they are left alone.
+    expect(componentLengthMetres(1140)).toBe(1.2)
+    expect(componentLengthMetres(1140, 'glass')).toBe(1.2)
+    expect(componentLengthMetres(1301)).toBe(1.4)
+    expect(componentLengthMetres(1300)).toBe(1.3)
+  })
+
+  it('handles a missing or zero measure', () => {
+    expect(componentLengthMetres(0, 'surrounds')).toBe(0)
+    expect(componentLengthMetres(null, 'surrounds')).toBe(0)
+    expect(componentLengthMetres(undefined)).toBe(0)
+  })
+
+  it('no float error lands a value on the wrong side of a boundary', () => {
+    // 0.1 m steps are not representable in binary, so the arithmetic is done
+    // in whole millimetres
+    for (let mm = 1000; mm <= 2000; mm += 1) {
+      const v = surround(mm)
+      expect(Number.isFinite(v)).toBe(true)
+      expect(Math.round(v * 10)).toBe(v * 10)      // exactly one decimal
+    }
   })
 })
