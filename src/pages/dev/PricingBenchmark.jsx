@@ -14,9 +14,18 @@ import { runPricingOnTree } from '../../pricing/pricingEngine.js'
 import { computeDerived } from '../../drawingBoard/computeDerived.js'
 import { loadPricingContext, resolveIronmongeryLines } from '../../pricing/loadPricingContext.js'
 import { PriceTable, fmt, costPriceMatch } from '../../pricing/PriceRuleTable.jsx'
-import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F, BENCHMARK_G, BENCHMARK_H, BENCHMARK_I, BENCHMARK_J, BENCHMARK_K, BENCHMARK_L, BENCHMARK_M, BENCHMARK_N, BENCHMARK_P, BENCHMARK_Q, BENCHMARK_R, BENCHMARK_S } from '../../pricing/benchmarks/index.js'
+import * as BENCHMARKS from '../../pricing/benchmarks/index.js'
 
-const ALL_BENCHMARKS = [BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F, BENCHMARK_G, BENCHMARK_H, BENCHMARK_I, BENCHMARK_J, BENCHMARK_K, BENCHMARK_L, BENCHMARK_M, BENCHMARK_N, BENCHMARK_P, BENCHMARK_Q, BENCHMARK_R, BENCHMARK_S]
+// Step AT: the list comes from the benchmarks module itself, so a new
+// benchmark appears on this page without anyone remembering to add it to a
+// hand-kept array — and the page and the test suite can never disagree about
+// which benchmarks exist. B_UNCORRECTED is excluded: it records what
+// Integrate charges BEFORE deliberate difference 1, so it is meant to differ
+// and would always read FAIL here.
+const ALL_BENCHMARKS = Object.entries(BENCHMARKS)
+  .filter(([name, bm]) => name.startsWith('BENCHMARK_') && bm?.tree && bm?.targets
+    && name !== 'BENCHMARK_B_UNCORRECTED')
+  .map(([name, bm]) => ({ ...bm, key: name.replace('BENCHMARK_', '') }))
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
@@ -381,7 +390,13 @@ export default function PricingBenchmark() {
             const m = costPriceMatch(cost, price, benchmark.targets)
             const allOk = m.costOk && m.priceOk
             return (
-              <tr key={i} style={allOk ? { background: '#f0fff0' } : { background: '#fff0f0' }}>
+              <tr key={i}
+                data-testid="benchmark-row"
+                data-benchmark={benchmark.key ?? ''}
+                data-status={allOk ? 'PASS' : 'FAIL'}
+                data-cost-diff={fmt(m.costDiff)}
+                data-price-diff={fmt(m.priceDiff)}
+                style={allOk ? { background: '#f0fff0' } : { background: '#fff0f0' }}>
                 <td style={S.td}><strong>{benchmark.name}</strong></td>
                 <td style={S.td}>{'\u00A3'}{fmt(cost)}</td>
                 <td style={S.td}>{'\u00A3'}{fmt(benchmark.targets.total_cost)}</td>

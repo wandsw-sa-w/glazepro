@@ -842,7 +842,7 @@ function ExplorerNode({ node, selectedKey, onSelect, depth = 0, tree = null }) {
         ) : (
           <span style={{ width: 10, flexShrink: 0 }} />
         )}
-        <span style={{ fontSize: 12, color: isSelected ? '#3d35a8' : '#444', fontWeight: isSelected ? 500 : 400 }}>
+        <span data-testid="part-label" style={{ fontSize: 12, color: isSelected ? '#3d35a8' : '#444', fontWeight: isSelected ? 500 : 400 }}>
           {partLabel(node, tree ?? node)}
         </span>
       </div>
@@ -1075,7 +1075,7 @@ function ValidationPanel({ tree, derived, onSelectKey }) {
   const counts = countBySeverity(firedResults)
 
   return (
-    <div style={{ borderTop: '1px solid #e8e6e0', padding: '10px 14px' }}>
+    <div data-testid="validation-panel" data-loading={loading ? 'true' : 'false'} style={{ borderTop: '1px solid #e8e6e0', padding: '10px 14px' }}>
       <div
         onClick={() => setCollapsed(c => !c)}
         style={{ fontSize: 11, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: collapsed ? 0 : 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
@@ -2804,12 +2804,14 @@ function DrawingBoard() {
             </div>
             {/* Explorer tree */}
             <div style={{ flex: 1, overflowY: 'auto' }}>
-              <ExplorerNode
-                node={tree}
-                selectedKey={selectedKey}
-                onSelect={setSelectedKey}
-                tree={tree}
-              />
+              <div data-testid="parts-tree">
+                <ExplorerNode
+                  node={tree}
+                  selectedKey={selectedKey}
+                  onSelect={setSelectedKey}
+                  tree={tree}
+                />
+              </div>
             </div>
             {/* Summary */}
             <Summary

@@ -24,3 +24,12 @@ docs/integrate-screens/*.pdf
 *.njsproj
 *.sln
 *.sw?
+
+# Live smoke test credentials (Step AT) — NEVER commit this file
+.env.e2e
+
+# Playwright output
+test-results/
+playwright-report/
+blob-report/
+.playwright/

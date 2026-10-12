@@ -990,7 +990,10 @@ export default function QuoteMatrixPage() {
                             const cardLabel = drawingCardLabel(dwg, priceFiles, latestRuns, drawingRunPrices)
                             const desc = [dwg.window_type, dwg.material_frame, dwg.finish_internal].filter(Boolean).join(' · ')
                             return (
-                              <div key={dwg.id} style={{ width: 190, flexShrink: 0, border: '1px solid #e0def0', borderRadius: 10, overflow: 'hidden', opacity: dwg.deleted_at ? 0.5 : 1 }}>
+                              <div key={dwg.id}
+                                data-testid="drawing-card"
+                                data-drawing-id={dwg.id}
+                                style={{ width: 190, flexShrink: 0, border: '1px solid #e0def0', borderRadius: 10, overflow: 'hidden', opacity: dwg.deleted_at ? 0.5 : 1 }}>
                                 <div style={{ padding: '7px 10px', background: '#f8f8fc', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                   <span style={{ fontSize: 11, fontWeight: 700, color: '#3d35a8' }}>Drawing {item.item_number}.{dwg.drawing_number}</span>
                                   {!dwg.deleted_at && (
@@ -1006,7 +1009,7 @@ export default function QuoteMatrixPage() {
                                 <DrawingThumb drawingId={dwg.id} />
                                 <div style={{ padding: '6px 10px', fontSize: 10, color: '#888', borderTop: '1px solid #f0eef8', minHeight: 14 }}>{desc || '—'}</div>
                                 <div style={{ padding: '6px 10px', borderTop: '1px solid #f0eef8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
-                                  <span style={{ fontSize: 11, fontWeight: 600, color: '#333', display: 'flex', alignItems: 'center' }}>{cardLabel}<ValidationMarker drawingId={dwg.id} /></span>
+                                  <span data-testid="drawing-card-price" style={{ fontSize: 11, fontWeight: 600, color: '#333', display: 'flex', alignItems: 'center' }}>{cardLabel}<ValidationMarker drawingId={dwg.id} /></span>
                                   <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                     {olderEngine
                                       ? <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 999, background: '#fef2f2', color: '#991b1b', fontWeight: 700, border: '1px solid #fca5a5' }}>Priced with an older version</span>

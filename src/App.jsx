@@ -23,6 +23,7 @@ import DrawingBoardTest        from './drawingBoard/DrawingBoardTest.jsx'
 import DrawingBoard            from './pages/DrawingBoard.jsx'
 import QuoteMatrixPage         from './pages/QuoteMatrixPage.jsx'
 import PricingBenchmark        from './pages/dev/PricingBenchmark.jsx'
+import SqlConsole             from './pages/dev/SqlConsole.jsx'
 import ValidationRules         from './pages/ValidationRules.jsx'
 import TemplateManager         from './pages/TemplateManager.jsx'
 import './App.css'
@@ -61,6 +62,10 @@ function AppRoutes() {
       <Route path="/drawing-board/:drawingId"      element={<DrawingBoard />} />
       <Route path="/dev/drawing-board-test"       element={<DrawingBoardTest />} />
       <Route path="/dev/pricing-benchmark"        element={<PricingBenchmark />} />
+      {/* Step AT: read-only SQL for the reviewer. No nav link — a tool, not
+          a feature. Normal app login applies and the read-only guards are in
+          the database function, not in the page. */}
+      <Route path="/dev/sql"                      element={<SqlConsole />} />
     </Routes>
   )
 }

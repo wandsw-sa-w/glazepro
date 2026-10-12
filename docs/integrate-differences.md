@@ -185,3 +185,30 @@ The default lists the rules produce are reported in `docs/step-ap-findings.md`
 to the item's ironmongery finish (PB) while the friction hinge, the gearbox
 and the Kenrick extensions exist only in PC. That is an unresolved data
 question for the reviewer, not part of this difference.
+
+---
+
+# Parked residuals
+
+Added by Step AT (12 Oct 2026), under the small-differences policy in
+`docs/handover-pricing.md`: a benchmark under **£1.00 cost** from Integrate with a
+**plausible named cause** is logged here and the step carries on. The reviewer clears these
+in batches.
+
+These are **logged disagreements, not accepted ones**. Integrate's figures remain facts, and
+nothing has been tuned to close any of them. A residual leaves this table only by being
+explained — never by editing a target.
+
+| Benchmark | Cost gap | Price gap | Suspected cause | Parked |
+|---|---|---|---|---|
+| **A50** | +£0.28 | +£0.42 | Top sash LEAD counterweight: GlazePro 17.6 kg against Integrate's 17.5 (before the Lead Weight rule's 15% wastage). `sashWeight.js` was calibrated to L34046 and the reviewer is obtaining Integrate's own weight calculation. Everything else on A50 matches. | 12 Oct 2026 |
+| **D** | +£0.54 | +£0.80 | Double-box STEEL counterweights, two lines +0.54 between them. Same weight model as A50; a double box divides its weight per pair, so the two are expected to share one cause. | 12 Oct 2026 |
+
+Not parked, and still reported every step because each is over £1.00 or has a known fix
+pending rather than an open question:
+
+- **J–P −£14.70, Q/R/S −£8.40** — the four Kenrick gearbox parts carry `unit_cost 0` in
+  `pf30-snapshot.json`. The reviewer's `sql/step-ap0-gearbox-part-costs.sql` is the data fix;
+  the snapshot is a captured file, so the gap shows until a fresh one is taken.
+- **B_UNCORRECTED −£25.46** — deliberate difference 1, not a residual at all: the fixture
+  exists to record what Integrate charges before the correction.

@@ -132,6 +132,23 @@ Reuse the benchmark page's table component so the two cannot drift.
 
 ## Report format
 
-For each item: files changed; any SQL files **this step wrote**, in run order (nothing if the
-step wrote none — never repeat files from earlier steps); what the tests show; what is not
-verified against the live database; anything that did not behave as this note describes.
+**Write the report to a FILE: `docs/reports/step-<id>.md`** (e.g. `docs/reports/step-at.md`),
+commit it with the step, and end the chat reply with just that path and a one-line summary
+(Step AT). Nathan then only has to tell the reviewer "done" and the reviewer reads the file
+from the repository — nothing has to be copied out of a chat window.
+
+The contents are unchanged. For each item: files changed; any SQL files **this step wrote**,
+in run order (nothing if the step wrote none — never repeat files from earlier steps); what
+the tests show; what is not verified against the live database; anything that did not behave
+as this note describes.
+
+## Small differences policy (Step AT)
+
+A benchmark that differs from Integrate by **under £1.00 cost** AND has a **plausible named
+cause** is logged in the "Parked residuals" section of `docs/integrate-differences.md`
+(benchmark, amount, suspected cause, date) and the step CARRIES ON. The reviewer clears
+parked items in batches.
+
+**Over £1.00, or no plausible cause: stop and report**, exactly as before. This does not
+loosen anything else — Integrate's figures are still facts, nothing is tuned to close a gap,
+and a parked residual is a logged disagreement, not an accepted one.
