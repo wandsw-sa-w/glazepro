@@ -307,3 +307,118 @@ describe('isCasementFrameTree', () => {
     expect(isCasementFrameTree(BENCHMARK_A.tree)).toBe(false)
   })
 })
+
+// ── Step AR item 3 — the 94 / 47 / 58 / 2 sections ─────────────────────────
+//
+// The reviewer read default_profile_values on 12 Oct: profile 2 (casement)
+// holds casementSashPart.topHeight 62, leftWidth 62, thickness 54 and
+// mechanicalClearanceLeft 4, has NO casementSashPart.bottomHeight and NO
+// casementSashPart.mechanicalClearance, and no casement row anywhere holds
+// 94 or 58. So my Step AQ explanation (that the generic keys hold a
+// stormproof set) was wrong; these tests establish what really happened.
+describe('profile lookup — full field keys only (Step AR item 3)', () => {
+  // default_profile_values rows exactly as api.js loadProfileValues returns
+  // them for profile 2, as the reviewer described it.
+  const PROFILE_2_ROWS = [
+    { profile_id: 2, field_key: 'assemblyFramePart.leftWidth',    default_value: '37' },
+    { profile_id: 2, field_key: 'assemblyFramePart.rightWidth',   default_value: '37' },
+    { profile_id: 2, field_key: 'assemblyFramePart.topHeight',    default_value: '47' },
+    { profile_id: 2, field_key: 'assemblyFramePart.bottomHeight', default_value: '47' },
+    { profile_id: 2, field_key: 'assemblyFramePart.frameDepth',   default_value: '96' },
+    { profile_id: 2, field_key: 'assemblyFramePart.frameHeadStopSize',  default_value: '20' },
+    { profile_id: 2, field_key: 'assemblyFramePart.frameStileStopSize', default_value: '20' },
+    { profile_id: 2, field_key: 'assemblyFramePart.cillStopSize',  default_value: '20' },
+    { profile_id: 2, field_key: 'assemblyFramePart.cillAngle',     default_value: '6' },
+    { profile_id: 2, field_key: 'cillPart.height',                 default_value: '47' },
+    { profile_id: 2, field_key: 'cillPart.depth',                  default_value: '128' },
+    { profile_id: 2, field_key: 'mullionPart.thicknessInFrameSolid', default_value: '27' },
+    { profile_id: 2, field_key: 'mullionPart.mullionStopSize',      default_value: '20' },
+    // The casement sash: NO bottomHeight, NO generic mechanicalClearance
+    { profile_id: 2, field_key: 'casementSashPart.thickness',      default_value: '54' },
+    { profile_id: 2, field_key: 'casementSashPart.topHeight',      default_value: '62' },
+    { profile_id: 2, field_key: 'casementSashPart.leftWidth',      default_value: '62' },
+    { profile_id: 2, field_key: 'casementSashPart.rightWidth',     default_value: '62' },
+    { profile_id: 2, field_key: 'casementSashPart.defaultFanlightBottomHeight', default_value: '83' },
+    { profile_id: 2, field_key: 'casementSashPart.mechanicalClearanceLeft',   default_value: '4' },
+    { profile_id: 2, field_key: 'casementSashPart.mechanicalClearanceRight',  default_value: '4' },
+    { profile_id: 2, field_key: 'casementSashPart.mechanicalClearanceTop',    default_value: '4' },
+    { profile_id: 2, field_key: 'casementSashPart.mechanicalClearanceBottom', default_value: '4' },
+    { profile_id: 2, field_key: 'casementSashPart.btmRailShapeId', default_value: 'square' },
+    { profile_id: 2, field_key: 'glassPart.defaultDoubleGlazingRebateWidthForSash', default_value: '16' },
+    { profile_id: 2, field_key: 'glassPart.defaultDoubleGlazingTolerance',          default_value: '2' },
+    { profile_id: 2, field_key: 'glassPart.defaultDirGuStopSize',                   default_value: '20' },
+    { profile_id: 2, field_key: 'glassPart.defaultDoubleGlazingRebateWidthForDirGU', default_value: '20' },
+    { profile_id: 2, field_key: 'glassPart.defaultDoubleGlazingToleranceForDirGU',   default_value: '2' },
+  ]
+
+  // Exactly how DrawingBoard built the map it used to pass in
+  function shortKeyedMap(rows) {
+    const map = {}
+    for (const pv of rows) {
+      const key = pv.field_key?.split('.')?.pop() ?? pv.field_key
+      const n = Number(pv.default_value)
+      map[key] = isNaN(n) ? pv.default_value : n
+    }
+    return map
+  }
+
+  it('the board short-keyed map collides across part types', () => {
+    const map = shortKeyedMap(PROFILE_2_ROWS)
+    // One namespace for every part type: the frame's 47 and the sash's 62
+    // both want to be "topHeight", and the last row read wins. The sash has
+    // no bottomHeight of its own, so asking the map for a sash bottom rail
+    // returns the FRAME's 47 — one of the four numbers seen live.
+    expect(map.topHeight).toBe(62)
+    expect(map.bottomHeight).toBe(47)
+    expect(map.leftWidth).toBe(62)
+  })
+
+  it('a short-keyed map now resolves nothing, and reports it', () => {
+    // The short fallback is gone, so a short-keyed map produces visible
+    // `missing` entries instead of quietly wrong numbers.
+    const { missing } = casementProfileDefaults(shortKeyedMap(PROFILE_2_ROWS))
+    expect(missing.length).toBeGreaterThan(0)
+    expect(missing.join(' ')).toMatch(/sashThickness/)
+  })
+
+  it('profile 2 resolves to 62 / 62 / 62 / 83, 54, 4 from its real keys', () => {
+    const { values, missing, keysUsed } = casementProfileDefaults(PROFILE_2_ROWS)
+    expect(missing).toEqual([])
+    expect(values.sashThickness).toBe(54)
+    expect(values.sashHead).toBe(62)
+    expect(values.sashStileLeft).toBe(62)
+    expect(values.sashStileRight).toBe(62)
+    // No casementSashPart.bottomHeight, so the bottom rail comes from
+    // defaultFanlightBottomHeight — 83, Integrate's casement bottom rail
+    expect(values.sashBottom).toBe(83)
+    expect(keysUsed.sashBottom).toBe('casementSashPart.defaultFanlightBottomHeight')
+    // Each clearance from its own per-edge key
+    expect(values.sashClearanceLeft).toBe(4)
+    expect(values.sashClearanceRight).toBe(4)
+    expect(values.sashClearanceTop).toBe(4)
+    expect(values.sashClearanceBottom).toBe(4)
+  })
+
+  it('direct glazed to casement builds 62 / 62 / 62 / 83, 54, 4 from profile 2', () => {
+    // The one path that still builds a sash from the profile (Step AQ item
+    // 2), and the path that produced 94 / 47 / 58 / 2 live.
+    const { tree } = buildCasementFrame(PROFILE_2_ROWS, {
+      width: 1199, height: 1299, openings: ['direct_glazed'],
+    })
+    const dgu = openingNodes(tree)[0]
+    const next = changeOpening(tree, dgu.key, 'opening_casement', PROFILE_2_ROWS).tree
+    const sash = openingNodes(next)[0]
+    expect(sash.part_type).toBe('casementSashPart')
+    expect(sash.values.topHeight).toBe(62)
+    expect(sash.values.leftWidth).toBe(62)
+    expect(sash.values.rightWidth).toBe(62)
+    expect(sash.values.bottomHeight).toBe(83)
+    expect(sash.values.thickness).toBe(54)
+    expect(sash.values.mechanicalClearanceLeft).toBe(4)
+    expect(sash.values.mechanicalClearanceBottom).toBe(4)
+    // and none of the numbers the live board produced
+    for (const v of Object.values(sash.values)) {
+      expect([94, 58]).not.toContain(v)
+    }
+  })
+})

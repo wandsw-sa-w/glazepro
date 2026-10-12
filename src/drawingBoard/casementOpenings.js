@@ -37,8 +37,22 @@ export function profileValue(profileValues, fieldKey) {
     const n = Number(row.default_value)
     return isFinite(n) ? n : row.default_value
   }
-  const short = fieldKey.includes('.') ? fieldKey.split('.').pop() : fieldKey
-  const v = profileValues[fieldKey] ?? profileValues[short]
+  // Step AR item 3: the FULL field key only. This used to fall back to the
+  // short property name (`fieldKey.split('.').pop()`), which is how the
+  // board built a sash with the wrong sections.
+  //
+  // DrawingBoard's `profileValueMap` is keyed by the short name alone
+  // (pv.field_key.split('.').pop()), so EVERY part type's values share one
+  // namespace and the last row read wins. Asking for
+  // `casementSashPart.bottomHeight` on a profile that has no such key then
+  // returned `assemblyFramePart.bottomHeight` — 47 — instead of falling
+  // through to `casementSashPart.defaultFanlightBottomHeight` (83). The
+  // same collision explains the rest of 94 / 47 / 58 / 2.
+  //
+  // With the short fallback gone, a short-keyed map resolves NOTHING and
+  // every value lands in `missing` where it is visible, instead of being
+  // quietly wrong. The board passes the raw default_profile_values rows.
+  const v = profileValues[fieldKey]
   if (v == null || v === '') return null
   const n = Number(v)
   return isFinite(n) ? n : v
@@ -84,7 +98,14 @@ const CANDIDATES = {
   // Integrate's casement bottom rail is its fanlight bottom height (83)
   sashBottom:      ['casementSashPart.bottomHeight', 'casementSashPart.defaultFanlightBottomHeight',
                     'casementSashPart.defaultFanlightBtmRailHeight'],
-  sashClearance:   ['casementSashPart.mechanicalClearance', 'casementSashPart.mechanicalClearanceLeft'],
+  // Step AR item 3: Integrate stores a clearance PER EDGE. Profile 2 has no
+  // generic casementSashPart.mechanicalClearance key at all, so each edge is
+  // read from its own, with the generic key kept as a fallback for a profile
+  // that does have one.
+  sashClearanceLeft:   ['casementSashPart.mechanicalClearanceLeft',   'casementSashPart.mechanicalClearance'],
+  sashClearanceRight:  ['casementSashPart.mechanicalClearanceRight',  'casementSashPart.mechanicalClearance', 'casementSashPart.mechanicalClearanceLeft'],
+  sashClearanceTop:    ['casementSashPart.mechanicalClearanceTop',    'casementSashPart.mechanicalClearance', 'casementSashPart.mechanicalClearanceLeft'],
+  sashClearanceBottom: ['casementSashPart.mechanicalClearanceBottom', 'casementSashPart.mechanicalClearance', 'casementSashPart.mechanicalClearanceLeft'],
   btmRailShape:    ['casementSashPart.btmRailShapeId'],
   sashRebate:      ['glassPart.defaultDoubleGlazingRebateWidthForSash'],
   sashTolerance:   ['glassPart.defaultDoubleGlazingTolerance'],
@@ -99,7 +120,7 @@ const CANDIDATES = {
 /** Values a casement drawing cannot be built correctly without. */
 const REQUIRED = [
   'frameJambLeft', 'frameHead', 'frameDepth', 'cillHeight', 'cillDepth',
-  'sashThickness', 'sashHead', 'sashStileLeft', 'sashBottom', 'sashClearance',
+  'sashThickness', 'sashHead', 'sashStileLeft', 'sashBottom', 'sashClearanceLeft',
   'sashRebate', 'sashTolerance', 'dirGuStop', 'dirGuRebate', 'dirGuTolerance',
   'mullionThickness',
 ]
@@ -196,7 +217,10 @@ export function buildCasementSash(profileValues, {
 } = {}) {
   const d = (defaults ?? casementProfileDefaults(profileValues)).values
   const key = makeKey('cas')
-  const clearance = d.sashClearance ?? 0
+  const clearL = d.sashClearanceLeft   ?? 0
+  const clearR = d.sashClearanceRight  ?? clearL
+  const clearT = d.sashClearanceTop    ?? clearL
+  const clearB = d.sashClearanceBottom ?? clearL
   return {
     key,
     part_type: 'casementSashPart',
@@ -210,10 +234,10 @@ export function buildCasementSash(profileValues, {
       leftWidth:     d.sashStileLeft,
       rightWidth:    d.sashStileRight,
       bottomHeight:  d.sashBottom,
-      mechanicalClearanceLeft:   clearance,
-      mechanicalClearanceRight:  clearance,
-      mechanicalClearanceTop:    clearance,
-      mechanicalClearanceBottom: clearance,
+      mechanicalClearanceLeft:   clearL,
+      mechanicalClearanceRight:  clearR,
+      mechanicalClearanceTop:    clearT,
+      mechanicalClearanceBottom: clearB,
       btmRailShapeId: d.btmRailShape,
       toBeReplaced: true,
     },

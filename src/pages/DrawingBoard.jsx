@@ -968,7 +968,12 @@ function Summary({ tree, fieldDefs, derived, refOptions, onSelectKey, drawingMet
       <div style={{ fontSize: 12, color: '#555', marginBottom: 4 }}>
         {/* Step AQ item 6: the range is the DRAWING'S profile. This said
             "Box Sash" on every drawing, including a casement one. */}
-        <span style={{ color: '#aaa' }}>Range: </span>{profile?.name || profile?.code || '—'}
+        {/* Step AR item 3: the profile's LABEL, the same way Defaults &
+            Parts names a profile (display_name || label). Step AQ used
+            `name`, which these rows do not have, so it fell through to the
+            code and read "casement" instead of "Casement". */}
+        <span style={{ color: '#aaa' }}>Range: </span>
+        {profile?.display_name || profile?.label || profile?.name || profile?.code || '—'}
       </div>
       <div style={{ fontSize: 12, color: '#555', marginBottom: 4 }}>
         <span style={{ color: '#aaa' }}>Type of work: </span>{towLabel}
@@ -2093,7 +2098,12 @@ function DrawingBoard() {
   // templates are built with, so the board and a template agree.
   const handleChangeOpeningKind = useCallback((kind) => {
     if (!tree || !selectedKey) return
-    const { tree: next, changed } = changeOpening(tree, selectedKey, kind, profileValueMap)
+    // Step AR item 3: the RAW default_profile_values rows, not
+    // profileValueMap. The map is keyed by the short property name alone, so
+    // every part type shares one namespace — asking it for
+    // casementSashPart.bottomHeight returned the FRAME's bottomHeight. The
+    // raw rows are matched on the full field_key.
+    const { tree: next, changed } = changeOpening(tree, selectedKey, kind, profileValues)
     if (!changed) return
     // The replacement is a new node, so move the selection to it
     const frame = findFirst(next, 'assemblyFramePart')
@@ -2101,7 +2111,7 @@ function DrawingBoard() {
     const replacement = (frame?.children ?? [])[idx]
     commit(next)
     if (replacement) setSelectedKey(replacement.key)
-  }, [tree, selectedKey, profileValueMap])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tree, selectedKey, profileValues])  // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSetCasementOperation = useCallback((operation) => {
     if (!tree || !selectedKey) return
