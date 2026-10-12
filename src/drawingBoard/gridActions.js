@@ -144,3 +144,25 @@ export function applyBars(tree, glassKey, cols, rows) {
   }
   return process(tree)
 }
+
+// The grid a frame is ALREADY on: (mullions + 1) columns by (transoms + 1)
+// rows. Step AQ item 7: the picker used to open at 1 × 1 — "0 mullions" — on
+// a frame that already had a mullion, so a surveyor who opened it to check
+// and pressed Apply was told it would "Remove dividers".
+export function frameGrid(tree, frameKey) {
+  function find(node) {
+    if (!node) return null
+    if (node.key === frameKey) return node
+    for (const child of (node.children ?? [])) {
+      const found = find(child)
+      if (found) return found
+    }
+    return null
+  }
+  const frame = frameKey ? find(tree) : null
+  const children = frame?.children ?? []
+  return {
+    cols: children.filter(c => c.part_type === 'mullionPart').length + 1,
+    rows: children.filter(c => c.part_type === 'transomPart').length + 1,
+  }
+}

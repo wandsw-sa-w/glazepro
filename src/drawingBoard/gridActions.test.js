@@ -12,7 +12,7 @@
 import { describe, it, expect } from 'vitest'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { applyDividers, applyBars, cloneWithNewKeys, makeKey } from './gridActions.js'
+import { applyDividers, applyBars, cloneWithNewKeys, makeKey , frameGrid } from './gridActions.js'
 import { buildNewBoxSash } from './buildTree.js'
 import { computeDerived } from './computeDerived.js'
 import { computeSashGeometry } from './sashGeometry.js'
@@ -303,4 +303,51 @@ describe('applyDividers — runs the actual Transom/Mullion... handler', () => {
     expect(keys.size).toBe(20)
   })
 
+})
+
+// ── Step AQ item 7 — the picker opens on the frame's current grid ───────────
+describe('frameGrid', () => {
+  const frame = (children) => ({
+    key: 'item', part_type: 'drawingItemPart', values: {}, children: [
+      { key: 'frame1', part_type: 'assemblyFramePart', values: {}, children: [
+        { key: 'cill', part_type: 'cillPart', values: {}, children: [] },
+        ...children,
+      ] },
+    ],
+  })
+
+  it('a plain frame is 1 x 1', () => {
+    expect(frameGrid(frame([]), 'frame1')).toEqual({ cols: 1, rows: 1 })
+  })
+
+  it('one mullion is 2 columns — the picker used to say "1 x 1, 0 mullions"', () => {
+    const tree = frame([{ key: 'm1', part_type: 'mullionPart', values: { offset: 549 }, children: [] }])
+    expect(frameGrid(tree, 'frame1')).toEqual({ cols: 2, rows: 1 })
+  })
+
+  it('two mullions and a transom is 3 x 2', () => {
+    const tree = frame([
+      { key: 'm1', part_type: 'mullionPart', values: {}, children: [] },
+      { key: 'm2', part_type: 'mullionPart', values: {}, children: [] },
+      { key: 't1', part_type: 'transomPart', values: {}, children: [] },
+    ])
+    expect(frameGrid(tree, 'frame1')).toEqual({ cols: 3, rows: 2 })
+  })
+
+  it('counts only the named frame, not any other', () => {
+    const tree = frame([{ key: 'm1', part_type: 'mullionPart', values: {}, children: [] }])
+    expect(frameGrid(tree, 'nosuchframe')).toEqual({ cols: 1, rows: 1 })
+    expect(frameGrid(tree, null)).toEqual({ cols: 1, rows: 1 })
+  })
+
+  it('applying the grid it reports back is a no-op on the mullion count', () => {
+    // Opening the picker and pressing Apply must not change the frame
+    const tree = frame([{ key: 'm1', part_type: 'mullionPart', values: { offset: 549, thicknessInFrame: 27 }, children: [] },
+      { key: 'cas1', part_type: 'casementSashPart', values: {}, children: [] },
+      { key: 'cas2', part_type: 'casementSashPart', values: {}, children: [] }])
+    const { cols, rows } = frameGrid(tree, 'frame1')
+    const after = applyDividers(tree, 'frame1', cols, rows, 1125, 1205,
+      { thicknessInFrameSolid: 27, mullionStopSize: 20 }, 'solid')
+    expect(frameGrid(after, 'frame1')).toEqual({ cols, rows })
+  })
 })

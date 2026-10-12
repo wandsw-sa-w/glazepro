@@ -34,7 +34,7 @@ import {
 import { computeSashWeight } from '../pricing/sashWeight.js'
 import { loadDrawingRunPrices } from '../quotes/drawingRunPrice.js'
 import { SashElevation } from '../drawingBoard/renderElevation.jsx'
-import { applyDividers, applyBars } from '../drawingBoard/gridActions.js'
+import { applyDividers, applyBars, frameGrid } from '../drawingBoard/gridActions.js'
 import { saveAsTemplate, listTemplates, templateGlassNameWarnings } from '../drawingBoard/templates.js'
 import { diffTrees } from '../drawingBoard/diffTrees.js'
 import { insertDrawingHistory, loadDrawingHistory } from '../drawingBoard/drawingHistory.js'
@@ -1207,7 +1207,17 @@ function HistoryPanel({ entries, loading: historyLoading, error: historyError })
 // For glazing bars: the same, but children of a glassPart.
 
 function GridPickerDialog({ title, applyLabel = 'Apply', onApply, onClose, maxCols = 15, maxRows = 15, initialCols = 1, initialRows = 1, error = null, note = null }) {
-  const [hover, setHover] = useState({ cols: initialCols, rows: initialRows })
+  // Step AQ item 7: the CHOICE and the hover PREVIEW are separate.
+  //
+  // There used to be one `hover` state doing both jobs, so Apply applied
+  // whatever the mouse last touched. Moving the mouse off the grid towards
+  // the Apply button lost the selection and Apply then offered to remove the
+  // frame's dividers. `selected` starts at the frame's current grid and only
+  // changes on a CLICK; leaving the grid clears the preview and falls back
+  // to it, so what Apply applies is always what the user clicked.
+  const [selected, setSelected] = useState({ cols: initialCols, rows: initialRows })
+  const [hover, setHover]       = useState(null)
+  const shown = hover ?? selected
 
   const cellSize = 22
   const gap      = 2
@@ -1228,17 +1238,18 @@ function GridPickerDialog({ title, applyLabel = 'Apply', onApply, onClose, maxCo
         )}
 
         {/* Grid */}
-        <div style={{ display: 'inline-grid', gap, gridTemplateColumns: `repeat(${maxCols}, ${cellSize}px)`, cursor: 'pointer', userSelect: 'none', marginBottom: 10 }}>
+        <div style={{ display: 'inline-grid', gap, gridTemplateColumns: `repeat(${maxCols}, ${cellSize}px)`, cursor: 'pointer', userSelect: 'none', marginBottom: 10 }}
+          onMouseLeave={() => setHover(null)}>
           {Array.from({ length: maxRows }, (_, r) =>
             Array.from({ length: maxCols }, (_, c) => {
               const col = c + 1, row = r + 1
-              const active = col <= hover.cols && row <= hover.rows
+              const active = col <= shown.cols && row <= shown.rows
               return (
                 <div
                   key={`${r}-${c}`}
                   style={{ width: cellSize, height: cellSize, borderRadius: 3, background: active ? '#3d35a8' : '#e8e6e0', transition: 'background .08s' }}
                   onMouseEnter={() => setHover({ cols: col, rows: row })}
-                  onClick={() => onApply(hover.cols, hover.rows)}
+                  onClick={() => { setSelected({ cols: col, rows: row }); onApply(col, row) }}
                 />
               )
             })
@@ -1246,12 +1257,12 @@ function GridPickerDialog({ title, applyLabel = 'Apply', onApply, onClose, maxCo
         </div>
 
         <div style={{ fontSize: 12, color: '#555', marginBottom: 12 }}>
-          {hover.cols} × {hover.rows} — {hover.cols - 1} mullion{hover.cols - 1 !== 1 ? 's' : ''} + {hover.rows - 1} transom{hover.rows - 1 !== 1 ? 's' : ''}
+          {shown.cols} × {shown.rows} — {shown.cols - 1} mullion{shown.cols - 1 !== 1 ? 's' : ''} + {shown.rows - 1} transom{shown.rows - 1 !== 1 ? 's' : ''}
         </div>
 
         <div style={{ display: 'flex', gap: 8 }}>
           <button
-            onClick={() => onApply(hover.cols, hover.rows)}
+            onClick={() => onApply(selected.cols, selected.rows)}
             style={{ flex: 1, fontSize: 12, padding: '6px 0', border: 'none', borderRadius: 7, background: '#3d35a8', color: '#fff', cursor: 'pointer', fontWeight: 600, fontFamily: 'inherit' }}
           >{applyLabel}</button>
           <button
@@ -2134,6 +2145,10 @@ function DrawingBoard() {
   const [dividerConfirmPending, setDividerConfirmPending] = useState(null) // { cols, rows }
   const [dividerError, setDividerError] = useState(null) // Step AE: e.g. missing thicknessInFrameHollow
 
+  // Step AQ item 7: the grid the frame is already on, so the picker opens
+  // showing it instead of "1 × 1 — 0 mullions" on a frame with a mullion.
+  const currentFrameGrid = frameGrid(tree, findFirst(tree, 'assemblyFramePart')?.key ?? null)
+
   function handleApplyDividers(cols, rows) {
     if (!tree) return
     const frame = findFirst(tree, 'assemblyFramePart')
@@ -2753,6 +2768,8 @@ function DrawingBoard() {
           onApply={handleApplyDividers}
           onClose={() => { setDividerError(null); setDividerDialog(false) }}
           error={dividerError}
+          initialCols={currentFrameGrid.cols}
+          initialRows={currentFrameGrid.rows}
           maxRows={isCasementDrawing ? 1 : 15}
           note={isCasementDrawing ? 'Transoms and fanlights come in a later step' : null}
         />
