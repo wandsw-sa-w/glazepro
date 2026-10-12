@@ -8,6 +8,8 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { SashElevation } from './renderElevation.jsx'
 import { computeDerived } from './computeDerived.js'
 import { computeSashGeometry } from './sashGeometry.js'
+import { buildCasementFrame, changeOpening, setCasementOperation, openingNodes } from './casementOpenings.js'
+import { applyDividers } from './gridActions.js'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -891,5 +893,164 @@ describe('SashElevation — operation labels from refOptions', () => {
     const geo  = makeGeometry()
     const html = render({ tree, geometry: geo, refOptions: {}, viewMode: 'internal' })
     expect(html).not.toContain('Cord Hung')
+  })
+})
+
+
+// ── Step AP item 4 — casement / direct glazed elevation ──────────────────────
+// SashElevation delegates to CasementElevation on a casement frame, so the
+// board page needs no change. The trees here are built by the REAL board code
+// (buildCasementFrame / applyDividers / changeOpening), so these assert what a
+// surveyor would actually see.
+describe('casement and direct glazed elevation', () => {
+  const PV = {
+    'assemblyFramePart.leftWidth': 37, 'assemblyFramePart.rightWidth': 37,
+    'assemblyFramePart.topHeight': 47, 'assemblyFramePart.bottomHeight': 47,
+    'assemblyFramePart.frameDepth': 96, 'assemblyFramePart.frameHeadStopSize': 20,
+    'assemblyFramePart.frameStileStopSize': 20, 'assemblyFramePart.cillStopSize': 20,
+    'assemblyFramePart.cillAngle': 6, 'assemblyFramePart.jambType': 'solid_profiled',
+    'cillPart.height': 47, 'cillPart.depth': 128,
+    'mullionPart.thicknessInFrameSolid': 27, 'mullionPart.mullionStopSize': 20,
+    'casementSashPart.thickness': 54, 'casementSashPart.topHeight': 62,
+    'casementSashPart.leftWidth': 62, 'casementSashPart.rightWidth': 62,
+    'casementSashPart.defaultFanlightBottomHeight': 83,
+    'casementSashPart.mechanicalClearance': 4, 'casementSashPart.btmRailShapeId': 'square',
+    'glassPart.defaultDoubleGlazingRebateWidthForSash': 16,
+    'glassPart.defaultDoubleGlazingTolerance': 2,
+    'glassPart.defaultDirGuStopSize': 20,
+    'glassPart.defaultDoubleGlazingRebateWidthForDirGU': 20,
+    'glassPart.defaultDoubleGlazingToleranceForDirGU': 2,
+  }
+  const REF = {
+    sash_type: [
+      { code: 'open_out', label: 'Open Out' },
+      { code: 'open_in',  label: 'Open In' },
+      { code: 'stormproof', label: 'Stormproof' },
+    ],
+    sash_operation: [
+      { code: 'fix', label: 'Fix' },
+      { code: 'left_hand_hung',  label: 'Left Hand Hung' },
+      { code: 'right_hand_hung', label: 'Right Hand Hung' },
+      { code: 'top_hung',    label: 'Top Hung' },
+      { code: 'bottom_hung', label: 'Bottom Hung' },
+    ],
+  }
+
+  function sized(openings, width = 1199, height = 1299) {
+    const { tree } = buildCasementFrame(PV, { openings })
+    const frame = tree.children.find(c => c.part_type === 'assemblyFramePart')
+    frame.values.width = width
+    frame.values.height = height
+    return tree
+  }
+  function columns(tree, cols) {
+    const frame = tree.children.find(c => c.part_type === 'assemblyFramePart')
+    const cill = frame.children.find(c => c.part_type === 'cillPart')
+    return applyDividers(tree, frame.key, cols, 1,
+      frame.values.width - frame.values.leftWidth - frame.values.rightWidth,
+      frame.values.height - frame.values.topHeight - cill.values.height,
+      { thicknessInFrameSolid: 27, mullionStopSize: 20 }, 'solid')
+  }
+  const draw = (tree, extra = {}) => render({
+    tree, geometry: null, refOptions: REF, ...extra,
+  })
+
+  it('a casement drawing renders without the box-sash geometry', () => {
+    // geometry is null for a casement tree (no sash pairs); the box-sash
+    // component would show "Enter frame and sash dimensions" instead
+    const svg = draw(sized(['opening_casement']))
+    expect(svg).toContain('<svg')
+    expect(svg).not.toContain('Enter frame and sash dimensions')
+  })
+
+  it('labels an opening casement "Open Out A1" and a fixed one "Fix B1"', () => {
+    let tree = columns(sized(['opening_casement']), 2)
+    const b1 = openingNodes(tree)[1]
+    tree = setCasementOperation(tree, b1.key, 'fix').tree
+    const svg = draw(tree)
+    expect(svg).toContain('Open Out A1')
+    expect(svg).toContain('Fix B1')
+  })
+
+  it('labels a direct glazed unit with its matrix position only', () => {
+    let tree = columns(sized(['opening_casement']), 2)
+    tree = changeOpening(tree, openingNodes(tree)[1].key, 'direct_glazed', PV).tree
+    const svg = draw(tree)
+    expect(svg).toContain('Open Out A1')
+    expect(svg).toContain('>B1<')
+    // a direct glazed unit is not a sash, so it carries no operation label
+    expect(svg).not.toContain('Open Out B1')
+  })
+
+  it('the opening lines put the apex on the hinge side, and a fixed sash has none', () => {
+    // K's frame: interior 1125 wide, mullion 27 -> openings 549 each.
+    // A1 sash 541 wide (549 - 4 - 4) at x = 37 + 4 = 41; its glass runs
+    // 62 in from each stile, so gx = 103, gW = 417, and left hand hung
+    // means the apex sits on the glass's LEFT edge at x = 103.
+    let tree = columns(sized(['opening_casement']), 2)
+    const dashed = /stroke-dasharray="12 8"/
+    expect(draw(tree)).toMatch(dashed)
+
+    const lhs = draw(tree)
+    expect(lhs).toContain('x2="103"')          // apex at the left edge of A1's glass
+
+    // right hand hung on A1 -> apex at the right edge of its glass (103 + 417)
+    const a1 = openingNodes(tree)[0]
+    const rhs = draw(setCasementOperation(tree, a1.key, 'right_hand_hung').tree)
+    expect(rhs).toContain('x2="520"')
+
+    // both sashes fixed -> no dashed lines anywhere
+    let fixed = tree
+    for (const node of openingNodes(fixed)) {
+      fixed = setCasementOperation(fixed, node.key, 'fix').tree
+    }
+    expect(draw(fixed)).not.toMatch(dashed)
+  })
+
+  it('a direct glazed unit is glass only — no sash border, no opening lines', () => {
+    const tree = sized(['direct_glazed'])
+    const svg = draw(tree)
+    expect(svg).not.toMatch(/stroke-dasharray="12 8"/)
+    // the visible glass is the opening minus 20 each side: 1125 - 40 = 1085
+    expect(svg).toContain('width="1085"')
+  })
+
+  it('dimensions show the sash size, each opening and the frame', () => {
+    let tree = columns(sized(['opening_casement']), 2)
+    tree = changeOpening(tree, openingNodes(tree)[1].key, 'direct_glazed', PV).tree
+    const svg = draw(tree)
+    expect(svg).toContain('>541<')      // A1's sash width (549 - 4 - 4)
+    expect(svg).toContain('>509<')      // B1's visible glass (549 - 20 - 20)
+    expect(svg).toContain('>F 549<')    // each opening
+    expect(svg).toContain('>F 1125<')   // frame interior
+    expect(svg).toContain('>F 1199<')   // overall frame
+  })
+
+  it('the mullion is drawn at its stored left face, not a centre line', () => {
+    // A casement mullion's offset is its LEFT face (Step AE's convention),
+    // so a 27mm mullion at offset 549 occupies 586..613 in frame coordinates
+    // (37 + 549 = 586). Drawing it centred would overlap A1's sash.
+    const tree = columns(sized(['opening_casement']), 2)
+    const svg = draw(tree)
+    expect(svg).toContain('x="586" y="47" width="27"')
+  })
+
+  it('the external view mirrors the drawing but keeps the labels readable', () => {
+    const tree = columns(sized(['opening_casement']), 2)
+    const svg = draw(tree, { viewMode: 'external' })
+    expect(svg).toContain('scale(-1,1)')
+    // each label counter-flips about its own x so the glyphs read forwards
+    expect(svg.match(/translate\([\d.]+,0\) scale\(-1,1\)/g)?.length).toBeGreaterThan(1)
+  })
+
+  it('selecting an opening highlights it', () => {
+    const tree = columns(sized(['opening_casement']), 2)
+    const a1 = openingNodes(tree)[0]
+    expect(draw(tree, { selectedKey: a1.key })).toContain('#dc2626')
+  })
+
+  it('falls back to the code when reference_options has not loaded', () => {
+    const svg = render({ tree: sized(['opening_casement']), geometry: null })
+    expect(svg).toContain('Open Out A1')
   })
 })

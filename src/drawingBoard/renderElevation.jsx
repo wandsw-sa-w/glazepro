@@ -14,6 +14,8 @@
 import React from 'react'
 import { computeOpeningLayout, computeGlassWidth, mullionThicknessMm } from './sashGeometry.js'
 import { resolveTopSashArch } from '../pricing/optionVocabulary.js'
+import { openingNodes as casementOpeningNodes } from '../pricing/casementGeometry.js'
+import { isCasementFrameTree, matrixIndexOf } from './casementOpenings.js'
 
 // ── Tree helpers ──────────────────────────────────────────────────────────────
 
@@ -193,6 +195,19 @@ export function SashElevation({
   settings,
   fontFamily: fontFamilyProp,
 }) {
+  // A casement / direct glazed frame is drawn by CasementElevation: it has no
+  // sash PAIRS, so computeSashGeometry returns null for it and none of the
+  // box-sash geometry below applies.
+  if (isCasementFrameTree(tree)) {
+    return (
+      <CasementElevation
+        tree={tree} refOptions={refOptions} viewMode={viewMode}
+        selectedKey={selectedKey} onSelectKey={onSelectKey}
+        settings={settings} fontFamily={fontFamilyProp}
+      />
+    )
+  }
+
   if (!geometry) {
     return (
       <div style={{
@@ -804,4 +819,310 @@ export function SashElevation({
 
     </svg>
   )
+}
+
+
+// ── Casement / direct glazed elevation (Step AP item 4) ──────────────────────
+//
+// A casement frame has no sash PAIRS, so none of the box-sash geometry above
+// applies: each opening holds either one casementSashPart (its own stiles and
+// rails, glass inside) or one glassPart glazed straight into the frame. The
+// sizes come from casementGeometry.js — the SAME module that prices them — so
+// the drawing can never disagree with the price.
+//
+// Integrate's conventions, from docs/integrate-L31115-direct-glazed.txt:
+//   - a sash is labelled "<sash type> <matrix>" — "Open Out A1" — except when
+//     its operation is Fix, which is labelled "Fix B1"
+//   - the dashed opening lines meet at an APEX ON THE HINGE SIDE seen
+//     internally; a fixed sash and a direct glazed unit have no lines
+//   - a direct glazed unit is glass only, labelled with its matrix position
+//   - dimensions: each sash / visible glass size, each opening ("F 549"), the
+//     frame interior and the overall frame
+export function CasementElevation({
+  tree,
+  refOptions,
+  viewMode = 'internal',
+  selectedKey,
+  onSelectKey,
+  settings,
+  fontFamily: fontFamilyProp,
+}) {
+  const frame = findFirst(tree, 'assemblyFramePart')
+  const cill  = findFirst(tree, 'cillPart')
+  const fv    = frame?.values ?? {}
+  const fW    = n(fv.width,  1200)
+  const fH    = n(fv.height, 1300)
+  const OX    = n(fv.leftWidth, 0)
+  const OY    = n(fv.topHeight, 0)
+  const cillH = n(cill?.values?.height, 0)
+  const iW    = fW - OX - n(fv.rightWidth, 0)
+  const iH    = fH - OY - cillH
+
+  const showGlassLabels  = settings?.showGlassLabels  !== false
+  const showOverallSL    = settings?.showOverallSL    !== false
+  const showIndividualSL = settings?.showIndividualSL !== false
+
+  const leftCillHorn  = n(fv.leftCillHorn,  0)
+  const rightCillHorn = n(fv.rightCillHorn, 0)
+  const hornPad = Math.max(leftCillHorn, rightCillHorn)
+
+  const dfs = Math.max(Math.min(fW * 0.06, fH * 0.02), 10)
+  const lfs = Math.max(fW * 0.045, 12)
+  const tk  = dfs * 0.55
+  const topPad = dfs * 2.5
+  const R1 = fW + dfs * 1.5
+  const R2 = fW + dfs * 4.0
+  const R3 = fW + dfs * 6.5
+  const B1 = fH + dfs * 1.5
+  const B2 = fH + dfs * 4.0
+  const B3 = fH + dfs * 6.5
+  const B4 = fH + dfs * 9.5
+  const VW = fW + dfs * 13 + hornPad * 2
+  const VH = fH + dfs * 12 + topPad
+
+  const mir = viewMode === 'external'
+  const mx  = (x) => (mir ? fW - x : x)
+
+  function ss(key) {
+    return key === selectedKey
+      ? { stroke: C.selected, strokeWidth: 2.5 }
+      : { stroke: C.timberStroke, strokeWidth: 1 }
+  }
+  function sg(key) {
+    return key === selectedKey
+      ? { stroke: C.selected, strokeWidth: 2.5 }
+      : { stroke: C.glassStroke, strokeWidth: 1 }
+  }
+
+  const frameMullions = childrenOfType(frame, 'mullionPart')
+    .sort((a, b) => (a.values?.offset ?? 0) - (b.values?.offset ?? 0))
+
+  // Opening slots, by the same layout the pricing engine uses. A casement
+  // mullion is SOLID, so its thickness is the value stored on the mullion.
+  const slots = computeOpeningLayout(frameMullions, iW,
+    m => n(m?.values?.thicknessInFrame, 0))
+  const nodes = casementOpeningNodes(tree)
+
+  const refLabel = (list, code) =>
+    (refOptions?.[list] ?? []).find(o => o.code === code)?.label ?? ''
+
+  // "Open Out A1" / "Fix B1" — the sash type's label, or Fix when it is fixed.
+  function sashLabel(sashNode, idx) {
+    const op = String(sashNode.values?.operation ?? '').toLowerCase()
+    const matrix = matrixIndexOf(idx)
+    if (op === 'fix' || op.startsWith('fix')) {
+      return `${refLabel('sash_operation', 'fix') || 'Fix'} ${matrix}`
+    }
+    const typeCode = sashNode.values?.casementTypeId ?? ''
+    const typeLabel = refLabel('sash_type', typeCode) || titleCaseCode(typeCode)
+    return typeLabel ? `${typeLabel} ${matrix}` : matrix
+  }
+
+  // The dashed opening triangle: apex at the midpoint of the HINGE edge,
+  // base the two corners of the opposite edge (brief §4). A fixed sash gets
+  // no lines, and an operation we do not recognise gets none either rather
+  // than a guessed hinge side.
+  function openingLines(sashNode, x, y, w, h) {
+    const op = String(sashNode.values?.operation ?? '').toLowerCase()
+    let apex = null
+    if (op.includes('left_hand'))   apex = [x,     y + h / 2]
+    if (op.includes('right_hand'))  apex = [x + w, y + h / 2]
+    if (op.includes('top_hung'))    apex = [x + w / 2, y]
+    if (op.includes('bottom_hung')) apex = [x + w / 2, y + h]
+    if (!apex) return null
+    // The two corners furthest from the apex edge
+    const corners = op.includes('left_hand')  ? [[x + w, y], [x + w, y + h]]
+      : op.includes('right_hand')             ? [[x,     y], [x,     y + h]]
+      : op.includes('top_hung')               ? [[x, y + h], [x + w, y + h]]
+      :                                         [[x, y],     [x + w, y]]
+    return (
+      <g stroke={C.timberStroke} strokeWidth={1} strokeDasharray="12 8"
+         fill="none" pointerEvents="none">
+        {corners.map(([cx, cy], i) => (
+          <line key={i} x1={cx} y1={cy} x2={apex[0]} y2={apex[1]} />
+        ))}
+      </g>
+    )
+  }
+
+  // One opening: a casement sash (border + glass + opening lines) or a
+  // direct glazed unit (glass only). Returns its own dimension figures too,
+  // so the dimension rows below show exactly what was drawn.
+  const drawn = nodes.map((node, idx) => {
+    const slot = slots[idx] ?? { x: 0, width: iW }
+    const v = node.values ?? {}
+    const clearL = n(v.mechanicalClearanceLeft,   0)
+    const clearR = n(v.mechanicalClearanceRight,  0)
+    const clearT = n(v.mechanicalClearanceTop,    0)
+    const clearB = n(v.mechanicalClearanceBottom, 0)
+    const x = OX + slot.x + clearL
+    const y = OY + clearT
+    const w = slot.width - clearL - clearR
+    const h = iH - clearT - clearB
+    const matrix = matrixIndexOf(idx)
+
+    if (node.part_type === 'glassPart') {
+      // Direct glazed: the glass is glazed into the frame, no sash
+      const label = matrix
+      return {
+        idx, slot, size: { width: w, height: h }, label,
+        svg: (
+          <g key={node.key}>
+            <rect x={x} y={y} width={w} height={h}
+              fill={C.glass} {...sg(node.key)}
+              style={{ cursor: 'pointer' }}
+              onClick={e => { e.stopPropagation(); onSelectKey?.(node.key) }}
+            />
+            {showGlassLabels && (
+              <CasementLabel text={label} cx={mx(x + w / 2)} cy={y + h / 2}
+                maxWidth={w * 0.92} lfs={lfs} mir={mir} />
+            )}
+          </g>
+        ),
+      }
+    }
+
+    // Casement sash: stiles and rails as timber, glass in the middle
+    const stileL = n(v.leftWidth,    0)
+    const stileR = n(v.rightWidth,   0)
+    const railT  = n(v.topHeight,    0)
+    const railB  = n(v.bottomHeight, 0)
+    const glass  = (node.children ?? []).find(c => c.part_type === 'glassPart')
+    const gx = x + stileL
+    const gy = y + railT
+    const gW = Math.max(w - stileL - stileR, 0)
+    const gH = Math.max(h - railT - railB,   0)
+    const label = sashLabel(node, idx)
+
+    return {
+      idx, slot, size: { width: w, height: h }, label,
+      svg: (
+        <g key={node.key}>
+          <g style={{ cursor: 'pointer' }} onClick={() => onSelectKey?.(node.key)}>
+            {/* The sash as one timber rect with the glass cut out of it —
+                stiles and rails read as a frame without four separate
+                shapes meeting at the corners. */}
+            <rect x={x} y={y} width={w} height={h}
+              fill={C.timber} {...ss(node.key)} />
+            <rect x={gx} y={gy} width={gW} height={gH}
+              fill={C.glass} {...sg(glass?.key)}
+              style={{ cursor: 'pointer' }}
+              onClick={e => { e.stopPropagation(); onSelectKey?.(glass?.key) }}
+            />
+          </g>
+          <GlazingBars glassNode={glass} derived={null}
+            gx={gx} gy={gy} glassW={gW} glassH={gH}
+            selectedKey={selectedKey} onSelectKey={onSelectKey} ss={ss} />
+          {openingLines(node, gx, gy, gW, gH)}
+          {showGlassLabels && (
+            <CasementLabel text={label} cx={mx(gx + gW / 2)} cy={gy + gH / 2}
+              maxWidth={gW * 0.92} lfs={lfs} mir={mir} />
+          )}
+        </g>
+      ),
+    }
+  })
+
+  return (
+    <svg
+      viewBox={`${-hornPad} ${-topPad} ${VW} ${VH}`}
+      width="100%" height="100%"
+      preserveAspectRatio="xMidYMid meet"
+      style={{ display: 'block' }}
+      fontFamily={fontFamilyProp || 'inherit'}
+    >
+      <g transform={mir ? `translate(${fW},0) scale(-1,1)` : undefined}>
+        {/* Frame interior, then head and jambs, then the cill */}
+        <rect x={OX} y={OY} width={iW} height={iH} fill={C.opening} stroke="none" />
+        {OY > 0 && (
+          <rect x={0} y={0} width={fW} height={OY} fill={C.timber} {...ss(frame?.key)}
+            style={{ cursor: 'pointer' }} onClick={() => onSelectKey?.(frame?.key)} />
+        )}
+        {OX > 0 && (
+          <rect x={0} y={OY} width={OX} height={iH} fill={C.timber} {...ss(frame?.key)}
+            style={{ cursor: 'pointer' }} onClick={() => onSelectKey?.(frame?.key)} />
+        )}
+        {n(fv.rightWidth, 0) > 0 && (
+          <rect x={OX + iW} y={OY} width={n(fv.rightWidth, 0)} height={iH}
+            fill={C.timber} {...ss(frame?.key)}
+            style={{ cursor: 'pointer' }} onClick={() => onSelectKey?.(frame?.key)} />
+        )}
+        {cillH > 0 && (
+          <rect data-key={cill?.key}
+            x={-leftCillHorn} y={OY + iH}
+            width={fW + leftCillHorn + rightCillHorn} height={cillH}
+            fill={C.timber} stroke={C.timberStroke} strokeWidth={1.2}
+            style={{ cursor: 'pointer' }} onClick={() => onSelectKey?.(cill?.key)} />
+        )}
+        <rect x={0} y={0} width={fW} height={fH} fill="none"
+          stroke={C.timberStroke} strokeWidth={1.2} />
+
+        {/* Mullions (solid on a casement frame) */}
+        {frameMullions.map(m => {
+          const thick = n(m.values?.thicknessInFrame, 27)
+          // A casement mullion's stored offset is its LEFT face
+          const mX = OX + n(m.values?.offset, 0)
+          return (
+            <rect key={m.key} x={mX} y={OY} width={thick} height={iH}
+              fill={C.timber} {...ss(m.key)}
+              style={{ cursor: 'pointer' }} onClick={() => onSelectKey?.(m.key)} />
+          )
+        })}
+
+        {/* The openings */}
+        {drawn.map(d => d.svg)}
+      </g>
+
+      {/* Dimensions (outside the mirror group, so figures are never flipped) */}
+      {showIndividualSL && drawn.length > 0 && (
+        <>
+          {drawn.map(d => (
+            <HDim key={`sash-${d.idx}`}
+              x1={OX + d.slot.x} x2={OX + d.slot.x + d.size.width}
+              y={B1} label={d.size.width} dfs={dfs} tk={tk} />
+          ))}
+          <VDim x={R1} y1={OY} y2={OY + drawn[0].size.height}
+            label={drawn[0].size.height} dfs={dfs} tk={tk} />
+        </>
+      )}
+      {showOverallSL && (
+        <>
+          {drawn.map(d => (
+            <HDim key={`op-${d.idx}`}
+              x1={OX + d.slot.x} x2={OX + d.slot.x + d.slot.width}
+              y={B2} label={d.slot.width} dfs={dfs} tk={tk} prefix="F " />
+          ))}
+          <HDim x1={OX} x2={OX + iW} y={B3} label={iW} dfs={dfs} tk={tk} prefix="F " />
+          <HDim x1={0}  x2={fW}      y={B4} label={fW} dfs={dfs} tk={tk} prefix="F " />
+          <VDim x={R2} y1={OY} y2={OY + iH} label={iH} dfs={dfs} tk={tk} prefix="F " />
+          <VDim x={R3} y1={0}  y2={fH}      label={fH} dfs={dfs} tk={tk} prefix="F " />
+        </>
+      )}
+    </svg>
+  )
+}
+
+// A label centred on an opening, fitted to its width and un-mirrored in the
+// external view (the same treatment the sash labels get).
+function CasementLabel({ text, cx, cy, maxWidth, lfs, mir }) {
+  if (!text) return null
+  const est = text.length * lfs * 0.62
+  const fs  = est <= maxWidth ? lfs : Math.max(7, maxWidth / (text.length * 0.62))
+  const counterFlip = mir ? `translate(${2 * cx},0) scale(-1,1)` : undefined
+  return (
+    <text
+      x={cx} y={cy}
+      textAnchor="middle" dominantBaseline="middle"
+      pointerEvents="none" fontFamily="inherit" fill={C.label}
+      fontSize={fs} transform={counterFlip}
+    >{text}</text>
+  )
+}
+
+// 'open_out' -> 'Open Out', for when reference_options has not been loaded.
+function titleCaseCode(code) {
+  return String(code ?? '')
+    .split('_').filter(Boolean)
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ')
 }
