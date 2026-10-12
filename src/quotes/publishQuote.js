@@ -8,6 +8,7 @@
  */
 
 import { buildQuoteSnapshot } from './buildSnapshot.js'
+import { loadGlassCatalogue } from '../pricing/loadPricingContext.js'
 import { computeDerived } from '../drawingBoard/computeDerived.js'
 import { computeVariables, computeQuoteVariables } from '../pricing/computeVariables.js'
 import { validateDrawing, validateQuote, hasErrors } from '../validation/validate.js'
@@ -47,6 +48,12 @@ export async function publishQuote({ quoteId, leadId, userId, userName, userEmai
     const allErrors = []
     const itemVarsList = []
 
+    // Step AS: the glass catalogue, so a casement sash can be weighed for
+    // rule 120 ("over 45 kg side hung"). A publish must not pass a weight
+    // check it could not evaluate, so a failed load leaves it unevaluable.
+    let glassCatalogue = null
+    try { glassCatalogue = await loadGlassCatalogue(supabase) } catch { /* unevaluable, not a pass */ }
+
     for (const item of snapshot.items) {
       const tree = item.parts_tree
       if (!tree) continue
@@ -54,7 +61,7 @@ export async function publishQuote({ quoteId, leadId, userId, userName, userEmai
         const derived = computeDerived(tree)
         const vars = computeVariables(tree, derived) || {}
         itemVarsList.push(vars)
-        const results = validateDrawing(tree, vars, itemRules, listsMap)
+        const results = validateDrawing(tree, vars, itemRules, listsMap, { glassCatalogue })
         for (const r of results) {
           if (r.status === 'fired' && r.severity === 'error') {
             allErrors.push(`Item ${item.job_item.item_number}: ${r.message}`)

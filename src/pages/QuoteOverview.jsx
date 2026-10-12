@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { loadGlassCatalogue } from '../pricing/loadPricingContext.js'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
@@ -389,6 +390,11 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
       const quoteRules = (ruleData || []).filter(r => r.level === 'quote')
       const allResults = []
       const itemVarsList = []
+      // Step AS: the glass catalogue, so a casement sash can be weighed
+      // for rule 120 ("over 45 kg side hung"). Without it that rule comes
+      // out unevaluable rather than passing on a weight of 0.
+      let glassCatalogue = null
+      try { glassCatalogue = await loadGlassCatalogue(supabase) } catch { /* unevaluable, not a pass */ }
 
       // Build a drawingId→itemNumber map for labelling results
       const dwgItemMap = {}
@@ -403,7 +409,7 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
         const derived = computeDerived(tree)
         const vars = computeVariables(tree, derived) || {}
         itemVarsList.push(vars)
-        const results = validateDrawing(tree, vars, itemRules, listsMap)
+        const results = validateDrawing(tree, vars, itemRules, listsMap, { glassCatalogue })
         const itemNum = dwgItemMap[String(dwgId)]
         for (const r of results) {
           if (r.status === 'fired') {

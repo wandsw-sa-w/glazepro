@@ -95,9 +95,17 @@ const CANDIDATES = {
   sashHead:        ['casementSashPart.topHeight'],
   sashStileLeft:   ['casementSashPart.leftWidth'],
   sashStileRight:  ['casementSashPart.rightWidth', 'casementSashPart.leftWidth'],
-  // Integrate's casement bottom rail is its fanlight bottom height (83)
-  sashBottom:      ['casementSashPart.bottomHeight', 'casementSashPart.defaultFanlightBottomHeight',
-                    'casementSashPart.defaultFanlightBtmRailHeight'],
+  // Step AS: an ORDINARY casement sash takes casementSashPart.bottomHeight
+  // (83) and a sash in a FANLIGHT position takes
+  // casementSashPart.defaultFanlightBottomHeight, which Nathan set to 62 on
+  // 12 Oct. Each falls back to the other, so nothing changes before
+  // sql/step-as0 runs: until it adds the bottomHeight key, both resolve to
+  // the old fanlight value (83), exactly as Step AR did.
+  sashBottom:         ['casementSashPart.bottomHeight', 'casementSashPart.defaultFanlightBottomHeight',
+                       'casementSashPart.defaultFanlightBtmRailHeight'],
+  sashBottomFanlight: ['casementSashPart.defaultFanlightBottomHeight',
+                       'casementSashPart.defaultFanlightBtmRailHeight',
+                       'casementSashPart.bottomHeight'],
   // Step AR item 3: Integrate stores a clearance PER EDGE. Profile 2 has no
   // generic casementSashPart.mechanicalClearance key at all, so each edge is
   // read from its own, with the generic key kept as a fallback for a profile
@@ -214,6 +222,10 @@ export function buildCasementSash(profileValues, {
   glass = null,
   sashType = 'open_out',
   defaults = null,
+  // Step AS: a sash built IN A FANLIGHT POSITION starts with the fanlight
+  // bottom rail (62 once sql/step-as0 has run) instead of the ordinary 83.
+  // Integrate warns on any fanlight whose rail is over 62.
+  isFanlight = false,
 } = {}) {
   const d = (defaults ?? casementProfileDefaults(profileValues)).values
   const key = makeKey('cas')
@@ -233,7 +245,7 @@ export function buildCasementSash(profileValues, {
       topHeight:     d.sashHead,
       leftWidth:     d.sashStileLeft,
       rightWidth:    d.sashStileRight,
-      bottomHeight:  d.sashBottom,
+      bottomHeight:  isFanlight ? (d.sashBottomFanlight ?? d.sashBottom) : d.sashBottom,
       mechanicalClearanceLeft:   clearL,
       mechanicalClearanceRight:  clearR,
       mechanicalClearanceTop:    clearT,
@@ -294,7 +306,7 @@ export function buildDirectGlazedUnit(profileValues, { glass = null, defaults = 
 }
 
 /** Build one opening of the given kind, carrying `glass` codes over. */
-export function buildOpening(kind, profileValues, { glass = null, sashType = 'open_out', defaults = null } = {}) {
+export function buildOpening(kind, profileValues, { glass = null, sashType = 'open_out', defaults = null, isFanlight = false } = {}) {
   const d = defaults ?? casementProfileDefaults(profileValues)
   if (kind === 'direct_glazed') return buildDirectGlazedUnit(profileValues, { glass, defaults: d })
   return buildCasementSash(profileValues, {
@@ -302,6 +314,7 @@ export function buildOpening(kind, profileValues, { glass = null, sashType = 'op
     glass,
     sashType,
     defaults: d,
+    isFanlight,
   })
 }
 
@@ -360,7 +373,15 @@ export function matrixIndexOf(index, cols = 1) {
  * TOP row of a frame that has more than one row is a "Fanlight".
  */
 export function openingTypeLabel(tree, node) {
-  if (node?.part_type === 'glassPart') return 'Direct Glazed Unit'
+  if (node?.part_type === 'glassPart') {
+    // Step AS: only a glassPart that is a DIRECT CHILD OF THE FRAME is a
+    // direct glazed unit. This used to say "Direct Glazed Unit" for ANY
+    // glassPart, which mislabelled a box sash's own glass as soon as a
+    // caller stopped guarding with isDirectGlazedUnit for itself.
+    const frame = findFirst(tree, 'assemblyFramePart')
+    const isUnit = !!frame && (frame.children ?? []).some(c => c.key === node.key)
+    return isUnit ? 'Direct Glazed Unit' : null
+  }
   if (node?.part_type !== 'casementSashPart') return null
   const nodes = openingNodes(tree)
   const idx = nodes.findIndex(n => n.key === node.key)
@@ -435,9 +456,15 @@ export function changeOpening(tree, openingKey, kind, profileValues) {
   const glassSource = current.part_type === 'casementSashPart'
     ? (current.children ?? []).find(c => c.part_type === 'glassPart')
     : current
+  // Step AS: building INTO a fanlight position (the top row of a frame with
+  // more than one row) starts the sash at the fanlight bottom rail.
+  const openingIdx = openingNodes(tree).findIndex(n => n.key === openingKey)
+  const intoFanlight = rowCount(tree) > 1 &&
+    openingIdx >= 0 && openingIdx < columnCount(tree)
   const replacement = buildOpening(kind, profileValues, {
     glass: glassCodesOf(glassSource),
     sashType: current.values?.casementTypeId ?? 'open_out',
+    isFanlight: intoFanlight,
   })
 
   const children = [...frame.children]
@@ -675,4 +702,54 @@ export function resizeCasementFrame(tree, { width = null, height = null } = {}) 
     tree: replaceNode(tree, frame.key, { ...frame, values: nextValues, children: nextChildren }),
     changed,
   }
+}
+
+/**
+ * Give every casement sash the bottom rail its POSITION calls for: the
+ * fanlight default in the top row of a multi-row frame, the ordinary default
+ * anywhere else (Step AS item 3, Nathan 12 Oct).
+ *
+ * Run after the transom/mullion picker, because the picker MOVES sashes
+ * between positions rather than building new ones: adding a top row makes
+ * the frame's existing sash a fanlight, and removing the transom makes the
+ * old fanlight an ordinary sash again.
+ *
+ * A rail the SURVEYOR typed is never touched. Only a rail still sitting on
+ * exactly one of the two profile defaults is changed, so a hand-set value
+ * survives every later picker use.
+ *
+ * @returns {{tree: Object, changed: string[]}} the sash keys that moved
+ */
+export function applyFanlightBottomRails(tree, profileValues) {
+  const d = casementProfileDefaults(profileValues).values
+  const ordinary = d.sashBottom
+  const fanlight = d.sashBottomFanlight ?? ordinary
+  // Nothing to do when the profile gives both positions the same rail —
+  // which is the case until sql/step-as0 adds casementSashPart.bottomHeight.
+  if (ordinary == null || fanlight == null || ordinary === fanlight) {
+    return { tree, changed: [] }
+  }
+
+  const nodes = openingNodes(tree)
+  const cols = columnCount(tree)
+  const multiRow = rowCount(tree) > 1
+  const changed = []
+  let next = tree
+
+  for (let i = 0; i < nodes.length; i++) {
+    const node = nodes[i]
+    if (node.part_type !== 'casementSashPart') continue
+    const wantFanlight = multiRow && i < cols
+    const want = wantFanlight ? fanlight : ordinary
+    const has = Number(node.values?.bottomHeight)
+    if (has === want) continue
+    // Only a value still on the OTHER default is ours to change
+    const other = wantFanlight ? ordinary : fanlight
+    if (has !== other) continue
+    changed.push(node.key)
+    next = replaceNode(next, node.key, {
+      ...node, values: { ...node.values, bottomHeight: want },
+    })
+  }
+  return { tree: next, changed }
 }

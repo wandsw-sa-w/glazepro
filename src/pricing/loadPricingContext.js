@@ -155,6 +155,35 @@ export async function loadPricingContext(supabase, priceFileId) {
   }
 }
 
+// ── loadGlassCatalogue ───────────────────────────────────────────────────────
+
+/**
+ * Just the glass catalogue, for callers that need to WEIGH glass but not to
+ * price anything — the validation path (Step AS).
+ *
+ * Validating a casement sash needs weight_in_kg (rule 120, "over 45 kg side
+ * hung"), and weighing a sash needs the glass. This reads the one table the
+ * full context builds it from, so a validation caller does not have to pull
+ * the ironmongery variants, the allocation rules or a price file.
+ *
+ * Errors are surfaced, never swallowed into an empty catalogue: an empty one
+ * would make every weight rule unevaluable, which looks like a missing
+ * feature rather than a failed load.
+ */
+export async function loadGlassCatalogue(supabase) {
+  const rows = await fetchAllRows(
+    () => supabase
+      .from('parts_catalogue')
+      .select('part_code, unit_cost, thickness_mm, category')
+      .eq('category', 'Glass')
+      .order('part_code'),
+    'parts_catalogue (glass)'
+  )
+  return Object.fromEntries(
+    (rows ?? []).map(r => [r.part_code, { cost_per_m2: r.unit_cost, thickness_mm: r.thickness_mm }])
+  )
+}
+
 // ── resolveIronmongeryFinish ─────────────────────────────────────────────────
 
 /**

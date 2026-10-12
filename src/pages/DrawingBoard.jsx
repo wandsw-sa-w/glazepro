@@ -26,7 +26,7 @@ import {
 import {
   cillRepairApplies, showsFullCillReplacement, applyCillRules,
 } from '../drawingBoard/cillReplacement.js'
-import { openingLabel, columnCount, resizeCasementFrame,
+import { applyFanlightBottomRails, openingLabel, columnCount, resizeCasementFrame,
   OPENING_KINDS, OPENING_KIND_LABELS, CASEMENT_OPERATIONS, openingKindOf,
   openingNodes, matrixIndexOf, isCasementFrameTree, changeOpening,
   setCasementOperation, casementProfileDefaults,
@@ -37,6 +37,7 @@ import { SashElevation } from '../drawingBoard/renderElevation.jsx'
 import { applyDividers, applyBars, frameGrid } from '../drawingBoard/gridActions.js'
 import { isDirectGlazedUnit } from '../pricing/casementGeometry.js'
 import { findRequiredEmpty } from '../drawingBoard/requiredFields.js'
+import { loadGlassCatalogue } from '../pricing/loadPricingContext.js'
 import { saveAsTemplate, listTemplates, templateGlassNameWarnings } from '../drawingBoard/templates.js'
 import { diffTrees } from '../drawingBoard/diffTrees.js'
 import { insertDrawingHistory, loadDrawingHistory } from '../drawingBoard/drawingHistory.js'
@@ -1023,6 +1024,9 @@ function ValidationPanel({ tree, derived, onSelectKey }) {
   const [rules, setRules] = useState([])
   const [lists, setLists] = useState({})
   const [loading, setLoading] = useState(true)
+  // Step AS: the glass catalogue, for the casement weight rule
+  const [glassCatalogue, setGlassCatalogue] = useState(null)
+  const [glassError, setGlassError] = useState(null)
   const [collapsed, setCollapsed] = useState(false)
 
   useEffect(() => {
@@ -1046,6 +1050,16 @@ function ValidationPanel({ tree, derived, onSelectKey }) {
         }
         setLists(map)
       }
+      // Step AS: weighing a casement sash needs the glass, so rule 120
+      // ("over 45 kg side hung") cannot be evaluated without the catalogue.
+      // A failed load is surfaced, not swallowed: without it the rule comes
+      // out unevaluable, which must not look like a passing check.
+      try {
+        const cat = await loadGlassCatalogue(supabase)
+        if (!cancelled) setGlassCatalogue(cat)
+      } catch (e) {
+        if (!cancelled) setGlassError(e.message)
+      }
       setLoading(false)
     }
     load()
@@ -1053,8 +1067,11 @@ function ValidationPanel({ tree, derived, onSelectKey }) {
   }, [])
 
   const variables = tree ? (computeVariables(tree, derived || {}) || {}) : {}
-  const results = !loading && tree ? validateDrawing(tree, variables, rules, lists) : []
+  const results = !loading && tree
+    ? validateDrawing(tree, variables, rules, lists, { glassCatalogue })
+    : []
   const firedResults = results.filter(r => r.status === 'fired')
+  const unevaluable = results.filter(r => r.status === 'unevaluable')
   const counts = countBySeverity(firedResults)
 
   return (
@@ -1078,8 +1095,23 @@ function ValidationPanel({ tree, derived, onSelectKey }) {
       </div>
       {!collapsed && !loading && (
         <div style={{ maxHeight: 200, overflowY: 'auto' }}>
-          {firedResults.length === 0 && (
+          {firedResults.length === 0 && unevaluable.length === 0 && (
             <div style={{ fontSize: 11, color: '#15803d', fontWeight: 500 }}>No validation issues</div>
+          )}
+          {/* Step AS: a check that could NOT be evaluated is shown, never
+              hidden — the panel used to render fired results only, so a
+              missing variable or a failed catalogue load looked like "OK". */}
+          {glassError && (
+            <div style={{ fontSize: 11, color: '#991b1b', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 6, padding: '5px 8px', marginBottom: 6 }}>
+              {'⚠'} Could not load the glass catalogue, so sash weight checks
+              did not run: {glassError}
+            </div>
+          )}
+          {unevaluable.length > 0 && (
+            <div style={{ fontSize: 11, color: '#92400e', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 6, padding: '5px 8px', marginBottom: 6 }}>
+              {'⚠'} {unevaluable.length} check{unevaluable.length === 1 ? '' : 's'} could
+              not be evaluated (missing: {[...new Set(unevaluable.flatMap(r => r.missing ?? []))].join(', ') || 'unknown'})
+            </div>
           )}
           {firedResults.map((r, idx) => {
             const colours = r.severity === 'error'
@@ -2221,7 +2253,15 @@ function DrawingBoard() {
       // frame's is solid (thicknessInFrameSolid), a box sash frame's is
       // hollow. Decided from the drawing, not guessed from the tree.
       const mullionKind = isCasementFrameTree(tree) ? 'solid' : 'hollow'
-      const newTree = applyDividers(tree, frame.key, cols, rows, iW, iH, profileValueMap, mullionKind)
+      let newTree = applyDividers(tree, frame.key, cols, rows, iW, iH, profileValueMap, mullionKind)
+      // Step AS item 3: the picker MOVES sashes between positions, so the
+      // sash that lands in the top row becomes a fanlight (62 mm bottom
+      // rail) and an old fanlight that loses its transom becomes ordinary
+      // again (83). A rail the surveyor typed is never touched. The raw
+      // profile rows, not profileValueMap — see Step AR item 3.
+      if (mullionKind === 'solid') {
+        newTree = applyFanlightBottomRails(newTree, profileValues).tree
+      }
       setDividerError(null)
       commit(newTree)
       setDividerDialog(false)

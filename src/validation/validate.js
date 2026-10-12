@@ -10,6 +10,8 @@
 
 import { Parser } from 'expr-eval'
 import { glassSpacerMm } from '../pricing/optionVocabulary.js'
+import { casementSashVariables } from '../pricing/casementSashVariables.js'
+import { openingLabel } from '../drawingBoard/casementOpenings.js'
 
 // ── Parser setup (mirrors evaluator.js but adds validation functions) ────────
 
@@ -156,6 +158,14 @@ const PART_DISPLAY_LABELS = {
  * E.g. "Top Sash > Glazing" for a glassPart inside a topSashPart.
  */
 function partDisplayLabel(tree, part) {
+  // Step AS: a casement opening gets Integrate's own name AND its matrix
+  // position — "Fanlight A1", "Casement Sash A2" — so a message names the
+  // same opening the parts list and the drawing do. "Frame > Casement Sash"
+  // could not tell two sashes apart.
+  if (part.part_type === 'casementSashPart' || part.part_type === 'glassPart') {
+    const opening = openingLabel(tree, part)
+    if (opening) return opening
+  }
   const label = PART_DISPLAY_LABELS[part.part_type] || part.part_type
   const parent = findParent(tree, part.key)
   if (parent && parent.part_type !== 'drawingItemPart') {
@@ -233,9 +243,14 @@ function findMatchingParts(tree, loopTarget) {
  * @param {Object}  variables  - Item-level variable context (from computeVariables)
  * @param {Array}   rules      - Array of validation rule objects (item-level only)
  * @param {Object}  lists      - Map of list_name → string[] of values
+ * @param {Object}  [opts]
+ * @param {Object}  [opts.glassCatalogue] - Step AS: needed to weigh a casement
+ *        sash (rule 120, "over 45 kg side hung"). WITHOUT it a rule that reads
+ *        weight_in_kg comes out `unevaluable`, never a silent pass on 0.
  * @returns {Array} Array of result objects
  */
-export function validateDrawing(tree, variables, rules, lists = {}) {
+export function validateDrawing(tree, variables, rules, lists = {}, opts = {}) {
+  const glassCatalogue = opts.glassCatalogue ?? null
   const results = []
   const vars = variables || {}
 
@@ -299,6 +314,20 @@ export function validateDrawing(tree, variables, rules, lists = {}) {
           partVars.actual_area = partVars.actual_width * partVars.actual_height / 1e6
         }
 
+        // casement_sash per-part variables — Step AS. The SAME function the
+        // default-ironmongery rules use, so the two can never disagree about
+        // one sash. It also overrides the generic width/height aliases
+        // above: a casement sash stores neither (its size comes from its
+        // opening), so they were undefined and every rule reading them came
+        // out unevaluable.
+        let casementWeightKnown = true
+        if (loopTarget === 'casement_sash') {
+          const { weightKnown, ...cv } = casementSashVariables(
+            tree, part, vars, glassCatalogue)
+          casementWeightKnown = weightKnown
+          Object.assign(partVars, cv)
+        }
+
         // sliding_sash / sash per-part variables
         if (loopTarget === 'sliding_sash' || loopTarget === 'sash') {
           const pv = part.values || {}
@@ -308,7 +337,14 @@ export function validateDrawing(tree, variables, rules, lists = {}) {
           partVars.weight_in_kg = Number(pv.weight_in_kg ?? 0)
         }
 
-        const evalResult = tryEvaluateCondition(rule.condition, partVars, lists)
+        // A weight rule with no glass catalogue must be unevaluable, not a
+        // pass: weight_in_kg would be absent and "over 45 kg" would never
+        // fire on any sash.
+        const needsWeight = !casementWeightKnown &&
+          /weight_in_kg/.test(rule.condition ?? '')
+        const evalResult = needsWeight
+          ? { error: 'glass catalogue not supplied', missing: ['weight_in_kg'] }
+          : tryEvaluateCondition(rule.condition, partVars, lists)
 
         if (evalResult.error) {
           results.push({

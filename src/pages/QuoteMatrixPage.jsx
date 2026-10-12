@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { loadGlassCatalogue } from '../pricing/loadPricingContext.js'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
@@ -97,10 +98,15 @@ function ValidationMarker({ drawingId }) {
       for (const l of (listData || [])) {
         listsMap[l.name] = (valData || []).filter(v => v.list_id === l.id).map(v => v.value)
       }
+      // Step AS: the glass catalogue, so a casement sash can be weighed
+      // for rule 120 ("over 45 kg side hung"). Without it that rule comes
+      // out unevaluable rather than passing on a weight of 0.
+      let glassCatalogue = null
+      try { glassCatalogue = await loadGlassCatalogue(supabase) } catch { /* unevaluable, not a pass */ }
       try {
         const derived = computeDerived(tree)
         const vars = computeVariables(tree, derived) || {}
-        const results = validateDrawing(tree, vars, ruleData || [], listsMap)
+        const results = validateDrawing(tree, vars, ruleData || [], listsMap, { glassCatalogue })
         const fired = results.filter(r => r.status === 'fired')
         if (!cancelled) setCounts(countBySeverity(fired))
       } catch {

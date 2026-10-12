@@ -1,4 +1,5 @@
 import { useState, useEffect, useId } from 'react'
+import { loadGlassCatalogue } from '../pricing/loadPricingContext.js'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
@@ -289,6 +290,12 @@ export default function ValidationRules() {
       const allResults = []
       const itemVarsList = []
 
+      // Step AS: the glass catalogue, so a casement sash can be weighed for
+      // rule 120 ("over 45 kg side hung"). Without it that rule comes out
+      // unevaluable rather than passing on a weight of 0.
+      let glassCatalogue = null
+      try { glassCatalogue = await loadGlassCatalogue(supabase) } catch { /* unevaluable, not a pass */ }
+
       for (const dwgId of drawingIds) {
         let tree = null
         try { tree = await loadDrawingParts(dwgId) } catch { /* skip */ }
@@ -297,7 +304,7 @@ export default function ValidationRules() {
         const derived = computeDerived(tree)
         const vars = computeVariables(tree, derived) || {}
         itemVarsList.push(vars)
-        const results = validateDrawing(tree, vars, itemRules, listsMap)
+        const results = validateDrawing(tree, vars, itemRules, listsMap, { glassCatalogue })
         // Tag each result with the item label
         for (const r of results) {
           r._itemLabel = drawingItemLabel[dwgId] || `Drawing ${dwgId}`

@@ -12,7 +12,7 @@
 
 import { computeSashWeight } from './sashWeight.js'
 import { owningSashPair } from './derivedGeometry.js'
-import { casementSashSize, casementSashWeightKg } from './casementGeometry.js'
+import { casementSashVariables } from './casementSashVariables.js'
 import { evaluateCondition, evaluateNumber, getExpressionVariables } from './evaluator.js'
 import { computeDerived } from '../drawingBoard/computeDerived.js'
 import { operationKind, casementIsFixed } from './optionVocabulary.js'
@@ -113,35 +113,17 @@ function computePartVars(partNode, tree, derived, baseVars, glassCatalogue, prof
   if (pt === 'casementSashPart') {
     // Step AP: Integrate's own casement default_ironmongery rules pick
     // hinges, handles, gearboxes and extensions by the sash's OPERATION,
-    // its overall size and its weight, so all three have to be real here —
-    // the old stubs (hangType/handedness/isMpls fields no drawing stores,
-    // sizes from a sash-pair derived entry, weight 0) left every one of
-    // those rules either silent or wrong.
-    const is_complete_new = baseVars.is_complete_new ?? false
-    const to_be_replaced  = is_complete_new || v.toBeReplaced === true
-    const size = casementSashSize(tree, partNode)
-    const op = String(v.operation ?? '').toLowerCase()
-    const paint = findFirst(tree, 'paintAndIronmongeryPart')
-    return {
-      to_be_replaced,
-      is_opening:   !casementIsFixed(partNode),
-      // A side-hung casement is left or right hand hung; top/bottom hung
-      // are their own operations (Integrate 15 / 16).
-      is_side_hung: op.includes('left_hand') || op.includes('right_hand'),
-      is_top_hung:    op.includes('top_hung'),
-      is_bottom_hung: op.includes('bottom_hung'),
-      is_left_hand_hung_viewed_internally:  op.includes('left_hand'),
-      is_right_hand_hung_viewed_internally: op.includes('right_hand'),
-      is_french_casement_sash: v.isFrenchCasement === true,
-      // Casements are multipoint by default (Nathan, 9 Oct); the surveyor
-      // unticks "Casement MPLS" on Finish & Ironmongery. An older drawing
-      // with neither field stored is treated as multipoint, which is what
-      // the default is.
-      is_casement_mpls: (paint?.values?.isCasementMpls ?? v.isMpls ?? true) === true,
-      gross_sash_width_in_mm:  size.width  ?? 0,
-      gross_sash_height_in_mm: size.height ?? 0,
-      weight_in_kg: casementSashWeightKg(tree, partNode, glassCatalogue),
-    }
+    // its overall size and its weight, so all three have to be real here.
+    //
+    // Step AS moved the whole set into casementSashVariables so the
+    // VALIDATION rules read exactly the same values — the two could
+    // otherwise disagree about the same sash. It returns a few extras that
+    // only validation reads (width/height in metres, is_fanlight, the drawn
+    // sections); they are harmless to an ironmongery rule, which never
+    // names them.
+    const { weightKnown, ...vars } = casementSashVariables(
+      tree, partNode, baseVars, glassCatalogue)
+    return vars
   }
 
   if (pt === 'assemblyFramePart') {
