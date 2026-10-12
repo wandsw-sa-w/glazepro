@@ -73,11 +73,17 @@ describe('buildCasementSash / buildDirectGlazedUnit', () => {
   it('builds the casement sash benchmark K prices', () => {
     const built = buildCasementSash(PV).values
     const fixture = fixtureSash(BENCHMARK_K).values
-    for (const k of ['sashThickness', 'topHeight', 'leftWidth', 'rightWidth', 'bottomHeight',
+    for (const k of ['thickness', 'topHeight', 'leftWidth', 'rightWidth', 'bottomHeight',
                      'mechanicalClearanceLeft', 'mechanicalClearanceRight',
                      'mechanicalClearanceTop', 'mechanicalClearanceBottom', 'toBeReplaced']) {
       expect(built[k], k).toBe(fixture[k])
+      expect(built[k], `${k} must not be undefined on both sides`).not.toBeUndefined()
     }
+    // Step AQ item 3: the key is `thickness`. Spelled sashThickness, this
+    // loop compared undefined with undefined and passed while the property
+    // panel showed Thickness blank.
+    expect(built.thickness).toBe(54)
+    expect(built.sashThickness).toBeUndefined()
     expect(built.operation).toBe(DEFAULT_CASEMENT_OPERATION)
     expect(built.casementTypeId).toBe('open_out')
   })
@@ -107,7 +113,8 @@ describe('buildCasementSash / buildDirectGlazedUnit', () => {
     const fixed = buildOpening('fixed_casement', PV)
     expect(fixed.part_type).toBe('casementSashPart')
     expect(fixed.values.operation).toBe('fix')
-    expect(fixed.values.sashThickness).toBe(buildCasementSash(PV).values.sashThickness)
+    expect(fixed.values.thickness).toBe(54)
+    expect(fixed.values.thickness).toBe(buildCasementSash(PV).values.thickness)
     expect(openingKindOf(fixed)).toBe('fixed_casement')
   })
 })

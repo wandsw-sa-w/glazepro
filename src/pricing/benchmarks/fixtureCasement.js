@@ -92,7 +92,7 @@ function casementSash(key, operation) {
     values: {
       operation,                      // Integrate operationId 17 / 18 / 11
       casementTypeId: 'open_out',  // Integrate typeId 7
-      sashThickness: 54,
+      thickness: 54,
       topHeight:     62,              // head
       leftWidth:     62,              // stiles
       rightWidth:    62,

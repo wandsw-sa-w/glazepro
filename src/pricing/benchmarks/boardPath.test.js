@@ -707,4 +707,37 @@ describe('Step AP — the board builds the casement benchmarks', () => {
     expect(after.values.topHeight).toBe(62)
     expect(sashThicknessOf(after)).toBe(54)
   })
+
+  // ── Step AQ item 3 — one key for the sash thickness ──────────────────────
+  it('a drawing saved with the OLD sashThickness key still prices the same', () => {
+    // L507712 item 8 was saved before the migration, and the reviewer will
+    // re-test on it, so it must keep working. casementSashThicknessMm reads
+    // `thickness` and falls back to `sashThickness`.
+    const fresh = JSON.parse(JSON.stringify(BENCHMARK_N.tree))
+    const sashes = openingNodes(fresh).filter(n => n.part_type === 'casementSashPart')
+    expect(sashes.length).toBeGreaterThan(0)
+    for (const sash of sashes) {
+      expect(sash.values.thickness).toBe(54)
+      sash.values.sashThickness = sash.values.thickness
+      delete sash.values.thickness
+    }
+    const oldKey = priceFromSnapshot(fresh)
+    const newKey = priceFromSnapshot(BENCHMARK_N.tree)
+    expect(oldKey.price.total_cost).toBeCloseTo(newKey.price.total_cost, 2)
+    expect(oldKey.price.total).toBeCloseTo(newKey.price.total, 2)
+  })
+
+  it('a casement sash with NO thickness at all prices no sash timber', () => {
+    // Not a silent 54: a missing thickness must give 0, so a tree built some
+    // other way cannot quietly inherit a default section.
+    const fresh = JSON.parse(JSON.stringify(BENCHMARK_N.tree))
+    for (const sash of openingNodes(fresh).filter(n => n.part_type === 'casementSashPart')) {
+      delete sash.values.thickness
+      delete sash.values.sashThickness
+    }
+    const r = priceFromSnapshot(fresh)
+    const timber = r.price.lines.filter(l => l.fires && /Casement Sashes/i.test(l.name))
+    for (const line of timber) expect(line.quantity).toBe(0)
+    expect(r.price.total_cost).toBeLessThan(priceFromSnapshot(BENCHMARK_N.tree).price.total_cost)
+  })
 })

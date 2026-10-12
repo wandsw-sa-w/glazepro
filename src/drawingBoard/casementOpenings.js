@@ -203,7 +203,9 @@ export function buildCasementSash(profileValues, {
     values: {
       operation,
       casementTypeId: sashType,
-      sashThickness: d.sashThickness,
+      // Step AQ item 3: `thickness` is the key the field definition, the
+      // property panel, validation and Integrate all use.
+      thickness:     d.sashThickness,
       topHeight:     d.sashHead,
       leftWidth:     d.sashStileLeft,
       rightWidth:    d.sashStileRight,

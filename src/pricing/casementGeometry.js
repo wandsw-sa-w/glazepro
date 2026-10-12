@@ -118,6 +118,21 @@ export function casementSashSize(tree, sashNode) {
   }
 }
 
+/**
+ * A casement sash's THICKNESS, in mm — the one place it is read.
+ *
+ * Step AQ item 3: the key is `thickness`, which is what the field
+ * definition, the property panel, Integrate and validation all use. The
+ * board and the templates used to store `sashThickness` instead, so the
+ * panel showed Thickness blank and validation rule 59 read nothing. Any
+ * drawing SAVED before the migration still holds the old key, so it is
+ * read as a fallback and must stay readable — a stored drawing is data,
+ * not something to rewrite under the surveyor.
+ */
+export function casementSashThicknessMm(sashNode) {
+  const v = sashNode?.values ?? {}
+  return num(v.thickness) ?? num(v.sashThickness) ?? null
+}
 /** A casement sash's glass sightline: the sash minus its stiles and rails. */
 export function casementGlassSightline(tree, sashNode) {
   const sash = casementSashSize(tree, sashNode)
@@ -202,7 +217,7 @@ export function directGlazedWarnings(tree) {
 export function casementSashTimberVolumeDm3(tree, sashNode) {
   const sash = casementSashSize(tree, sashNode)
   const v = sashNode?.values ?? {}
-  const thickness = num(v.sashThickness)
+  const thickness = casementSashThicknessMm(sashNode)
   if (sash.width == null || sash.height == null || !thickness) return 0
   const stile  = num(v.leftWidth)    ?? 0
   const head   = num(v.topHeight)    ?? 0
@@ -352,7 +367,7 @@ export function casementSashWeightKg(tree, sashNode, glassCatalogue = {}) {
   // Timber — the raw (unrounded) volume; the 2 dp rounding above is a
   // pricing convention, and it moves this by under a gram.
   const sash = casementSashSize(tree, sashNode)
-  const thickness = num(v.sashThickness)
+  const thickness = casementSashThicknessMm(sashNode)
   if (sash.width == null || sash.height == null || !thickness) return 0
   const stile  = num(v.leftWidth)    ?? 0
   const head   = num(v.topHeight)    ?? 0
