@@ -24,6 +24,7 @@ import { applySashesReplaced } from '../../drawingBoard/sashesReplaced.js'
 import { applyCompleteNewThickness } from '../../drawingBoard/sashThickness.js'
 import { computeDerived } from '../../drawingBoard/computeDerived.js'
 import { assertSaveable } from '../../drawingBoard/containment.js'
+import { frameOpenings } from '../casementGeometry.js'
 import { findRequiredEmpty } from '../../drawingBoard/requiredFields.js'
 import { internalSizeOf, keepInternalSize, frameFromInternalSize } from '../../drawingBoard/internalSize.js'
 import {
@@ -31,13 +32,14 @@ import {
 } from '../../drawingBoard/cillReplacement.js'
 import {
   buildCasementFrame, changeOpening, setCasementOperation, openingNodes,
-  openingKindOf, isCasementFrameTree,
+  openingKindOf, isCasementFrameTree, matrixIndexOf, columnCount, openingLabel,
+  resizeCasementFrame,
 } from '../../drawingBoard/casementOpenings.js'
 import { applyDividers } from '../../drawingBoard/gridActions.js'
 import { isSashWindow } from '../../drawingBoard/sashesReplaced.js'
 import { isCompleteNewSashWindow } from '../../drawingBoard/sashThickness.js'
 import { sizeEntryMode } from '../../drawingBoard/internalSize.js'
-import { BENCHMARK_K, BENCHMARK_L, BENCHMARK_M, BENCHMARK_N, BENCHMARK_P } from './index.js'
+import { BENCHMARK_K, BENCHMARK_L, BENCHMARK_M, BENCHMARK_N, BENCHMARK_P, BENCHMARK_Q, BENCHMARK_R, BENCHMARK_S } from './index.js'
 import { runPricingOnTree } from '../pricingEngine.js'
 import { resolveIronmongeryLines } from '../loadPricingContext.js'
 import { BENCHMARK_A, BENCHMARK_B } from './index.js'
@@ -838,5 +840,139 @@ describe('Step AP — the board builds the casement benchmarks', () => {
       expect(() => assertSaveable(tree), `${label} containment`).not.toThrow()
       expect(findRequiredEmpty(tree, REQUIRED_DEFS), `${label} required fields`).toEqual([])
     }
+  })
+
+  // ── Step AR item 4 — fanlights built on the board (Q, R, S) ──────────────
+  // Template -> picker (1 column x 2 rows) -> the operation button, then the
+  // same save-side checks the live save runs. With the fixtures' stored
+  // ironmongery list these must equal the Step AR fixtures exactly.
+
+  /** The picker, with rows, as DrawingBoard calls it on a casement frame. */
+  function applyGrid(tree, cols, rowCount) {
+    const frame = tree.children.find(c => c.part_type === 'assemblyFramePart')
+    const cill = frame.children.find(c => c.part_type === 'cillPart')
+    const iW = frame.values.width - frame.values.leftWidth - frame.values.rightWidth
+    const iH = frame.values.height - frame.values.topHeight - cill.values.height
+    expect(isCasementFrameTree(tree)).toBe(true)
+    return applyDividers(tree, frame.key, cols, rowCount, iW, iH, PICKER_PV, 'solid')
+  }
+
+  /** The board journey for a fanlight drawing. */
+  function buildFanlight({ width, height, fanlightOperation }) {
+    let { tree, missing } = buildCasementFrame(PV, {
+      width, height, openings: ['opening_casement'], product: 'casement',
+    })
+    expect(missing).toEqual([])
+    tree = applyGrid(tree, 1, 2)                       // adds the transom + A2
+    const a1 = openingNodes(tree)[0]
+    return setCasementOperation(tree, a1.key, fanlightOperation).tree
+  }
+
+  const FANLIGHT_CASES = [
+    ['Q', BENCHMARK_Q, 1040, 980,  'top_hung'],
+    ['R', BENCHMARK_R, 1040, 980,  'fix'],
+    ['S', BENCHMARK_S, 1199, 1499, 'top_hung'],
+  ]
+
+  for (const [label, bm, width, height, fanlightOperation] of FANLIGHT_CASES) {
+    it(`${label}: template → picker 1 × 2 → fanlight ${fanlightOperation}`, () => {
+      const tree = buildFanlight({ width, height, fanlightOperation })
+
+      // The transom Integrate stores: offset = the opening ABOVE it
+      const frame = tree.children.find(c => c.part_type === 'assemblyFramePart')
+      const transoms = frame.children.filter(c => c.part_type === 'transomPart')
+      expect(transoms).toHaveLength(1)
+      expect(transoms[0].values).toMatchObject({
+        offset: 356, thicknessInFrame: 27, transomStopSize: 20,
+      })
+
+      // A1 is the fanlight, A2 the casement below it
+      const openings = openingNodes(tree)
+      expect(openings.map(o => o.values.operation)).toEqual([fanlightOperation, 'left_hand_hung'])
+      expect(openings.map((_, i) => matrixIndexOf(i, columnCount(tree)))).toEqual(['A1', 'A2'])
+      expect(openingLabel(tree, openings[0])).toBe('Fanlight A1')
+      expect(openingLabel(tree, openings[1])).toBe('Casement Sash A2')
+
+      // The save-side checks the live save runs
+      expect(() => assertSaveable(tree), `${label} containment`).not.toThrow()
+      expect(findRequiredEmpty(tree, REQUIRED_DEFS), `${label} required fields`).toEqual([])
+
+      expectSameAsFixture(withFixtureIronmongery(tree, bm), bm, label)
+    })
+  }
+
+  it('the board reaches S from Q by typing the new frame size', () => {
+    // Integrate's own resize behaviour (12 Oct): the HEIGHT change keeps the
+    // fanlight row and gives it all to the bottom row, and the WIDTH change
+    // widens both rows. Q at 1040 x 980 resized to 1199 x 1499 IS S.
+    const q = buildFanlight({ width: 1040, height: 980, fanlightOperation: 'top_hung' })
+    const { tree: s } = resizeCasementFrame(q, { width: 1199, height: 1499 })
+    expect(frameOpenings(s).map(o => [o.width, o.height]))
+      .toEqual([[1125, 356], [1125, 1022]])
+    expectSameAsFixture(withFixtureIronmongery(s, BENCHMARK_S), BENCHMARK_S, 'S via resize')
+  })
+
+  it('widening a two-column frame re-spaces its mullions in proportion', () => {
+    // N (1199, openings 549 / 549) widened to 1599 gave 749 / 749 — the
+    // reading that replaces Step AP's "a resize leaves mullions where they are"
+    let { tree } = buildCasementFrame(PV, {
+      width: 1199, height: 1299, openings: ['opening_casement'], product: 'casement',
+    })
+    tree = applyGrid(tree, 2, 1)
+    expect(frameOpenings(tree).map(o => o.width)).toEqual([549, 549])
+    const { tree: wider, changed } = resizeCasementFrame(tree, { width: 1599 })
+    expect(changed).toHaveLength(1)
+    expect(frameOpenings(wider).map(o => o.width)).toEqual([749, 749])
+  })
+
+  it('a hand-typed mullion offset keeps its proportion through a resize', () => {
+    // The brief's rule: a surveyor's offset survives until the next resize,
+    // and then its PROPORTION survives.
+    let { tree } = buildCasementFrame(PV, {
+      width: 1199, height: 1299, openings: ['opening_casement'], product: 'casement',
+    })
+    tree = applyGrid(tree, 2, 1)
+    const frame = tree.children.find(c => c.part_type === 'assemblyFramePart')
+    const mullion = frame.children.find(c => c.part_type === 'mullionPart')
+    mullion.values.offset = 300                  // the surveyor types 300
+    expect(frameOpenings(tree).map(o => o.width)).toEqual([300, 798])
+    // interior 1125 -> 1525, openings 1098 -> 1498, so 300/1098 of 1498
+    const { tree: wider } = resizeCasementFrame(tree, { width: 1599 })
+    const widths = frameOpenings(wider).map(o => o.width)
+    expect(widths[0] / (widths[0] + widths[1])).toBeCloseTo(300 / 1098, 4)
+  })
+
+  it('a fanlight row takes the operation buttons and the change buttons', () => {
+    let tree = buildFanlight({ width: 1040, height: 980, fanlightOperation: 'top_hung' })
+    const a1 = openingNodes(tree)[0]
+    // Fix, then back to an opener, then a direct glazed unit — per row
+    tree = setCasementOperation(tree, a1.key, 'fix').tree
+    expect(openingKindOf(openingNodes(tree)[0])).toBe('fixed_casement')
+    expect(openingLabel(tree, openingNodes(tree)[0])).toBe('Fanlight A1')
+    tree = changeOpening(tree, a1.key, 'direct_glazed', PV).tree
+    expect(openingKindOf(openingNodes(tree)[0])).toBe('direct_glazed')
+    expect(openingLabel(tree, openingNodes(tree)[0])).toBe('Direct Glazed Unit A1')
+    // and the row below is untouched
+    expect(openingNodes(tree)[1].values.operation).toBe('left_hand_hung')
+    expect(() => assertSaveable(tree)).not.toThrow()
+  })
+
+  it('the default list follows the fanlight: fixing it drops a handle and a hinge', () => {
+    // No stored list, so Integrate's own default rules price it.
+    const lines = tree => resolveIronmongeryLines(tree, SNAPSHOT, SNAPSHOT.profileValues)
+    const qty = (tree, name) => (lines(tree).find(l => l.product_short_name === name)?.qty ?? 0)
+
+    const opener = buildFanlight({ width: 1040, height: 980, fanlightOperation: 'top_hung' })
+    const fixed  = buildFanlight({ width: 1040, height: 980, fanlightOperation: 'fix' })
+
+    // A top-hung fanlight gets its own top-hung friction hinge
+    expect(qty(opener, 'defender_209mm')).toBe(1)
+    expect(qty(fixed,  'defender_209mm')).toBe(0)
+    // two openers -> two handles and two gearbox sets; one -> one of each
+    expect(qty(opener, 'connoisseur_handle_lh')).toBe(2)
+    expect(qty(fixed,  'connoisseur_handle_lh')).toBe(1)
+    expect(qty(opener, 'kenrick_extension_gear_box')).toBe(2)
+    expect(qty(fixed,  'kenrick_extension_gear_box')).toBe(1)
+    expect(lines(opener).length).toBeGreaterThan(lines(fixed).length)
   })
 })
