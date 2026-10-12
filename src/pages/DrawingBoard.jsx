@@ -36,6 +36,7 @@ import { loadDrawingRunPrices } from '../quotes/drawingRunPrice.js'
 import { SashElevation } from '../drawingBoard/renderElevation.jsx'
 import { applyDividers, applyBars, frameGrid } from '../drawingBoard/gridActions.js'
 import { isDirectGlazedUnit } from '../pricing/casementGeometry.js'
+import { findRequiredEmpty } from '../drawingBoard/requiredFields.js'
 import { saveAsTemplate, listTemplates, templateGlassNameWarnings } from '../drawingBoard/templates.js'
 import { diffTrees } from '../drawingBoard/diffTrees.js'
 import { insertDrawingHistory, loadDrawingHistory } from '../drawingBoard/drawingHistory.js'
@@ -131,23 +132,6 @@ function collectCategories(fieldDefs) {
   return [...cats]
 }
 
-function findRequiredEmpty(tree, fieldDefs, visibilityMap = {}, boardMode = 'sales', showHidden = false) {
-  const issues = []
-  function traverse(node) {
-    const fields = (fieldDefs[node.part_type] ?? []).filter(
-      f => f.is_required && f.role === 'input' && !isFieldHidden(visibilityMap[f.field_key], boardMode, showHidden)
-    )
-    for (const f of fields) {
-      const v = node.values?.[f.property_name]
-      if (v === null || v === undefined || v === '') {
-        issues.push({ key: node.key, fieldKey: f.field_key, label: f.label, partType: node.part_type })
-      }
-    }
-    for (const c of (node.children ?? [])) traverse(c)
-  }
-  if (tree) traverse(tree)
-  return issues
-}
 
 // Step AQ item 4: "casementSashPart" used to show raw in the parts list
 // because PART_LABELS had no entry for it, and a DIRECT GLAZED unit showed

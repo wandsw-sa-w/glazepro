@@ -419,6 +419,14 @@ export function buildCasementFrame(profileValues, {
   openings = ['opening_casement'],
   materials = { frame: 'softwood', sash: 'softwood', cill: 'utile' },
   sashType = 'open_out',
+  // Step AQ item 6/8: Product and Quantity are both is_required, and a
+  // drawing started from a casement template opened with two "Required
+  // fields empty" errors because neither was set. Quantity is always 1 here;
+  // the product CODE lives only in the live reference_options table (the
+  // `product` list came from Integrate), so the caller supplies it and
+  // sql/step-aq2 sets it on the stored templates by looking the label up.
+  product = null,
+  quantity = 1,
 } = {}) {
   const resolved = casementProfileDefaults(profileValues)
   const d = resolved.values
@@ -453,6 +461,8 @@ export function buildCasementFrame(profileValues, {
       frameMaterialId: materials.frame,
       sashMaterialId:  materials.sash,
       cillMaterialId:  materials.cill,
+      quantity,
+      ...(product != null ? { product } : {}),
     },
     children: [
       {

@@ -24,6 +24,7 @@ import { applySashesReplaced } from '../../drawingBoard/sashesReplaced.js'
 import { applyCompleteNewThickness } from '../../drawingBoard/sashThickness.js'
 import { computeDerived } from '../../drawingBoard/computeDerived.js'
 import { assertSaveable } from '../../drawingBoard/containment.js'
+import { findRequiredEmpty } from '../../drawingBoard/requiredFields.js'
 import { internalSizeOf, keepInternalSize, frameFromInternalSize } from '../../drawingBoard/internalSize.js'
 import {
   NEW_CILL_REPAIR_CODE, CILL_ONLY_TYPE_OF_WORK, cillRepairApplies, applyCillRules,
@@ -776,5 +777,66 @@ describe('Step AP — the board builds the casement benchmarks', () => {
     expect(labels).toContain('connoisseur_handle_lh (PB, item finish)')
     expect(labels.some(l => l.includes('(PC, rule finish)'))).toBe(true)
     expect(labels.some(l => l.includes('trickle_vent_xr16 (Wht, rule finish)'))).toBe(true)
+  })
+
+  // ── Step AQ item 8 — the save-side checks, on every board tree ───────────
+  // The live save runs two checks the Step AP tests never did: the
+  // containment rules (now in expectSameAsFixture) and the required fields.
+  // A casement drawing opened with two "Required fields empty" errors and
+  // nothing in the suite noticed.
+  //
+  // Only the definitions that are actually is_required on drawingItemPart
+  // are needed here (supabase/migrations/20260923_step_a2_field_definitions
+  // .sql: Product and Quantity, both is_required TRUE).
+  const REQUIRED_DEFS = {
+    drawingItemPart: [
+      { field_key: 'drawingItemPart.product',  property_name: 'product',
+        label: 'Product',  data_type: 'reference', role: 'input', is_required: true },
+      { field_key: 'drawingItemPart.quantity', property_name: 'quantity',
+        label: 'Quantity', data_type: 'number',    role: 'input', is_required: true },
+    ],
+  }
+
+  it('a casement template tree has no required field empty', () => {
+    // sql/step-aq2 sets Product and Quantity on the stored templates; the
+    // generator takes the product code because the `product` reference list
+    // is only in the live database.
+    const { tree } = buildCasementFrame(PV, {
+      openings: ['opening_casement', 'opening_casement'],
+      product: 'casement',
+    })
+    expect(findRequiredEmpty(tree, REQUIRED_DEFS)).toEqual([])
+  })
+
+  it('without a product, Product is the ONE thing still missing', () => {
+    // This is what the reviewer saw live, minus Quantity, which the
+    // generator now always sets.
+    const { tree } = buildCasementFrame(PV, { openings: ['opening_casement'] })
+    const missing = findRequiredEmpty(tree, REQUIRED_DEFS)
+    expect(missing.map(m => m.fieldKey)).toEqual(['drawingItemPart.product'])
+  })
+
+  it('every benchmark tree the board builds passes both save-side checks', () => {
+    const trees = [
+      ['K', (() => {
+        let { tree } = buildCasementFrame(PV, { width: 1199, height: 1299, openings: ['opening_casement'], product: 'casement' })
+        tree = applyColumns(tree, 2)
+        return changeOpening(tree, openingNodes(tree)[1].key, 'direct_glazed', PV).tree
+      })()],
+      ['L', (() => {
+        let { tree } = buildCasementFrame(PV, { width: 1199, height: 1299, openings: ['direct_glazed'], product: 'direct_glazed_unit' })
+        return applyColumns(tree, 2)
+      })()],
+      ['M', buildCasementFrame(PV, { width: 1199, height: 1299, openings: ['direct_glazed'], product: 'direct_glazed_unit' }).tree],
+      ['N', (() => {
+        const { tree } = buildCasementFrame(PV, { width: 1199, height: 1299, openings: ['opening_casement', 'opening_casement'], product: 'casement' })
+        return changeOpening(tree, openingNodes(tree)[1].key, 'fixed_casement', PV).tree
+      })()],
+      ['P', buildCasementFrame(PV, { width: 1599, height: 1599, openings: ['opening_casement'], product: 'casement' }).tree],
+    ]
+    for (const [label, tree] of trees) {
+      expect(() => assertSaveable(tree), `${label} containment`).not.toThrow()
+      expect(findRequiredEmpty(tree, REQUIRED_DEFS), `${label} required fields`).toEqual([])
+    }
   })
 })
