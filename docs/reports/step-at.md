@@ -81,11 +81,28 @@ read FAIL.
 
 ### The run
 
-**Against the live site (`https://glazepro.vercel.app`): 1 passed, 4 failed.**
+### Against the deployed site — **5 passed** (re-run after deploy, 12 Oct)
 
-The failures are **not** test or application faults: the deployed build predates this commit,
-so none of the `data-testid` hooks exist on it yet. I probed the live site to establish that
-rather than assume it:
+```
+npm run e2e        →  https://glazepro.vercel.app
+ok 1 logs in                                                        (5.3s)
+ok 2 every benchmark passes except the parked residuals             (37.9s)
+ok 3 the fanlight drawing shows Fanlight A1 and Casement Sash A2     (2.6s)
+ok 4 the validation panel loads without an error                     (3.0s)
+ok 5 every drawing card on the L507712 quote matrix shows a price     (4.0s)
+5 passed (53.8s)
+```
+
+This supersedes the first run below and closes the "not verified" item that went with it.
+All five checks now pass against the real deployment and the real database.
+
+### The first run, before this commit was deployed (kept for the record)
+
+**Against the live site: 1 passed, 4 failed.**
+
+The failures were **not** test or application faults: the deployed build predated this commit,
+so none of the `data-testid` hooks existed on it yet. I probed the live site to establish
+that rather than assume it:
 
 ```
 benchmark page: tbody rows=1688  tagged=0  "PASS" text present=true
@@ -107,9 +124,8 @@ ok 4 the validation panel loads without an error
 ok 5 every drawing card on the L507712 quote matrix shows a price
 ```
 
-That is the real verification of the spec. **They should be re-run against
-`https://glazepro.vercel.app` once this commit is deployed**; I expect all five to pass, and
-that is unverified until it happens.
+That was the verification of the spec before deployment. The deployed run above has since
+confirmed it against the real site.
 
 ### What the live data told us
 
@@ -164,6 +180,29 @@ finishes loading, that the glass catalogue loaded (a failure there would silentl
 casement weight rule), and that **no casement variable** is ever the missing one — since
 supplying them is what Step AS was for.
 
+## `/dev/sql` end to end (probed after deploy, read only)
+
+Opening `/dev/sql?q=select%201%20as%20ok` on the deployed site:
+
+- the page is live and the `?q=` prefill works — the textarea came up holding
+  `select 1 as ok` and ran it;
+- **`claude_readonly_query` exists live**, so `sql/step-at0-readonly-query.sql` has been
+  run. The reply was the function's OWN message, not "function does not exist";
+- the reply was **`claude_readonly_query: not allowed for this user`**, which is correct:
+  the function admits only `nathan.smith@wandsworthsashwindows.com`, and the smoke tests log
+  in as the separate test user. **The login guard is therefore proven to work** — it refused
+  both a harmless SELECT and an attempted `update validation_rules set is_active = true` from
+  a non-Nathan session.
+
+Two consequences, stated precisely rather than claimed broadly:
+
+1. **A successful query is still unverified.** It needs Nathan's own login; the test user
+   cannot run one by design. First thing to try: `select 1 as ok`.
+2. **The "only a SELECT or WITH" guard is still unverified.** My write attempt was rejected by
+   the *login* guard, which fires first, so the statement check never ran. To prove it, Nathan
+   should paste `update validation_rules set is_active = true` while logged in as himself and
+   expect "only a SELECT or WITH query is allowed".
+
 ## SQL files this step wrote
 
 **None.** `sql/step-at0-readonly-query.sql` is the reviewer's and I did not run or change it.
@@ -181,10 +220,7 @@ the function, which refuses anything that is not a SELECT or WITH).
 
 ## Not verified
 
-- **The smoke tests against the deployed site.** They need this commit deployed; see above.
-- **`claude_readonly_query` itself.** `sql/step-at0-readonly-query.sql` has not been run, so
-  `/dev/sql` has never executed a query. The page's URL handling and table building are unit
-  tested; the round trip to the function is not. First thing to try after Nathan runs it:
-  `select 1 as ok`, then a refusal such as `update validation_rules set is_active = true`,
-  which should come back "only a SELECT or WITH query is allowed".
+- **A successful `/dev/sql` query, and the "only a SELECT or WITH" guard.** Both need
+  Nathan's own login — see the section above for the two queries that would settle them.
+  The page, the `?q=` prefill and the function's login guard ARE verified.
 - **`is_replacement_sashes_range`** — reported, not investigated.
