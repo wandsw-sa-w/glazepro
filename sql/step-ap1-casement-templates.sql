@@ -28,7 +28,7 @@ BEGIN;
 
 -- The casement profile (code 'casement'); every template points at it.
 DO $$
-DECLARE _profile_id uuid;
+DECLARE _profile_id bigint;  -- default_profiles.id is bigint (reviewer fix, 12 Oct: was uuid)
 BEGIN
   SELECT id INTO _profile_id FROM public.default_profiles WHERE code = 'casement' AND is_active = TRUE;
   IF _profile_id IS NULL THEN
