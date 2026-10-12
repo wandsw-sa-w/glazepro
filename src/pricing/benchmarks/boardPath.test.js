@@ -27,6 +27,15 @@ import { internalSizeOf, keepInternalSize, frameFromInternalSize } from '../../d
 import {
   NEW_CILL_REPAIR_CODE, CILL_ONLY_TYPE_OF_WORK, cillRepairApplies, applyCillRules,
 } from '../../drawingBoard/cillReplacement.js'
+import {
+  buildCasementFrame, changeOpening, setCasementOperation, openingNodes,
+  openingKindOf, isCasementFrameTree,
+} from '../../drawingBoard/casementOpenings.js'
+import { applyDividers } from '../../drawingBoard/gridActions.js'
+import { isSashWindow } from '../../drawingBoard/sashesReplaced.js'
+import { isCompleteNewSashWindow } from '../../drawingBoard/sashThickness.js'
+import { sizeEntryMode } from '../../drawingBoard/internalSize.js'
+import { BENCHMARK_K, BENCHMARK_L, BENCHMARK_M, BENCHMARK_N, BENCHMARK_P } from './index.js'
 import { runPricingOnTree } from '../pricingEngine.js'
 import { resolveIronmongeryLines } from '../loadPricingContext.js'
 import { BENCHMARK_A, BENCHMARK_B } from './index.js'
@@ -369,5 +378,225 @@ d('Step AK item 3 — board path: complete new spiral window (E)', () => {
     expect(der.sashWidth).toBe(939)
     expect(der.topSashHeight).toBe(701.5)
     expect(der.topSashHeight - 49 - 40).toBe(612.5)
+  })
+})
+
+// ── Step AP — casement and direct glazed frames BUILT ON THE BOARD ─────────
+// Step AO's J–P are hand-built fixtures of Integrate's drawings. These tests
+// build K, L, M, N and P through the real board code — the template tree
+// (casementOpenings.buildCasementFrame, which is what sql/step-ap1 stores),
+// then resize, then the mullion picker (gridActions.applyDividers), then
+// "Change to" / the operation buttons — and price the result from the
+// snapshot. With the fixtures' stored ironmongery list injected they must
+// give the SAME totals and hours as the fixtures.
+describe('Step AP — the board builds the casement benchmarks', () => {
+  // The casement profile's values, as the reviewer read them live
+  const PV = {
+    'assemblyFramePart.leftWidth': 37, 'assemblyFramePart.rightWidth': 37,
+    'assemblyFramePart.topHeight': 47, 'assemblyFramePart.bottomHeight': 47,
+    'assemblyFramePart.frameDepth': 96, 'assemblyFramePart.frameHeadStopSize': 20,
+    'assemblyFramePart.frameStileStopSize': 20, 'assemblyFramePart.cillStopSize': 20,
+    'assemblyFramePart.cillAngle': 6, 'assemblyFramePart.jambType': 'solid_profiled',
+    'cillPart.height': 47, 'cillPart.depth': 128,
+    'mullionPart.thicknessInFrameSolid': 27, 'mullionPart.mullionStopSize': 20,
+    'casementSashPart.thickness': 54, 'casementSashPart.topHeight': 62,
+    'casementSashPart.leftWidth': 62, 'casementSashPart.rightWidth': 62,
+    'casementSashPart.defaultFanlightBottomHeight': 83,
+    'casementSashPart.mechanicalClearance': 4, 'casementSashPart.btmRailShapeId': 'square',
+    'glassPart.defaultDoubleGlazingRebateWidthForSash': 16,
+    'glassPart.defaultDoubleGlazingTolerance': 2,
+    'glassPart.defaultDirGuStopSize': 20,
+    'glassPart.defaultDoubleGlazingRebateWidthForDirGU': 20,
+    'glassPart.defaultDoubleGlazingToleranceForDirGU': 2,
+  }
+  // The short map the mullion picker takes
+  const PICKER_PV = { thicknessInFrameSolid: 27, mullionStopSize: 20 }
+
+  /** The board's own resize: type the frame size. */
+  function setFrameSize(tree, width, height) {
+    const frame = tree.children.find(c => c.part_type === 'assemblyFramePart')
+    frame.values.width = width
+    frame.values.height = height
+    return tree
+  }
+
+  /** The mullion picker, as DrawingBoard calls it on a casement frame. */
+  function applyColumns(tree, cols) {
+    const frame = tree.children.find(c => c.part_type === 'assemblyFramePart')
+    const cill = frame.children.find(c => c.part_type === 'cillPart')
+    const iW = frame.values.width - frame.values.leftWidth - frame.values.rightWidth
+    const iH = frame.values.height - frame.values.topHeight - cill.values.height
+    expect(isCasementFrameTree(tree)).toBe(true)      // so the picker goes solid
+    return applyDividers(tree, frame.key, cols, 1, iW, iH, PICKER_PV, 'solid')
+  }
+
+  /** Give the board tree the fixtures' stored ironmongery list. */
+  function withFixtureIronmongery(tree, bm) {
+    const paint = tree.children.find(c => c.part_type === 'paintAndIronmongeryPart')
+    paint.values.ironmongeryLines = bm.ironmongeryLines.map(l => ({ ...l }))
+    return tree
+  }
+
+  /** Price a board tree exactly as the fixtures are priced. */
+  function priceBoardTree(tree) {
+    return priceFromSnapshot(tree)
+  }
+
+  function expectSameAsFixture(tree, bm, label) {
+    const board = priceBoardTree(tree)
+    const fixture = priceFromSnapshot(bm.tree)
+    expect(board.price.total_cost, `${label} cost`).toBeCloseTo(fixture.price.total_cost, 2)
+    expect(board.price.total, `${label} price`).toBeCloseTo(fixture.price.total, 2)
+    expect(board.manufacture_labour.total_minutes, `${label} production`)
+      .toBe(fixture.manufacture_labour.total_minutes)
+    expect(board.install_labour.total_minutes, `${label} labour`)
+      .toBe(fixture.install_labour.total_minutes)
+  }
+
+  it('K: template → resize → mullion → change B1 to direct glazed', () => {
+    // Start from the Single Flush Casement template
+    let { tree, missing } = buildCasementFrame(PV, { openings: ['opening_casement'] })
+    expect(missing).toEqual([])
+    tree = setFrameSize(tree, 1199, 1299)
+    tree = applyColumns(tree, 2)                       // adds the solid mullion + copies A1
+    const b1 = openingNodes(tree)[1]
+    tree = changeOpening(tree, b1.key, 'direct_glazed', PV).tree
+    expect(openingNodes(tree).map(openingKindOf)).toEqual(['opening_casement', 'direct_glazed'])
+    expectSameAsFixture(withFixtureIronmongery(tree, BENCHMARK_K), BENCHMARK_K, 'K')
+  })
+
+  it('L: Direct Glazed Frame template → resize → mullion (copies the unit)', () => {
+    let { tree } = buildCasementFrame(PV, { openings: ['direct_glazed'] })
+    tree = setFrameSize(tree, 1199, 1299)
+    tree = applyColumns(tree, 2)
+    expect(openingNodes(tree).map(openingKindOf)).toEqual(['direct_glazed', 'direct_glazed'])
+    expectSameAsFixture(withFixtureIronmongery(tree, BENCHMARK_L), BENCHMARK_L, 'L')
+  })
+
+  it('M: Direct Glazed Frame template → resize only', () => {
+    let { tree } = buildCasementFrame(PV, { openings: ['direct_glazed'] })
+    tree = setFrameSize(tree, 1199, 1299)
+    expect(openingNodes(tree).map(openingKindOf)).toEqual(['direct_glazed'])
+    expectSameAsFixture(withFixtureIronmongery(tree, BENCHMARK_M), BENCHMARK_M, 'M')
+  })
+
+  it('N: template → resize → mullion → B1 set to Fix', () => {
+    // The mullion is added AFTER the resize so it is centred on the final
+    // frame. Resizing a frame does NOT move mullions already on it (a
+    // surveyor may have placed them deliberately), so opening a Double
+    // template and resizing leaves its mullion at the template's offset —
+    // on 1199 that is 549.5 instead of 549, which is 1p of glass and
+    // timber. Reported in docs/step-ap-findings.md.
+    let { tree } = buildCasementFrame(PV, { openings: ['opening_casement'] })
+    tree = setFrameSize(tree, 1199, 1299)
+    tree = applyColumns(tree, 2)
+    const b1 = openingNodes(tree)[1]
+    tree = setCasementOperation(tree, b1.key, 'fix').tree
+    expect(openingNodes(tree).map(openingKindOf)).toEqual(['opening_casement', 'fixed_casement'])
+    expectSameAsFixture(withFixtureIronmongery(tree, BENCHMARK_N), BENCHMARK_N, 'N')
+  })
+
+  it('resizing does not move a mullion already on the frame (reported)', () => {
+    // The Double Flush Casement template centres its mullion on 1200
+    // (offset 549.5); resizing to 1199 leaves it there.
+    let { tree } = buildCasementFrame(PV, { openings: ['opening_casement', 'opening_casement'] })
+    const frame = tree.children.find(c => c.part_type === 'assemblyFramePart')
+    expect(frame.children.find(c => c.part_type === 'mullionPart').values.offset).toBe(549.5)
+    tree = setFrameSize(tree, 1199, 1299)
+    expect(frame.children.find(c => c.part_type === 'mullionPart').values.offset).toBe(549.5)
+    // Re-applying the picker re-centres it on the new size
+    tree = applyColumns(tree, 2)
+    expect(tree.children.find(c => c.part_type === 'assemblyFramePart')
+      .children.find(c => c.part_type === 'mullionPart').values.offset).toBe(549)
+  })
+
+  it('P: Single Flush Casement template → resize to 1599 x 1599', () => {
+    let { tree } = buildCasementFrame(PV, { openings: ['opening_casement'] })
+    tree = setFrameSize(tree, 1599, 1599)
+    expectSameAsFixture(withFixtureIronmongery(tree, BENCHMARK_P), BENCHMARK_P, 'P')
+  })
+
+  it('a board-built direct glazed unit stores its hidden-in-rebate, so no warning', () => {
+    let { tree } = buildCasementFrame(PV, { openings: ['direct_glazed'] })
+    tree = setFrameSize(tree, 1199, 1299)
+    const warnings = priceFromSnapshot(tree).warnings.filter(w => w.includes('hidden in the rebate'))
+    expect(warnings).toEqual([])
+  })
+
+  it('a direct glazed unit WITHOUT it warns instead of pricing the visible size', () => {
+    let { tree } = buildCasementFrame(PV, { openings: ['direct_glazed'] })
+    tree = setFrameSize(tree, 1199, 1299)
+    const frame = tree.children.find(c => c.part_type === 'assemblyFramePart')
+    const dgu = frame.children.find(c => c.part_type === 'glassPart')
+    for (const k of ['hiddenInRebateLeft', 'hiddenInRebateRight', 'hiddenInRebateTop', 'hiddenInRebateBottom']) {
+      delete dgu.values[k]
+    }
+    const r = priceFromSnapshot(tree)
+    expect(r.warnings.some(w => w.includes('hidden in the rebate'))).toBe(true)
+    // and the glass really is smaller, which is why it must warn
+    const area = r.price.lines.find(l => l.fires && l.name === 'Square Glass Cost').quantity
+    expect(area).toBeLessThan(1.35)
+  })
+
+  // Item 5: with NO stored list, Integrate's own default_ironmongery rules
+  // price the ironmongery and follow the openings.
+  it('the default ironmongery list follows the openings (no stored list)', () => {
+    const lines = tree => resolveIronmongeryLines(tree, SNAPSHOT, SNAPSHOT.profileValues)
+      .map(l => `${l.product_short_name}:${l.finish_code} x${l.qty}`).sort()
+
+    // K's shape: one opening casement + one direct glazed unit
+    let { tree: k } = buildCasementFrame(PV, { openings: ['opening_casement'] })
+    k = setFrameSize(k, 1199, 1299)
+    k = applyColumns(k, 2)
+    k = changeOpening(k, openingNodes(k)[1].key, 'direct_glazed', PV).tree
+    const kLines = lines(k)
+    expect(kLines.length).toBeGreaterThan(0)
+
+    // N's shape: the same frame with B1 FIXED instead — a fixed sash gets no
+    // handle, gearbox or extensions, so the list must shrink
+    let { tree: n } = buildCasementFrame(PV, {
+      openings: ['opening_casement', 'opening_casement'],
+    })
+    n = setFrameSize(n, 1199, 1299)
+    // The lines MERGE by product and finish, so fixing B1 halves the
+    // quantities rather than removing lines: handle, gearbox, hinge and
+    // extensions all drop from 2 (or 4) to 1 (or 2).
+    const totalQty = t => resolveIronmongeryLines(t, SNAPSHOT, SNAPSHOT.profileValues)
+      .filter(l => /connoisseur|kenrick|hinge/.test(l.product_short_name))
+      .reduce((sum, l) => sum + l.qty, 0)
+    const bothQty = totalQty(n)
+    n = setCasementOperation(n, openingNodes(n)[1].key, 'fix').tree
+    const fixedQty = totalQty(n)
+    expect(fixedQty).toBeLessThan(bothQty)
+    expect(fixedQty * 2).toBe(bothQty)      // exactly half: one opening sash, not two
+
+    // A frame of only direct glazed units sells no casement ironmongery
+    let { tree: l } = buildCasementFrame(PV, { openings: ['direct_glazed'] })
+    l = setFrameSize(l, 1199, 1299)
+    const lLines = lines(l)
+    expect(lLines.filter(s => s.includes('connoisseur') || s.includes('kenrick'))).toEqual([])
+  })
+
+  it('Casement MPLS is on by default and the surveyor can turn it off', () => {
+    let { tree } = buildCasementFrame(PV, { openings: ['opening_casement'] })
+    tree = setFrameSize(tree, 1199, 1299)
+    const paint = tree.children.find(c => c.part_type === 'paintAndIronmongeryPart')
+    expect(paint.values.isCasementMpls).toBe(true)
+    const withMpls = resolveIronmongeryLines(tree, SNAPSHOT, SNAPSHOT.profileValues).length
+    paint.values.isCasementMpls = false
+    const without = resolveIronmongeryLines(tree, SNAPSHOT, SNAPSHOT.profileValues).length
+    expect(without).toBeLessThan(withMpls)
+  })
+
+  it('the sash-only board rules do not touch a casement drawing', () => {
+    const { tree } = buildCasementFrame(PV, { openings: ['opening_casement'] })
+    expect(isSashWindow(tree)).toBe(false)
+    expect(isCompleteNewSashWindow(tree)).toBe(false)
+    expect(sizeEntryMode(tree)).toBe('frame_only')
+    expect(cillRepairApplies(tree)).toBe(false)
+    // and the rules themselves change nothing
+    expect(applySashesReplaced(tree).sashesChanged).toEqual([])
+    expect(applyCompleteNewThickness(tree).pairsChanged).toEqual([])
+    expect(applyCillRules(tree).changed).toEqual([])
   })
 })
