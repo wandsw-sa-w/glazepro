@@ -34,7 +34,10 @@ SET    role = 'config'
 WHERE  part_type IN ('casementSashPart', 'mullionPart', 'transomPart',
                      'assemblyFramePart', 'glassPart', 'cillPart')
   AND  role = 'input'
-  AND  (field_key LIKE '%.default%' OR label ILIKE 'Update frame details%');
+  AND  (field_key LIKE '%.default%' OR label ILIKE 'Update frame details%'
+        OR field_key IN ('casementSashPart.constantSideOnHeightCalculation',
+                         'casementSashPart.stormProofOverlap',
+                         'casementSashPart.stormProofLipThickness'));  -- reviewer, 12 Oct: profile settings too
 
 -- ── 2. The fields these parts actually store ───────────────────────────────
 -- Every field_key below is a property the tree really holds (written by
@@ -84,7 +87,7 @@ VALUES
      909, TRUE, 'casementSashPart', 'mm', 'input', NULL, NULL, FALSE),
     ('casementSashPart', 'casementSashPart.btmRailShapeId',
      'btmRailShapeId', 'Bottom Rail Shape', 'reference', 'visible',
-     910, TRUE, 'casementSashPart', NULL, 'input', 'btm_rail_shape', NULL, FALSE),
+     910, TRUE, 'casementSashPart', NULL, 'input', 'bottom_rail_shape', NULL, FALSE),
     ('casementSashPart', 'casementSashPart.mechanicalClearanceLeft',
      'mechanicalClearanceLeft', 'Mechanical Clearance Left', 'number', 'visible',
      911, TRUE, 'casementSashPart', 'mm', 'input', NULL, NULL, FALSE),
@@ -126,6 +129,13 @@ VALUES
      933, TRUE, 'glassPart', 'mm', 'input', NULL, NULL, FALSE)
 ON CONFLICT (field_key) DO NOTHING;
 
+-- Reviewer fix, 12 Oct: casementSashPart.btmRailShapeId ALREADY exists live as a plain number field with no
+-- reference list, so the INSERT above skips it (ON CONFLICT DO NOTHING). Make it the bottom-rail-shape list
+-- (live category is 'bottom_rail_shape': square / chamfered / stepped — the sliding sash field uses it).
+UPDATE default_field_definitions
+SET    data_type = 'reference', reference_category = 'bottom_rail_shape', label = 'Bottom Rail Shape', sort_order = 910
+WHERE  field_key = 'casementSashPart.btmRailShapeId';
+
 COMMIT;
 
 -- ── 3. Checks ──────────────────────────────────────────────────────────────
@@ -157,7 +167,7 @@ ORDER  BY part_type, field_key;
 --     should say which category holds the shapes.
 SELECT category, count(*) AS options
 FROM   public.reference_options
-WHERE  category IN ('sash_operation', 'sash_type', 'btm_rail_shape')
+WHERE  category IN ('sash_operation', 'sash_type', 'bottom_rail_shape')
   AND  is_active
 GROUP  BY category
 ORDER  BY category;

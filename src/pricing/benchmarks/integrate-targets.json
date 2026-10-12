@@ -749,5 +749,98 @@
       "production": 8.83,
       "labour": 11.25
     }
+  },
+  "benchmarkQ_fanlight_tophung_over_side": {
+    "source": "L31115 Item 2 Drawing 21 (first floor): flush casement 1040 x 980 redwood, transom; A1 top-hung fanlight over A2 left-hand-hung casement, complete new. Read 12 Oct 2026 via a temporary Quote 2 test quote. Facts: docs/integrate-L31115-fanlights.txt",
+    "total_cost": 1035.52,
+    "total_price": 2071.0,
+    "groups": {
+      "glass_done": {
+        "cost": 39.0,
+        "price": 77.99
+      },
+      "installation_materials": {
+        "cost": 66.71,
+        "price": 133.41
+      },
+      "manufacture": {
+        "cost": 423.41,
+        "price": 846.82
+      },
+      "labour": {
+        "cost": 442.31,
+        "price": 884.62
+      },
+      "manufacture_materials": {
+        "cost": 64.09,
+        "price": 128.16
+      }
+    },
+    "hours": {
+      "production": 17.17,
+      "labour": 11.0
+    }
+  },
+  "benchmarkR_fixed_fanlight_over_side": {
+    "source": "L31115 Item 2 Drawing 22 (first floor): as Q but the fanlight is a FIXED casement sash. Read 12 Oct 2026 via a temporary Quote 2 test quote. Facts: docs/integrate-L31115-fanlights.txt",
+    "total_cost": 1015.42,
+    "total_price": 2030.79,
+    "groups": {
+      "glass_done": {
+        "cost": 39.0,
+        "price": 77.99
+      },
+      "installation_materials": {
+        "cost": 66.71,
+        "price": 133.41
+      },
+      "manufacture": {
+        "cost": 423.41,
+        "price": 846.82
+      },
+      "labour": {
+        "cost": 422.21,
+        "price": 844.41
+      },
+      "manufacture_materials": {
+        "cost": 64.09,
+        "price": 128.16
+      }
+    },
+    "hours": {
+      "production": 17.17,
+      "labour": 10.5
+    }
+  },
+  "benchmarkS_fanlight_1199x1499": {
+    "source": "L31115 Item 2 Drawing 23 (first floor): Q resized to 1199 x 1499 (fanlight opening stays 356, the lower opening takes the change). Read 12 Oct 2026 via a temporary Quote 2 test quote. Facts: docs/integrate-L31115-fanlights.txt",
+    "total_cost": 1116.04,
+    "total_price": 2232.08,
+    "groups": {
+      "glass_done": {
+        "cost": 75.52,
+        "price": 151.04
+      },
+      "installation_materials": {
+        "cost": 70.13,
+        "price": 140.25
+      },
+      "manufacture": {
+        "cost": 423.41,
+        "price": 846.82
+      },
+      "labour": {
+        "cost": 472.47,
+        "price": 944.94
+      },
+      "manufacture_materials": {
+        "cost": 74.51,
+        "price": 149.03
+      }
+    },
+    "hours": {
+      "production": 17.17,
+      "labour": 11.75
+    }
   }
 }

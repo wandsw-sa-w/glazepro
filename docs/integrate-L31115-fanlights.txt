@@ -1,0 +1,59 @@
+# Integrate facts — casement fanlights (transoms) and resize behaviour (read 12 Oct 2026, wandsworth.work, L31115)
+# Benchmark sources: L31115 item 2 drawings 21, 22, 23 (copies of item 1 drawing 10, in no quote). Read through a
+# temporary Quote 2 test quote, one drawing at a time; Quote 2 emptied and the test quote set back to L34046 / 8.
+# PF30, redwood (sash 38, frame 38, cill 44), first floor, complete new, flush casement profile (jambs 37, head/cill 47,
+# depth 96, stops 20, sash 54 thick, 62/62/62/83, clearance 4). Nathan (12 Oct): the layout sold most is ONE casement with
+# a fanlight over it; the fanlight is a top-hung opener or a fixed casement sash.
+
+## How Integrate stores a fanlight
+# A TransomPart in the frame's `dividers` array (as mullions): thickness 27 (profiled; 67 overall with two 20 stops),
+# offset = height of the opening ABOVE it (356), offset2 = opening below (503 on a 980 frame), stop sizes 20 top / 20 bottom.
+# Openings are tagged by row: A1 = above the transom, A2 = below. The board's Explorer labels the top casement "Fanlight".
+# One CillPart (width = internal width). Validation shows a WARNING on every fanlight with the 83 bottom rail:
+# "Fanlight bottom rail should be reduced to 62mm externally" — the drawings below keep 83 (as Integrate's own drawing 1/10).
+# Fanlight sash = opening - 2 x 4 clearance: 958 x 348 on a 1040 frame.
+
+## Resize behaviour (12 Oct)
+# - MULLIONS re-space: N (1199, openings 549/549) widened to 1599 -> 749/749 (equal widths kept). Undone, not saved.
+# - TRANSOMS keep the FANLIGHT: drawing 23 height 980 -> 1499 kept the top opening at 356 and the lower opening went
+#   503 -> 1022. Width 1040 -> 1199 widened both rows.
+
+## Trees
+--- 2/21 (drawingId 310451) Q: 1040 x 980, transom 27 at 356 / 503
+  A1 CasementSashPart operationId 15 (Top Hung) shoulderHeight 203 (sash 348 - 62 - 83)
+  A2 CasementSashPart operationId 17 (Left Hand Hung) shoulderHeight 350 (sash 495 - 62 - 83)
+  CillPart width 966
+--- 2/22 (310452) R: as Q but A1 operationId 11 (Fix)
+--- 2/23 (310453) S: 1199 x 1499, transom at 356 / 1022; A1 top hung (sash 1117 x 348), A2 LH hung (sash 1117 x 1014); cill 1125
+# Stored ironmongery (copied from 1/10, priced as stored): Connoisseur Handle LH PB 1, Defender 310mm Top Hung Friction
+# Hinge 1, Kenrick gearbox set 1 (gearbox 4.20, centre strike 2.10, LH / RH strike 1.05 each), Kenrick Extension 490-700 x2
+# (2.10), Trickle Vent XR16 3.15 = 27.30 cost (8 lines).
+
+## Price lines (cost)
+--- Q 1,035.52 / 2,071.00
+Square Glass 0.30 x 58.50 = 17.55 (fanlight — the 0.30 m2 minimum) ; 0.33 x 58.50 = 19.31
+Energy 6.00 x 0.17 = 1.02 ; 6.60 x 0.17 = 1.12
+Ironmongery 27.30 ; Ogee Architrave MDF 2.20 m 6.27 + 1.10 m 3.14 ; Installation Consumables 30.00
+Production 17.17 h = 423.41 ; Labour 11.00 h = 442.31
+Softwood Casement Frame & Sashes 28.41 x 0.55 = 15.63 ; Softwood Casement Sashes 9.83 -> 5.41 and 10.82 -> 5.95
+Hardwood Casement Cill 11.15 x 1.085 = 12.10 ; LTW 25.00
+Groups: glass 39.00 ; installation materials 66.71 ; manufacture 423.41 ; labour 442.31 ; manufacture materials 64.09
+--- R 1,015.42 / 2,030.79 — identical to Q except Labour 10.50 h = 422.21 (fixed fanlight: 60 min not 90)
+--- S 1,116.04 / 2,232.08
+Square Glass 0.30 -> 17.55 ; 0.92 -> 53.82 ; Energy 1.02 ; 18.40 x 0.17 = 3.13
+Ironmongery 27.30 ; Architrave 3.20 m 9.12 + 1.30 m 3.71 ; Consumables 30.00
+Production 17.17 h = 423.41 ; Labour 11.75 h = 472.47
+Frame & Sashes 38.06 -> 20.93 ; Sashes 11.08 -> 6.09 and 15.54 -> 8.55 ; Cill 12.85 -> 13.94 ; LTW 25.00
+Groups: glass 75.52 ; installation materials 70.13 ; manufacture 423.41 ; labour 472.47 ; manufacture materials 74.51
+
+## Reconciliations (all exact with the existing rules and the Step AO formulas)
+# Labour: Q = base casement frame 480 + 2 opening casements x 90 = 660 (11.00 h). R = 480 + 90 + fixed 60 = 630.
+#   S = 660 + "Any Sash Overweight" 45 (the 1117 x 1014 lower sash with a 0.92 m2 unit is over 25 kg) = 705 (11.75 h).
+# Production (all three 1030 = 17.17 h): frame 180 + transom 180 (rule 1105 counts frame_transom_qty) + 2 sashes x 180 +
+#   glazing 2 x 20 + sash finish 2 x 60 + frame finish 90 + transom finish 60 (rule 211).
+# Frame timber (dm3, 2 dp, x 1.25): head W x 96 x 67 + jambs 2 x internal height x 96 x 57 + TRANSOM (internal WIDTH + 20)
+#   x 96 x 67. Q: 6.689 + 9.696 + 986 x 6432 = 6.342 -> 22.73 -> 28.41. S: 7.712 + 15.376 + 1145 x 6432 = 7.365 -> 30.45 -> 38.06.
+#   (The transom is the mullion's rule turned sideways: internal dimension + 20.)
+# Sash timber per sash: (2 x H x 62 + W x (62 + 83)) x 54: 958 x 348 -> 9.83 ; 958 x 495 -> 10.82 ; 1117 x 348 -> 11.08 ;
+#   1117 x 1014 -> 15.54.  Cill: W x 128 x 67: 1040 -> 8.92 -> 11.15 ; 1199 -> 12.85.
+# Glass: fanlight 958 - 124 + 28 = 862 x (348 - 145 + 28) = 231 -> 0.199 m2 -> the 0.30 minimum. S lower: 1021 x 897 = 0.92.
