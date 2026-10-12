@@ -14,8 +14,8 @@
 import React from 'react'
 import { computeOpeningLayout, computeGlassWidth, mullionThicknessMm } from './sashGeometry.js'
 import { resolveTopSashArch } from '../pricing/optionVocabulary.js'
-import { openingNodes as casementOpeningNodes } from '../pricing/casementGeometry.js'
-import { isCasementFrameTree, matrixIndexOf } from './casementOpenings.js'
+import { frameOpenings, openingNodes as casementOpeningNodes } from '../pricing/casementGeometry.js'
+import { columnCount, isCasementFrameTree, matrixIndexOf } from './casementOpenings.js'
 
 // ── Tree helpers ──────────────────────────────────────────────────────────────
 
@@ -897,11 +897,15 @@ export function CasementElevation({
   const frameMullions = childrenOfType(frame, 'mullionPart')
     .sort((a, b) => (a.values?.offset ?? 0) - (b.values?.offset ?? 0))
 
-  // Opening slots, by the same layout the pricing engine uses. A casement
-  // mullion is SOLID, so its thickness is the value stored on the mullion.
-  const slots = computeOpeningLayout(frameMullions, iW,
-    m => n(m?.values?.thicknessInFrame, 0))
+  const frameTransoms = childrenOfType(frame, 'transomPart')
+    .sort((a, b) => (a.values?.offset ?? 0) - (b.values?.offset ?? 0))
   const nodes = casementOpeningNodes(tree)
+  // Step AR: labels are column letter + ROW number, so the matrix needs to
+  // know how many columns the frame has.
+  const nCols = columnCount(tree)
+  // The openings sit in the 2-D grid cells frameOpenings returns (x / y
+  // relative to the frame interior).
+  const cells = frameOpenings(tree)
 
   const refLabel = (list, code) =>
     (refOptions?.[list] ?? []).find(o => o.code === code)?.label ?? ''
@@ -909,7 +913,7 @@ export function CasementElevation({
   // "Open Out A1" / "Fix B1" — the sash type's label, or Fix when it is fixed.
   function sashLabel(sashNode, idx) {
     const op = String(sashNode.values?.operation ?? '').toLowerCase()
-    const matrix = matrixIndexOf(idx)
+    const matrix = matrixIndexOf(idx, nCols)
     if (op === 'fix' || op.startsWith('fix')) {
       return `${refLabel('sash_operation', 'fix') || 'Fix'} ${matrix}`
     }
@@ -949,23 +953,28 @@ export function CasementElevation({
   // direct glazed unit (glass only). Returns its own dimension figures too,
   // so the dimension rows below show exactly what was drawn.
   const drawn = nodes.map((node, idx) => {
-    const slot = slots[idx] ?? { x: 0, width: iW }
+    // Step AR: the cell comes from the 2-D grid (columns from mullions, rows
+    // from transoms), so a fanlight is drawn in its own row instead of every
+    // opening being full height.
+    const slot = cells[idx] ?? { x: 0, y: 0, width: iW, height: iH }
     const v = node.values ?? {}
     const clearL = n(v.mechanicalClearanceLeft,   0)
     const clearR = n(v.mechanicalClearanceRight,  0)
     const clearT = n(v.mechanicalClearanceTop,    0)
     const clearB = n(v.mechanicalClearanceBottom, 0)
     const x = OX + slot.x + clearL
-    const y = OY + clearT
+    const y = OY + (slot.y ?? 0) + clearT
     const w = slot.width - clearL - clearR
-    const h = iH - clearT - clearB
-    const matrix = matrixIndexOf(idx)
+    const h = (slot.height ?? iH) - clearT - clearB
+    const matrix = matrixIndexOf(idx, nCols)
 
     if (node.part_type === 'glassPart') {
       // Direct glazed: the glass is glazed into the frame, no sash
       const label = matrix
       return {
         idx, slot, size: { width: w, height: h }, label,
+      selected: node.key === selectedKey || (node.children ?? []).some(c => c.key === selectedKey),
+        selected: node.key === selectedKey || (node.children ?? []).some(c => c.key === selectedKey),
         svg: (
           <g key={node.key}>
             <rect x={x} y={y} width={w} height={h}
@@ -996,6 +1005,7 @@ export function CasementElevation({
 
     return {
       idx, slot, size: { width: w, height: h }, label,
+      selected: node.key === selectedKey || (node.children ?? []).some(c => c.key === selectedKey),
       svg: (
         <g key={node.key}>
           <g style={{ cursor: 'pointer' }} onClick={() => onSelectKey?.(node.key)}>
@@ -1069,8 +1079,29 @@ export function CasementElevation({
           )
         })}
 
+        {/* Transoms (solid on a casement frame; offset = the opening above) */}
+        {frameTransoms.map(t => {
+          const thick = n(t.values?.thicknessInFrame, 27)
+          const tY = OY + n(t.values?.offset, 0)
+          return (
+            <rect key={t.key} x={OX} y={tY} width={iW} height={thick}
+              fill={C.timber} {...ss(t.key)}
+              style={{ cursor: 'pointer' }} onClick={() => onSelectKey?.(t.key)} />
+          )
+        })}
+
         {/* The openings */}
         {drawn.map(d => d.svg)}
+
+        {/* Step AR: the SELECTED opening, outlined in red as Integrate draws
+            it, so the parts list and the drawing can never be read as
+            different openings. */}
+        {drawn.filter(d => d.selected).map(d => (
+          <rect key={`sel-${d.idx}`}
+            x={OX + d.slot.x} y={OY + (d.slot.y ?? 0)}
+            width={d.slot.width} height={d.slot.height ?? iH}
+            fill="none" stroke={C.selected} strokeWidth={4} pointerEvents="none" />
+        ))}
       </g>
 
       {/* Dimensions (outside the mirror group, so figures are never flipped) */}

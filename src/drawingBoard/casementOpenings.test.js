@@ -224,8 +224,14 @@ describe('changeOpening / setCasementOperation', () => {
     expect(setCasementOperation(tree, openingNodes(tree)[0].key, 'sideways').changed).toBe(false)
   })
 
-  it('matrix labels run A1, B1, C1', () => {
-    expect([0, 1, 2].map(matrixIndexOf)).toEqual(['A1', 'B1', 'C1'])
+  // Step AR replaces Step AP's one-row labels: the letter is the COLUMN and
+  // the number is the ROW, so a fanlight frame reads A1 over A2.
+  it('matrix labels are column letter + row number', () => {
+    expect([0, 1, 2].map(i => matrixIndexOf(i, 3))).toEqual(['A1', 'B1', 'C1'])
+    expect([0, 1].map(i => matrixIndexOf(i, 1))).toEqual(['A1', 'A2'])
+    expect([0, 1, 2, 3].map(i => matrixIndexOf(i, 2))).toEqual(['A1', 'B1', 'A2', 'B2'])
+    // and the default is still one column, as every existing caller had it
+    expect(matrixIndexOf(1)).toBe('A2')
   })
 
   it('every kind is offered and round-trips', () => {
@@ -267,12 +273,36 @@ describe('applyDividers on a casement frame', () => {
     expect(openingNodes(next).map(openingKindOf)).toEqual(['direct_glazed', 'direct_glazed'])
   })
 
-  it('adds no transom on a casement frame (out of scope this step)', () => {
+  // Step AR: transoms ARE in scope now. Step AP's assertion that a casement
+  // frame takes none is replaced by the behaviour that replaced it.
+  it('adds transoms on a casement frame, the top row being the fanlight', () => {
+    const { tree } = buildCasementFrame(PV, { openings: ['opening_casement'] })
+    const frame = tree.children.find(c => c.part_type === 'assemblyFramePart')
+    const next = applyDividers(tree, frame.key, 1, 2, 1125, 1205, SOLID_PV, 'solid')
+    const transoms = next.children.find(c => c.part_type === 'assemblyFramePart')
+      .children.filter(c => c.part_type === 'transomPart')
+    expect(transoms).toHaveLength(1)
+    // offset = the opening ABOVE it = Integrate's fanlight height, and the
+    // section is the solid mullion's (there is no transom thickness key)
+    expect(transoms[0].values).toMatchObject({
+      offset: 356, thicknessInFrame: 27, transomStopSize: 20,
+    })
+    // two openings now, the second a copy of the first
+    const openings = openingNodes(next)
+    expect(openings).toHaveLength(2)
+    expect(openings[1].part_type).toBe('casementSashPart')
+    expect(openings[1].key).not.toBe(openings[0].key)
+  })
+
+  it('three rows put the fanlight on top and split the rest equally', () => {
     const { tree } = buildCasementFrame(PV, { openings: ['opening_casement'] })
     const frame = tree.children.find(c => c.part_type === 'assemblyFramePart')
     const next = applyDividers(tree, frame.key, 1, 3, 1125, 1205, SOLID_PV, 'solid')
-    expect(next.children.find(c => c.part_type === 'assemblyFramePart')
-      .children.filter(c => c.part_type === 'transomPart')).toHaveLength(0)
+    const offsets = next.children.find(c => c.part_type === 'assemblyFramePart')
+      .children.filter(c => c.part_type === 'transomPart').map(t => t.values.offset)
+    // interior 1205 = 356 (fanlight) + 27 + x + 27 + x  ->  x = 397.5
+    expect(offsets).toEqual([356, 780.5])
+    expect(openingNodes(next)).toHaveLength(3)
   })
 
   it('needs the SOLID profile value, and says so', () => {

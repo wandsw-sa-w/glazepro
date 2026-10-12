@@ -53,12 +53,18 @@ export function applyDividers(tree, frameKey, cols, rows, iW, iH, profileValues 
   // openings, Integrate's model (step-ad brief §3):
   //   opening  = (iW − n × t) / (n + 1)        n mullions of thickness t
   //   offset_i = i × opening + (i − 1) × t     i = 1..n
-  // TRANSOMS are unchanged and out of scope on a casement frame: still the
-  // centre-line offset round(iH × row / rows) with thicknessInFrame 40
-  // (step-ae brief §1, step-ap brief §3 — the casement picker offers
-  // columns only and says transoms come later).
+  //
+  // Step AR: a CASEMENT frame now takes TRANSOMS too, and its transom is the
+  // mullion turned through 90° — solid, its own stored thickness, and an
+  // `offset` that is the height of the opening ABOVE it. The TOP row is the
+  // fanlight and takes the fanlight height (Integrate's template value 356,
+  // or a profile key if one exists — see FANLIGHT_HEIGHT_KEYS); any further
+  // rows split what is left equally. A BOX SASH frame's transom is unchanged:
+  // the centre-line offset round(iH × row / rows) with thicknessInFrame 40
+  // (step-ae brief §1).
   const solid = mullionKind === 'solid'
   const nMullions = Math.max(0, cols - 1)
+  const nTransoms = Math.max(0, rows - 1)
   let mullionT = 0
   if (nMullions > 0) {
     const key = solid ? 'thicknessInFrameSolid' : 'thicknessInFrameHollow'
@@ -73,6 +79,21 @@ export function applyDividers(tree, frameKey, cols, rows, iW, iH, profileValues 
     ? (Number(profileValues?.mullionStopSize) || Number(profileValues?.frameStileStopSize) || 0)
     : null
 
+  // A casement transom: the same solid section as the mullion (Integrate's
+  // own 27 with 20/20 stops on the flush casement profile — there is no
+  // separate transom thickness key, which casementTransomThickness reports).
+  const transomT    = (solid && nTransoms > 0) ? casementTransomThickness(profileValues) : 40
+  const transomStop = solid ? mullionStop : null
+  const fanlight    = solid ? fanlightHeight(profileValues) : null
+  // Row extents, TOP first: the fanlight, then the rest split equally.
+  const rowHeights = []
+  if (solid && nTransoms > 0) {
+    const remaining = iH - nTransoms * transomT - fanlight.height
+    for (let i = 0; i < rows; i++) {
+      rowHeights.push(i === 0 ? fanlight.height : remaining / nTransoms)
+    }
+  }
+
   function process(node) {
     if (node.key !== frameKey) {
       return { ...node, children: (node.children ?? []).map(process) }
@@ -84,11 +105,14 @@ export function applyDividers(tree, frameKey, cols, rows, iW, iH, profileValues 
       ? ['casementSashPart', 'glassPart']
       : ['sashPairPart']
     const existingOpenings = (node.children ?? []).filter(c => OPENING_TYPES.includes(c.part_type))
-    const templateOpening  = existingOpenings[0] ?? null
     const others = (node.children ?? []).filter(
       c => c.part_type !== 'mullionPart' && c.part_type !== 'transomPart' &&
            !OPENING_TYPES.includes(c.part_type)
     )
+    // The columns the frame is on NOW, so a new ROW copies the opening in
+    // its own column rather than always copying the first one.
+    const prevCols = Math.max(1,
+      (node.children ?? []).filter(c => c.part_type === 'mullionPart').length + 1)
 
     const mullions = Array.from({ length: nMullions }, (_, idx) => ({
       key:       makeKey('mull'),
@@ -105,21 +129,88 @@ export function applyDividers(tree, frameKey, cols, rows, iW, iH, profileValues 
       },
       children:  [],
     }))
-    // A casement frame takes no transoms in this step
-    const transoms = solid ? [] : Array.from({ length: rows - 1 }, (_, i) => ({
-      key:       makeKey('trans'),
-      part_type: 'transomPart',
-      values:    { offset: Math.round(iH * (i + 1) / rows), thicknessInFrame: 40 },
-      children:  [],
-    }))
-    // New openings COPY the first one (its kind and values), with fresh keys
-    const openings = templateOpening
-      ? Array.from({ length: cols }, (_, i) => (i === 0 ? templateOpening : cloneWithNewKeys(templateOpening)))
-      : []
+
+    const transoms = Array.from({ length: nTransoms }, (_, i) => {
+      if (!solid) {
+        return {
+          key: makeKey('trans'), part_type: 'transomPart',
+          values: { offset: Math.round(iH * (i + 1) / rows), thicknessInFrame: 40 },
+          children: [],
+        }
+      }
+      // Casement: offset = the total height ABOVE this transom
+      let above = 0
+      for (let r = 0; r <= i; r++) above += rowHeights[r] + (r < i ? transomT : 0)
+      return {
+        key: makeKey('trans'), part_type: 'transomPart',
+        values: {
+          offset: Math.round(above * 10) / 10,
+          thicknessInFrame: transomT,
+          transomStopSize:  transomStop,
+        },
+        children: [],
+      }
+    })
+
+    // New openings COPY the opening they split, with fresh keys, and come out
+    // in Integrate's matrix order — A1, B1, … across the top row, then down.
+    const openings = []
+    if (existingOpenings.length > 0) {
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          // The opening this cell comes from: the one in the same column of
+          // the frame's existing top row, falling back to the first.
+          const source = existingOpenings[Math.min(c, prevCols - 1)] ?? existingOpenings[0]
+          openings.push(r === 0 && c === 0 ? existingOpenings[0] : cloneWithNewKeys(source))
+        }
+      }
+    }
 
     return { ...node, children: [...mullions, ...transoms, ...openings, ...others] }
   }
   return process(tree)
+}
+
+// Profile keys that could hold the fanlight (top row) height. NOT VERIFIED:
+// the reviewer's 12 Oct reading of the casement profile lists no fanlight
+// HEIGHT key — `defaultFanlightBottomHeight` (83) is the fanlight's bottom
+// RAIL, not its height. Integrate's own template puts the transom at 356, so
+// that is the fallback, and `source` says which was used so the board and the
+// report can state it.
+const FANLIGHT_HEIGHT_KEYS = [
+  'defaultFanlightHeight',
+  'fanlightHeight',
+  'defaultFanlightOpeningHeight',
+  'defaultTransomOffset',
+]
+
+/** Integrate's own flush casement template value (docs/integrate-L31115-fanlights.txt). */
+export const INTEGRATE_FANLIGHT_HEIGHT_MM = 356
+
+export function fanlightHeight(profileValues) {
+  for (const key of FANLIGHT_HEIGHT_KEYS) {
+    const v = Number(profileValues?.[key])
+    if (isFinite(v) && v > 0) return { height: v, source: key }
+  }
+  return { height: INTEGRATE_FANLIGHT_HEIGHT_MM, source: 'integrate_template' }
+}
+
+/**
+ * A casement transom's thickness in the frame.
+ *
+ * The casement profile has NO transom thickness key (reviewer, 12 Oct), and
+ * Integrate's stored transom is 27 with 20/20 stops — the same section as its
+ * solid mullion, whose profile key `thicknessInFrameSolid` is also 27. So the
+ * solid mullion value is used and the agreement is recorded, rather than 27
+ * being written in as a constant.
+ */
+export function casementTransomThickness(profileValues) {
+  const own = Number(profileValues?.thicknessInFrameTransom)
+  if (isFinite(own) && own > 0) return own
+  const solid = Number(profileValues?.thicknessInFrameSolid)
+  if (isFinite(solid) && solid > 0) return solid
+  throw new Error(
+    'Missing profile value thicknessInFrameSolid — a casement transom is solid and takes the same section as the mullion. No transoms were added; check the drawing’s profile values.')
 }
 
 // Replace all bar children of a glassPart with new evenly-spaced bars.

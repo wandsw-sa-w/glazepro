@@ -319,15 +319,64 @@ function findFirst(node, partType) {
   return null
 }
 
-/** The frame's opening nodes, left to right (A1, B1, …). */
+/**
+ * The frame's opening nodes in Integrate's matrix order — across the top row
+ * first (A1, B1, …) then down (A2, B2, …), which is the order the frame
+ * stores them in and the order frameOpenings returns their cells.
+ */
 export function openingNodes(tree) {
   const frame = findFirst(tree, 'assemblyFramePart')
   return (frame?.children ?? []).filter(c => OPENING_TYPES.includes(c.part_type))
 }
 
-/** Integrate's matrix label for an opening by index: A1, B1, C1 … */
-export function matrixIndexOf(index) {
-  return `${String.fromCharCode(65 + index)}1`
+/** How many columns the frame is divided into (mullions + 1). */
+export function columnCount(tree) {
+  const frame = findFirst(tree, 'assemblyFramePart')
+  return (frame?.children ?? []).filter(c => c.part_type === 'mullionPart').length + 1
+}
+
+/** How many rows the frame is divided into (transoms + 1). */
+export function rowCount(tree) {
+  const frame = findFirst(tree, 'assemblyFramePart')
+  return (frame?.children ?? []).filter(c => c.part_type === 'transomPart').length + 1
+}
+
+/**
+ * Integrate's matrix label for an opening: the COLUMN letter and the ROW
+ * number — A1, B1 across the top row, then A2, B2 below it.
+ *
+ * Step AR: this used to return `${letter}1` for every opening, which was
+ * right only while a casement frame had one row.
+ */
+export function matrixIndexOf(index, cols = 1) {
+  const n = Math.max(1, cols)
+  const col = index % n
+  const row = Math.floor(index / n) + 1
+  return `${String.fromCharCode(65 + col)}${row}`
+}
+
+/**
+ * What Integrate calls an opening in the parts list: a casement sash in the
+ * TOP row of a frame that has more than one row is a "Fanlight".
+ */
+export function openingTypeLabel(tree, node) {
+  if (node?.part_type === 'glassPart') return 'Direct Glazed Unit'
+  if (node?.part_type !== 'casementSashPart') return null
+  const nodes = openingNodes(tree)
+  const idx = nodes.findIndex(n => n.key === node.key)
+  if (idx < 0) return 'Casement Sash'
+  const isTopRow = idx < columnCount(tree)
+  return (isTopRow && rowCount(tree) > 1) ? 'Fanlight' : 'Casement Sash'
+}
+
+/** "Fanlight A1", "Casement Sash A2", "Direct Glazed Unit B1". */
+export function openingLabel(tree, node) {
+  const nodes = openingNodes(tree)
+  const idx = nodes.findIndex(n => n.key === node?.key)
+  const type = openingTypeLabel(tree, node)
+  if (!type) return null
+  if (idx < 0) return type
+  return `${type} ${matrixIndexOf(idx, columnCount(tree))}`
 }
 
 /** Is this a casement/direct-glazed frame (as opposed to a box sash one)? */
@@ -541,4 +590,89 @@ export function buildCasementFrame(profileValues, {
     ],
   }
   return { tree, missing: resolved.missing }
+}
+
+// ── Resizing a casement frame (Step AR item 2) ───────────────────────────────
+
+/**
+ * Re-space a casement frame's dividers after its SIZE changes, as Integrate
+ * does (docs/integrate-L31115-fanlights.txt, read 12 Oct 2026).
+ *
+ *  - WIDTH: mullions re-space, keeping the columns' existing proportions.
+ *    Integrate's own reading: benchmark N (1199 wide, openings 549 / 549)
+ *    widened to 1599 gave 749 / 749 — equal stays equal, and a surveyor who
+ *    set an uneven split keeps that split's proportions.
+ *  - HEIGHT: transoms DO NOT move, so the fanlight row keeps its height and
+ *    the whole change goes to the bottom row. Integrate's reading: drawing 23
+ *    taken from 980 to 1499 kept the top opening at 356 while the lower one
+ *    went 503 → 1022. A transom's offset IS the height above it, so keeping
+ *    the offset is exactly that behaviour.
+ *
+ * This replaces Step AP's "a resize leaves mullions where they are". A
+ * hand-typed offset therefore survives until the next resize, and then its
+ * proportion survives.
+ *
+ * @param {Object} tree
+ * @param {{width?: number, height?: number}} size  the NEW frame size
+ * @returns {{tree: Object, changed: string[]}}  the keys that moved
+ */
+export function resizeCasementFrame(tree, { width = null, height = null } = {}) {
+  const frame = findFirst(tree, 'assemblyFramePart')
+  if (!frame) return { tree, changed: [] }
+  const fv = frame.values ?? {}
+
+  const oldWidth = Number(fv.width)
+  const newWidth = width == null ? oldWidth : Number(width)
+  const newHeight = height == null ? Number(fv.height) : Number(height)
+
+  const mullions = (frame.children ?? []).filter(c => c.part_type === 'mullionPart')
+    .sort((a, b) => (Number(a.values?.offset) || 0) - (Number(b.values?.offset) || 0))
+
+  // The frame always takes the new size; only the MULLIONS re-space, and
+  // only when the width actually changed and there is a proportion to keep.
+  const nextValues = { ...fv, width: newWidth, height: newHeight }
+  const changed = []
+  let nextChildren = frame.children ?? []
+
+  if (mullions.length > 0 && isFinite(oldWidth) && isFinite(newWidth) && oldWidth !== newWidth) {
+    const jambs = (Number(fv.leftWidth) || 0) + (Number(fv.rightWidth) || 0)
+    const oldInterior = oldWidth - jambs
+    const newInterior = newWidth - jambs
+    const totalT = mullions.reduce((s, m) => s + (Number(m.values?.thicknessInFrame) || 0), 0)
+    const oldOpenings = oldInterior - totalT
+    const newOpenings = newInterior - totalT
+    if (oldOpenings > 0 && newOpenings > 0) {
+      // Each column's share of the opening width, kept exactly
+      const widths = []
+      let left = 0
+      for (const m of mullions) {
+        const face = Number(m.values?.offset) || 0
+        widths.push(face - left)
+        left = face + (Number(m.values?.thicknessInFrame) || 0)
+      }
+      widths.push(oldInterior - left)
+
+      const moved = new Map()
+      let acc = 0
+      for (let i = 0; i < mullions.length; i++) {
+        acc += widths[i] / oldOpenings * newOpenings
+        const face = acc + mullions.slice(0, i).reduce(
+          (s, m) => s + (Number(m.values?.thicknessInFrame) || 0), 0)
+        // Stored to 1 dp, as Integrate stores offsets (Step AH 3b)
+        moved.set(mullions[i].key, Math.round(face * 10) / 10)
+      }
+      nextChildren = nextChildren.map(c => {
+        if (!moved.has(c.key)) return c
+        const offset = moved.get(c.key)
+        if (offset === c.values?.offset) return c
+        changed.push(c.key)
+        return { ...c, values: { ...c.values, offset } }
+      })
+    }
+  }
+
+  return {
+    tree: replaceNode(tree, frame.key, { ...frame, values: nextValues, children: nextChildren }),
+    changed,
+  }
 }

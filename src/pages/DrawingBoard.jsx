@@ -26,7 +26,7 @@ import {
 import {
   cillRepairApplies, showsFullCillReplacement, applyCillRules,
 } from '../drawingBoard/cillReplacement.js'
-import {
+import { openingLabel, columnCount, resizeCasementFrame,
   OPENING_KINDS, OPENING_KIND_LABELS, CASEMENT_OPERATIONS, openingKindOf,
   openingNodes, matrixIndexOf, isCasementFrameTree, changeOpening,
   setCasementOperation, casementProfileDefaults,
@@ -141,6 +141,17 @@ function collectCategories(fieldDefs) {
 // label falls back to "Glazing" without it.
 function partLabel(node, tree = null) {
   if (node?.label_override) return node.label_override
+  // Step AR item 2: a casement frame's openings carry Integrate's own name
+  // AND their matrix position — "Fanlight A1", "Casement Sash A2", "Direct
+  // Glazed Unit B1" — so the parts list cannot be read in a different order
+  // from the drawing. A casement sash in the TOP row of a multi-row frame is
+  // a Fanlight, which is what Integrate's Explorer calls it.
+  if (tree && isCasementFrameTree(tree) &&
+      (node?.part_type === 'casementSashPart' ||
+       (node?.part_type === 'glassPart' && isDirectGlazedUnit(tree, node)))) {
+    const label = openingLabel(tree, node)
+    if (label) return label
+  }
   if (tree && node?.part_type === 'glassPart' && isDirectGlazedUnit(tree, node)) {
     return 'Direct Glazed Unit'
   }
@@ -2044,6 +2055,20 @@ function DrawingBoard() {
     const keepsInternal = JAMB_SIZE_FIELDS.has(fieldKey) || OPERATION_FIELDS.has(fieldKey)
     const internalBefore = keepsInternal ? internalSizeOf(tree) : null
 
+    // Step AR item 2: resizing a CASEMENT frame re-spaces its dividers the
+    // way Integrate does — the width re-spaces mullions in their existing
+    // proportions (N's 549/549 at 1199 became 749/749 at 1599) while the
+    // height leaves transoms alone, so the fanlight keeps its row and the
+    // bottom row takes the whole change (drawing 23: 356 kept, 503 -> 1022).
+    // This replaces Step AP's "a resize leaves mullions where they are".
+    if ((fieldKey === 'assemblyFramePart.width' || fieldKey === 'assemblyFramePart.height') &&
+        isCasementDrawing) {
+      const axis = fieldKey === 'assemblyFramePart.width' ? 'width' : 'height'
+      const { tree: resized } = resizeCasementFrame(tree, { [axis]: Number(newValue) })
+      commit(resized)
+      return
+    }
+
     let newTree = updateNodeValues(tree, nodeKey, patch)
     if (chamferPatches) newTree = applyPatches(newTree, chamferPatches)
 
@@ -2778,15 +2803,17 @@ function DrawingBoard() {
       {/* Transom / Mullion grid picker dialog */}
       {dividerDialog && (
         <GridPickerDialog
-          title={isCasementDrawing ? 'Mullion — choose columns' : 'Transom / Mullion — choose grid'}
+          title="Transom / Mullion — choose grid"
           applyLabel="Apply to frame"
           onApply={handleApplyDividers}
           onClose={() => { setDividerError(null); setDividerDialog(false) }}
           error={dividerError}
           initialCols={currentFrameGrid.cols}
           initialRows={currentFrameGrid.rows}
-          maxRows={isCasementDrawing ? 1 : 15}
-          note={isCasementDrawing ? 'Transoms and fanlights come in a later step' : null}
+          maxRows={15}
+          note={isCasementDrawing
+            ? 'A second row adds a transom: the top row is the fanlight'
+            : null}
         />
       )}
 
