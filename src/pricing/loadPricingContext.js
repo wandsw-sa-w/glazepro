@@ -167,12 +167,71 @@ export async function loadPricingContext(supabase, priceFileId) {
  * This is THE resolution — the board panel, the quote PDF and the grid
  * resolve the same way.
  */
-export function resolveIronmongeryFinish(lineFinish, itemFinish, profileValues = {}) {
-  if (lineFinish != null && lineFinish !== '') return lineFinish
-  if (itemFinish != null && itemFinish !== '') return itemFinish
-  const profFinish = profileValues?.ironmongeryFinish
-  if (profFinish != null && profFinish !== '') return profFinish
-  return null
+export function resolveIronmongeryFinish(lineFinish, itemFinish, profileValues = {}, opts = {}) {
+  if (lineFinish != null && lineFinish !== '') {
+    return withSource(lineFinish, 'line', opts)
+  }
+
+  // Step AQ item 5: follow the item's finish WHERE THE PRODUCT EXISTS IN IT,
+  // otherwise use the rule's own finish. Integrate's casement rules give the
+  // hinges, gearbox and extensions PC (they exist only in PC) and handles PB
+  // — exactly the mix on every Integrate casement list the reviewer read.
+  // Without this, three casement lines resolved to the item's PB, found no
+  // PB product and priced 0.00.
+  const { productShortName = null, ruleFinish = null, catalogue = null } = opts
+  const exists = (finish) => {
+    if (!catalogue || !productShortName || finish == null || finish === '') return null
+    return Object.prototype.hasOwnProperty.call(catalogue, `${productShortName}:${finish}`)
+  }
+
+  const itemCandidate = (itemFinish != null && itemFinish !== '')
+    ? itemFinish
+    : (profileValues?.ironmongeryFinish ?? null)
+  const itemSource = (itemFinish != null && itemFinish !== '') ? 'item' : 'profile'
+
+  // Only override the item's finish when we can SHOW the product is missing
+  // in it and present in the rule's — `exists` returns null when there is no
+  // catalogue to check against, and an unchecked guess must not move a price.
+  if (itemCandidate != null && itemCandidate !== '') {
+    if (exists(itemCandidate) === false && exists(ruleFinish) === true) {
+      return withSource(ruleFinish, 'rule', opts)
+    }
+    return withSource(itemCandidate, itemSource, opts)
+  }
+
+  // NO item or profile finish at all. This is Step Z's territory and it is
+  // deliberately unchanged, because the brief's rule has nothing to follow
+  // here — and Step Z proved a rule's own METAL finish must not be guessed:
+  // the claw fastener rule says PB, the real drawing needed ABs, and the
+  // silent PB cost £26.25 against Integrate's £36.75. So a missing item
+  // finish still warns and prices nothing.
+  //
+  // The non-metal fixed finishes stay as Step Z had them: a trickle vent is
+  // white because it is a white plastic vent, not because anyone chose it.
+  // Replacing THIS list with the existence rule would stop the vent pricing
+  // on any drawing with no item finish — see docs/step-aq-findings.md.
+  if (STEP_Z_FIXED_FINISHES.includes(ruleFinish)) {
+    return withSource(ruleFinish, 'rule', opts)
+  }
+  return withSource(null, 'none', opts)
+}
+
+/**
+ * Rule finishes that are a property of the product, not a customer choice.
+ * Used ONLY when the item has no ironmongery finish at all (see above); when
+ * the item HAS one, the catalogue decides.
+ */
+const STEP_Z_FIXED_FINISHES = ['Wht', 'PN']
+
+/**
+ * The resolution returns a plain finish code, as every existing caller
+ * expects. `opts.onSource` lets a caller that wants to SHOW why a line used
+ * a finish (the price breakdown, brief §5) record it without changing the
+ * return type.
+ */
+function withSource(finish, source, opts) {
+  opts?.onSource?.(source, finish)
+  return finish
 }
 
 // ── resolveIronmongeryLines ──────────────────────────────────────────────────
@@ -189,7 +248,7 @@ export function resolveIronmongeryFinish(lineFinish, itemFinish, profileValues =
  * @returns {Array<{ product_short_name: string, finish_code: string, qty: number }>}
  */
 export function resolveIronmongeryLines(tree, pricingContext, profileValues = {}) {
-  const { pfVariables, ironmongeryRules, glassCatalogue } = pricingContext
+  const { pfVariables, ironmongeryRules, glassCatalogue, ironmongeryCatalogue } = pricingContext
 
   // Check for tree-saved ironmongery lines
   const paintNode = (tree.children ?? []).find(c => c.part_type === 'paintAndIronmongeryPart')
@@ -197,11 +256,20 @@ export function resolveIronmongeryLines(tree, pricingContext, profileValues = {}
   const itemFinish = paintNode?.values?.ironmongeryFinish ?? null
 
   // Empty line finish = "use the item's ironmongery finish" (Step Z) —
-  // resolved here for both tree-saved and default lines
-  const withResolvedFinish = lines => lines.map(line => ({
-    ...line,
-    finish_code: resolveIronmongeryFinish(line.finish_code, itemFinish, profileValues),
-  }))
+  // resolved here for both tree-saved and default lines. Step AQ item 5: the
+  // catalogue comes too, so a line whose product does not exist in the
+  // item's finish falls back to the rule's own, and `finish_source` records
+  // which one was used for the price breakdown.
+  const withResolvedFinish = lines => lines.map(line => {
+    let finish_source = 'none'
+    const finish_code = resolveIronmongeryFinish(line.finish_code, itemFinish, profileValues, {
+      productShortName: line.product_short_name,
+      ruleFinish:       line.rule_finish_code ?? null,
+      catalogue:        ironmongeryCatalogue ?? null,
+      onSource:         (source) => { finish_source = source },
+    })
+    return { ...line, finish_code, finish_source }
+  })
 
   if (treeSavedLines.length > 0) {
     return withResolvedFinish(treeSavedLines)

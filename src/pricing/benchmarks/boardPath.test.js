@@ -740,4 +740,41 @@ describe('Step AP — the board builds the casement benchmarks', () => {
     for (const line of timber) expect(line.quantity).toBe(0)
     expect(r.price.total_cost).toBeLessThan(priceFromSnapshot(BENCHMARK_N.tree).price.total_cost)
   })
+
+  // ── Step AQ item 5 — the default finish rule ─────────────────────────────
+  it("K's default hinges, gearbox and extensions price in PC, not the item's PB", () => {
+    // They exist ONLY in PC; the casement item finish is PB. Before the fix
+    // all three resolved to PB, found nothing and priced 0.00.
+    let { tree } = buildCasementFrame(PV, { width: 1199, height: 1299, openings: ['opening_casement'] })
+    tree = applyColumns(tree, 2)
+    tree = changeOpening(tree, openingNodes(tree)[1].key, 'direct_glazed', PV).tree
+
+    const lines = resolveIronmongeryLines(tree, SNAPSHOT, SNAPSHOT.profileValues)
+    const byName = name => lines.find(l => l.product_short_name === name)
+    expect(byName('defender_friction_hinge_-_side_hung_310mm').finish_code).toBe('PC')
+    expect(byName('kenrick_extension_gear_box').finish_code).toBe('PC')
+    expect(byName('kenrick_extension_950mm').finish_code).toBe('PC')
+    // the handle DOES exist in PB, so it keeps the item's finish
+    expect(byName('connoisseur_handle_lh').finish_code).toBe('PB')
+    // and the white vents still come from their rule
+    expect(byName('trickle_vent_xr16').finish_code).toBe('Wht')
+
+    // No "product not found" warnings left for these three
+    const r = priceFromSnapshot(tree)
+    expect(r.warnings.filter(w => /product not found/i.test(w))).toEqual([])
+
+    // The hinge now actually prices (7.82 -> 8 -> x1.05)
+    const hinge = r.price.lines.find(l => l.fires && l.alloc_iron_part_code === 'RFH203')
+    expect(hinge).toBeTruthy()
+    expect(hinge.line_cost).toBeCloseTo(8.40, 2)
+  })
+
+  it('the breakdown label says which finish each line used', () => {
+    let { tree } = buildCasementFrame(PV, { width: 1199, height: 1299, openings: ['opening_casement'] })
+    const r = priceFromSnapshot(tree)
+    const labels = r.price.lines.filter(l => l.fires && l.alloc_label).map(l => l.alloc_label)
+    expect(labels).toContain('connoisseur_handle_lh (PB, item finish)')
+    expect(labels.some(l => l.includes('(PC, rule finish)'))).toBe(true)
+    expect(labels.some(l => l.includes('trickle_vent_xr16 (Wht, rule finish)'))).toBe(true)
+  })
 })

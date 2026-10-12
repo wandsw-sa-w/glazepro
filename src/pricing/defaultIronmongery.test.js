@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { resolveIronmongeryFinish } from './loadPricingContext.js'
 import { defaultIronmonger } from './defaultIronmongery'
 // Profile rebate/tolerance for the measured sash-weight glass cut (Sash profile: 14 / 2)
 const PV = { defaultDoubleGlazingRebateWidthForSash: 14, defaultDoubleGlazingTolerance: 2 }
@@ -145,12 +146,52 @@ describe('defaultIronmonger — Item 7 (complete new, cord hung)', () => {
     expect(claw.qty).toBeCloseTo(1.0, 6)
   })
 
-  it('allocates trickle_vent_xr16 Wht with qty 1', () => {
+  it('allocates trickle_vent_xr16 with qty 1, carrying the rule finish Wht', () => {
+    // Step AQ item 5: defaultIronmonger no longer decides the finish. Every
+    // default line is created with an EMPTY finish ("follow the item's") and
+    // carries the RULE's finish as the fallback for when the product does
+    // not exist in the item's. resolveIronmongeryFinish makes the choice.
     const result = defaultIronmonger(FIXTURE_TREE, BASE_VARS, ITEM7_RULES, {}, PV)
     const vent = result.find(l => l.product_short_name === 'trickle_vent_xr16')
     expect(vent).toBeDefined()
-    expect(vent.finish_code).toBe('Wht')
+    expect(vent.finish_code).toBe('')
+    expect(vent.rule_finish_code).toBe('Wht')
     expect(vent.qty).toBeCloseTo(1.0, 6)
+  })
+
+  it('a white vent still resolves to Wht on a Polished Brass item', () => {
+    // The case that replaces the FIXED_FINISHES special case: the item is
+    // PB, the vent exists only in Wht and Blk, so the rule's Wht is used.
+    const CAT = { 'trickle_vent_xr16:Wht': { cost: 3 }, 'trickle_vent_xr16:Blk': { cost: 3 } }
+    expect(resolveIronmongeryFinish('', 'PB', {}, {
+      productShortName: 'trickle_vent_xr16', ruleFinish: 'Wht', catalogue: CAT,
+    })).toBe('Wht')
+    // and a product that DOES exist in the item's finish keeps it
+    const CAT2 = { ...CAT, 'connoisseur_handle_lh:PB': { cost: 7.55 } }
+    expect(resolveIronmongeryFinish('', 'PB', {}, {
+      productShortName: 'connoisseur_handle_lh', ruleFinish: 'PC', catalogue: CAT2,
+    })).toBe('PB')
+  })
+
+  it('without a catalogue to check, the item finish is never overridden', () => {
+    // An unchecked guess must not move a price.
+    expect(resolveIronmongeryFinish('', 'PB', {}, {
+      productShortName: 'anything', ruleFinish: 'PC', catalogue: null,
+    })).toBe('PB')
+  })
+
+  it('reports which finish each line used', () => {
+    const CAT = { 'x:Wht': { cost: 1 }, 'y:PB': { cost: 1 } }
+    const seen = []
+    resolveIronmongeryFinish('', 'PB', {}, {
+      productShortName: 'x', ruleFinish: 'Wht', catalogue: CAT,
+      onSource: (src) => seen.push(src),
+    })
+    resolveIronmongeryFinish('', 'PB', {}, {
+      productShortName: 'y', ruleFinish: 'Wht', catalogue: CAT,
+      onSource: (src) => seen.push(src),
+    })
+    expect(seen).toEqual(['rule', 'item'])
   })
 
   it('returns exactly two lines for Item 7', () => {

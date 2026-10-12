@@ -228,17 +228,24 @@ export function defaultIronmonger(tree, variables, rules, glassCatalogue = {}, p
 
       // Step Z: default lines are created with an EMPTY finish, meaning
       // "follow the item's ironmongery finish" — resolved at pricing/display
-      // time (resolveIronmongeryLines). A line only carries an explicit
-      // finish when the rule's finish is a fixed non-metal code (e.g. 'Wht'
-      // for trickle vents) or the user picks one on the board.
-      const FIXED_FINISHES = ['Wht', 'PN']
-      const finish_code = FIXED_FINISHES.includes(rule.finish_code)
-        ? rule.finish_code
-        : ''
-
+      // time (resolveIronmongeryLines).
+      //
+      // Step AQ item 5: the rule's OWN finish comes along as a fallback for
+      // when the product does not exist in the item's finish. It used to be
+      // dropped unless it was one of a hard-coded FIXED_FINISHES ['Wht',
+      // 'PN'], which happened to cover trickle vents but not the casement
+      // hardware: the friction hinges, the Kenrick gearbox and the
+      // extensions exist only in PC, the casement item finish is PB, so
+      // three lines resolved to PB, found nothing and priced 0.00.
+      //
+      // The general rule subsumes the special case — a trickle vent exists
+      // only in Wht and Blk, so an item finish of PB still falls back to the
+      // rule's Wht — and it matches every Integrate casement list the
+      // reviewer read: PB handles with PC hinges, gearbox and extensions.
       lines.push({
         product_short_name: rule.product_short_name,
-        finish_code,
+        finish_code:      '',
+        rule_finish_code: rule.finish_code ?? null,
         qty,
         rule_id:       rule.id   ?? null,
         scope_part_id: partNode?.key ?? null,
@@ -246,10 +253,13 @@ export function defaultIronmonger(tree, variables, rules, glassCatalogue = {}, p
     }
   }
 
-  // Merge lines for the same product (same short_name + finish_code), summing qty.
+  // Merge lines for the same product (same short_name + finish_code), summing
+  // qty. Step AQ: the rule's finish is part of the key too, so two rules that
+  // sell the same product in different finishes stay two lines instead of
+  // merging into one and losing a finish.
   const merged = new Map()
   for (const line of lines) {
-    const key = `${line.product_short_name}:${line.finish_code}`
+    const key = `${line.product_short_name}:${line.finish_code}:${line.rule_finish_code ?? ''}`
     if (merged.has(key)) {
       merged.get(key).qty += line.qty
     } else {

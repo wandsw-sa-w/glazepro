@@ -41,6 +41,34 @@ import { allocateParts } from './partAllocator.js'
 import { treeHash } from './treeHash.js'
 import { loadPricingContext, resolveIronmongeryLines } from './loadPricingContext.js'
 import { PRICING_ENGINE_VERSION } from './engineVersion.js'
+
+/**
+ * An ironmongery line's label for the price breakdown: the product, the
+ * finish it actually priced in, and where that finish came from.
+ *
+ * Step AQ item 5: a default line follows the ITEM finish where the product
+ * exists in it and the RULE finish otherwise, so "PB" alone no longer says
+ * which decision was made. The breakdown stores alloc_label, so putting it
+ * here shows it without a new column:
+ *   connoisseur_handle_lh (PB, item finish)
+ *   defender_friction_hinge_-_side_hung_310mm (PC, rule finish)
+ */
+const FINISH_SOURCE_LABELS = {
+  line:    'line finish',
+  item:    'item finish',
+  rule:    'rule finish',
+  profile: 'profile finish',
+}
+
+export function ironmongeryLineLabel(ironLine) {
+  const name = ironLine?.product_short_name ?? null
+  if (!name) return null
+  const finish = ironLine.finish_code
+  if (finish == null || finish === '') return name
+  const source = FINISH_SOURCE_LABELS[ironLine.finish_source]
+  return source ? `${name} (${finish}, ${source})` : `${name} (${finish})`
+}
+
 import {
   glazingType, hornLengthMm, operationKind, glassSpacerMm,
   isWarmEdgeSpacerColour, collectVocabularyWarnings, resolveTopSashArch,
@@ -903,6 +931,8 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
           const line = evalPriceRuleLine(rule, ironVars, null)
           line.alloc_iron_short_name = ironLine.product_short_name
           line.alloc_iron_finish     = ironLine.finish_code
+          line.alloc_iron_finish_source = ironLine.finish_source ?? null
+          line.alloc_label           = ironmongeryLineLabel(ironLine)
           line.alloc_iron_kit_cost   = kitCost
           if (!line.error && line.fires) { totalCost += line.line_cost; totalPrice += line.line_total }
           results.price.lines.push(line)
@@ -920,6 +950,8 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
             const line = evalPriceRuleLine(rule, ironVars, null)
             line.alloc_iron_short_name = ironLine.product_short_name
             line.alloc_iron_finish     = ironLine.finish_code
+            line.alloc_iron_finish_source = ironLine.finish_source ?? null
+            line.alloc_label           = ironmongeryLineLabel(ironLine)
             line.alloc_iron_part_code  = kitLine.part_code
             if (!line.error && line.fires) { totalCost += line.line_cost; totalPrice += line.line_total }
             results.price.lines.push(line)

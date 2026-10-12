@@ -72,6 +72,16 @@
  * affected, because the board could not build a casement drawing at all
  * until Step AP; the bump is here so the version never maps to two
  * different prices.
+ * Version 15 is Step AQ item 5: a DEFAULT ironmongery line follows the
+ * item's ironmongery finish where the product exists in that finish, and
+ * the rule's own finish_code otherwise — replacing a hard-coded
+ * FIXED_FINISHES ['Wht','PN'] list. Version-14 runs priced a casement's
+ * friction hinges, Kenrick gearbox and extensions at 0.00, because they
+ * exist only in PC while the item finish is PB (K 13.65 -> 26.25, N 21.00
+ * -> 46.20, P 48.30 -> 52.50). Lines with a finish chosen on the board, and
+ * every sash benchmark, are unaffected: those products exist in the item's
+ * finish. A drawing with NO item finish at all still warns rather than
+ * guessing a metal finish, exactly as Step Z established.
  */
 
-export const PRICING_ENGINE_VERSION = 14
+export const PRICING_ENGINE_VERSION = 15
