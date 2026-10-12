@@ -11,47 +11,16 @@
 // (or a later step-j*-containment.sql), add the matching pair here too.
 
 import { describe, it, expect } from 'vitest'
+import { ALLOWED_PAIRS, assertSaveable, forbiddenEdges, isSaveable } from './containment.js'
 
-// ── The allowed set — keep in sync with the SQL ──────────────────────────────
-
-const ALLOWED_PAIRS = new Set([
-  // Base box-sash tree (buildNewBoxSash / Step A+G) — already in the live DB,
-  // proven by every successful save before Step J.
-  'drawingItemPart->paintAndIronmongeryPart',
-  'drawingItemPart->notesPart',
-  'drawingItemPart->pricePart',
-  'drawingItemPart->assemblyFramePart',
-  'assemblyFramePart->cillPart',
-  'assemblyFramePart->sashPairPart',
-  'sashPairPart->topSashPart',
-  'sashPairPart->bottomSashPart',
-  'topSashPart->glassPart',
-  'bottomSashPart->glassPart',
-
-  // sql/step-j2-containment.sql
-  'assemblyFramePart->mullionPart',
-  'assemblyFramePart->transomPart',
-  'glassPart->verticalGlazingBarPart',
-  'glassPart->horizontalGlazingBarPart',
-])
-
-// ── Tree walker ───────────────────────────────────────────────────────────────
-
-function collectEdges(node, acc = []) {
-  if (!node) return acc
-  for (const child of (node.children ?? [])) {
-    acc.push(`${node.part_type}->${child.part_type}`)
-    collectEdges(child, acc)
-  }
-  return acc
-}
+// ── The allowed set ─────────────────────────────────────────────────────────
+//
+// Step AQ: the list moved to containment.js so the board-path tests check the
+// same thing. A direct glazed unit could be built and priced but never SAVED,
+// because the only mirror of the containment rules lived in this file.
 
 function assertAllEdgesAllowed(tree) {
-  const edges = collectEdges(tree)
-  expect(edges.length).toBeGreaterThan(0)
-  for (const edge of edges) {
-    expect(ALLOWED_PAIRS.has(edge), `forbidden parent->child pair: ${edge}`).toBe(true)
-  }
+  expect(() => assertSaveable(tree)).not.toThrow()
 }
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -155,7 +124,79 @@ describe('part_type_children coverage — Step J trees', () => {
     const tree = { key: 'x', part_type: 'glassPart', values: {}, children: [
       { key: 'y', part_type: 'mullionPart', values: {}, children: [] }, // glassPart -> mullionPart is not allowed
     ] }
-    expect(() => assertAllEdgesAllowed(tree)).toThrow(/forbidden parent->child pair/)
+    expect(() => assertSaveable(tree)).toThrow(/forbidden parent->child pair/)
+  })
+
+})
+
+describe('part_type_children coverage — casement and direct glazed (Step AQ)', () => {
+
+  // The pair the reviewer's live test proved missing: saving L507712 item 8
+  // after "Change to: Direct glazed unit" failed with
+  // "forbidden parent->child pair(s): assemblyFramePart(522) -> glassPart".
+  it('a frame with a direct glazed unit passes the client check', () => {
+    const tree = baseDrawing(
+      { width: 1199, height: 1299, leftWidth: 37, rightWidth: 37, topHeight: 47 },
+      [{ key: 'dgu', part_type: 'glassPart', values: { hiddenInRebateLeft: 18 }, children: [] }],
+    )
+    assertAllEdgesAllowed(tree)
+    expect(isSaveable(tree)).toBe(true)
+  })
+
+  it('a casement sash with its glass passes, and so does a mixed frame', () => {
+    const casement = (key) => ({
+      key, part_type: 'casementSashPart', values: { operation: 'left_hand_hung' }, children: [
+        { key: `${key}-glass`, part_type: 'glassPart', values: {}, children: [] },
+      ],
+    })
+    assertAllEdgesAllowed(baseDrawing(
+      { width: 1199, height: 1299, leftWidth: 37, rightWidth: 37, topHeight: 47 },
+      [casement('cas1')],
+    ))
+    // K's shape: one casement + one direct glazed unit either side of a mullion
+    assertAllEdgesAllowed(baseDrawing(
+      { width: 1199, height: 1299, leftWidth: 37, rightWidth: 37, topHeight: 47 },
+      [
+        { key: 'mull1', part_type: 'mullionPart', values: { offset: 549, thicknessInFrame: 27 }, children: [] },
+        casement('cas1'),
+        { key: 'dgu', part_type: 'glassPart', values: {}, children: [] },
+      ],
+    ))
+  })
+
+  it('a casement sash glass can still hold glazing bars', () => {
+    assertAllEdgesAllowed(baseDrawing(
+      { width: 1199, height: 1299, leftWidth: 37, rightWidth: 37, topHeight: 47 },
+      [{ key: 'cas1', part_type: 'casementSashPart', values: {}, children: [
+        { key: 'g', part_type: 'glassPart', values: {}, children: [
+          { key: 'v1', part_type: 'verticalGlazingBarPart', values: {}, children: [] },
+        ] },
+      ] }],
+    ))
+  })
+
+  it('forbiddenEdges names every offending pair once, as the save does', () => {
+    const tree = {
+      key: 'x', part_type: 'casementSashPart', values: {}, children: [
+        { key: 'a', part_type: 'sashPairPart', values: {}, children: [] },
+        { key: 'b', part_type: 'sashPairPart', values: {}, children: [] },
+        { key: 'c', part_type: 'cillPart', values: {}, children: [] },
+      ],
+    }
+    expect(forbiddenEdges(tree)).toEqual([
+      'casementSashPart->sashPairPart',
+      'casementSashPart->cillPart',
+    ])
+  })
+
+  it('the three casement pairs are in the mirror', () => {
+    for (const pair of [
+      'assemblyFramePart->casementSashPart',
+      'casementSashPart->glassPart',
+      'assemblyFramePart->glassPart',
+    ]) {
+      expect(ALLOWED_PAIRS.has(pair), pair).toBe(true)
+    }
   })
 
 })

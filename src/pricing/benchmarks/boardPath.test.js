@@ -23,6 +23,7 @@ import { applyOperationDefaults } from '../../drawingBoard/applyOperationDefault
 import { applySashesReplaced } from '../../drawingBoard/sashesReplaced.js'
 import { applyCompleteNewThickness } from '../../drawingBoard/sashThickness.js'
 import { computeDerived } from '../../drawingBoard/computeDerived.js'
+import { assertSaveable } from '../../drawingBoard/containment.js'
 import { internalSizeOf, keepInternalSize, frameFromInternalSize } from '../../drawingBoard/internalSize.js'
 import {
   NEW_CILL_REPAIR_CODE, CILL_ONLY_TYPE_OF_WORK, cillRepairApplies, applyCillRules,
@@ -443,6 +444,11 @@ describe('Step AP — the board builds the casement benchmarks', () => {
   }
 
   function expectSameAsFixture(tree, bm, label) {
+    // Step AQ: a tree that prices correctly but cannot be SAVED is no use.
+    // save_drawing_parts refused the direct glazed unit these tests built,
+    // and no test noticed, so every board-path comparison now runs the same
+    // containment check the save runs.
+    expect(() => assertSaveable(tree), `${label} saveable`).not.toThrow()
     const board = priceBoardTree(tree)
     const fixture = priceFromSnapshot(bm.tree)
     expect(board.price.total_cost, `${label} cost`).toBeCloseTo(fixture.price.total_cost, 2)
