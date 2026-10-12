@@ -65,6 +65,13 @@
  * casement_sash loop's own variables, direct glazed glass areas and the
  * casement sash/cill timber volumes) — version-12 runs priced a casement
  * or direct glazed frame with every one of those quantities at zero.
+ * Version 14 is the Step AP addendum: a casement mullion's length for rule
+ * 121 is the frame's internal height + 25, not + 20 (the +20 is the frame
+ * TIMBER volume's allowance and is unchanged) — version-13 runs priced
+ * every casement mullion 5 mm short. No stored quote can actually be
+ * affected, because the board could not build a casement drawing at all
+ * until Step AP; the bump is here so the version never maps to two
+ * different prices.
  */
 
-export const PRICING_ENGINE_VERSION = 13
+export const PRICING_ENGINE_VERSION = 14
