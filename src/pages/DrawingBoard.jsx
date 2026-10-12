@@ -909,7 +909,7 @@ function DrawingPlaceholder({ tree, derived, refOptions }) {
 
 // ── Summary ───────────────────────────────────────────────────────────────────
 
-function Summary({ tree, fieldDefs, derived, refOptions, onSelectKey, drawingMeta, visibilityMap, boardMode, showHidden, pricingInfo, sashWeights }) {
+function Summary({ tree, fieldDefs, derived, refOptions, onSelectKey, drawingMeta, visibilityMap, boardMode, showHidden, pricingInfo, sashWeights, profile }) {
   const item  = findFirst(tree, 'drawingItemPart')
   const frame = findFirst(tree, 'assemblyFramePart')
 
@@ -969,7 +969,9 @@ function Summary({ tree, fieldDefs, derived, refOptions, onSelectKey, drawingMet
       <div style={{ borderTop: '1px solid #f0eeeb', marginTop: 8, paddingTop: 8 }} />
 
       <div style={{ fontSize: 12, color: '#555', marginBottom: 4 }}>
-        <span style={{ color: '#aaa' }}>Range: </span>Box Sash
+        {/* Step AQ item 6: the range is the DRAWING'S profile. This said
+            "Box Sash" on every drawing, including a casement one. */}
+        <span style={{ color: '#aaa' }}>Range: </span>{profile?.name || profile?.code || '—'}
       </div>
       <div style={{ fontSize: 12, color: '#555', marginBottom: 4 }}>
         <span style={{ color: '#aaa' }}>Type of work: </span>{towLabel}
@@ -1547,6 +1549,9 @@ function DrawingBoard() {
   const [fieldDefs,   setFieldDefs]     = useState({})
   const [refOptions,  setRefOptions]    = useState({})
   const [profileValues, setProfileValues] = useState([])
+  // The drawing's OWN profile (its range), for the Summary and anything else
+  // that must not assume Box Sash — Step AQ item 6
+  const [profile, setProfile] = useState(null)
   const [containment, setContainment]   = useState([])
   const [visibilityMap, setVisibilityMap] = useState({})  // { fieldKey: 'shown'|'hidden_sales'|... }
   const [boardMode, setBoardMode] = useState(() => {
@@ -1820,6 +1825,7 @@ function DrawingBoard() {
         setFieldDefs(fDefs)
         setRefOptions(rOpts)
         setProfileValues(pVals)
+        setProfile(profile)
         setContainment(cont)
 
         // Load field visibility for this profile
@@ -2745,6 +2751,7 @@ function DrawingBoard() {
               showHidden={showHidden}
               pricingInfo={pricingInfo}
               sashWeights={sashWeights}
+              profile={profile}
             />
             {/* Validation */}
             <ValidationPanel tree={tree} derived={derived} onSelectKey={setSelectedKey} />
