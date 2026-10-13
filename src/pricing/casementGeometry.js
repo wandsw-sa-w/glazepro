@@ -64,6 +64,26 @@ export const CASEMENT_SASH_TYPES = ['casementSashPart', ...FRENCH_SASH_TYPES]
 export const FRENCH_DOOR_PAIR_PART = 'frenchDoorPart'
 export const OPENING_TYPES = ['casementSashPart', 'glassPart', FRENCH_PAIR_PART, FRENCH_DOOR_PAIR_PART]
 
+// A French casement pair and a French door pair have the SAME shape — one
+// opening, two leaves, no mullion, a master leaf — so the board treats them
+// as one kind of thing (labels, the drawing, the master-leaf choice) and only
+// the geometry and the sections differ. One list rather than two parallel
+// code paths, which is what drifted when OPENING_TYPES had two copies.
+export const PAIR_PART_TYPES = [FRENCH_PAIR_PART, FRENCH_DOOR_PAIR_PART]
+export const PAIR_LEAF_TYPES = [
+  'leftFrenchCasementSashPart', 'rightFrenchCasementSashPart',
+  'leftFrenchDoorLeafPart', 'rightFrenchDoorLeafPart',
+]
+/** Is this node a pair (a French casement or a French door)? */
+export function isPairPart(node) {
+  return PAIR_PART_TYPES.includes(node?.part_type)
+}
+/** Is this node the LEFT leaf of a pair? */
+export function isLeftLeaf(node) {
+  return node?.part_type === 'leftFrenchCasementSashPart' ||
+    node?.part_type === 'leftFrenchDoorLeafPart'
+}
+
 /** Is this glassPart a direct glazed unit — a direct child of the frame? */
 export function isDirectGlazedUnit(tree, glassNode) {
   const frame = findFirst(tree, 'assemblyFramePart')

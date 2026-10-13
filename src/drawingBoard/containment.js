@@ -61,6 +61,18 @@ export const ALLOWED_PAIRS = new Set([
   'frenchCasementPart->rightFrenchCasementSashPart',
   'leftFrenchCasementSashPart->glassPart',
   'rightFrenchCasementSashPart->glassPart',
+
+  // Step AZ: a FRENCH DOOR. The same shape as a French casement — the frame
+  // holds the pair, the pair holds a left and a right leaf, each leaf holds
+  // its own glass — and a doorset also puts a TRANSOM and a casement sash
+  // (the fanlight) in the frame beside the pair, which the casement pairs
+  // above already allow.
+  // sql/step-az2-door-containment.sql adds these pairs live.
+  'assemblyFramePart->frenchDoorPart',
+  'frenchDoorPart->leftFrenchDoorLeafPart',
+  'frenchDoorPart->rightFrenchDoorLeafPart',
+  'leftFrenchDoorLeafPart->glassPart',
+  'rightFrenchDoorLeafPart->glassPart',
 ])
 
 /** Every parent->child edge in a tree, as "parentType->childType" strings. */

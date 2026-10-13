@@ -16,7 +16,7 @@ import { computeOpeningLayout, computeGlassWidth, mullionThicknessMm } from './s
 import { resolveTopSashArch } from '../pricing/optionVocabulary.js'
 import {
   frameOpenings, openingNodes as casementOpeningNodes,
-  FRENCH_PAIR_PART, FRENCH_SASH_TYPES,
+  FRENCH_PAIR_PART, FRENCH_SASH_TYPES, PAIR_LEAF_TYPES, isPairPart, isLeftLeaf,
 } from '../pricing/casementGeometry.js'
 import { columnCount, isCasementFrameTree, matrixIndexOf, matrixLabel } from './casementOpenings.js'
 
@@ -1004,11 +1004,14 @@ export function CasementElevation({
     // between them. Each leaf is drawn like a casement sash, half the
     // opening wide less the meeting-stile gap, and the MASTER leaf (the one
     // carrying the lock) is marked, as Integrate marks it.
-    if (node.part_type === FRENCH_PAIR_PART) {
+    // Step AZ: a French DOOR pair draws exactly as a French casement pair
+    // does — two leaves meeting in the middle with MASTER on the master —
+    // so one branch serves both.
+    if (isPairPart(node)) {
       const gap = n(v.gapBetweenMeetingStiles, 0)
       const leafW = Math.max((w - gap) / 2, 0)
       const leaves = (node.children ?? [])
-        .filter(c => FRENCH_SASH_TYPES.includes(c.part_type))
+        .filter(c => PAIR_LEAF_TYPES.includes(c.part_type))
       return {
         idx, slot, size: { width: w, height: h }, label: cellLabel(idx),
         selected: node.key === selectedKey ||
@@ -1030,7 +1033,7 @@ export function CasementElevation({
               const lgW = Math.max(leafW - lStileL - lStileR, 0)
               const lgH = Math.max(h - lRailT - lRailB, 0)
               const matrix = matrixLabel(
-                (cells[idx]?.col ?? 0) + (leaf.part_type === 'rightFrenchCasementSashPart' ? 1 : 0),
+                (cells[idx]?.col ?? 0) + (isLeftLeaf(leaf) ? 0 : 1),
                 cells[idx]?.row ?? 0)
               const text = sashLabel(leaf, matrix)
               return (

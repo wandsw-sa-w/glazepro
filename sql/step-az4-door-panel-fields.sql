@@ -1,0 +1,235 @@
+-- Step AZ-4: the French door property panels, as Integrate shows them.
+-- Run by Nathan in the Supabase SQL editor. Safe to re-run. Run LAST.
+--
+-- Integrate's own panels, read in survey mode on FD1
+-- (docs/integrate-L31115-french-doors.txt, last section):
+--
+--   French Door (the pair): Internal Frame Width 1805 ; Internal Frame
+--     Height 2115 ; Door Type "Open Out / Flush with Stops Internally" ;
+--     Overall Meeting Stile 198 ; Thickness 54 ; Sash Split "1/2 - 1/2
+--     split" ; Set left leaf width ; Set right leaf width ; Left / Right /
+--     Top / Bottom Clearance 1 / 1 / 3 / 3
+--
+--   A leaf: Arch Head ; To Be Replaced ; Special Joinery Details ; Special
+--     Glass Details ; [Divider Spacing x2] ; Operation (Fix / Right Hand
+--     Hung) ; Bottom Rail (int) 163 ; Master Leaf
+--
+-- The Divider Spacing buttons are the board's own (Step AW) and already show
+-- on a leaf's panel.
+--
+-- HOW THIS WORKS, and why it is shaped the way it is. The board shows a
+-- part's fields from default_field_definitions and hides role = 'config' —
+-- the same mechanism Step AQ-3 and Step AY-2 used.
+--
+-- Step AY-2 was first written as an ALLOW-LIST ("hide everything except
+-- these"), and the reviewer's rewrite showed why that was wrong: the French
+-- casement LEAF part types had almost no definitions at all, so hiding
+-- everything not on the list left the panel nearly empty. The real risk was
+-- not a field spelled differently — it was fields that DO NOT EXIST, which
+-- an allow-list hides silently.
+--
+-- So this file is the other way round:
+--   Section 1 RELABELS what Integrate labels differently.
+--   Section 2 INSERTS the fields Integrate shows that may have no definition
+--             — nothing is overwritten (ON CONFLICT DO NOTHING).
+--   Section 3 hides a SHORT, NAMED list of profile settings that are not
+--             drawing fields. Anything not named is left exactly as it is.
+--
+-- NOT VERIFIED: I cannot read the live rows — claude_readonly_query admits
+-- only Nathan's login. Section 0 is the read, and its output is what shows
+-- whether section 2's inserts were needed or section 3's list is right.
+-- RUN SECTION 0 FIRST AND SEND THE REVIEWER ITS OUTPUT.
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- SECTION 0 — read before changing
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- 0a. Every field definition on the three French door part types.
+SELECT part_type, property_name, field_key, label, data_type, role,
+       is_required, sort_order, is_active
+FROM   default_field_definitions
+WHERE  part_type IN ('frenchDoorPart', 'leftFrenchDoorLeafPart',
+                     'rightFrenchDoorLeafPart')
+ORDER  BY part_type, sort_order, property_name;
+
+-- 0b. Which of them the board shows today (role is not 'config').
+SELECT part_type, property_name, label, role
+FROM   default_field_definitions
+WHERE  part_type IN ('frenchDoorPart', 'leftFrenchDoorLeafPart',
+                     'rightFrenchDoorLeafPart')
+  AND  is_active AND coalesce(role, '') <> 'config'
+ORDER  BY part_type, sort_order, property_name;
+
+-- 0c. The equivalent casement sash definitions, whose SHAPES section 2
+--     copies (data_type, reference category, is_required).
+SELECT property_name, field_key, label, data_type, role, is_required, sort_order
+FROM   default_field_definitions
+WHERE  part_type = 'casementSashPart'
+  AND  property_name IN ('operation','toBeReplaced','bottomHeight','archHead',
+                         'specialJoineryDetails','specialGlassDetails','casementTypeId')
+ORDER  BY property_name;
+
+-- 0d. The reference categories Operation and Door Type draw from.
+SELECT category, code, label, sort_order, is_active
+FROM   reference_options
+WHERE  category IN ('sash_operation', 'sash_type', 'product')
+ORDER  BY category, sort_order;
+
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- SECTIONS 1-3 — the change
+-- ═══════════════════════════════════════════════════════════════════════════
+
+BEGIN;
+
+-- ── 1. Integrate's labels ─────────────────────────────────────────────────
+-- Only the label moves. "Mid rail" -> "Overall Meeting Stile" is the one
+-- that matters: 198 is the pair's OVERALL meeting stile, from which each
+-- leaf's share is taken, and "Mid rail" reads like a rail.
+UPDATE default_field_definitions d
+SET    label = v.label
+FROM  (VALUES
+        ('frenchDoorPart',          'midRail',                 'Overall Meeting Stile'),
+        ('frenchDoorPart',          'thickness',               'Thickness'),
+        ('frenchDoorPart',          'casementTypeId',          'Door Type'),
+        ('frenchDoorPart',          'meetingStileOverlap',     'Meeting Stile Overlap'),
+        ('frenchDoorPart',          'gapBetweenMeetingStiles', 'Gap Between Meeting Stiles'),
+        ('frenchDoorPart',          'mechanicalClearanceLeft',   'Left Clearance'),
+        ('frenchDoorPart',          'mechanicalClearanceRight',  'Right Clearance'),
+        ('frenchDoorPart',          'mechanicalClearanceTop',    'Top Clearance'),
+        ('frenchDoorPart',          'mechanicalClearanceBottom', 'Bottom Clearance'),
+        ('leftFrenchDoorLeafPart',  'topHeight',            'Door Head'),
+        ('leftFrenchDoorLeafPart',  'leftWidth',            'Left Stile'),
+        ('leftFrenchDoorLeafPart',  'rightWidth',           'Right Stile'),
+        ('leftFrenchDoorLeafPart',  'bottomHeight',         'Bottom Rail (int)'),
+        ('leftFrenchDoorLeafPart',  'bottomHeightExternal', 'Bottom Rail (ext)'),
+        ('leftFrenchDoorLeafPart',  'isMasterLeaf',         'Master Leaf'),
+        ('rightFrenchDoorLeafPart', 'topHeight',            'Door Head'),
+        ('rightFrenchDoorLeafPart', 'leftWidth',            'Left Stile'),
+        ('rightFrenchDoorLeafPart', 'rightWidth',           'Right Stile'),
+        ('rightFrenchDoorLeafPart', 'bottomHeight',         'Bottom Rail (int)'),
+        ('rightFrenchDoorLeafPart', 'bottomHeightExternal', 'Bottom Rail (ext)'),
+        ('rightFrenchDoorLeafPart', 'isMasterLeaf',         'Master Leaf')
+      ) AS v(part_type, property_name, label)
+WHERE  d.part_type = v.part_type
+  AND  d.property_name = v.property_name
+  AND  d.label IS DISTINCT FROM v.label;
+
+-- ── 2. The fields Integrate shows, for any that has no definition ─────────
+-- A field with no definition cannot appear on the panel at all. Shapes are
+-- copied from the live casementSashPart definitions (section 0c): operation
+-- and the door type are references, To Be Replaced and Master Leaf are
+-- booleans, the rails and the meeting stile are numbers in mm. Nothing is
+-- overwritten.
+INSERT INTO default_field_definitions
+  (part_type, property_name, field_key, label, data_type, role, is_required, sort_order, is_active)
+VALUES
+  -- the pair
+  ('frenchDoorPart', 'casementTypeId',      'frenchDoorPart.casementTypeId',      'Door Type',             'reference', 'input', false, 10, true),
+  ('frenchDoorPart', 'midRail',             'frenchDoorPart.midRail',             'Overall Meeting Stile', 'number',    'input', false, 20, true),
+  ('frenchDoorPart', 'thickness',           'frenchDoorPart.thickness',           'Thickness',             'number',    'input', false, 30, true),
+  ('frenchDoorPart', 'meetingStileOverlap', 'frenchDoorPart.meetingStileOverlap', 'Meeting Stile Overlap', 'number',    'input', false, 40, true),
+  -- each leaf
+  ('leftFrenchDoorLeafPart',  'operation',             'leftFrenchDoorLeafPart.operation',             'Operation',               'reference', 'input', false, 10, true),
+  ('leftFrenchDoorLeafPart',  'toBeReplaced',          'leftFrenchDoorLeafPart.toBeReplaced',          'To Be Replaced',          'boolean',   'input', false, 20, true),
+  ('leftFrenchDoorLeafPart',  'bottomHeight',          'leftFrenchDoorLeafPart.bottomHeight',          'Bottom Rail (int)',       'number',    'input', false, 30, true),
+  ('leftFrenchDoorLeafPart',  'bottomHeightExternal',  'leftFrenchDoorLeafPart.bottomHeightExternal',  'Bottom Rail (ext)',       'number',    'input', false, 40, true),
+  ('leftFrenchDoorLeafPart',  'isMasterLeaf',          'leftFrenchDoorLeafPart.isMasterLeaf',          'Master Leaf',             'boolean',   'input', false, 50, true),
+  ('leftFrenchDoorLeafPart',  'archHead',              'leftFrenchDoorLeafPart.archHead',              'Arch Head',               'boolean',   'input', false, 60, true),
+  ('leftFrenchDoorLeafPart',  'specialJoineryDetails', 'leftFrenchDoorLeafPart.specialJoineryDetails', 'Special Joinery Details', 'text',      'input', false, 70, true),
+  ('leftFrenchDoorLeafPart',  'specialGlassDetails',   'leftFrenchDoorLeafPart.specialGlassDetails',   'Special Glass Details',   'text',      'input', false, 80, true),
+  ('rightFrenchDoorLeafPart', 'operation',             'rightFrenchDoorLeafPart.operation',             'Operation',               'reference', 'input', false, 10, true),
+  ('rightFrenchDoorLeafPart', 'toBeReplaced',          'rightFrenchDoorLeafPart.toBeReplaced',          'To Be Replaced',          'boolean',   'input', false, 20, true),
+  ('rightFrenchDoorLeafPart', 'bottomHeight',          'rightFrenchDoorLeafPart.bottomHeight',          'Bottom Rail (int)',       'number',    'input', false, 30, true),
+  ('rightFrenchDoorLeafPart', 'bottomHeightExternal',  'rightFrenchDoorLeafPart.bottomHeightExternal',  'Bottom Rail (ext)',       'number',    'input', false, 40, true),
+  ('rightFrenchDoorLeafPart', 'isMasterLeaf',          'rightFrenchDoorLeafPart.isMasterLeaf',          'Master Leaf',             'boolean',   'input', false, 50, true),
+  ('rightFrenchDoorLeafPart', 'archHead',              'rightFrenchDoorLeafPart.archHead',              'Arch Head',               'boolean',   'input', false, 60, true),
+  ('rightFrenchDoorLeafPart', 'specialJoineryDetails', 'rightFrenchDoorLeafPart.specialJoineryDetails', 'Special Joinery Details', 'text',      'input', false, 70, true),
+  ('rightFrenchDoorLeafPart', 'specialGlassDetails',   'rightFrenchDoorLeafPart.specialGlassDetails',   'Special Glass Details',   'text',      'input', false, 80, true)
+ON CONFLICT (field_key) DO NOTHING;
+
+-- ── 3. Hide the profile settings that are not drawing fields ──────────────
+-- A SHORT, NAMED list — the stormproof and stepped-bottom-rail defaults
+-- Integrate's import leaves as 'input' on every sash-like part (the same
+-- ones Step AY-2's rewrite hid on the French casement leaves). Anything NOT
+-- named here is left exactly as it is, including anything I have not seen.
+-- A hidden field stays stored and stays editable on Defaults & Parts.
+UPDATE default_field_definitions
+SET    role = 'config'
+WHERE  part_type IN ('frenchDoorPart', 'leftFrenchDoorLeafPart',
+                     'rightFrenchDoorLeafPart')
+  AND  property_name IN (
+    'btmRailShapeId',
+    'stormProofOverlap',
+    'stormProofLipThickness',
+    'defaultOpenInSteppedBottomRailOverlap',
+    'defaultOpenOutSteppedBottomRailOverlap',
+    'chamferedBottomRailAngle',
+    'hasFloatingMullion',
+    'mullionThickness'
+  )
+  AND  coalesce(role, '') <> 'config';
+
+COMMIT;
+
+-- ── Checks ─────────────────────────────────────────────────────────────────
+
+-- 1. What the PAIR's panel will show. Expect Door Type, Overall Meeting
+--    Stile, Thickness, Meeting Stile Overlap and the four clearances.
+SELECT property_name, label, data_type, sort_order
+FROM   default_field_definitions
+WHERE  part_type = 'frenchDoorPart'
+  AND  is_active AND coalesce(role, '') <> 'config'
+ORDER  BY sort_order, property_name;
+
+-- 2. What a LEAF's panel will show. Expect Operation, To Be Replaced,
+--    Bottom Rail (int) and (ext), Master Leaf, Arch Head, the two Special
+--    Details, and the stiles and head.
+SELECT part_type, property_name, label, data_type, sort_order
+FROM   default_field_definitions
+WHERE  part_type IN ('leftFrenchDoorLeafPart', 'rightFrenchDoorLeafPart')
+  AND  is_active AND coalesce(role, '') <> 'config'
+ORDER  BY part_type, sort_order, property_name;
+
+-- 3. What has been hidden — stored and still editable on Defaults & Parts.
+SELECT part_type, property_name, label
+FROM   default_field_definitions
+WHERE  part_type IN ('frenchDoorPart', 'leftFrenchDoorLeafPart',
+                     'rightFrenchDoorLeafPart')
+  AND  role = 'config'
+ORDER  BY part_type, property_name;
+
+
+-- ---------------------------------------------------------------------------
+-- DO NOT RUN — rollback, only if this step has to be undone
+-- ---------------------------------------------------------------------------
+-- Section 3 is the only part that needs SECTION 0b's output to undo: that is
+-- the list of fields whose role was 'input' before.
+--
+-- UPDATE default_field_definitions
+-- SET    role = 'input'
+-- WHERE  part_type IN ('frenchDoorPart', 'leftFrenchDoorLeafPart',
+--                      'rightFrenchDoorLeafPart')
+--   AND  property_name IN ( <the property_name list from section 0b> );
+--
+-- Section 1 (labels): put back whatever section 0a recorded, e.g.
+-- UPDATE default_field_definitions SET label = 'Mid rail'
+-- WHERE  part_type = 'frenchDoorPart' AND property_name = 'midRail';
+--
+-- Section 2 (new definitions): delete ONLY a row section 2 created. If
+-- section 0a showed the row already existed, leave it — deleting it would
+-- remove one of Integrate's own.
+--
+-- DELETE FROM default_field_definitions
+-- WHERE  field_key IN (
+--   'frenchDoorPart.casementTypeId', 'frenchDoorPart.midRail',
+--   'frenchDoorPart.thickness', 'frenchDoorPart.meetingStileOverlap',
+--   'leftFrenchDoorLeafPart.operation', 'leftFrenchDoorLeafPart.toBeReplaced',
+--   'leftFrenchDoorLeafPart.bottomHeight', 'leftFrenchDoorLeafPart.bottomHeightExternal',
+--   'leftFrenchDoorLeafPart.isMasterLeaf', 'leftFrenchDoorLeafPart.archHead',
+--   'leftFrenchDoorLeafPart.specialJoineryDetails', 'leftFrenchDoorLeafPart.specialGlassDetails',
+--   'rightFrenchDoorLeafPart.operation', 'rightFrenchDoorLeafPart.toBeReplaced',
+--   'rightFrenchDoorLeafPart.bottomHeight', 'rightFrenchDoorLeafPart.bottomHeightExternal',
+--   'rightFrenchDoorLeafPart.isMasterLeaf', 'rightFrenchDoorLeafPart.archHead',
+--   'rightFrenchDoorLeafPart.specialJoineryDetails', 'rightFrenchDoorLeafPart.specialGlassDetails'
+-- );

@@ -297,6 +297,95 @@ rule data was changed in Step AY and none should be.
 
 ---
 
+## 7. A door's transom and its 62 mm fanlight rail are charged
+
+**Date:** 13 October 2026
+**Decided by:** Nathan Smith
+**Code:** `src/pricing/doorGeometry.js` (`allocatedSectionParts`), Step AZ
+**Asserted in:** `src/pricing/benchmarks/benchmarks.test.js` (Step AZ block)
+
+**What differs:**
+
+A door's timber is not a volume. Integrate allocates LENGTHS of utile stock
+section and prices them per metre. On FD3 it allocates nothing at all for two
+parts of the window, and Nathan charges for both.
+
+**(a) The transom.** A doorset with a fanlight has a transom, 41 mm thick and
+77 mm finished, 96 deep. Integrate allocates no section for it. GlazePro
+charges **Utile67x96 for the internal frame width**:
+
+| | |
+|---|---|
+| FD3 / FD3b | 1.256 m × £13.60 = **£17.08** |
+
+**This is PROVISIONAL.** No listed stock section is big enough for a 77 × 96
+finished transom — Utile67x96 is the largest of the five and is 67 × 96 — so
+the section charged is the nearest thing on the list and not the real stock.
+**The workshop has to confirm what a transom is actually cut from**, and the
+price will change when they do.
+
+**(b) A 62 mm fanlight bottom rail.** Integrate charges an **86 mm** fanlight
+rail at Utile63x96 for the sash width (FD3: 1.254 m × £12.20 = £15.30). When
+the same drawing's rail was changed to **62**, Integrate's 63×96 line
+disappeared and **nothing replaced it** — the rail became free. GlazePro
+charges it at **Utile63x63** for the sash width, as the 86 is charged at
+63×96:
+
+| | |
+|---|---|
+| FD3b | 1.254 m × £8.60 = **£10.78** |
+
+Both land in `manufacture_materials` and nowhere else, which is why FD3 and
+FD3b match Integrate on every other group:
+
+| | Integrate | GlazePro | difference |
+|---|---|---|---|
+| FD1 | 2,819.53 | 2,819.53 | — exact |
+| FD2 | 2,680.62 | 2,680.62 | — exact |
+| FD3 | 3,058.66 | 3,075.74 | **+17.08** the transom |
+| FD3b | 3,045.22 | 3,073.08 | **+27.86** the transom + the 62 rail |
+
+**Why:**
+
+A rail that is cut, machined and finished costs money whatever Integrate's
+allocator says, and so does a transom. Charging nothing for them is a
+straightforward undercharge on every doorset GlazePro quotes. The 62 mm rail
+is also Nathan's own default for a new fanlight (difference 5), so it is the
+rail GlazePro will cut most often — exactly the one Integrate charges nothing
+for.
+
+## 8. An Accoya door is priced on the utile sections
+
+**Date:** 13 October 2026
+**Decided by:** Nathan Smith
+**Code:** `src/pricing/doorGeometry.js` (`DOOR_MATERIALS`), Step AZ
+
+**What differs:**
+
+Doors are sold in utile and Accoya only. Integrate has **no Accoya sections at
+all**, so an Integrate Accoya door carries **no timber cost whatever** — a gap
+in Integrate, not a target to match.
+
+Until Nathan supplies Accoya section prices, GlazePro prices an Accoya door on
+the **utile** per-metre costs. The section table is keyed by material, so an
+Accoya column can be added as DATA later without changing any code:
+
+```
+DOOR_MATERIALS = {
+  utile:  SECTION_PART_CODES,
+  accoya: SECTION_PART_CODES,   // utile prices until Accoya ones exist
+}
+```
+
+**Why:**
+
+An Accoya door quoted with no timber at all is the worst of the three
+options. Utile prices are the closest real figures available and are knowingly
+wrong in a known direction — Accoya costs more — so a quote is short rather
+than absurd, and the fix is a data change when the prices arrive.
+
+---
+
 # Parked residuals
 
 Added by Step AT (12 Oct 2026), under the small-differences policy in

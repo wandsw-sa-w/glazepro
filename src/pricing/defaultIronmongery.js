@@ -17,6 +17,10 @@ import { evaluateCondition, evaluateNumber, getExpressionVariables } from './eva
 import { computeDerived } from '../drawingBoard/computeDerived.js'
 import { operationKind, casementIsFixed } from './optionVocabulary.js'
 import { CASEMENT_SASH_TYPES } from './casementGeometry.js'
+import {
+  DOOR_LEAF_TYPES, FRENCH_DOOR_LEAF_TYPES, doorLeafSize, doorLeafWeightKg,
+  frenchDoorPairFor,
+} from './doorGeometry.js'
 
 // ── Tree helpers ──────────────────────────────────────────────────────────────
 
@@ -49,7 +53,11 @@ const LOOP_PART_TYPES = {
   // leaf is an opener and Integrate's own stored list has a handle per leaf
   // and a gear box per leaf, so the loop has to visit them.
   casement_sash: CASEMENT_SASH_TYPES,
-  door_leaf:     ['doorLeafPart'],
+  // Step AZ: a French door's leaves. Without them NO door ironmongery rule
+  // could fire — the live mpls_door and door_hinges rules all loop door_leaf
+  // and read is_door_mpls, is_master_leaf_in_french_pair and the hand, so a
+  // French door's default list was two trickle vents and nothing else.
+  door_leaf:     DOOR_LEAF_TYPES,
   panel:         ['panelPart'],
 }
 
@@ -113,6 +121,43 @@ function computePartVars(partNode, tree, derived, baseVars, glassCatalogue, prof
       gross_sash_width_in_mm,
       weight_in_kg:   weightData.weight_in_kg,
       weight_in_lb:   weightData.weight_in_lb,
+    }
+  }
+
+  // Step AZ: a DOOR LEAF, for the mpls_door and door_hinges rules. The same
+  // variables the ALLOCATOR's door-leaf branch builds, from the part type and
+  // the geometry rather than from keys no drawing stores.
+  if (DOOR_LEAF_TYPES.includes(pt)) {
+    const is_complete_new = baseVars.is_complete_new ?? false
+    const size = doorLeafSize(tree, partNode)
+    const pair = frenchDoorPairFor(tree, partNode)
+    const isMaster = v.isMasterLeaf === true
+    const isLeft = pt === 'leftFrenchDoorLeafPart' ||
+      String(v.operation ?? '').includes('left')
+    const paint = findFirst(tree, 'paintAndIronmongeryPart')
+    const mpls = paint?.values?.isDoorMpls ?? v.isDoorMpls ??
+      FRENCH_DOOR_LEAF_TYPES.includes(pt)
+    const weight = doorLeafWeightKg(tree, partNode, glassCatalogue)
+    return {
+      to_be_replaced:  is_complete_new || v.toBeReplaced === true,
+      is_item_a_door:  true,
+      is_opening:      !casementIsFixed(partNode),
+      is_fixed_casement_sash: casementIsFixed(partNode),
+      gross_sash_width_in_mm:  size.width  ?? 0,
+      gross_sash_height_in_mm: size.height ?? 0,
+      weight_in_kg: weight,
+      weight_in_lb: weight * 2.20462,
+      is_door_mpls:  mpls === true,
+      is_front_door: baseVars.is_front_door ?? false,
+      is_french_door_leaf: FRENCH_DOOR_LEAF_TYPES.includes(pt),
+      is_master_leaf_in_french_pair: pair != null && isMaster,
+      is_slave_leaf_in_french_pair:  pair != null && !isMaster,
+      is_left_hand_hung_viewed_internally:  isLeft,
+      is_right_hand_hung_viewed_internally: !isLeft,
+      is_opening_in:   false,
+      is_opening_out:  true,
+      is_side_hung:    true,
+      is_french_casement_sash: false,
     }
   }
 

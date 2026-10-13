@@ -40,7 +40,7 @@ import { SashElevation } from '../drawingBoard/renderElevation.jsx'
 import {
   applyDividers, applyBars, frameGrid, splitOpening, removeDivider, makeDividersEqual,
 } from '../drawingBoard/gridActions.js'
-import { FRENCH_PAIR_PART } from '../pricing/casementGeometry.js'
+import { FRENCH_PAIR_PART, isPairPart } from '../pricing/casementGeometry.js'
 import { isDirectGlazedUnit } from '../pricing/casementGeometry.js'
 import { findRequiredEmpty } from '../drawingBoard/requiredFields.js'
 import { loadGlassCatalogue } from '../pricing/loadPricingContext.js'
@@ -763,7 +763,7 @@ function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, o
   // the columns proportionally, but nothing could even them up afterwards.
   // Step AX: which leaf of a French pair carries the lock. Integrate has
   // this on the pair and defaults to the RIGHT leaf.
-  const frenchMaster = node?.part_type === FRENCH_PAIR_PART && onSetFrenchMasterLeaf
+  const frenchMaster = isPairPart(node) && onSetFrenchMasterLeaf
     ? (node.values?.masterLeaf ?? DEFAULT_FRENCH_MASTER_LEAF)
     : null
 
@@ -773,7 +773,7 @@ function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, o
     // panel too, and a leaf is not itself an opening — the pair it belongs
     // to is.
     const isOpening = openingNodes(tree).some(n => n.key === node.key ||
-      (n.part_type === FRENCH_PAIR_PART && (n.children ?? []).some(c => c.key === node.key)))
+      (isPairPart(n) && (n.children ?? []).some(c => c.key === node.key)))
     if (!isOpening) return null
     return {
       canWidths:  findAll(tree, 'mullionPart').length > 0,

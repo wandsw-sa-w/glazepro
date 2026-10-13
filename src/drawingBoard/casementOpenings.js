@@ -23,6 +23,7 @@ import { makeKey } from './gridActions.js'
 import { resolveJambTypeCode } from './applyOperationDefaults.js'
 import {
   frameCells, OPENING_TYPES, FRENCH_PAIR_PART, FRENCH_SASH_TYPES, CASEMENT_SASH_TYPES,
+  FRENCH_DOOR_PAIR_PART, PAIR_PART_TYPES, PAIR_LEAF_TYPES, isPairPart, isLeftLeaf,
 } from '../pricing/casementGeometry.js'
 
 // ── Profile value helpers ────────────────────────────────────────────────────
@@ -72,7 +73,7 @@ export function profileValue(profileValues, fieldKey) {
  * candidates, and anything NOT found is returned in `missing` so the board
  * can show it rather than silently building a 0 into a drawing.
  */
-function firstOf(profileValues, candidates) {
+export function firstOf(profileValues, candidates) {
   for (const key of candidates) {
     const v = profileValue(profileValues, key)
     if (v != null) return { value: v, key }
@@ -310,6 +311,7 @@ export function openingKindOf(node) {
   if (!node) return null
   if (node.part_type === 'glassPart') return 'direct_glazed'
   if (node.part_type === FRENCH_PAIR_PART) return 'french_casement'
+  if (node.part_type === FRENCH_DOOR_PAIR_PART) return 'french_doors'
   if (node.part_type !== 'casementSashPart') return null
   return node.values?.operation === 'fix' ? 'fixed_casement' : 'opening_casement'
 }
@@ -616,19 +618,18 @@ export function buildFrenchPair(profileValues, {
 export function setFrenchMasterLeaf(tree, pairKey, masterLeaf) {
   if (!FRENCH_MASTER_LEAVES.includes(masterLeaf)) return { tree, changed: false }
   const pair = findNodeByKeyIn(tree, pairKey)
-  if (!pair || pair.part_type !== FRENCH_PAIR_PART) return { tree, changed: false }
+  // Step AZ: either kind of pair — a French casement or a French door.
+  if (!isPairPart(pair)) return { tree, changed: false }
   if (pair.values?.masterLeaf === masterLeaf) return { tree, changed: false }
   return {
     tree: replaceNode(tree, pairKey, {
       ...pair,
       values: { ...pair.values, masterLeaf },
-      children: (pair.children ?? []).map(c => ({
-        ...c,
-        values: {
-          ...c.values,
-          isMasterLeaf: masterLeaf === (c.part_type === 'leftFrenchCasementSashPart' ? 'left' : 'right'),
-        },
-      })),
+      children: (pair.children ?? []).map(c => (
+        PAIR_LEAF_TYPES.includes(c.part_type)
+          ? { ...c, values: { ...c.values, isMasterLeaf: masterLeaf === (isLeftLeaf(c) ? 'left' : 'right') } }
+          : c
+      )),
     }),
     changed: true,
   }
@@ -721,11 +722,11 @@ export function openingMatrixIndex(tree, node) {
   // after it: FR1's leaves are A1 and B1 although there is no mullion, and
   // FR2's are A2 and B2 under the fanlight at A1.
   const idx = nodes.findIndex(n => n.key === node?.key ||
-    (n.part_type === FRENCH_PAIR_PART && (n.children ?? []).some(c => c.key === node?.key)))
+    (isPairPart(n) && (n.children ?? []).some(c => c.key === node?.key)))
   if (idx < 0) return null
   const cell = frameCells(tree)[idx]
   if (!cell) return matrixIndexOf(idx, columnCount(tree))
-  const isRightLeaf = node?.part_type === 'rightFrenchCasementSashPart'
+  const isRightLeaf = PAIR_LEAF_TYPES.includes(node?.part_type) && !isLeftLeaf(node)
   return matrixLabel(cell.col + (isRightLeaf ? 1 : 0), cell.row)
 }
 
@@ -745,6 +746,9 @@ export function openingTypeLabel(tree, node) {
   }
   if (node?.part_type === FRENCH_PAIR_PART) return 'French Casement'
   if (FRENCH_SASH_TYPES.includes(node?.part_type)) return 'French Casement Sash'
+  if (node?.part_type === FRENCH_DOOR_PAIR_PART) return 'French Door'
+  if (node?.part_type === 'leftFrenchDoorLeafPart') return 'French Door Leaf Left'
+  if (node?.part_type === 'rightFrenchDoorLeafPart') return 'French Door Leaf Right'
   if (node?.part_type !== 'casementSashPart') return null
   const nodes = openingNodes(tree)
   const idx = nodes.findIndex(n => n.key === node.key)
@@ -861,7 +865,7 @@ export function changeOpening(tree, openingKey, kind, profileValues) {
   // changed to something else carries the LEFT leaf's codes over.
   const glassSource = current.part_type === 'casementSashPart'
     ? (current.children ?? []).find(c => c.part_type === 'glassPart')
-    : current.part_type === FRENCH_PAIR_PART
+    : isPairPart(current)
       ? (current.children?.[0]?.children ?? []).find(c => c.part_type === 'glassPart')
       : current
   // Step AS: building INTO a fanlight position (the top row of a frame with
@@ -916,7 +920,12 @@ export function changeOpening(tree, openingKey, kind, profileValues) {
 export function setCasementOperation(tree, sashKey, operation) {
   if (!CASEMENT_OPERATIONS.includes(operation)) return { tree, changed: false }
   const sash = findByKey(tree, sashKey)
-  if (!sash || sash.part_type !== 'casementSashPart') return { tree, changed: false }
+  // Step AZ: the operation buttons work on a casement sash AND on a leaf
+  // of either pair — a French casement sash or a French door leaf. Integrate
+  // offers Fix / Right Hand Hung on a door leaf's own panel.
+  const canSetOperation = sash != null &&
+    (sash.part_type === 'casementSashPart' || PAIR_LEAF_TYPES.includes(sash.part_type))
+  if (!canSetOperation) return { tree, changed: false }
   if (sash.values?.operation === operation) return { tree, changed: false }
   return {
     tree: replaceNode(tree, sashKey, { ...sash, values: { ...sash.values, operation } }),
