@@ -18,6 +18,7 @@ import {
 import {
   casementCillVolumeDm3, frameMuntinLengthM, casementFrameTimberVolumeDm3,
 } from './casementGeometry.js'
+import { isStormproofSash } from '../drawingBoard/casementOpenings.js'
 
 // ── Tree helpers (mirrored from computeDerived.js) ───────────────────────────
 
@@ -613,6 +614,24 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
     // firing on a range nobody chose.
     const is_heritage_range = false
 
+    // is_replacement_sashes_range: Integrate's "Sashes Only" product range.
+    // Folded in from the Step AT report, where validation rule 12 ("No
+    // Curved Head Sash Replacements": `new_sash_with_curved_head_qty > 0 and
+    // is_replacement_sashes_range`) came out UNEVALUABLE on a live drawing
+    // because nothing computed this.
+    //
+    // FALSE, deliberately, the same way is_heritage_range is: GlazePro does
+    // not store Integrate's product range at all (Step AG). The nearest
+    // thing is typeOfWork 'sash_replacement', but that is a different field
+    // with a different meaning — what WORK is being done, not which product
+    // range was sold — and rule 12 is an ERROR, so inferring the range
+    // wrongly would block a quote with a false error. False makes the rule
+    // EVALUABLE and silent instead of unevaluable.
+    //
+    // To switch it on once the reviewer confirms the equivalence, this is the
+    // whole change: `const is_replacement_sashes_range = is_sash_replacement`.
+    const is_replacement_sashes_range = false
+
     // ── GROUP 12 — Frame geometry (mm) ────────────────────────────────────────
     // assemblyFramePart.width/height ARE the overall frame (Step V decision,
     // matching Integrate's drawn labels and computeDerived). outerWidth /
@@ -936,6 +955,7 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
       fixed_casement_sash_qty, new_opening_casement_sash_qty,
       opening_out_casement_sash_qty, opening_in_casement_sash_qty,
       is_casement_range, is_casement_mpls, is_heritage_range,
+      is_replacement_sashes_range,
 
       // Group 12 — Frame geometry
       frame_width, frame_height,

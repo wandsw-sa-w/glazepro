@@ -22,7 +22,7 @@
 
 import { casementSashSize, casementSashWeightKg } from './casementGeometry.js'
 import { casementIsFixed } from './optionVocabulary.js'
-import { openingTypeLabel } from '../drawingBoard/casementOpenings.js'
+import { openingTypeLabel, isStormproofSash } from '../drawingBoard/casementOpenings.js'
 
 function findFirst(node, partType) {
   if (!node) return null
@@ -119,9 +119,13 @@ export function casementSashVariables(tree, sashNode, baseVars = {}, glassCatalo
     gross_left_sash_stile_width_in_mm:  num(v.leftWidth),
     gross_right_sash_stile_width_in_mm: num(v.rightWidth),
 
-    // Stormproof is the NEXT step's subject; until a sash stores the flag
-    // these rules stay silent rather than unevaluable.
-    is_storm_proof: (v.isStormProof ?? item?.values?.isStormProof ?? false) === true,
+    // Step AU: a sash is stormproof when its stored SASH TYPE says so —
+    // casementTypeId 'stormproof' (Integrate typeId 9), which is what the
+    // whole-window conversion writes. Step AS read an `isStormProof` flag
+    // that nothing ever set, so rule 43 could never fire; the flag is still
+    // honoured for any drawing that happens to carry it.
+    is_storm_proof: isStormproofSash(sashNode) ||
+      (v.isStormProof ?? item?.values?.isStormProof ?? false) === true,
 
     // Not offered / not modelled, so false rather than missing:
     //  - the heritage range is not a product we sell;

@@ -125,6 +125,69 @@ const CANDIDATES = {
                     'glassPart.defaultGlazingToleranceForDirGU'],
 }
 
+/**
+ * The STORMPROOF sections (Step AU), by the same candidate-list method.
+ *
+ * NOT VERIFIED: the live key spellings. The casement profile already carries
+ * `casementSashPart.stormProofOverlap` and `.stormProofLipThickness` (Step
+ * AQ's sql/step-aq3 reclassified both as profile settings), so the frame and
+ * cill stormproof keys are written in the same `stormProof…` style by
+ * sql/step-au1. If Integrate's import used other spellings, put them at the
+ * front of these lists and nothing else changes.
+ *
+ * Integrate's own values (every drawing the reviewer read): frame jambs and
+ * head 41, bottom 56, depth 69, stops 15; cill 56 × 69; sash bottom rail 76
+ * with a 7 mm overlap. The transom, the mullion and a direct glazed unit are
+ * UNCHANGED.
+ */
+const STORMPROOF_CANDIDATES = {
+  frameJambLeft:  ['assemblyFramePart.stormProofLeftWidth',  'assemblyFramePart.defaultStormProofLeftWidth'],
+  frameJambRight: ['assemblyFramePart.stormProofRightWidth', 'assemblyFramePart.defaultStormProofRightWidth',
+                   'assemblyFramePart.stormProofLeftWidth'],
+  frameHead:      ['assemblyFramePart.stormProofTopHeight',  'assemblyFramePart.defaultStormProofTopHeight'],
+  frameBottom:    ['assemblyFramePart.stormProofBottomHeight', 'assemblyFramePart.defaultStormProofBottomHeight'],
+  frameDepth:     ['assemblyFramePart.stormProofFrameDepth', 'assemblyFramePart.defaultStormProofFrameDepth'],
+  headStop:       ['assemblyFramePart.stormProofHeadStopSize',  'assemblyFramePart.defaultStormProofHeadStopSize'],
+  stileStop:      ['assemblyFramePart.stormProofStileStopSize', 'assemblyFramePart.defaultStormProofStileStopSize'],
+  cillStop:       ['assemblyFramePart.stormProofCillStopSize',  'assemblyFramePart.defaultStormProofCillStopSize'],
+  cillHeight:     ['cillPart.stormProofHeight', 'cillPart.defaultStormProofHeight'],
+  cillDepth:      ['cillPart.stormProofDepth',  'cillPart.defaultStormProofDepth'],
+  sashBottom:     ['casementSashPart.stormProofBottomHeight', 'casementSashPart.defaultStormProofBottomHeight'],
+  sashOverlap:    ['casementSashPart.stormProofOverlap'],
+}
+
+/**
+ * Resolve the stormproof sections from the drawing's profile.
+ *
+ * @returns {{values, missing, keysUsed}} `missing` names what the profile
+ *   does not hold, under the keys tried. Until sql/step-au1 has run,
+ *   everything is missing and the board says so rather than converting a
+ *   window to a frame of nulls.
+ */
+export function stormproofProfileDefaults(profileValues) {
+  const values = {}
+  const keysUsed = {}
+  const missing = []
+  for (const [name, candidates] of Object.entries(STORMPROOF_CANDIDATES)) {
+    const { value, key } = firstOf(profileValues, candidates)
+    values[name] = value
+    if (key) keysUsed[name] = key
+    if (value == null) missing.push(`${name} (tried ${candidates.join(', ')})`)
+  }
+  return { values, missing, keysUsed }
+}
+
+/**
+ * The stormproof sections if the profile holds them ALL, else null.
+ *
+ * All-or-nothing on purpose: half a set of sections would build a sash with
+ * a null bottom rail, which prices as zero timber.
+ */
+export function stormproofSectionsFor(profileValues) {
+  const resolved = stormproofProfileDefaults(profileValues)
+  return resolved.missing.length === 0 ? resolved.values : null
+}
+
 /** Values a casement drawing cannot be built correctly without. */
 const REQUIRED = [
   'frameJambLeft', 'frameHead', 'frameDepth', 'cillHeight', 'cillDepth',
@@ -226,6 +289,11 @@ export function buildCasementSash(profileValues, {
   // bottom rail (62 once sql/step-as0 has run) instead of the ordinary 83.
   // Integrate warns on any fanlight whose rail is over 62.
   isFanlight = false,
+  // Step AU: a sash built into a STORMPROOF window is stormproof — its own
+  // sash type, the 76 mm bottom rail on every sash INCLUDING a fanlight
+  // (Nathan, 13 Oct), and the 7 mm overlap. `stormproof` is the resolved
+  // stormproofProfileDefaults().values, or null for a flush sash.
+  stormproof = null,
 } = {}) {
   const d = (defaults ?? casementProfileDefaults(profileValues)).values
   const key = makeKey('cas')
@@ -238,14 +306,19 @@ export function buildCasementSash(profileValues, {
     part_type: 'casementSashPart',
     values: {
       operation,
-      casementTypeId: sashType,
+      casementTypeId: stormproof ? SASH_TYPE_STORMPROOF : sashType,
       // Step AQ item 3: `thickness` is the key the field definition, the
       // property panel, validation and Integrate all use.
       thickness:     d.sashThickness,
       topHeight:     d.sashHead,
       leftWidth:     d.sashStileLeft,
       rightWidth:    d.sashStileRight,
-      bottomHeight:  isFanlight ? (d.sashBottomFanlight ?? d.sashBottom) : d.sashBottom,
+      // Step AU: a stormproof sash is 76 throughout — the flush fanlight
+      // rule does not apply to it.
+      bottomHeight: stormproof
+        ? stormproof.sashBottom
+        : (isFanlight ? (d.sashBottomFanlight ?? d.sashBottom) : d.sashBottom),
+      ...(stormproof ? { stormProofOverlap: stormproof.sashOverlap } : {}),
       mechanicalClearanceLeft:   clearL,
       mechanicalClearanceRight:  clearR,
       mechanicalClearanceTop:    clearT,
@@ -306,8 +379,10 @@ export function buildDirectGlazedUnit(profileValues, { glass = null, defaults = 
 }
 
 /** Build one opening of the given kind, carrying `glass` codes over. */
-export function buildOpening(kind, profileValues, { glass = null, sashType = 'open_out', defaults = null, isFanlight = false } = {}) {
+export function buildOpening(kind, profileValues, { glass = null, sashType = 'open_out', defaults = null, isFanlight = false, stormproof = null } = {}) {
   const d = defaults ?? casementProfileDefaults(profileValues)
+  // A direct glazed unit is UNCHANGED by stormproof (clearance 20, rebate
+  // 20, hidden 18 — Integrate's SF stores exactly the flush values).
   if (kind === 'direct_glazed') return buildDirectGlazedUnit(profileValues, { glass, defaults: d })
   return buildCasementSash(profileValues, {
     operation: kind === 'fixed_casement' ? 'fix' : DEFAULT_CASEMENT_OPERATION,
@@ -315,6 +390,7 @@ export function buildOpening(kind, profileValues, { glass = null, sashType = 'op
     sashType,
     defaults: d,
     isFanlight,
+    stormproof,
   })
 }
 
@@ -330,6 +406,13 @@ function findFirst(node, partType) {
     if (found) return found
   }
   return null
+}
+
+function findAll(node, partType, acc = []) {
+  if (!node) return acc
+  if (node.part_type === partType) acc.push(node)
+  for (const child of (node.children ?? [])) findAll(child, partType, acc)
+  return acc
 }
 
 /**
@@ -400,6 +483,33 @@ export function openingLabel(tree, node) {
   return `${type} ${matrixIndexOf(idx, columnCount(tree))}`
 }
 
+// ── Stormproof (Step AU) ─────────────────────────────────────────────────────
+// The predicates live here, not in stormproof.js, because changeOpening and
+// applyFanlightBottomRails below need them and stormproof.js imports THIS
+// module. stormproof.js re-exports them, so there is one definition.
+
+/** The live `sash_type` option codes (reference_options category sash_type). */
+export const SASH_TYPE_STORMPROOF = 'stormproof'
+export const SASH_TYPE_FLUSH      = 'open_out'
+
+/** Is THIS casement sash stormproof? Its stored sash type says so. */
+export function isStormproofSash(sashNode) {
+  if (sashNode?.part_type !== 'casementSashPart') return false
+  return String(sashNode.values?.casementTypeId ?? '') === SASH_TYPE_STORMPROOF
+}
+
+/**
+ * Is this WINDOW stormproof? At least one stormproof casement sash.
+ *
+ * "At least one" rather than "all": a stormproof window is stormproof
+ * throughout (Nathan, 13 Oct), so one stormproof sash means the window is —
+ * and reading it this way means a tree that somehow held a mix would still
+ * count as stormproof rather than quietly counting as flush.
+ */
+export function isStormproofWindow(tree) {
+  return findAll(tree, 'casementSashPart').some(isStormproofSash)
+}
+
 /** Is this a casement/direct-glazed frame (as opposed to a box sash one)? */
 export function isCasementFrameTree(tree) {
   const frame = findFirst(tree, 'assemblyFramePart')
@@ -461,10 +571,17 @@ export function changeOpening(tree, openingKey, kind, profileValues) {
   const openingIdx = openingNodes(tree).findIndex(n => n.key === openingKey)
   const intoFanlight = rowCount(tree) > 1 &&
     openingIdx >= 0 && openingIdx < columnCount(tree)
+  // Step AU: any opening added to a STORMPROOF window is stormproof — the
+  // window is stormproof throughout, so a direct glazed unit changed into a
+  // casement must come out stormproof, not flush.
+  const stormproofSections = isStormproofWindow(tree)
+    ? stormproofSectionsFor(profileValues)
+    : null
   const replacement = buildOpening(kind, profileValues, {
     glass: glassCodesOf(glassSource),
     sashType: current.values?.casementTypeId ?? 'open_out',
     isFanlight: intoFanlight,
+    stormproof: stormproofSections,
   })
 
   const children = [...frame.children]
@@ -527,9 +644,40 @@ export function buildCasementFrame(profileValues, {
   // sql/step-aq2 sets it on the stored templates by looking the label up.
   product = null,
   quantity = 1,
+  // Step AU: build the whole window STORMPROOF — the frame and cill take the
+  // stormproof sections and every casement sash is a stormproof sash. This
+  // is what the "Single Stormproof Casement" template is generated with.
+  stormproof = false,
 } = {}) {
   const resolved = casementProfileDefaults(profileValues)
-  const d = resolved.values
+  const flush = resolved.values
+  const storm = stormproof ? stormproofSectionsFor(profileValues) : null
+  // A stormproof build with an incomplete profile must not fall back to
+  // flush sections and look like it worked.
+  if (stormproof && !storm) {
+    return {
+      tree: null,
+      missing: stormproofProfileDefaults(profileValues).missing,
+    }
+  }
+  // Frame and cill sections come from whichever set is in force; the sash
+  // sizes, clearances, rebates and the mullion are the same either way.
+  const d = storm
+    ? {
+      ...flush,
+      frameJambLeft: storm.frameJambLeft,
+      frameJambRight: storm.frameJambRight ?? storm.frameJambLeft,
+      frameHead: storm.frameHead,
+      frameBottom: storm.frameBottom,
+      frameDepth: storm.frameDepth,
+      headStop: storm.headStop,
+      stileStop: storm.stileStop,
+      cillStop: storm.cillStop,
+      cillHeight: storm.cillHeight,
+      cillDepth: storm.cillDepth,
+      jambType: 'solid_profiled',
+    }
+    : flush
 
   const mullionCount = Math.max(0, openings.length - 1)
   const mullionT = d.mullionThickness ?? 0
@@ -604,7 +752,9 @@ export function buildCasementFrame(profileValues, {
         },
         children: [
           ...mullions,
-          ...openings.map(kind => buildOpening(kind, profileValues, { sashType, defaults: resolved })),
+          ...openings.map(kind => buildOpening(kind, profileValues, {
+            sashType, defaults: resolved, stormproof: storm,
+          })),
           {
             key: makeKey('cill'),
             part_type: 'cillPart',
@@ -721,6 +871,11 @@ export function resizeCasementFrame(tree, { width = null, height = null } = {}) 
  * @returns {{tree: Object, changed: string[]}} the sash keys that moved
  */
 export function applyFanlightBottomRails(tree, profileValues) {
+  // Step AU: a STORMPROOF window uses 76 on every sash, fanlights included
+  // (Nathan, 13 Oct), so the flush 62 fanlight default does not apply to it.
+  // Integrate's "reduce to 62mm" warning then fires on a stormproof
+  // fanlight, on its drawings and on ours, and that is correct.
+  if (isStormproofWindow(tree)) return { tree, changed: [] }
   const d = casementProfileDefaults(profileValues).values
   const ordinary = d.sashBottom
   const fanlight = d.sashBottomFanlight ?? ordinary
