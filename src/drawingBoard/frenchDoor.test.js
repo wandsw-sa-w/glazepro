@@ -14,24 +14,27 @@ import { fileURLToPath } from 'url'
 
 import {
   buildFrenchDoorFrame, buildFrenchDoorPair, doorProfileDefaults,
+  buildPanelledFrenchDoorFrame, buildFrenchDoorSetFrame, setLeafMidRail, leafMidRailOf,
   isFrenchDoorTree, DOOR_MATERIALS, DEFAULT_DOOR_MASTER_LEAF,
 } from './doorOpenings.js'
 import {
   setFrenchMasterLeaf, setCasementOperation, openingNodes,
-  openingMatrixIndex, openingTypeLabel, resizeCasementFrame,
+  openingMatrixIndex, openingTypeLabel, resizeCasementFrame, openingLabel,
 } from './casementOpenings.js'
 import { assertSaveable } from './containment.js'
 import { findRequiredEmpty } from './requiredFields.js'
 import { computeDerived } from './computeDerived.js'
-import { frameCells, frameInterior, isPairPart } from '../pricing/casementGeometry.js'
+import { frameCells, frameInterior, isPairPart, frameColumns, frameRows, casementSashSize } from '../pricing/casementGeometry.js'
 import {
   doorLeaves, doorLeafSize, doorLeafWeightKg, allocatedSectionParts,
+  doorGlassSightline, doorPanelSize,
 } from '../pricing/doorGeometry.js'
 import { runPricingOnTree } from '../pricing/pricingEngine.js'
 import { computeVariables } from '../pricing/computeVariables.js'
 import { defaultIronmonger } from '../pricing/defaultIronmongery.js'
 import {
   BENCHMARK_FD1, BENCHMARK_FD2, BENCHMARK_FD3, BENCHMARK_FD3b,
+  BENCHMARK_FD4, BENCHMARK_FD5, BENCHMARK_FD6,
 } from '../pricing/benchmarks/fixtureDoor.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -359,5 +362,188 @@ d('Step AZ — the board’s doors price as the fixtures do', () => {
       expect(report[label].some(l => l.startsWith('hardwick_lyndon_door_espag_set')), label).toBe(true)
       expect(report[label].some(l => l.startsWith('windsor_inline_handle')), label).toBe(false)
     }
+  })
+})
+
+// ── Step BA: the three variant templates, built by the board ─────────────────
+
+describe('Step BA — the board builds the French door variants', () => {
+  function boardFD4() {
+    const { tree, missing } = buildPanelledFrenchDoorFrame(PV, {
+      width: 1399, height: 2199, product: 'french_door',
+    })
+    expect(missing, 'profile values the build could not resolve').toEqual([])
+    return tree
+  }
+  function boardDoorset({ topRow = 'direct_glazed' } = {}) {
+    const { tree, missing } = buildFrenchDoorSetFrame(PV, {
+      width: 2814, height: 2710, product: 'french_door', topRow,
+    })
+    expect(missing).toEqual([])
+    return tree
+  }
+
+  it('FD4: a mid rail and a panel in each leaf, at Integrate’s own sizes', () => {
+    const tree = boardFD4()
+    const leaves = doorLeaves(tree)
+    expect(leaves.length).toBe(2)
+    for (const leaf of leaves) {
+      expect(doorLeafSize(tree, leaf)).toEqual({ width: 662.5, height: 2109 })
+      // the rail position comes from the PANEL being 425, and at template
+      // 79's size that is Integrate's own 1241 of glass
+      expect(leafMidRailOf(leaf).values.offset).toBe(1241)
+      expect(doorGlassSightline(tree, leaf)).toEqual({ width: 442.5, height: 1241 })
+      expect(doorPanelSize(tree, leaf)).toEqual({ width: 442.5, height: 425 })
+      const panel = leaf.children.find(c => c.part_type === 'panelPart')
+      expect(panel.values.internalPanelTypeId).toBe('raised_and_fielded')
+      expect(panel.values.internalPanelBeadId).toBe('ovolo')
+    }
+    expect(() => assertSaveable(tree)).not.toThrow()
+    expect(findRequiredEmpty(tree, REQUIRED_DEFS)).toEqual([])
+  })
+
+  it('FD4: the board’s tree prices as the FD4 fixture does, line for line', () => {
+    expect(SNAPSHOT, 'needs the PF30 snapshot').toBeTruthy()
+  })
+
+  it('the board can add a mid rail, move it, and take it away again', () => {
+    // The three things a surveyor does to a panelled leaf, through one action.
+    const plain = buildFrenchDoorFrame(PV, { width: 1399, height: 2199 }).tree
+    const leafKey = doorLeaves(plain)[0].key
+    expect(leafMidRailOf(doorLeaves(plain)[0])).toBe(null)
+
+    const added = setLeafMidRail(plain, leafKey, { offset: 1241 })
+    const leaf = doorLeaves(added).find(l => l.key === leafKey)
+    expect(leafMidRailOf(leaf).values.offset).toBe(1241)
+    expect(leaf.children.some(c => c.part_type === 'panelPart'), 'a panel comes with it').toBe(true)
+    expect(doorPanelSize(added, leaf)).toEqual({ width: 442.5, height: 425 })
+    // the OTHER leaf is untouched — a mid rail is per leaf
+    expect(leafMidRailOf(doorLeaves(added)[1])).toBe(null)
+
+    const moved = setLeafMidRail(added, leafKey, { offset: 1100 })
+    const movedLeaf = doorLeaves(moved).find(l => l.key === leafKey)
+    expect(doorGlassSightline(moved, movedLeaf).height).toBe(1100)
+    expect(doorPanelSize(moved, movedLeaf).height).toBe(566)
+    // the panel node is KEPT across a move, with its options
+    expect(movedLeaf.children.find(c => c.part_type === 'panelPart').values.internalPanelBeadId)
+      .toBe('ovolo')
+
+    const removed = setLeafMidRail(moved, leafKey, { offset: null })
+    const bare = doorLeaves(removed).find(l => l.key === leafKey)
+    expect(leafMidRailOf(bare)).toBe(null)
+    expect(bare.children.some(c => c.part_type === 'panelPart')).toBe(false)
+    // and the glass runs the whole leaf again
+    expect(doorGlassSightline(removed, bare).height).toBe(1836)
+    expect(() => assertSaveable(removed)).not.toThrow()
+  })
+
+  it('FD5: a doorset frame — three columns, two rows, the pair in the middle', () => {
+    const tree = boardDoorset()
+    expect(frameColumns(tree).map(c => c.width)).toEqual([649, 1340, 649])
+    expect(frameRows(tree).map(r => r.width)).toEqual([448, 2137])
+    const labels = openingNodes(tree).map(n => openingLabel(tree, n))
+    expect(labels).toEqual([
+      'Direct Glazed Unit A1', 'Direct Glazed Unit B1', 'Direct Glazed Unit C1',
+      'Casement Sash A2', 'French Door B2', 'Casement Sash C2',
+    ])
+    expect(() => assertSaveable(tree)).not.toThrow()
+    expect(findRequiredEmpty(tree, REQUIRED_DEFS)).toEqual([])
+  })
+
+  it('FD5: the side lights MATCH, which Integrate’s own template does not', () => {
+    // Integrate's template 29 has 648 and 651. Nathan's drawings are
+    // symmetrical, so the odd millimetre goes in the middle opening.
+    const tree = boardDoorset()
+    const [a, b, c] = frameColumns(tree).map(x => x.width)
+    expect(a).toBe(c)
+    expect(a + b + c + 2 * 41).toBe(2720)
+  })
+
+  it('FD6: the top row is three FIXED casement fanlights at Nathan’s 62', () => {
+    const tree = boardDoorset({ topRow: 'casement' })
+    const labels = openingNodes(tree).map(n => openingLabel(tree, n))
+    expect(labels.slice(0, 3)).toEqual(['Fanlight A1', 'Fanlight B1', 'Fanlight C1'])
+    const sashes = openingNodes(tree).filter(n => n.part_type === 'casementSashPart')
+    expect(sashes.length).toBe(5)
+    // the three top lights take 62; the two side lights keep Integrate's 86
+    const rails = sashes.map(s => s.values.bottomHeight)
+    expect(rails.filter(r => r === 62).length).toBe(3)
+    expect(rails.filter(r => r === 86).length).toBe(2)
+    for (const s of sashes) expect(s.values.operation).toBe('fix')
+  })
+
+  it('a doorset’s side lights and pair are the sizes the facts give', () => {
+    const tree = boardDoorset({ topRow: 'casement' })
+    // 649 columns rather than Integrate's 648 / 651, so the side lights are
+    // 647 wide (649 less 1 + 1 clearance) and the leaves 680 — a millimetre
+    // off Integrate’s, by the symmetry choice and nothing else.
+    const sashes = openingNodes(tree).filter(n => n.part_type === 'casementSashPart')
+    const side = sashes.filter(s => s.values.bottomHeight === 86)
+      .map(s => casementSashSize(tree, s))
+    expect(side).toEqual([{ width: 647, height: 2134 }, { width: 647, height: 2134 }])
+    expect(doorLeaves(tree).map(l => doorLeafSize(tree, l)))
+      .toEqual([{ width: 680, height: 2131 }, { width: 680, height: 2131 }])
+  })
+})
+
+const dPrice = SNAPSHOT ? describe : describe.skip
+
+dPrice('Step BA — the board’s variants price as the fixtures do', () => {
+  function price(tree, bm) {
+    return runPricingOnTree(tree, SNAPSHOT.rules, SNAPSHOT.pfVariables, {
+      glassCatalogue: SNAPSHOT.glassCatalogue,
+      partAllocationRules: SNAPSHOT.partAllocationRules,
+      partCostMap: bm.partCostMap,
+      ironmongeryLines: bm.ironmongeryLines,
+      ironmongeryCatalogue: SNAPSHOT.ironmongeryCatalogue,
+      profileValues: SNAPSHOT.profileValues,
+      profileCode: bm.profileCode,
+    })
+  }
+  const lines = r => r.price.lines.filter(l => l.fires && !l.error && l.line_cost > 0)
+    .map(l => [l.name, l.alloc_part_code ?? l.alloc_iron_part_code ?? '',
+      Number(l.quantity.toFixed(4)), Number(l.line_cost.toFixed(2))])
+
+  it('FD4: the board’s panelled tree prices exactly as the fixture does', () => {
+    const { tree } = buildPanelledFrenchDoorFrame(PV, {
+      width: 1399, height: 2199, product: 'french_door',
+    })
+    const mine   = price(tree, BENCHMARK_FD4)
+    const theirs = price(BENCHMARK_FD4.tree, BENCHMARK_FD4)
+    expect(mine.manufacture_labour.total_minutes).toBe(theirs.manufacture_labour.total_minutes)
+    expect(mine.install_labour.total_minutes).toBe(theirs.install_labour.total_minutes)
+    expect(mine.price.total_cost).toBeCloseTo(theirs.price.total_cost, 2)
+    expect(lines(mine)).toEqual(lines(theirs))
+  })
+
+  it('FD5: the board’s doorset prices within the symmetry choice of the fixture', () => {
+    // The only difference is the symmetrical columns: 650 / 1338 / 650
+    // against Integrate's 648 / 1339 / 651. Every RULE that fires is the
+    // same, and the money differs only by those millimetres of section and
+    // glass.
+    const { tree } = buildFrenchDoorSetFrame(PV, { width: 2814, height: 2710, product: 'french_door' })
+    const mine   = price(tree, BENCHMARK_FD5)
+    const theirs = price(BENCHMARK_FD5.tree, BENCHMARK_FD5)
+    expect(mine.manufacture_labour.total_minutes).toBe(theirs.manufacture_labour.total_minutes)
+    expect(mine.install_labour.total_minutes).toBe(theirs.install_labour.total_minutes)
+    expect(new Set(lines(mine).map(l => l[0]))).toEqual(new Set(lines(theirs).map(l => l[0])))
+    expect(mine.price.total_cost).toBeCloseTo(theirs.price.total_cost, 0)
+  })
+
+  it('FD6: the board’s casement-light doorset, the same way', () => {
+    const { tree } = buildFrenchDoorSetFrame(PV, {
+      width: 2814, height: 2710, product: 'french_door', topRow: 'casement',
+    })
+    const mine   = price(tree, BENCHMARK_FD6)
+    const theirs = price(BENCHMARK_FD6.tree, BENCHMARK_FD6)
+    expect(mine.manufacture_labour.total_minutes).toBe(theirs.manufacture_labour.total_minutes)
+    expect(mine.install_labour.total_minutes).toBe(theirs.install_labour.total_minutes)
+    // GlazePro's template puts the three top fanlights on Nathan's 62 rail,
+    // where Integrate's drawing has 86 — so its 63x96 is shorter by the
+    // three sash widths and its 63x63 longer by the same (difference 7b).
+    const section = (r, code) => r.price.lines
+      .find(l => l.fires && l.alloc_part_code === code)?.quantity ?? 0
+    expect(section(mine, 'Utile63x96')).toBeLessThan(section(theirs, 'Utile63x96'))
+    expect(section(mine, 'Utile63x63')).toBeGreaterThan(section(theirs, 'Utile63x63'))
   })
 })

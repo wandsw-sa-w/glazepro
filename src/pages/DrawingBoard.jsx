@@ -34,6 +34,10 @@ import { applyFanlightBottomRails, isStormproofWindow,
   setCasementOperation, casementProfileDefaults,
 } from '../drawingBoard/casementOpenings.js'
 import { setStormproof } from '../drawingBoard/stormproof.js'
+import {
+  setLeafMidRail, leafMidRailOf, leafMidRailOffsetFor, DEFAULT_LEAF_PANEL_HEIGHT_MM,
+} from '../drawingBoard/doorOpenings.js'
+import { DOOR_LEAF_TYPES, doorLeafSize, doorPanelSize } from '../pricing/doorGeometry.js'
 import { computeSashWeight } from '../pricing/sashWeight.js'
 import { loadDrawingRunPrices } from '../quotes/drawingRunPrice.js'
 import { SashElevation } from '../drawingBoard/renderElevation.jsx'
@@ -679,7 +683,7 @@ export function IronmongeryPanel({ node, tree, derived, refOptions, onChangeFiel
 
 // ── PropertyEditor ────────────────────────────────────────────────────────────
 
-function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, onAutoApplyDefaults, onPrev, onNext, prevDisabled, nextDisabled, prevLabel, nextLabel, visibilityMap, boardMode, showHidden, tree, ironmongeryRules, ironmongeryProducts, onShowPriceBreakdown, profileValueMap, onSetCompleteNewThickness, onSetSashesReplaced, onChangeInternalSize, onMakeDividersEqual, onSetFrenchMasterLeaf, profileCode = null }) {
+function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, onAutoApplyDefaults, onPrev, onNext, prevDisabled, nextDisabled, prevLabel, nextLabel, visibilityMap, boardMode, showHidden, tree, ironmongeryRules, ironmongeryProducts, onShowPriceBreakdown, profileValueMap, onSetCompleteNewThickness, onSetSashesReplaced, onChangeInternalSize, onMakeDividersEqual, onSetFrenchMasterLeaf, onSetLeafMidRail, profileCode = null }) {
   if (!node) {
     return (
       <div style={{ padding: 16, color: '#aaa', fontSize: 12, textAlign: 'center', paddingTop: 48 }}>
@@ -767,6 +771,16 @@ function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, o
     ? (node.values?.masterLeaf ?? DEFAULT_FRENCH_MASTER_LEAF)
     : null
 
+  // Step BA: the mid rail of a door LEAF, and the panel under it. The
+  // panel height is what the control edits — a surveyor thinks in the
+  // panel, not in the glass above it, which is what Integrate stores.
+  const leafMidRail = (() => {
+    if (!onSetLeafMidRail || !tree || !DOOR_LEAF_TYPES.includes(node.part_type)) return null
+    const rail = leafMidRailOf(node)
+    if (!rail) return { has: false, panelHeight: null }
+    return { has: true, panelHeight: doorPanelSize(tree, node).height }
+  })()
+
   const dividerSpacing = (() => {
     if (!tree || !onMakeDividersEqual || !isCasementFrameTree(tree)) return null
     // Step AY item 3: Integrate shows Divider Spacing on a French LEAF's
@@ -828,6 +842,35 @@ function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, o
                 >{side}</button>
               ))}
             </div>
+          </div>
+        )}
+        {/* Step BA: a mid rail and a panel, on a door LEAF */}
+        {leafMidRail && (
+          <div style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #e8e6e0' }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#555', marginBottom: 6 }}>Mid rail and panel</div>
+            {leafMidRail.has ? (
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <label style={{ fontSize: 11, color: '#555' }}>Panel
+                  <input
+                    type="number"
+                    defaultValue={leafMidRail.panelHeight ?? ''}
+                    onBlur={e => onSetLeafMidRail(node.key, Number(e.target.value) || null)}
+                    style={{ width: 64, marginLeft: 6, fontSize: 11, padding: '3px 4px', border: '1px solid #d8d5cf', borderRadius: 4 }}
+                  />
+                </label>
+                <button
+                  onClick={() => onSetLeafMidRail(node.key, null)}
+                  title="Take the mid rail and its panel away — the glass runs the whole leaf"
+                  style={{ flex: 1, fontSize: 11, padding: '5px 0', borderRadius: 6, fontFamily: 'inherit', cursor: 'pointer', border: '1px solid #d8d5cf', background: '#fff', color: '#555' }}
+                >Remove</button>
+              </div>
+            ) : (
+              <button
+                onClick={() => onSetLeafMidRail(node.key, DEFAULT_LEAF_PANEL_HEIGHT_MM)}
+                title="Split the leaf: glass above, a raised-and-fielded panel below"
+                style={{ width: '100%', fontSize: 11, padding: '5px 0', borderRadius: 6, fontFamily: 'inherit', cursor: 'pointer', border: '1px solid #d8d5cf', background: '#fff', color: '#555' }}
+              >Add mid rail and panel</button>
+            )}
           </div>
         )}
         {/* Step AW: Divider Spacing, on an opening of a casement frame */}
@@ -2432,6 +2475,24 @@ function DrawingBoard() {
     if (next.changed) commit(next.tree)
   }
 
+  // Step BA: a panelled door leaf. One action does the three things a
+  // surveyor does to it — give the leaf a mid rail and a panel, move the
+  // rail, or take both away (offset null). The rail’s position is
+  // computed from the PANEL height, which is what a surveyor is thinking in:
+  // Integrate stores the glass above instead.
+  function handleSetLeafMidRail(leafKey, panelHeight) {
+    if (!tree) return
+    if (panelHeight == null) { commit(setLeafMidRail(tree, leafKey, { offset: null })); return }
+    const leaf = findNodeByKey(tree, leafKey)
+    if (!leaf) return
+    const size = doorLeafSize(tree, leaf)
+    const offset = leafMidRailOffsetFor(size.height, {
+      head: leaf.values?.topHeight, bottomRail: leaf.values?.bottomHeight, panelHeight,
+    })
+    if (!(offset > 0)) return
+    commit(setLeafMidRail(tree, leafKey, { offset }))
+  }
+
   // Step AW: Integrate's "Divider Spacing" on an opening's panel.
   function handleMakeDividersEqual(axis) {
     if (!tree) return
@@ -2838,6 +2899,7 @@ function DrawingBoard() {
               onChangeInternalSize={handleChangeInternalSize}
               onMakeDividersEqual={handleMakeDividersEqual}
               onSetFrenchMasterLeaf={handleSetFrenchMasterLeaf}
+              onSetLeafMidRail={handleSetLeafMidRail}
               profileCode={profile?.code ?? null}
             />
           </div>

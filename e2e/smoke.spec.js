@@ -33,6 +33,11 @@ const PARKED = {
 const DELIBERATE = {
   FD3:  { cost: '17.08', price: '34.16' },
   FD3b: { cost: '27.86', price: '55.73' },
+  // Step BA: the two DOORSETS, where the reviewer applied the same
+  // decision to the frame MULLIONS as well as the transom (difference 11)
+  //   FD5 / FD6  +108.42  2 x 2626 of mullion + 2720 of transom, at 13.60/m
+  FD5:  { cost: '108.42', price: '216.84' },
+  FD6:  { cost: '108.42', price: '216.84' },
 }
 
 // NOTE on the Kenrick gearbox gap (J–P £14.70, Q/R/S £8.40): that is a gap in
@@ -139,8 +144,8 @@ test.describe('GlazePro live smoke (read only)', () => {
     expect(seen).toContain('A50')
     expect(seen).toContain('D')
     expect(seen).toContain('Q')
-    // Step AZ: the four door benchmarks are on the page
-    for (const fd of ['FD1', 'FD2', 'FD3', 'FD3b']) expect(seen).toContain(fd)
+    // Step AZ / BA: all seven door benchmarks are on the page
+    for (const fd of ['FD1', 'FD2', 'FD3', 'FD3b', 'FD4', 'FD5', 'FD6']) expect(seen).toContain(fd)
     expect(unexpected, unexpected.join('\n')).toEqual([])
   })
 

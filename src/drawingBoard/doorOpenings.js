@@ -14,6 +14,7 @@
 
 import { makeKey } from './gridActions.js'
 import { firstOf } from './casementOpenings.js'
+import { DOOR_LEAF_TYPES } from '../pricing/doorGeometry.js'
 
 /** The materials a door may be made of. Integrate's material 44 is utile. */
 export const DOOR_MATERIALS = ['utile', 'accoya']
@@ -318,4 +319,345 @@ export function isFrenchDoorTree(tree) {
     return (node.children ?? []).some(walk)
   }
   return walk(tree)
+}
+
+// ── Step BA: panelled leaves, and the mid rail the board can move ────────────
+
+/** Integrate's own mid rail on template 79, and the panel it leaves. */
+export const DEFAULT_LEAF_MID_RAIL_MM = 170
+export const DEFAULT_LEAF_PANEL_HEIGHT_MM = 425
+
+/** The panel options a new panelled leaf starts with (Integrate's defaults). */
+export const DEFAULT_PANEL_VALUES = {
+  internalPanelTypeId: 'raised_and_fielded',
+  externalPanelTypeId: 'raised_and_fielded',
+  internalPanelBeadId: 'ovolo',
+  externalPanelBeadId: 'ovolo',
+  insulationThickness: 15,
+  createVisionPanel: true,
+  panelThickness: 0,
+  toBeReplaced: true,
+}
+
+/**
+ * A leaf's mid rail node. A divider INSIDE the leaf, stored exactly as a
+ * frame transom is: `offset` is the opening above it — the glass — and what
+ * is left below it is the panel. `isMidrail` is Integrate's own flag and is
+ * what tells a frame divider from a leaf one.
+ */
+function midRailNode(key, { offset, thickness = DEFAULT_LEAF_MID_RAIL_MM }) {
+  return {
+    key,
+    part_type: 'transomPart',
+    values: {
+      isMidrail: true,
+      offset,
+      thicknessInFrame: thickness,
+      midrailThickness: thickness,
+      transomStopSize: 18,
+      startDivider: '0', endDivider: '0',
+    },
+    children: [],
+  }
+}
+
+/**
+ * Where a leaf's mid rail goes so the PANEL is `panelHeight` deep.
+ *
+ * Integrate stores the glass height (offset 1241 on template 79) and lets
+ * the panel absorb a resize. GlazePro chooses the position from the PANEL
+ * instead — a panel is a made thing at a sensible size, and 425 is
+ * Integrate's own — so a template built at any size starts with the same
+ * panel. At template 79's size the two agree exactly: a 2109 leaf with a 110
+ * head, a 170 rail and a 163 bottom rail leaves 1241 of glass above a 425
+ * panel. A later RESIZE keeps the stored offset, as Integrate does, so the
+ * glass takes the change and the panel stays as made.
+ */
+export function leafMidRailOffsetFor(leafHeight, {
+  head, bottomRail, railThickness = DEFAULT_LEAF_MID_RAIL_MM,
+  panelHeight = DEFAULT_LEAF_PANEL_HEIGHT_MM,
+}) {
+  const n = v => (isFinite(Number(v)) ? Number(v) : 0)
+  return n(leafHeight) - n(head) - n(railThickness) - n(bottomRail) - n(panelHeight)
+}
+
+/** The mid rail inside a leaf, or null. */
+export function leafMidRailOf(leafNode) {
+  return (leafNode?.children ?? []).find(
+    c => c.part_type === 'transomPart') ?? null
+}
+
+/**
+ * Give a door leaf a mid rail and a panel below it, or move the rail it has.
+ *
+ * The leaf's GLASS stays where it is in the children list; the rail goes
+ * first and the panel last, which is the order Integrate stores and the
+ * order the elevation draws top to bottom.
+ */
+export function withLeafMidRail(leafNode, { offset, thickness = DEFAULT_LEAF_MID_RAIL_MM, panel = true } = {}) {
+  if (!leafNode) return leafNode
+  const existing = leafMidRailOf(leafNode)
+  const others = (leafNode.children ?? []).filter(
+    c => c.part_type !== 'transomPart' && c.part_type !== 'panelPart')
+  const rail = midRailNode(existing?.key ?? `${leafNode.key}_midrail`, { offset, thickness })
+  const keptPanel = (leafNode.children ?? []).find(c => c.part_type === 'panelPart')
+  const panelNode = panel
+    ? (keptPanel ?? {
+      key: `${leafNode.key}_panel`,
+      part_type: 'panelPart',
+      values: { ...DEFAULT_PANEL_VALUES },
+      children: [],
+    })
+    : null
+  return {
+    ...leafNode,
+    children: [rail, ...others, ...(panelNode ? [panelNode] : [])],
+  }
+}
+
+/** Take a leaf's mid rail and its panel away: the glass runs the whole leaf. */
+export function withoutLeafMidRail(leafNode) {
+  if (!leafNode) return leafNode
+  return {
+    ...leafNode,
+    children: (leafNode.children ?? []).filter(
+      c => c.part_type !== 'transomPart' && c.part_type !== 'panelPart'),
+  }
+}
+
+/**
+ * Add, move or remove a leaf's mid rail anywhere in a tree, by the leaf's key.
+ *
+ * `offset` null removes the rail and its panel. This is the board's action:
+ * one function for the three things a surveyor does to a panelled leaf.
+ */
+export function setLeafMidRail(tree, leafKey, { offset = null, thickness = DEFAULT_LEAF_MID_RAIL_MM } = {}) {
+  function walk(node) {
+    if (!node) return node
+    if (node.key === leafKey && DOOR_LEAF_TYPES.includes(node.part_type)) {
+      return offset == null
+        ? withoutLeafMidRail(node)
+        : withLeafMidRail(node, { offset, thickness })
+    }
+    const children = (node.children ?? []).map(walk)
+    return children.length ? { ...node, children } : node
+  }
+  return walk(tree)
+}
+
+// ── Step BA: the doorsets (Integrate templates 29 and 46) ────────────────────
+
+/** The top row of a doorset: three direct glazed units, or three fanlights. */
+export const DOORSET_TOP_ROWS = ['direct_glazed', 'casement']
+export const DEFAULT_DOORSET_TOP_ROW = 'direct_glazed'
+
+/** Integrate's own template sizes for the two doorsets. */
+export const DOORSET_DEFAULTS = {
+  width: 2814,
+  height: 2710,
+  transomOffset: 448,
+  middleColumn: 1339,
+  sideLightBottomRail: 86,
+  sideLightBottomRailExternal: 93,
+  directGlazedClearance: 15,
+  directGlazedHidden: 12,
+}
+
+/**
+ * Where the two full-height mullions go, so the side lights MATCH.
+ *
+ * Integrate's template 29 has 648 and 651 — a 3 mm difference nobody drew on
+ * purpose. Nathan's drawings are symmetrical, so GlazePro splits what is left
+ * after the middle column equally and puts any odd millimetre in the MIDDLE,
+ * where it cannot be seen: 2720 internal with two 41 mullions leaves 2638 for
+ * the lights, so each side light is 650 and the pair's opening 1338 (one
+ * millimetre narrower than Integrate's 1339). Said out loud in
+ * docs/reports/step-ba.md, because it is a deliberate departure from the
+ * template that was read.
+ */
+export function doorsetColumns(interiorWidth, { mullionThickness, middleColumn }) {
+  const n = v => (isFinite(Number(v)) ? Number(v) : 0)
+  const spare = n(interiorWidth) - 2 * n(mullionThickness)
+  const side = Math.floor((spare - n(middleColumn)) / 2)
+  const middle = spare - 2 * side
+  return { side, middle }
+}
+
+/**
+ * Build a whole French DOORSET: a frame with two full-height mullions and a
+ * full-width transom, the pair in the middle bottom opening, a fixed casement
+ * side light each side of it, and a top row of either three direct glazed
+ * units (Integrate template 29) or three fixed casement fanlights (46).
+ *
+ * The top row's fanlights take Nathan's 62 bottom rail, as every new GlazePro
+ * fanlight does (difference 5); the SIDE lights keep Integrate's 86, which is
+ * what its own templates draw and what the facts price.
+ *
+ * @returns {{tree: Object|null, missing: string[]}}
+ */
+export function buildFrenchDoorSetFrame(profileValues, {
+  width = DOORSET_DEFAULTS.width,
+  height = DOORSET_DEFAULTS.height,
+  material = DEFAULT_DOOR_MATERIAL,
+  product = null,
+  quantity = 1,
+  masterLeaf = DEFAULT_DOOR_MASTER_LEAF,
+  topRow = DEFAULT_DOORSET_TOP_ROW,
+  transomOffset = DOORSET_DEFAULTS.transomOffset,
+  middleColumn = DOORSET_DEFAULTS.middleColumn,
+  fanlightBottomRail = 62,
+  fanlightBottomRailExternal = 69,
+} = {}) {
+  const resolved = doorProfileDefaults(profileValues)
+  if (resolved.missing.length > 0) return { tree: null, missing: resolved.missing }
+  const d = resolved.values
+
+  const base = buildFrenchDoorFrame(profileValues, {
+    width, height, material, product, quantity, masterLeaf,
+  })
+  if (!base.tree) return base
+
+  const frame = base.tree.children.find(c => c.part_type === 'assemblyFramePart')
+  const interiorWidth = width - d.frameJambLeft - (d.frameJambRight ?? d.frameJambLeft)
+  const interiorHeight = height - d.frameHead - d.frameBottom
+  const { side, middle } = doorsetColumns(interiorWidth, {
+    mullionThickness: d.transomThickness, middleColumn,
+  })
+
+  const glass = extra => ({
+    key: makeKey('glass'),
+    part_type: 'glassPart',
+    values: {
+      ...DEFAULT_GLASS,
+      glazingRebateWidth: d.glassRebate,
+      glazingTolerance:   d.glassTolerance,
+      ...extra,
+    },
+    children: [],
+  })
+
+  const sash = ({ bottomHeight, bottomHeightExternal }) => {
+    const key = makeKey('cas')
+    return {
+      key,
+      part_type: 'casementSashPart',
+      values: {
+        operation: 'fix',                 // a side light and a top light are FIXED
+        casementTypeId: 'open_out',
+        thickness: d.fanlightThickness,
+        topHeight: d.fanlightHead,
+        leftWidth: d.fanlightStile,
+        rightWidth: d.fanlightStile,
+        bottomHeight, bottomHeightExternal,
+        btmRailShapeId: 'stepped',
+        mechanicalClearanceTop: 1,
+        mechanicalClearanceLeft: 1,
+        mechanicalClearanceRight: 1,
+        mechanicalClearanceBottom: 2,
+        toBeReplaced: true,
+      },
+      children: [{ ...glass({}), key: `${key}_glass` }],
+    }
+  }
+
+  const directGlazed = () => glass({
+    mechanicalClearanceTop: DOORSET_DEFAULTS.directGlazedClearance,
+    mechanicalClearanceBottom: DOORSET_DEFAULTS.directGlazedClearance,
+    mechanicalClearanceLeft: DOORSET_DEFAULTS.directGlazedClearance,
+    mechanicalClearanceRight: DOORSET_DEFAULTS.directGlazedClearance,
+    hiddenInRebateTop: DOORSET_DEFAULTS.directGlazedHidden,
+    hiddenInRebateBottom: DOORSET_DEFAULTS.directGlazedHidden,
+    hiddenInRebateLeft: DOORSET_DEFAULTS.directGlazedHidden,
+    hiddenInRebateRight: DOORSET_DEFAULTS.directGlazedHidden,
+    toBeReplaced: true,
+  })
+
+  const topLight = () => topRow === 'casement'
+    ? sash({ bottomHeight: fanlightBottomRail, bottomHeightExternal: fanlightBottomRailExternal })
+    : directGlazed()
+
+  const sideLight = () => sash({
+    bottomHeight: DOORSET_DEFAULTS.sideLightBottomRail,
+    bottomHeightExternal: DOORSET_DEFAULTS.sideLightBottomRailExternal,
+  })
+
+  const pair = buildFrenchDoorPair(profileValues, { defaults: resolved, masterLeaf })
+  if (!pair.node) return { tree: null, missing: pair.missing }
+
+  const divider = (key, offset) => ({
+    key,
+    part_type: 'mullionPart',
+    values: { offset, thicknessInFrame: d.transomThickness, mullionStopSize: d.stileStop },
+    children: [],
+  })
+
+  const dividers = [
+    divider(makeKey('mull'), side),
+    divider(makeKey('mull'), side + d.transomThickness + middle),
+    {
+      key: makeKey('trans'),
+      part_type: 'transomPart',
+      values: {
+        offset: transomOffset,
+        thicknessInFrame: d.transomThickness,
+        transomStopSize: 18,
+        startDivider: '0', endDivider: '0',
+      },
+      children: [],
+    },
+  ]
+
+  // Openings in reading order: the top row left to right, then the bottom.
+  const openings = [
+    topLight(), topLight(), topLight(),
+    sideLight(), pair.node, sideLight(),
+  ]
+
+  const cill = (frame.children ?? []).filter(c => c.part_type === 'cillPart')
+  return {
+    tree: {
+      ...base.tree,
+      children: base.tree.children.map(c => c.part_type !== 'assemblyFramePart' ? c : {
+        ...c,
+        children: [...dividers, ...openings, ...cill],
+      }),
+    },
+    missing: [],
+    layout: { side, middle, interiorWidth, interiorHeight },
+  }
+}
+
+/**
+ * Build the panelled French door drawing (Integrate template 79): FD1's
+ * drawing with a mid rail and a raised-and-fielded panel in each leaf.
+ */
+export function buildPanelledFrenchDoorFrame(profileValues, {
+  width = 1399,
+  height = 2199,
+  panelHeight = DEFAULT_LEAF_PANEL_HEIGHT_MM,
+  midRailThickness = DEFAULT_LEAF_MID_RAIL_MM,
+  ...rest
+} = {}) {
+  const built = buildFrenchDoorFrame(profileValues, { width, height, ...rest })
+  if (!built.tree) return built
+  const resolved = doorProfileDefaults(profileValues)
+  const d = resolved.values
+
+  // The leaf height is the opening less the pair's top and bottom clearances,
+  // and the opening is the frame interior when there is no transom.
+  const interiorHeight = height - d.frameHead - d.frameBottom
+  const leafHeight = interiorHeight - d.clearTop - d.clearBottom
+  const bottomRail = rest.bottomHeight ?? DEFAULT_LEAF_BOTTOM_RAIL_MM
+  const offset = leafMidRailOffsetFor(leafHeight, {
+    head: d.leafHead, bottomRail, railThickness: midRailThickness, panelHeight,
+  })
+
+  function walk(node) {
+    if (DOOR_LEAF_TYPES.includes(node.part_type)) {
+      return withLeafMidRail(node, { offset, thickness: midRailThickness })
+    }
+    const children = (node.children ?? []).map(walk)
+    return children.length ? { ...node, children } : node
+  }
+  return { tree: walk(built.tree), missing: [], midRailOffset: offset }
 }

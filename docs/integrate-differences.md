@@ -461,6 +461,60 @@ against after the Step AZ hotfix.
 
 ---
 
+## 11. A doorset's frame mullions are charged, as its transom is
+
+**Date:** 13 October 2026
+**Decided by:** the reviewer, extending Nathan's decision of 13 October — **flagged
+to Nathan for confirmation**
+**Code:** `src/pricing/doorGeometry.js` (`allocatedSectionParts`), Step BA
+**Asserted in:** `src/pricing/benchmarks/benchmarks.test.js` (Step BA block) and
+pinned in `e2e/smoke.spec.js`
+
+**What differs:**
+
+A doorset's frame is divided by two full-height **mullions** and a full-width
+**transom**. Integrate allocates **no stock section for any of them** — the same
+gap as difference 7a, where it allocates nothing for a fanlight's transom.
+
+Nathan decided on 13 Oct that GlazePro charges the transom at **Utile67x96 for
+the internal frame width**. The reviewer applied the same decision to the
+**mullions**, at Utile67x96 for the internal frame **height** each:
+
+| FD5 / FD6 | |
+|---|---|
+| transom | 2,720 mm |
+| mullions | 2 × 2,626 mm |
+| | **7,972 mm × £13.60 = £108.42** |
+
+So FD5 and FD6 match Integrate in every line and every group except
+`manufacture_materials`, which is higher by exactly £108.42:
+
+| | Integrate | GlazePro | difference |
+|---|---|---|---|
+| FD4 | 2,829.26 | 2,829.26 | — exact |
+| FD5 | 4,597.23 | 4,705.65 | **+108.42** |
+| FD6 | 5,088.75 | 5,197.17 | **+108.42** |
+
+**Why:**
+
+A mullion is cut, machined and finished exactly as a transom is, and charging
+nothing for three of them on every doorset is the same undercharge in the same
+place. Treating the transom as chargeable and the mullions as free would be the
+harder thing to defend.
+
+**This carries difference 7a's PROVISIONAL flag with it.** No listed stock
+section is big enough for the 77 × 96 finished divider — Utile67x96 is the
+largest of the five and is 67 × 96 — so the section charged is the nearest thing
+on the list and not the real stock. **The workshop has to confirm what a mullion
+and a transom are actually cut from**, and the price changes when they do.
+
+**For Nathan:** this one is the reviewer's reading of a decision you made about
+a transom, not a decision you made about mullions. If you want a doorset's
+mullions left free, the change is to delete one loop in
+`allocatedSectionParts` — and FD5 and FD6 then match Integrate exactly.
+
+---
+
 # Parked residuals
 
 Added by Step AT (12 Oct 2026), under the small-differences policy in

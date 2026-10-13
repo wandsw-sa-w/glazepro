@@ -73,6 +73,15 @@ export const ALLOWED_PAIRS = new Set([
   'frenchDoorPart->rightFrenchDoorLeafPart',
   'leftFrenchDoorLeafPart->glassPart',
   'rightFrenchDoorLeafPart->glassPart',
+
+  // Step BA: a PANELLED leaf. Integrate splits the leaf with a TransomPart
+  // inside it (isMidrail) and puts a PanelPart below the rail, so a leaf
+  // holds three kinds of child: its mid rail, its glass and its panel.
+  // sql/step-ba1-door-variant-containment.sql adds these four pairs live.
+  'leftFrenchDoorLeafPart->transomPart',
+  'rightFrenchDoorLeafPart->transomPart',
+  'leftFrenchDoorLeafPart->panelPart',
+  'rightFrenchDoorLeafPart->panelPart',
 ])
 
 /** Every parent->child edge in a tree, as "parentType->childType" strings. */
