@@ -15,8 +15,18 @@
  * Resolve a part's display label, including its ancestor path.
  * e.g. "Top Sash > Glazing" for a glassPart under topSashPart.
  */
-function resolvePartPath(node, partLabels, ancestors = []) {
-  const label = node.label_override || partLabels[node.part_type] || node.part_type
+/**
+ * Step BC board 2: `labelFor` lets the caller name the part itself — the
+ * board passes partLabel(node, tree), which numbers the frames of a coupled
+ * set "Frame A" / "Frame B" / "Frame C". Without it the history said "Frame"
+ * three times over and a surveyor could not tell which one had changed.
+ *
+ * The ANCESTORS are part types, not nodes, so they keep coming from the map.
+ */
+function resolvePartPath(node, partLabels, ancestors = [], labelFor = null) {
+  const label = node.label_override ||
+    (labelFor ? labelFor(node) : null) ||
+    partLabels[node.part_type] || node.part_type
   return [...ancestors, label].join(' > ')
 }
 
@@ -82,7 +92,7 @@ function buildTypeSignature(node, ancestors = []) {
  * @param {{ fieldDefs?: object, refOptions?: object, partLabels?: object }} opts
  * @returns {Array<{ part: string, field: string, from: string|null, to: string|null }>}
  */
-export function diffTrees(oldTree, newTree, { fieldDefs = {}, refOptions = {}, partLabels = {} } = {}) {
+export function diffTrees(oldTree, newTree, { fieldDefs = {}, refOptions = {}, partLabels = {}, labelFor = null } = {}) {
   if (!oldTree && !newTree) return []
 
   const changes = []
@@ -99,14 +109,14 @@ export function diffTrees(oldTree, newTree, { fieldDefs = {}, refOptions = {}, p
 
     if (!oldEntry && newEntry) {
       // Part added
-      const partPath = resolvePartPath(newEntry.node, partLabels, newEntry.ancestors.map(a => partLabels[a] || a))
+      const partPath = resolvePartPath(newEntry.node, partLabels, newEntry.ancestors.map(a => partLabels[a] || a), labelFor)
       changes.push({ part: partPath, field: '(added)', from: null, to: null })
       continue
     }
 
     if (oldEntry && !newEntry) {
       // Part removed
-      const partPath = resolvePartPath(oldEntry.node, partLabels, oldEntry.ancestors.map(a => partLabels[a] || a))
+      const partPath = resolvePartPath(oldEntry.node, partLabels, oldEntry.ancestors.map(a => partLabels[a] || a), labelFor)
       changes.push({ part: partPath, field: '(removed)', from: null, to: null })
       continue
     }
@@ -114,7 +124,7 @@ export function diffTrees(oldTree, newTree, { fieldDefs = {}, refOptions = {}, p
     // Both exist — compare values
     const oldNode = oldEntry.node
     const newNode = newEntry.node
-    const partPath = resolvePartPath(newNode, partLabels, newEntry.ancestors.map(a => partLabels[a] || a))
+    const partPath = resolvePartPath(newNode, partLabels, newEntry.ancestors.map(a => partLabels[a] || a), labelFor)
     const fields = fieldDefs[newNode.part_type] ?? []
 
     // Build a quick lookup for field definitions by property_name
@@ -214,7 +224,20 @@ function flattenByTypePathInner(node, myPath, ancestors) {
   for (const child of (node.children ?? [])) {
     const type = child.part_type
     childTypeIdx[type] = (childTypeIdx[type] ?? 0) + 1
-    const suffix = childTypeCounts[type] > 1 ? `#${childTypeIdx[type]}` : ''
+    // Step BC board 2: SIBLING FRAMES are paired by their KEY, not by their
+    // position. A coupled set's frames were #1 / #2 / #3, so removing the
+    // left flag lined the door frame up against it and the history reported
+    // "Frame — Width: 650 -> 1082": a change nobody made, on a frame that
+    // had not moved. A key survives an edit, so the frame that CHANGED is
+    // the one reported, and one added or removed reads as added or removed.
+    //
+    // Only where there is more than one frame under the same parent, so a
+    // ONE-frame drawing keeps the structural path it has always had — two
+    // identical trees with different keys must still diff as no changes.
+    const byKey = type === 'assemblyFramePart' && childTypeCounts[type] > 1 && child.key
+    const suffix = byKey
+      ? `#${child.key}`
+      : (childTypeCounts[type] > 1 ? `#${childTypeIdx[type]}` : '')
     const childPath = `${myPath}/${type}${suffix}`
 
     const childResult = flattenByTypePathInner(child, childPath, [...ancestors, node.part_type])

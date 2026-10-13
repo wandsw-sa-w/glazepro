@@ -13,8 +13,9 @@
 import { describe, it, expect } from 'vitest'
 import {
   resizeCasementFrame, changeOpening, isCasementFrameTree, actionFrameKey,
-  openingNodes, openingLabel,
+  openingNodes, openingLabel, openingKindOf, openingOf, dividerSpacingFor,
 } from './casementOpenings.js'
+import { diffTrees } from './diffTrees.js'
 import { applyDividers, makeDividersEqual, removeDivider } from './gridActions.js'
 import {
   buildCoupledSingleDoorFrame, buildSingleDoorFrame, addFlagFrame, removeFrame, isDoorTree,
@@ -22,7 +23,7 @@ import {
 import { itemFrames, frameSizeLabel, frameColumns, frameRows } from '../pricing/casementGeometry.js'
 import { internalSizeOf } from './internalSize.js'
 import { assertSaveable } from './containment.js'
-import { partLabel } from './partLabels.js'
+import { partLabel, PART_LABELS } from './partLabels.js'
 
 /** The open_out_doors profile, as frenchDoor.test.js holds it. */
 const PV = {
@@ -285,5 +286,122 @@ describe('isDoorTree — what the flag-frame buttons are offered on', () => {
       }),
     }
     expect(isDoorTree(stripped)).toBe(false)
+  })
+})
+
+// ── Part 2: the three panels that still saw only the first frame ────────────
+
+describe('Step BC board 2 — the opening a panel is about', () => {
+  it('openingOf finds the opening in the node’s OWN frame', () => {
+    const tree = coupled()
+    const [a, b, c] = itemFrames(tree)
+    // the opening itself
+    const cLight = c.children.find(x => x.part_type === 'casementSashPart' &&
+      x.values.operation === 'fix')
+    expect(openingOf(tree, cLight)?.key).toBe(cLight.key)
+    // its GLASS, which is where a surveyor usually clicks
+    expect(openingOf(tree, cLight.children[0])?.key).toBe(cLight.key)
+    // the door leaf of the middle frame
+    const leaf = b.children.find(x => x.part_type === 'doorLeafPart')
+    expect(openingOf(tree, leaf)?.key).toBe(leaf.key)
+    // a fanlight of the FIRST frame still works
+    const aFan = a.children.find(x => x.part_type === 'casementSashPart' &&
+      x.values.operation === 'top_hung')
+    expect(openingOf(tree, aFan)?.key).toBe(aFan.key)
+    // something that is not in an opening at all
+    expect(openingOf(tree, c)).toBe(null)
+    expect(openingOf(tree, null)).toBe(null)
+  })
+
+  it('the change-to bar appears for an opening in any frame', () => {
+    // Live: selecting Fanlight B1 or anything outside frame A showed no bar,
+    // because the kind was only resolved for the first frame's openings.
+    const tree = coupled()
+    for (const f of itemFrames(tree)) {
+      for (const o of openingNodes(tree, f)) {
+        expect(openingOf(tree, o), `${openingLabel(tree, o)} is an opening`).toBeTruthy()
+        expect(openingKindOf(o), `${openingLabel(tree, o)} has a kind`).toBeTruthy()
+      }
+    }
+    // and the door leaf's own kind is the single door
+    const leaf = itemFrames(tree)[1].children.find(x => x.part_type === 'doorLeafPart')
+    expect(openingKindOf(leaf)).toBe('single_door')
+  })
+
+  it('Divider Spacing counts the selected frame’s own dividers', () => {
+    const tree = coupled()
+    const [a, , c] = itemFrames(tree)
+    const aFan = a.children.find(x => x.part_type === 'casementSashPart')
+    // every frame has a transom and no mullion, so heights yes, widths no
+    expect(dividerSpacingFor(tree, aFan)).toEqual({ canWidths: false, canHeights: true })
+
+    // give frame C a mullion: C can do widths, A still cannot
+    const picked = applyDividers(tree, c.key, 2, 2, 556, 1548, PV, 'solid')
+    const cOpening = openingNodes(picked, itemFrames(picked)[2])[0]
+    const aOpening = openingNodes(picked, itemFrames(picked)[0])[0]
+    expect(dividerSpacingFor(picked, cOpening)).toEqual({ canWidths: true, canHeights: true })
+    expect(dividerSpacingFor(picked, aOpening), 'A has no mullion of its own')
+      .toEqual({ canWidths: false, canHeights: true })
+
+    // and nothing for a part that is not an opening
+    expect(dividerSpacingFor(tree, itemFrames(tree)[0])).toBe(null)
+  })
+})
+
+describe('Step BC board 2 — the drawing history names the frames', () => {
+  const OPTS = () => ({
+    fieldDefs: {
+      assemblyFramePart: [
+        // role 'input' matters: diffTrees reports input changes only
+        { property_name: 'width',  label: 'Width',  data_type: 'number', role: 'input' },
+        { property_name: 'height', label: 'Height', data_type: 'number', role: 'input' },
+      ],
+    },
+    partLabels: PART_LABELS,
+  })
+
+  it('an edit in frame C is reported as frame C', () => {
+    const before = coupled()
+    const c = itemFrames(before)[2]
+    const { tree: after } = resizeCasementFrame(before, { width: 720 }, c.key)
+    const changes = diffTrees(before, after, { ...OPTS(), labelFor: node => partLabel(node, after) })
+    expect(changes.length).toBe(1)
+    expect(changes[0].part).toContain('Frame C')
+    expect(changes[0].field).toBe('Width')
+    expect(String(changes[0].from)).toBe('650')
+    expect(String(changes[0].to)).toBe('720')
+  })
+
+  it('removing a flag frame reads as REMOVED, not as a width change', () => {
+    // Live: the history paired frames by position, so taking the left flag
+    // away reported "Frame — Width: 650 → 1082" — the door frame's width
+    // against the flag's, a change nobody made.
+    const before = coupled()
+    const flagA = itemFrames(before)[0].key
+    const after = removeFrame(before, flagA).tree
+    const changes = diffTrees(before, after, { ...OPTS(), labelFor: node => partLabel(node, before) })
+    const widthChanges = changes.filter(ch => ch.field === 'Width' || ch.field === 'Height')
+    expect(widthChanges, 'no frame changed size').toEqual([])
+    expect(changes.some(ch => ch.field === '(removed)'), 'a part was removed').toBe(true)
+  })
+
+  it('adding a flag frame reads as ADDED', () => {
+    const before = buildSingleDoorFrame(PV, { width: 1099, height: 2199 }).tree
+    const doorKey = itemFrames(before)[0].key
+    const after = addFlagFrame(before, doorKey, 'right', PV).tree
+    const changes = diffTrees(before, after, { ...OPTS(), labelFor: node => partLabel(node, after) })
+    expect(changes.filter(ch => ch.field === 'Width' || ch.field === 'Height'), 'the door frame is unchanged')
+      .toEqual([])
+    expect(changes.some(ch => ch.field === '(added)')).toBe(true)
+  })
+
+  it('a ONE-frame drawing’s history is unchanged', () => {
+    const before = buildSingleDoorFrame(PV, { width: 1099, height: 2199 }).tree
+    const { tree: after } = resizeCasementFrame(before, { width: 1200 })
+    const changes = diffTrees(before, after, { ...OPTS(), labelFor: node => partLabel(node, after) })
+    expect(changes.length).toBe(1)
+    // the part path carries its ancestors, as it always has
+    expect(changes[0].part).toBe('Item > Frame')
+    expect(changes[0].field).toBe('Width')
   })
 })

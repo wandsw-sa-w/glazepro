@@ -1354,3 +1354,52 @@ export function applyFanlightBottomRails(tree, profileValues) {
   }
   return { tree: next, changed }
 }
+
+// ── Step BC board 2: the opening a panel is about ────────────────────────────
+
+/**
+ * The OPENING a node is, or belongs to, within its own frame.
+ *
+ * Three panels resolved this themselves against `openingNodes(tree)` — the
+ * first frame's openings — so on a coupled set they went blank for everything
+ * outside frame A: the "change to:" and operation bar (selecting Fanlight B1
+ * showed nothing at all), the split-one-opening target for the divider
+ * picker, and Divider Spacing.
+ *
+ * A French pair's leaf and a casement sash's glass both resolve to the
+ * opening that holds them, which is what the panels mean by "the opening".
+ */
+export function openingOf(tree, node) {
+  if (!node) return null
+  const frame = frameOwning(tree, node)
+  if (!frame) return null
+  const openings = openingNodes(tree, frame)
+  return openings.find(n => n.key === node.key)
+    ?? openings.find(n => (n.children ?? []).some(c => c.key === node.key))
+    ?? openings.find(n => isPairPart(n) &&
+      (n.children ?? []).some(leaf => (leaf.children ?? []).some(c => c.key === node.key)))
+    ?? null
+}
+
+/**
+ * What Integrate's "Divider Spacing" can do on this node's opening: make the
+ * WIDTHS equal (needs a mullion) or the HEIGHTS (needs a transom) — counted
+ * in the opening's OWN frame.
+ *
+ * It counted `findAll(tree, 'mullionPart')` over the whole drawing, so on a
+ * coupled set one frame's mullion offered the buttons on every frame, and
+ * pressing them re-spaced dividers the surveyor was not looking at.
+ *
+ * @returns {{canWidths: boolean, canHeights: boolean}|null} null when the node
+ *          is not in an opening at all.
+ */
+export function dividerSpacingFor(tree, node) {
+  const opening = openingOf(tree, node)
+  if (!opening) return null
+  const frame = frameOwning(tree, opening)
+  const own = type => (frame?.children ?? []).filter(c => c.part_type === type).length
+  return {
+    canWidths:  own('mullionPart') > 0,
+    canHeights: own('transomPart') > 0,
+  }
+}

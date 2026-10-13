@@ -29,7 +29,8 @@ import {
 import { applyFanlightBottomRails, isStormproofWindow,
   resizeCasementFrame,
   OPENING_KINDS, OPENING_KIND_LABELS, CASEMENT_OPERATIONS, openingKindOf, openingKindsFor,
-  openingNodes, openingMatrixIndex, isCasementFrameTree, changeOpening,
+  openingMatrixIndex, isCasementFrameTree, changeOpening,
+  openingOf, dividerSpacingFor,
   setFrenchMasterLeaf, FRENCH_MASTER_LEAVES, DEFAULT_FRENCH_MASTER_LEAF,
   actionFrameKey,
   setCasementOperation, casementProfileDefaults,
@@ -744,13 +745,11 @@ function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, o
     // Step AY item 3: Integrate shows Divider Spacing on a French LEAF's
     // panel too, and a leaf is not itself an opening — the pair it belongs
     // to is.
-    const isOpening = openingNodes(tree).some(n => n.key === node.key ||
-      (isPairPart(n) && (n.children ?? []).some(c => c.key === node.key)))
-    if (!isOpening) return null
-    return {
-      canWidths:  findAll(tree, 'mullionPart').length > 0,
-      canHeights: findAll(tree, 'transomPart').length > 0,
-    }
+    // Step BC board 2: in the node's OWN frame, and counting ITS dividers.
+    // This asked the first frame's openings and counted every frame's
+    // dividers, so on a coupled set the buttons appeared on frames with no
+    // divider of their own and re-spaced a frame nobody was looking at.
+    return dividerSpacingFor(tree, node)
   })()
 
   return (
@@ -2079,7 +2078,12 @@ function DrawingBoard() {
       // Record history (non-blocking — must not fail the save)
       try {
         const changes = previousTree
-          ? diffTrees(previousTree, tree, { fieldDefs, refOptions, partLabels: PART_LABELS })
+          // Step BC board 2: labelFor names a coupled set's frames A / B / C
+          // in the history, where "Frame" three times over said nothing.
+          ? diffTrees(previousTree, tree, {
+            fieldDefs, refOptions, partLabels: PART_LABELS,
+            labelFor: node => partLabel(node, tree),
+          })
           : []
         const event = previousTree ? 'saved' : 'created'
         if (changes.length > 0 || !previousTree) {
@@ -2621,8 +2625,12 @@ function DrawingBoard() {
   // so rather than failing when pressed.
   const canRemoveFrame = !!(tree && selectedFrameNode &&
     removeFrame(tree, selectedFrameNode.key).changed)
+  // Step BC board 2: the opening in the selection's OWN frame. Asking the
+  // first frame meant selecting Fanlight B1 — or anything outside frame A —
+  // showed no "change to:" bar and no operation buttons at all.
   const selectedOpeningKind = isCasementDrawing && selectedNode
-    ? (openingNodes(tree).some(n => n.key === selectedNode.key) ? openingKindOf(selectedNode) : null)
+    ? (openingOf(tree, selectedNode)?.key === selectedNode.key
+      ? openingKindOf(selectedNode) : null)
     : null
   // Step AV: the label is the opening's CELL — with a spanning opening its
   // place in the list is not its cell (TC1's are A1, A2, B2).
@@ -2636,12 +2644,12 @@ function DrawingBoard() {
   // to the opening it belongs to — clicking the glass and clicking the sash
   // both split the same opening. Only a casement frame's dividers can stop
   // at each other, so a box sash always gets the whole-frame palette.
+  // Step BC board 2: openingOf resolves the opening in the selection's own
+  // frame, so the palette splits the opening the surveyor clicked rather
+  // than nothing at all on any frame but the first.
   const splitTarget = (() => {
     if (!isCasementDrawing || !selectedNode) return null
-    const openings = openingNodes(tree)
-    return openings.find(n => n.key === selectedNode.key)
-      ?? openings.find(n => (n.children ?? []).some(c => c.key === selectedNode.key))
-      ?? null
+    return openingOf(tree, selectedNode)
   })()
 
   // ── Render ────────────────────────────────────────────────────────────────────
