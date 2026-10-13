@@ -92,8 +92,16 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
     const is_door                  = hasDoorLeaf
     const is_sash_window           = is_box_sash || hasSpiral
     const is_spiral_sash           = hasSpiral && !hasCasementSash && !hasDoorLeaf
-    const is_flush_casement        = false  // NEEDS-DATA: sub-type not yet captured
-    const is_stormproof_casement   = false  // NEEDS-DATA
+    // Step AU: the sub-type comes from the sashes' stored sash type
+    // (casementTypeId). A stormproof window is stormproof THROUGHOUT
+    // (Nathan, 13 Oct), so "has a stormproof casement sash" IS the window
+    // being stormproof, and a casement window that is not stormproof is
+    // flush. NOTE: no Integrate price, labour, production or allocator rule
+    // reads either variable (reviewer, 13 Oct, and searched again here) —
+    // every stormproof figure comes out of the ordinary casement formulas
+    // fed the stormproof sections. Only validation rules 42-46 read them.
+    const is_stormproof_casement   = allCasementSashes.some(isStormproofSash)
+    const is_flush_casement        = hasCasementSash && !is_stormproof_casement
     const is_front_door            = false  // NEEDS-DATA
     const is_single_door           = hasDoorLeaf
     const is_french_door           = false  // NEEDS-DATA

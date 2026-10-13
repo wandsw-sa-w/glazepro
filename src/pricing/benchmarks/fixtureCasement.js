@@ -431,3 +431,330 @@ export const BENCHMARK_S = {
     'S’s lower sash (1117 x 1014, a 0.92 m² unit) is over 25 kg, so install rule 95 "Any Sash Overweight" adds 45 minutes — labour 11.75 h',
   ],
 }
+
+// ── Step AU — stormproof casements: SA, SB, SC, SD, SE, SF ──────────────────
+//
+// Integrate's own test drawings, read 13 Oct 2026
+// (docs/integrate-L31115-stormproof.txt), created with Nathan's approval as
+// L31115 items 5-7:
+//   SA  5/1 — single stormproof LH opener, 599 x 1199
+//   SB  6/1 — stormproof TOP HUNG fanlight over an LH casement (price only)
+//   SC  6/1 — stormproof FIXED fanlight over an LH casement
+//   SD  7/1 — stormproof LH + RH on a mullion (price only)
+//   SE  7/1 — stormproof LH + a FIXED casement sash (price only)
+//   SF  7/1 — stormproof LH casement + a direct glazed unit
+//
+// THE HEADLINE FINDING: Integrate has no stormproof pricing, labour,
+// production or allocator rule. Every figure comes out of the ordinary
+// casement formulas once the TREE carries the stormproof sections, which is
+// what these fixtures are for.
+//
+// The 7 mm stormProofOverlap is stored because Integrate stores it and the
+// board draws it, but NOTHING prices it: a sash is still its opening minus
+// its clearances.
+
+const STORMPROOF_FRAME = {
+  leftWidth:  41,
+  rightWidth: 41,
+  topHeight:  41,
+  bottomHeight: 56,
+  frameDepth: 69,
+  jambType: 'solid_profiled',
+  frameHeadStopSize:  15,
+  frameStileStopSize: 15,
+  cillStopSize:       15,
+  rakeFrame: false,
+  archHead:  false,
+}
+const STORMPROOF_CILL = { height: 56, depth: 69 }
+
+/**
+ * A stormproof casement sash. `bottomRail` is a parameter because Integrate
+ * is inconsistent: 83 on its stormproof TEMPLATE (SA) and 76 when it
+ * converts a flush window (SB-SF). Both are recorded as read. GlazePro's own
+ * decision is 76 everywhere (Nathan, 13 Oct) — see the Step AU report.
+ */
+function stormproofSash(key, operation, bottomRail) {
+  return {
+    key,
+    part_type: 'casementSashPart',
+    values: {
+      operation,
+      casementTypeId: 'stormproof',      // Integrate typeId 9
+      thickness: 54,
+      topHeight:     62,
+      leftWidth:     62,
+      rightWidth:    62,
+      bottomHeight:  bottomRail,
+      mechanicalClearanceLeft:   4,
+      mechanicalClearanceRight:  4,
+      mechanicalClearanceTop:    4,
+      mechanicalClearanceBottom: 4,
+      // DRAWN ONLY: the sash laps 7 mm over the frame each side. No volume,
+      // glass size or weight reads it.
+      stormProofOverlap: 7,
+      toBeReplaced:  true,
+    },
+    children: [
+      {
+        key: `${key}_glass`,
+        part_type: 'glassPart',
+        values: { ...GLASS_CODES, glazingRebateWidth: 16, glazingTolerance: 2 },
+        children: [],
+      },
+    ],
+  }
+}
+
+/** SA's stored list (facts file, "5/1 SA extras"). */
+const SA_IRONMONGERY = [
+  { product_short_name: 'connoisseur_handle_lh',                     finish_code: 'PB',  qty: 1, source: 'survey' },
+  { product_short_name: 'defender_friction_hinge_-_side_hung_310mm', finish_code: 'PC',  qty: 1, source: 'survey' },
+  { product_short_name: 'kenrick_extension_690mm',                   finish_code: 'PC',  qty: 2, source: 'survey' },
+  { product_short_name: 'kenrick_extension_gear_box',                finish_code: 'PC',  qty: 1, source: 'survey' },
+  { product_short_name: 'trickle_vent_xr16',                         finish_code: 'Wht', qty: 1, source: 'survey' },
+]
+
+/**
+ * SC's stored list — left over from the FLUSH fanlight template and NOT
+ * recomputed when A1 became fixed. Integrate never recomputes a stored list,
+ * so this is Q/R's list, copied as recorded.
+ */
+const SC_IRONMONGERY = [
+  { product_short_name: 'connoisseur_handle_lh',      finish_code: 'PB',  qty: 1, source: 'survey' },
+  { product_short_name: 'defender_310mm',             finish_code: 'PC',  qty: 1, source: 'survey' },
+  { product_short_name: 'kenrick_extension_490mm',    finish_code: 'PC',  qty: 2, source: 'survey' },
+  { product_short_name: 'kenrick_extension_gear_box', finish_code: 'PC',  qty: 1, source: 'survey' },
+  { product_short_name: 'trickle_vent_xr16',          finish_code: 'Wht', qty: 1, source: 'survey' },
+]
+
+// SF's stored list is J-N's exactly — left over from SD, so SF still prices
+// TWO handles and TWO hinges for a window with one opener. That is
+// Integrate's own behaviour and the reason its ironmongery reads 66.15.
+const SF_IRONMONGERY = IRONMONGERY_LINES
+
+/** A stormproof tree. `dividers` are transoms/mullions, `openings` the cells. */
+function stormproofTree({ width, height, openings, dividers = [], ironmongeryLines }) {
+  return {
+    key: 'item1',
+    part_type: 'drawingItemPart',
+    values: {
+      typeOfWork:      'complete_new',
+      frameMaterialId: 'softwood',     // Solid Redwood
+      sashMaterialId:  'softwood',
+      cillMaterialId:  'utile',
+      floorLevel:      'first_floor',
+    },
+    children: [
+      {
+        key: 'paint1',
+        part_type: 'paintAndIronmongeryPart',
+        values: {
+          internalFinish:    'clean_white',
+          externalFinish:    'clean_white',
+          cillFinish:        'clean_white',
+          cutOutBrickReveal: false,
+          ironmongeryFinish: 'PB',
+          ironmongeryLines:  ironmongeryLines.map(l => ({ ...l })),
+        },
+        children: [],
+      },
+      {
+        key: 'notes1',
+        part_type: 'notesPart',
+        values: { installationMethod: 'internally' },
+        children: [],
+      },
+      {
+        key: 'frame1',
+        part_type: 'assemblyFramePart',
+        values: { width, height, ...STORMPROOF_FRAME },
+        children: [
+          ...dividers,
+          ...openings,
+          {
+            key: 'cill1',
+            part_type: 'cillPart',
+            // Integrate stores one cill per bottom opening (two 545s on SF);
+            // its cill VOLUME is the full frame width, so one GlazePro cill
+            // is the faithful model, as J-N.
+            values: { ...STORMPROOF_CILL },
+            children: [],
+          },
+        ],
+      },
+    ],
+  }
+}
+
+const STORMPROOF_ASSUMPTIONS = [
+  'Frame, cill, sashes, dividers, glass and the STORED ironmongery lists: Integrate’s own drawings (docs/integrate-L31115-stormproof.txt, read 13 Oct 2026)',
+  'The 7 mm stormProofOverlap is stored because Integrate stores it and the board draws it; NO volume, glass size or weight reads it — a sash is its opening minus its clearances',
+  'Integrate has NO stormproof pricing, labour, production or allocator rule: every figure here comes out of the ordinary casement formulas fed the stormproof sections',
+  'SA keeps Integrate’s TEMPLATE bottom rail of 83; SB-SF carry the 76 Integrate writes when it converts a flush window. GlazePro’s own rule is 76 everywhere (Nathan, 13 Oct), so a GlazePro-built single differs from SA in sash timber and glass only',
+  'One cillPart per frame (Integrate stores one per bottom opening and prices the full frame width — step-ao §3)',
+  'installationMethod internally: ASSUMPTION, as the other fixtures; the engine does not read it',
+  'Casement operation and sash-type codes not verified: typeId 9 is the live sash_type option ‘stormproof’ per the brief; only ‘fix’ is read by a priced rule',
+]
+
+const STORMPROOF_COMMON = {
+  partCostMap: PART_COST_MAP,
+  profileValues: PROFILE_VALUES,
+  glassCatalogue: {},
+}
+
+// ── SA: single stormproof LH opener, 599 x 1199 ─────────────────────────────
+export const BENCHMARK_SA = {
+  name: 'Benchmark SA — Stormproof single LH opener 599 x 1199 (L31115 Item 5 Drawing 1)',
+  tree: stormproofTree({
+    width: 599, height: 1199,
+    // Integrate's template rail, 83
+    openings: [stormproofSash('cas_a1', 'left_hand_hung', 83)],
+    ironmongeryLines: SA_IRONMONGERY,
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkSA_stormproof_single_599x1199 },
+  ...STORMPROOF_COMMON,
+  ironmongeryLines: SA_IRONMONGERY,
+  assumptions: STORMPROOF_ASSUMPTIONS,
+}
+
+// ── SC: stormproof FIXED fanlight over an LH casement, 1040 x 980 ──────────
+const SC_TRANSOM = {
+  key: 'trans1',
+  part_type: 'transomPart',
+  // The transom is UNCHANGED by stormproof: 27 solid with 20 / 20 stops.
+  // offset = the opening ABOVE it; internal 883 = 349 + 27 + 507.
+  values: { offset: 349, thicknessInFrame: 27, transomStopSize: 20 },
+  children: [],
+}
+
+export const BENCHMARK_SC = {
+  name: 'Benchmark SC — Stormproof fixed fanlight over a casement (L31115 Item 6 Drawing 1)',
+  tree: stormproofTree({
+    width: 1040, height: 980,
+    dividers: [SC_TRANSOM],
+    openings: [
+      stormproofSash('cas_a1', 'fix', 76),              // the fanlight
+      stormproofSash('cas_a2', 'left_hand_hung', 76),
+    ],
+    ironmongeryLines: SC_IRONMONGERY,
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkSC_stormproof_fixed_fanlight_over_side },
+  ...STORMPROOF_COMMON,
+  ironmongeryLines: SC_IRONMONGERY,
+  assumptions: STORMPROOF_ASSUMPTIONS,
+}
+
+// ── SB: SC with A1 TOP HUNG. Integrate gives the price only ─────────────────
+export const BENCHMARK_SB = {
+  name: 'Benchmark SB — Stormproof top-hung fanlight over a casement (L31115 Item 6 Drawing 1)',
+  tree: stormproofTree({
+    width: 1040, height: 980,
+    dividers: [SC_TRANSOM],
+    openings: [
+      stormproofSash('cas_a1', 'top_hung', 76),
+      stormproofSash('cas_a2', 'left_hand_hung', 76),
+    ],
+    ironmongeryLines: SC_IRONMONGERY,
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkSB_stormproof_tophung_fanlight_over_side },
+  ...STORMPROOF_COMMON,
+  ironmongeryLines: SC_IRONMONGERY,
+  assumptions: [
+    ...STORMPROOF_ASSUMPTIONS,
+    'PRICE ONLY: Integrate gave the drawing-card PF30 price, not the cost breakdown. SB - SC = 40.21 = 30 install minutes x 2, an opener against a fixed sash',
+  ],
+}
+
+// ── SF: stormproof LH casement + direct glazed unit, 1199 x 1299 ───────────
+const SF_MULLION = {
+  key: 'mull1',
+  part_type: 'mullionPart',
+  // Unchanged by stormproof. Internal width 1117 = 545 + 27 + 545.
+  values: { offset: 545, thicknessInFrame: 27, mullionStopSize: 20 },
+  children: [],
+}
+
+/** SF's direct glazed unit — UNCHANGED by stormproof (clearance 20, rebate 20, hidden 18). */
+function stormproofDirectGlazed(key) {
+  return {
+    key,
+    part_type: 'glassPart',
+    values: {
+      ...GLASS_CODES,
+      toBeReplaced: true,
+      mechanicalClearanceLeft:   20,
+      mechanicalClearanceRight:  20,
+      mechanicalClearanceTop:    20,
+      mechanicalClearanceBottom: 20,
+      hiddenInRebateLeft:   18,
+      hiddenInRebateRight:  18,
+      hiddenInRebateTop:    18,
+      hiddenInRebateBottom: 18,
+      glazingRebateWidth: 20,
+      glazingTolerance:   2,
+    },
+    children: [],
+  }
+}
+
+export const BENCHMARK_SF = {
+  name: 'Benchmark SF — Stormproof casement + direct glazed unit (L31115 Item 7 Drawing 1)',
+  tree: stormproofTree({
+    width: 1199, height: 1299,
+    dividers: [SF_MULLION],
+    openings: [
+      stormproofSash('cas_a1', 'left_hand_hung', 76),
+      stormproofDirectGlazed('dg_b1'),
+    ],
+    ironmongeryLines: SF_IRONMONGERY,
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkSF_stormproof_casement_plus_direct_glazed },
+  ...STORMPROOF_COMMON,
+  ironmongeryLines: SF_IRONMONGERY,
+  assumptions: [
+    ...STORMPROOF_ASSUMPTIONS,
+    'The stored ironmongery is J-N’s list exactly, left over from SD: Integrate does not recompute it, so SF prices TWO handles and TWO hinges for a window with ONE opener. Copied as recorded — it is why its ironmongery reads 66.15',
+  ],
+}
+
+// ── SD and SE: SF's frame with two sashes. Price only ──────────────────────
+export const BENCHMARK_SD = {
+  name: 'Benchmark SD — Stormproof LH + RH on a mullion (L31115 Item 7 Drawing 1)',
+  tree: stormproofTree({
+    width: 1199, height: 1299,
+    dividers: [SF_MULLION],
+    openings: [
+      stormproofSash('cas_a1', 'left_hand_hung', 76),
+      stormproofSash('cas_b1', 'right_hand_hung', 76),
+    ],
+    ironmongeryLines: SF_IRONMONGERY,
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkSD_stormproof_double },
+  ...STORMPROOF_COMMON,
+  ironmongeryLines: SF_IRONMONGERY,
+  assumptions: [
+    ...STORMPROOF_ASSUMPTIONS,
+    'PRICE ONLY: Integrate gave the drawing-card PF30 price, not the cost breakdown',
+  ],
+}
+
+export const BENCHMARK_SE = {
+  name: 'Benchmark SE — Stormproof LH + fixed casement sash (L31115 Item 7 Drawing 1)',
+  tree: stormproofTree({
+    width: 1199, height: 1299,
+    dividers: [SF_MULLION],
+    openings: [
+      stormproofSash('cas_a1', 'left_hand_hung', 76),
+      stormproofSash('cas_b1', 'fix', 76),
+    ],
+    ironmongeryLines: SF_IRONMONGERY,
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkSE_stormproof_opener_plus_fixed },
+  ...STORMPROOF_COMMON,
+  ironmongeryLines: SF_IRONMONGERY,
+  assumptions: [
+    ...STORMPROOF_ASSUMPTIONS,
+    'PRICE ONLY: Integrate gave the drawing-card PF30 price. SD - SE = 40.21 = 30 install minutes x 2, an opener against a fixed sash',
+  ],
+}

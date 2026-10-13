@@ -14,7 +14,7 @@ import { applySashesReplaced } from '../../drawingBoard/sashesReplaced.js'
 import { computeDerived } from '../../drawingBoard/computeDerived.js'
 import { computeVariables } from '../computeVariables.js'
 import { frameGridSize, frameOpenings, casementSashSize, casementSashWeightKg, casementFrameTimberVolumeDm3, frameMuntinLengthM } from '../casementGeometry.js'
-import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_B_UNCORRECTED, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F, BENCHMARK_G, BENCHMARK_H, BENCHMARK_I, BENCHMARK_J, BENCHMARK_K, BENCHMARK_L, BENCHMARK_M, BENCHMARK_N, BENCHMARK_P, BENCHMARK_Q, BENCHMARK_R, BENCHMARK_S } from './index.js'
+import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_B_UNCORRECTED, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F, BENCHMARK_G, BENCHMARK_H, BENCHMARK_I, BENCHMARK_J, BENCHMARK_K, BENCHMARK_L, BENCHMARK_M, BENCHMARK_N, BENCHMARK_P, BENCHMARK_Q, BENCHMARK_R, BENCHMARK_S, BENCHMARK_SA, BENCHMARK_SB, BENCHMARK_SC, BENCHMARK_SD, BENCHMARK_SE, BENCHMARK_SF } from './index.js'
 import { resolveIronmongeryLines } from '../loadPricingContext.js'
 // The LIVE price-file snapshot (reviewer-checked, 8 Oct 2026) — the honest
 // benchmarks and the real-tree case price from this, never from the
@@ -24,6 +24,7 @@ import SNAPSHOT from './pf30-snapshot.json'
 // Never edited to match GlazePro output — a failing test that tells the
 // truth is the right outcome when GlazePro disagrees with Integrate.
 import INTEGRATE from './integrate-targets.json'
+import { isStormproofSash, isStormproofWindow, openingNodes } from '../../drawingBoard/casementOpenings.js'
 
 // ── Minimal price-file variables (PF30 scalars) ────────────────────────────
 // Sash profile rebate/tolerance (14 / 2) — the measured sash-weight model
@@ -1411,5 +1412,239 @@ describe('Step AR — casement fanlight benchmarks', () => {
     }
     // internal width 966 + 25 = 991 mm
     expect(frameMuntinLengthM(BENCHMARK_Q.tree)).toBeCloseTo(0.991, 3)
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step AU — stormproof casements: SA … SF
+// ══════════════════════════════════════════════════════════════════════════════
+// docs/integrate-L31115-stormproof.txt, read 13 Oct 2026.
+//
+// THE POINT OF THESE: Integrate has no stormproof pricing, labour, production
+// or allocator rule. Every figure below comes out of the ORDINARY casement
+// formulas fed the stormproof sections — so if one of these ever needs a new
+// formula, something is wrong with the tree, not with the rules.
+//
+// The only gap is the Kenrick gearbox set, whose four parts carry unit_cost 0
+// in the captured pf30-snapshot.json: 8.40 per set (SA, SB, SC one set;
+// SD, SE, SF two). The reviewer's sql/step-ap0-gearbox-part-costs.sql is the
+// data fix and the live site already has it.
+describe('Step AU — stormproof benchmarks', () => {
+  /** Every part of a type in a tree. */
+  const findAllParts = (node, partType, acc = []) => {
+    if (!node) return acc
+    if (node.part_type === partType) acc.push(node)
+    for (const child of (node.children ?? [])) findAllParts(child, partType, acc)
+    return acc
+  }
+
+  const GAP_1 = 8.40,  GAP_1_PRICE = 16.80     // one gearbox set
+  const GAP_2 = 14.70, GAP_2_PRICE = 29.40     // two
+
+  // label, benchmark, target, production h, labour h, cost gap, price gap
+  const FULL = [
+    ['SA', BENCHMARK_SA, INTEGRATE.benchmarkSA_stormproof_single_599x1199,              8.83,  9.50, GAP_1, GAP_1_PRICE],
+    ['SC', BENCHMARK_SC, INTEGRATE.benchmarkSC_stormproof_fixed_fanlight_over_side,     17.17, 10.50, GAP_1, GAP_1_PRICE],
+    ['SF', BENCHMARK_SF, INTEGRATE.benchmarkSF_stormproof_casement_plus_direct_glazed,  14.42, 10.67, GAP_2, GAP_2_PRICE],
+  ]
+  // Integrate gave these three as a drawing-card PRICE only
+  const PRICE_ONLY = [
+    ['SB', BENCHMARK_SB, INTEGRATE.benchmarkSB_stormproof_tophung_fanlight_over_side, 17.17, 11.00, GAP_1_PRICE],
+    ['SD', BENCHMARK_SD, INTEGRATE.benchmarkSD_stormproof_double,                     17.17, 11.00, GAP_2_PRICE],
+    ['SE', BENCHMARK_SE, INTEGRATE.benchmarkSE_stormproof_opener_plus_fixed,           17.17, 10.50, GAP_2_PRICE],
+  ]
+  const ALL = [...FULL.map(c => [c[0], c[1], c[3], c[4]]),
+    ...PRICE_ONLY.map(c => [c[0], c[1], c[2 + 1], c[3 + 1]])]
+
+  for (const [label, bm, target, production, labour, costGap, priceGap] of FULL) {
+    it(`${label}: production ${production} h and labour ${labour} h, exactly`, () => {
+      const r = runFromSnapshot(bm.tree)
+      expect(r.manufacture_labour.total_minutes / 60, label).toBeCloseTo(production, 2)
+      expect(r.install_labour.total_minutes / 60, label).toBeCloseTo(labour, 2)
+    })
+
+    it(`${label}: every line matches Integrate but the gear box`, () => {
+      const r = runFromSnapshot(bm.tree)
+      expect(r.price.total_cost, label).toBeCloseTo(target.total_cost - costGap, 2)
+      expect(r.price.total, label).toBeCloseTo(target.total_price - priceGap, 2)
+    })
+  }
+
+  for (const [label, bm, target, production, labour, priceGap] of PRICE_ONLY) {
+    it(`${label}: Integrate's price only — ${production} h / ${labour} h`, () => {
+      const r = runFromSnapshot(bm.tree)
+      expect(r.manufacture_labour.total_minutes / 60, label).toBeCloseTo(production, 2)
+      expect(r.install_labour.total_minutes / 60, label).toBeCloseTo(labour, 2)
+      expect(r.price.total, label).toBeCloseTo(target.total_price - priceGap, 2)
+    })
+  }
+
+  it('the price is twice the cost, to within the per-line rounding', () => {
+    // The brief asked for "price = 2 x cost to the penny". It is not exactly
+    // that, for either system: every LINE's price is computed and rounded on
+    // its own and then summed, so a few pence of rounding survive. Integrate
+    // shows the same thing — SA's own figures are 738.06 and 1,476.10, where
+    // twice the cost is 1,476.12. So the assertion is "within 3p", and the
+    // real check is the line-by-line match above.
+    for (const [label, bm] of ALL.map(c => [c[0], c[1]])) {
+      const r = runFromSnapshot(bm.tree)
+      expect(Math.abs(r.price.total - 2 * r.price.total_cost), `${label} price vs 2 x cost`)
+        .toBeLessThanOrEqual(0.03)
+    }
+    // and Integrate's own recorded figures are no closer
+    expect(Math.abs(1476.10 - 2 * 738.06)).toBeCloseTo(0.02, 2)
+  })
+
+  it('a stormproof window is stormproof throughout', () => {
+    for (const [label, bm] of ALL.map(c => [c[0], c[1]])) {
+      const sashes = findAllParts(bm.tree, 'casementSashPart')
+      expect(sashes.length, label).toBeGreaterThan(0)
+      for (const sash of sashes) {
+        expect(isStormproofSash(sash), `${label} ${sash.key}`).toBe(true)
+        expect(sash.values.stormProofOverlap, `${label} ${sash.key} overlap`).toBe(7)
+      }
+      expect(isStormproofWindow(bm.tree), label).toBe(true)
+      const vars = computeVariables(bm.tree, computeDerived(bm.tree), PF_VARIABLES)
+      expect(vars.is_stormproof_casement, label).toBe(true)
+      expect(vars.is_flush_casement, label).toBe(false)
+    }
+  })
+
+  it('the stormproof sections are on the frame and the cill', () => {
+    for (const [label, bm] of ALL.map(c => [c[0], c[1]])) {
+      const frame = bm.tree.children.find(c => c.part_type === 'assemblyFramePart')
+      expect(frame.values, label).toMatchObject({
+        leftWidth: 41, rightWidth: 41, topHeight: 41, bottomHeight: 56,
+        frameDepth: 69, frameHeadStopSize: 15, frameStileStopSize: 15,
+        cillStopSize: 15, jambType: 'solid_profiled',
+      })
+      const cill = frame.children.find(c => c.part_type === 'cillPart')
+      expect(cill.values, label).toMatchObject({ height: 56, depth: 69 })
+    }
+  })
+
+  it('the transom and the mullion are UNCHANGED by stormproof', () => {
+    // 27 solid with 20 / 20 stops, exactly as the flush fixtures
+    const transom = BENCHMARK_SC.tree.children.find(c => c.part_type === 'assemblyFramePart')
+      .children.find(c => c.part_type === 'transomPart')
+    expect(transom.values).toMatchObject({ offset: 349, thicknessInFrame: 27, transomStopSize: 20 })
+    const mullion = BENCHMARK_SF.tree.children.find(c => c.part_type === 'assemblyFramePart')
+      .children.find(c => c.part_type === 'mullionPart')
+    expect(mullion.values).toMatchObject({ offset: 545, thicknessInFrame: 27, mullionStopSize: 20 })
+  })
+
+  it('a direct glazed unit is UNCHANGED by stormproof', () => {
+    // SF's unit stores the flush values: clearance 20, rebate 20, hidden 18
+    const dgu = BENCHMARK_SF.tree.children.find(c => c.part_type === 'assemblyFramePart')
+      .children.find(c => c.part_type === 'glassPart')
+    expect(dgu.values).toMatchObject({
+      mechanicalClearanceLeft: 20, mechanicalClearanceTop: 20,
+      hiddenInRebateLeft: 18, hiddenInRebateBottom: 18,
+      glazingRebateWidth: 20, glazingTolerance: 2,
+    })
+  })
+
+  it('the openings and sashes are Integrate’s own figures', () => {
+    // SA: interior 517 x 1102, sash 509 x 1094 (the 7 mm lap is NOT in it)
+    expect(frameOpenings(BENCHMARK_SA.tree).map(o => [o.width, o.height]))
+      .toEqual([[517, 1102]])
+    const sa = casementSashSize(BENCHMARK_SA.tree, openingNodes(BENCHMARK_SA.tree)[0])
+    expect([sa.width, sa.height]).toEqual([509, 1094])
+
+    // SC: internal 883 = 349 + 27 + 507, sashes 950 x 341 and 950 x 499
+    expect(frameOpenings(BENCHMARK_SC.tree).map(o => [o.width, o.height]))
+      .toEqual([[958, 349], [958, 507]])
+    expect(openingNodes(BENCHMARK_SC.tree)
+      .map(n => { const z = casementSashSize(BENCHMARK_SC.tree, n); return [z.width, z.height] }))
+      .toEqual([[950, 341], [950, 499]])
+
+    // SF: internal width 1117 = 545 + 27 + 545, sash 537 x 1194
+    expect(frameOpenings(BENCHMARK_SF.tree).map(o => [o.width, o.height]))
+      .toEqual([[545, 1202], [545, 1202]])
+    const sf = casementSashSize(BENCHMARK_SF.tree, openingNodes(BENCHMARK_SF.tree)[0])
+    expect([sf.width, sf.height]).toEqual([537, 1194])
+  })
+
+  it('the 7 mm overlap changes NO priced quantity', () => {
+    // The strongest statement of the headline finding: strip the overlap and
+    // nothing moves. It is drawn, not priced.
+    for (const [label, bm] of FULL.map(c => [c[0], c[1]])) {
+      const stripped = JSON.parse(JSON.stringify(bm.tree))
+      for (const sash of findAllParts(stripped, 'casementSashPart')) {
+        delete sash.values.stormProofOverlap
+      }
+      const withLap = runFromSnapshot(bm.tree)
+      const without = runFromSnapshot(stripped)
+      expect(without.price.total_cost, label).toBeCloseTo(withLap.price.total_cost, 2)
+      expect(without.manufacture_labour.total_minutes, label)
+        .toBe(withLap.manufacture_labour.total_minutes)
+      expect(without.install_labour.total_minutes, label)
+        .toBe(withLap.install_labour.total_minutes)
+    }
+  })
+
+  it('the timber, cill and glass quantities are Integrate’s', () => {
+    const qty = (bm, name) => runFromSnapshot(bm.tree).price.lines
+      .filter(l => l.fires && l.name === name).map(l => l.quantity)
+
+    // Frame timber: head W x 69 x 56 + jambs 2 x internal H x 69 x 56
+    //               + divider (internal dim + 20) x 69 x 67, then x 1.25
+    expect(casementFrameTimberVolumeDm3(BENCHMARK_SA.tree)).toBeCloseTo(10.83, 2)
+    expect(casementFrameTimberVolumeDm3(BENCHMARK_SC.tree)).toBeCloseTo(15.36, 2)
+    expect(casementFrameTimberVolumeDm3(BENCHMARK_SF.tree)).toBeCloseTo(19.57, 2)
+    expect(qty(BENCHMARK_SA, 'Softwood Casement Frame & Sashes')).toEqual([13.5375])
+    expect(qty(BENCHMARK_SC, 'Softwood Casement Frame & Sashes')).toEqual([19.2])
+    expect(qty(BENCHMARK_SF, 'Softwood Casement Frame & Sashes')).toEqual([24.4625])
+
+    // Sash timber (2 x H x 62 + W x (62 + bottom)) x 54 — SA at Integrate's
+    // template rail of 83, SC and SF at the 76 it writes on a conversion
+    expect(qty(BENCHMARK_SA, 'Softwood Casement Sashes')).toEqual([11.31])
+    expect(qty(BENCHMARK_SC, 'Softwood Casement Sashes')).toEqual([9.36, 10.42])
+    expect(qty(BENCHMARK_SF, 'Softwood Casement Sashes')).toEqual([12])
+
+    // Cill: full frame width x 69 x (56 + 15), x 1.25
+    expect(qty(BENCHMARK_SA, 'Hardwood Casement Cill')).toEqual([3.6625])
+    expect(qty(BENCHMARK_SC, 'Hardwood Casement Cill')).toEqual([6.3625])
+    expect(qty(BENCHMARK_SF, 'Hardwood Casement Cill')).toEqual([7.3375])
+
+    // Glass at the cut size; SC's fanlight takes the 0.30 minimum
+    expect(qty(BENCHMARK_SA, 'Square Glass Cost')).toEqual([0.4])
+    expect(qty(BENCHMARK_SC, 'Square Glass Cost')).toEqual([0.3, 0.33])
+    expect(qty(BENCHMARK_SF, 'Square Glass Cost')).toEqual([0.48, 0.65])
+  })
+
+  it('SB - SC and SD - SE are both 30 install minutes', () => {
+    // An opener against a fixed sash: 90 against 60. x 40.21/h x 2 = 40.21
+    const mins = bm => runFromSnapshot(bm.tree).install_labour.total_minutes
+    expect(mins(BENCHMARK_SB) - mins(BENCHMARK_SC)).toBe(30)
+    expect(mins(BENCHMARK_SD) - mins(BENCHMARK_SE)).toBe(30)
+    // and Integrate's own prices differ by the same 40.21
+    expect(INTEGRATE.benchmarkSB_stormproof_tophung_fanlight_over_side.total_price
+      - INTEGRATE.benchmarkSC_stormproof_fixed_fanlight_over_side.total_price).toBeCloseTo(40.21, 2)
+    expect(INTEGRATE.benchmarkSD_stormproof_double.total_price
+      - INTEGRATE.benchmarkSE_stormproof_opener_plus_fixed.total_price).toBeCloseTo(40.21, 2)
+  })
+
+  it('SC and SF differ from flush R and K only in manufacture materials', () => {
+    // The facts: "SC equals flush R and SF equals flush K in every group
+    // except manufacture materials (the smaller stormproof sections)."
+    const groups = bm => {
+      const out = {}
+      for (const l of runFromSnapshot(bm.tree).price.lines) {
+        if (!l.fires || l.error) continue
+        out[l.group_name ?? '?'] = (out[l.group_name ?? '?'] ?? 0) + l.line_cost
+      }
+      return out
+    }
+    for (const [storm, flush] of [[BENCHMARK_SC, BENCHMARK_R], [BENCHMARK_SF, BENCHMARK_K]]) {
+      const a = groups(storm), b = groups(flush)
+      for (const key of new Set([...Object.keys(a), ...Object.keys(b)])) {
+        if (/manufacture[ _]materials/i.test(key)) {
+          expect(a[key], `${storm.name} ${key}`).toBeLessThan(b[key])
+        } else {
+          expect(a[key] ?? 0, `${storm.name} ${key}`).toBeCloseTo(b[key] ?? 0, 2)
+        }
+      }
+    }
   })
 })
