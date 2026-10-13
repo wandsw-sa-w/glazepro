@@ -842,5 +842,110 @@
       "production": 17.17,
       "labour": 11.75
     }
+  },
+  "benchmarkSA_stormproof_single_599x1199": {
+    "source": "L31115 Item 5 Drawing 1 (first floor, TEST stormproof, created 13 Oct 2026 with Nathan's approval). Read 13 Oct 2026 via a temporary Quote 2 test quote. Facts: docs/integrate-L31115-stormproof.txt — single stormproof LH casement 599 x 1199, sash bottom rail 83 (Integrate's stormproof template)",
+    "total_cost": 738.06,
+    "total_price": 1476.1,
+    "groups": {
+      "glass_done": {
+        "cost": 24.76,
+        "price": 49.52
+      },
+      "installation_materials": {
+        "cost": 70.91,
+        "price": 141.81
+      },
+      "manufacture": {
+        "cost": 217.75,
+        "price": 435.5
+      },
+      "labour": {
+        "cost": 382.0,
+        "price": 763.99
+      },
+      "manufacture_materials": {
+        "cost": 42.64,
+        "price": 85.28
+      }
+    },
+    "hours": {
+      "production": 8.83,
+      "labour": 9.5
+    }
+  },
+  "benchmarkSC_stormproof_fixed_fanlight_over_side": {
+    "source": "L31115 Item 6 Drawing 1 (first floor, TEST stormproof, created 13 Oct 2026 with Nathan's approval). Read 13 Oct 2026 via a temporary Quote 2 test quote. Facts: docs/integrate-L31115-stormproof.txt — stormproof FIXED fanlight over LH casement 1040 x 980, bottom rails 76 (flush equivalent: R)",
+    "total_cost": 1004.67,
+    "total_price": 2009.32,
+    "groups": {
+      "glass_done": {
+        "cost": 39.0,
+        "price": 77.99
+      },
+      "installation_materials": {
+        "cost": 66.71,
+        "price": 133.41
+      },
+      "manufacture": {
+        "cost": 423.41,
+        "price": 846.82
+      },
+      "labour": {
+        "cost": 422.21,
+        "price": 844.41
+      },
+      "manufacture_materials": {
+        "cost": 53.34,
+        "price": 106.69
+      }
+    },
+    "hours": {
+      "production": 17.17,
+      "labour": 10.5
+    }
+  },
+  "benchmarkSF_stormproof_casement_plus_direct_glazed": {
+    "source": "L31115 Item 7 Drawing 1 (first floor, TEST stormproof, created 13 Oct 2026 with Nathan's approval). Read 13 Oct 2026 via a temporary Quote 2 test quote. Facts: docs/integrate-L31115-stormproof.txt — stormproof LH casement + direct glazed unit on a mullion 1199 x 1299, bottom rail 76, stored ironmongery left over from the double (flush equivalent: K)",
+    "total_cost": 1015.44,
+    "total_price": 2030.86,
+    "groups": {
+      "glass_done": {
+        "cost": 69.95,
+        "price": 139.89
+      },
+      "installation_materials": {
+        "cost": 107.84,
+        "price": 215.67
+      },
+      "manufacture": {
+        "cost": 355.6,
+        "price": 711.19
+      },
+      "labour": {
+        "cost": 429.04,
+        "price": 858.08
+      },
+      "manufacture_materials": {
+        "cost": 53.01,
+        "price": 106.03
+      }
+    },
+    "hours": {
+      "production": 14.42,
+      "labour": 10.67
+    }
+  },
+  "benchmarkSB_stormproof_tophung_fanlight_over_side": {
+    "source": "L31115 Item 6 Drawing 1 (first floor, TEST stormproof, created 13 Oct 2026 with Nathan's approval). Read 13 Oct 2026 via a temporary Quote 2 test quote. Facts: docs/integrate-L31115-stormproof.txt — as SC with the fanlight TOP HUNG (operation 15). Drawing-card PF30 price only; no cost breakdown read.",
+    "total_price": 2049.53
+  },
+  "benchmarkSD_stormproof_double": {
+    "source": "L31115 Item 7 Drawing 1 (first floor, TEST stormproof, created 13 Oct 2026 with Nathan's approval). Read 13 Oct 2026 via a temporary Quote 2 test quote. Facts: docs/integrate-L31115-stormproof.txt — as SF with B1 a RH casement (LH + RH on the mullion). Drawing-card PF30 price only.",
+    "total_price": 2185.18
+  },
+  "benchmarkSE_stormproof_opener_plus_fixed": {
+    "source": "L31115 Item 7 Drawing 1 (first floor, TEST stormproof, created 13 Oct 2026 with Nathan's approval). Read 13 Oct 2026 via a temporary Quote 2 test quote. Facts: docs/integrate-L31115-stormproof.txt — as SF with B1 a FIXED casement sash. Drawing-card PF30 price only.",
+    "total_price": 2144.97
   }
 }

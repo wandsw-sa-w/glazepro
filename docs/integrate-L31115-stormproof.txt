@@ -1,0 +1,94 @@
+# Integrate facts — stormproof casements (read 13 Oct 2026, wandsworth.work, L31115 items 5-7, test items
+# created with Nathan's approval; rooms named "TEST stormproof ..."). PF30, first floor, Solid Redwood,
+# utile cill, complete new. Prices are the drawing-card PF30 PRICE (2x markup); costs from the quote later.
+# Nathan (13 Oct): a stormproof window is stormproof throughout (frame and every sash); layouts sold:
+# single opener, fanlight over, double, opener + fixed sash or direct glazed pane.
+
+## Stormproof template (DrawingBoard Config > Drawing Template 21 "Single Stormproof Casement")
+# Frame 499 x 999, jambs/head 41 profiled (56 overall incl. 15 stop), cill height 56 (71 finished),
+# frame depth 69, cill depth 69, stops 15. Sash typeId 9 (Storm Proof), 54 thick, 62/62/62/83,
+# clearance 4, stormProofOverlap 7. Validation on every stormproof sash: "ADD QUOTE NOTE: Storm
+# proof casement windows (not flush)". Board: sash shown 7 mm lapped over the frame each side.
+# Converting a flush window (Sash Type -> Storm Proof -> Set for all casement sashes) updates the
+# frame to the stormproof sections, but gives the sashes bottom rail 76 int / 83 ext (template: 83).
+# The transom keeps 20/20 stops.
+
+## Trees
+--- 5/1 SA: single stormproof LH opener 599 x 1199 — PF30 price 1,476.10
+AssemblyFrame{width:599 height:1199 leftWidth:41 rightWidth:41 topHeight:41 bottomHeight:56 frameDepth:69 cillDepth:69 stops 15/15/15}
+CasementSash A1{op 17 LH, typeId 9, 54, 62/62/62/83, clearance 4, overlap 7, shoulderHeight 949}  Cill{69 x 56, width 517}
+Frame interior 517 x 1102 (board), sash shown 509 + 7 + 7.
+--- 6/1 SB: stormproof fanlight over LH casement 1040 x 980 (converted from the flush fanlight template) — PF30 price 2,049.53 (flush Q 2,071.00)
+AssemblyFrame{1040 x 980, 41/41/41/56, depth 69, cill depth 69, stops 15}
+Transom{27, offset 349, offset2 507, stops 20/20}
+A1 top hung (op 15) typeId 9, 62/62/62 bottom 76, shoulderHeight 203; A2 LH (17) typeId 9, bottom 76, shoulderHeight 361
+Cill{69 x 56, width 958}. Validation: stormproof quote note + fanlight bottom rail warning.
+--- 6/1 SC (current state of drawing 6/1): stormproof FIXED fanlight over LH casement 1040 x 980 — PF30 price 2,009.32 (flush R 2,030.79), cost 1,004.67
+AssemblyFrame{1040 x 980, jambType solid_profiled, 41/41/41/56, frameDepth 69, cillDepth 69, frameHeadStopSize 15, frameStileStopSize 15, cillStopSize 15}
+Transom{thickness 27, offset 349, offset2 507, transomStopSizeTop 20, transomStopSizeBottom 20}   (internal 883 = 349 + 27 + 507)
+A1 CasementSash op 11 (fixed), typeId 9, 54, 62/62/62 bottom 76, clearance 4 all round, overlap 7, shoulderHeight 203
+A2 CasementSash op 17 (LH), typeId 9, 54, 62/62/62 bottom 76, clearance 4, overlap 7, shoulderHeight 361
+Glass on both: GL100010 / GL100080, rebate 16, tolerance 2, glazingId 2, spacerDim 116, gas 1, spacer colour 19, glassFix 75, beadFix 81
+Cill{depth 69, height 56, width 958, material 44}
+Stored ironmongery (left over from the flush fanlight template, NOT recomputed when A1 became fixed):
+  connoisseur_handle_lh PB 1; defender_310mm PC 1 (prices as "Defender 310mm Top Hung Friction Hinge");
+  kenrick_extension_490mm PC 2; kenrick_extension_gear_box PC 1; trickle_vent_xr16 Wht 1
+Surround: Ogee Architrave in MDF, 2 x 1080 and 1 x 1140 (width 20)
+--- 6/1 SB = SC with A1 top hung (op 15): PF30 price 2,049.53 (flush Q 2,071.00). SB - SC = 40.21 = 30 labour minutes x 2.
+--- 7/1 SD: stormproof LH + RH, mullion, 1199 x 1299 — PF30 price 2,185.18
+--- 7/1 SE: LH + fixed casement sash — PF30 price 2,144.97 (SD - SE = 40.21, as above)
+--- 7/1 SF (current state of drawing 7/1): stormproof LH casement + direct glazed unit, 1199 x 1299 — PF30 price 2,030.86 (flush K 2,055.76), cost 1,015.44
+AssemblyFrame{1199 x 1299, solid_profiled, 41/41/41/56, depth 69, cill depth 69, stops 15/15/15}
+Mullion{thickness 27, offset 545, offset2 545, mullionStopSize 20}   (internal width 1117 = 545 + 27 + 545)
+A1 CasementSash op 17 (LH), typeId 9, 54, 62/62/62 bottom 76, clearance 4, overlap 7, shoulderHeight 1056, glass as above
+B1 GlassPart direct glazed: thickness 56, clearance 20 all round, rebate 20, tolerance 2, hiddenInRebate 18 all round,
+   btmRailShapeId 101, shoulderHeight 1162, same glass codes
+Cills: two CillParts 69 x 56 x 545 (GlazePro: one full-width cill, as fixture J-N)
+Stored ironmongery (left over from SD - Integrate does not recompute it, so SF still prices TWO handles and TWO hinges):
+  connoisseur_handle_lh PB 1; connoisseur_handle_rh PB 1; defender_friction_hinge_-_side_hung_412mm PC 2;
+  kenrick_extension_690mm PC 4; kenrick_extension_gear_box PC 2; trickle_vent_xr16 Wht 1   (the J-N list exactly)
+Surround: Ogee Architrave in MDF, 2 x 1400 and 1 x 1300
+--- 5/1 SA extras: stored ironmongery connoisseur_handle_lh PB 1; defender_friction_hinge_-_side_hung_310mm PC 1;
+  kenrick_extension_690mm PC 2; kenrick_extension_gear_box PC 1; trickle_vent_xr16 Wht 1. Surround 2 x 1300, 1 x 700.
+
+## Price-file lines (PF30 test view, temporary Quote L31115/2 = items 5, 6, 7; cost x 2.00 markup = price)
+# Item:                              SA (5/1)                SC (6/1)                         SF (7/1)
+Square Glass Cost (58.50/m2)         0.40 -> 23.40           0.30 -> 17.55 ; 0.33 -> 19.31    0.48 -> 28.08 ; 0.65 -> 38.03
+All Glass Energy Surcharge (0.17)    8.00 -> 1.36            6.00 -> 1.02 ; 6.60 -> 1.12      9.60 -> 1.63 ; 13.00 -> 2.21
+Ironmongery                          31.50                   26.25                            66.15  (see stored lists)
+  SA: handle LH 8.40, Defender 310 side hung 8.40, centre strike 2.10, ext 690-950 x2 3.15, gearbox 4.20, LH strike 1.05, RH strike 1.05, vent 3.15
+  SC: handle LH 8.40, Defender 310 top hung 5.25, centre strike 2.10, ext 490-700 x2 2.10, gearbox 4.20, strikes 1.05 + 1.05, vent 3.15
+  SF: handles 8.40 + 8.40, Defender 412 side hung x2 25.20, centre strike x2 4.20, ext 690-950 x4 6.30, gearbox x2 8.40, strikes 1.05 + 1.05, vent 3.15
+Component Cost (Ogee MDF 2.85/m)     2.60 -> 7.41 ; 0.70 -> 2.00     2.20 -> 6.27 ; 1.10 -> 3.14     2.80 -> 7.98 ; 1.30 -> 3.71
+Installation Consumables             30.00                   30.00                            30.00
+Production Time (24.66/h)            8.83 h -> 217.75        17.17 h -> 423.41                14.42 h -> 355.60
+Labour (40.21/h)                     9.50 h -> 382.00        10.50 h -> 422.21                10.67 h -> 429.04
+Softwood Casement Frame & Sashes     13.54 -> 7.45           19.20 -> 10.56                   24.46 -> 13.45
+Softwood Casement Sashes             11.31 -> 6.22           9.36 -> 5.15 ; 10.42 -> 5.73     12.00 -> 6.60
+Hardwood Casement Cill (1.085)       3.66 -> 3.97            6.36 -> 6.90                     7.34 -> 7.96
+LTW General Consumables              25.00                   25.00                            25.00
+Groups (cost): glass 24.76 / 39.00 / 69.95 ; installation materials 70.91 / 66.71 / 107.84 ; manufacture 217.75 / 423.41 / 355.60 ;
+  labour 382.00 / 422.21 / 429.04 ; manufacture materials 42.64 / 53.34 / 53.01.  SC equals flush R and SF equals flush K in every
+  group except manufacture materials (the smaller stormproof sections).
+COST                                 738.06                  1,004.67                         1,015.44
+(Quote 2 net totals 1,495.43 / 2,035.64 / 2,057.45 include the quote-level InstallSure share; the drawing-card prices above do not.)
+
+## Reconciliations — every figure comes out EXACTLY with GlazePro's existing casement formulas (casementGeometry.js) fed the
+## stormproof tree; nothing in Integrate's rules knows a sash is stormproof.
+# Sash size = opening - clearance 4 each side (the 7 mm overlap is drawn but NOT in any volume or glass size).
+# Frame timber (dm3, 2 dp, x1.25): head W x 69 x (41+15) + jambs 2 x internal H x 69 x (41+15) + divider (internal dim + 20) x 69 x (27+2x20)
+#   SA: 599x69x56 = 2.31 ; 2x1102x69x56 = 8.52 -> 10.83 -> 13.54
+#   SC: 4.02 + 2x883x69x56 = 6.82 + transom 978x69x67 = 4.52 -> 15.36 -> 19.20
+#   SF: 4.63 + 2x1202x69x56 = 9.29 + mullion 1222x69x67 = 5.65 -> 19.57 -> 24.46
+# Sash timber (2 x H x 62 + W x (62 + bottom)) x 54: SA 509 x 1094, bottom 83 -> 11.31 ; SC 950 x 341 -> 9.36, 950 x 499 -> 10.42 (bottom 76) ;
+#   SF 537 x 1194 (bottom 76) -> 12.00
+# Cill W x 69 x (56 + 15): SA 2.93 -> 3.66 ; SC 5.09 -> 6.36 ; SF 5.87 -> 7.34
+# Glass (sash - 124 + 28) x (sash H - 62 - bottom + 28): SA 413 x 977 = 0.40 ; SC fanlight 854 x 231 = 0.197 -> 0.30 min ;
+#   SC lower 854 x 389 = 0.33 ; SF 441 x 1084 = 0.48 ; SF DGU (505 + 36) x (1162 + 36) = 0.65
+# Labour minutes (flush rules): SA 480 + 90 = 570 ; SC 480 + fixed 60 + 90 = 630 ; SF = 640 (as flush K)
+# Production minutes (flush rules): SA frame 180 + sash 180 + glazing 20 + sash finish 60 + frame finish 90 = 530 ;
+#   SC 1030 (as Q/R) ; SF 865 (as flush K)
+
+## Decision (Nathan, 13 Oct): GlazePro uses a 76 mm bottom rail on EVERY stormproof sash (fanlights included), not
+## Integrate's template 83. SA above is Integrate's fact (83) and stays as recorded; GlazePro's own single from its
+## template will differ from SA only in sash timber and glass (76: sash 11.12 dm3, glass 413 x 984 = 0.41 m2).
