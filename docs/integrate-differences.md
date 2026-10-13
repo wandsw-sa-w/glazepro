@@ -188,6 +188,77 @@ question for the reviewer, not part of this difference.
 
 ---
 
+## 5. A new fanlight's bottom rail is 62 mm, and a template carries no nosing
+
+**Date:** 13 October 2026
+**Decided by:** Nathan Smith (12 and 13 October)
+**Code:** `src/drawingBoard/casementOpenings.js` (`applyFanlightBottomRails`),
+`sql/step-av1`, `sql/step-ax2`, `sql/step-ax3`, Steps AS, AV and AX
+
+**What differs:** two things, both about what a NEW drawing starts with.
+
+**(a) The fanlight bottom rail.** Integrate's own templates and drawings give a
+fanlight the ordinary 83 mm bottom rail, and then Integrate's validation warns
+"Fanlight bottom rail should be reduced to 62mm externally" every time the
+drawing is opened. Nathan (12 Oct) decided a new GlazePro fanlight defaults to
+**62**, which is what the warning asks for, so the warning never fires on a
+GlazePro drawing. A rail the surveyor types is never touched.
+
+The cost shows on FR2, whose fanlight Integrate priced on 83:
+
+| | fanlight timber | sash cost | FR2 total cost |
+|---|---|---|---|
+| Integrate (83) | 8.38 dm³ | 4.61 | 1,306.98 |
+| GlazePro (62) | 7.45 dm³ | 4.10 | 0.51 less |
+
+Put Integrate's 83 back on the same tree and every line agrees, which is what
+`src/drawingBoard/frenchCasement.test.js` asserts — so this is a decision, not
+a modelling gap.
+
+**(b) The template nosing.** Integrate's templates 1, 2, 7, 10, 11, 12 and 13
+all carry a "Nosing in Solid Redwood" surround, but Integrate **recalculates
+the surround the first time a drawing is saved** —
+`autoCalcSurroundComponents 'architrave_and_bullnose'` — and that calculation
+produces no nosing. Every SAVED Integrate drawing the reviewer has read has
+architrave only (J 1/12, Q 2/21, SA 5/1, and FR3 9/3, which lost its nosing
+and 30 minutes of install labour on the save). So the nosing on a template is
+something Integrate never actually quotes.
+
+Nathan (13 Oct): GlazePro leaves it off. `sql/step-ax3` takes the stored
+surround list off the four Step AV combination templates, and the French
+templates never carried one, so a new drawing prices its surround through the
+allocator — architrave only, which is how J, Q, R and S are exact.
+
+What a nosing is worth, on each drawing that has one recorded:
+
+| | cost with the nosing | without | difference | install labour |
+|---|---|---|---|---|
+| TC1 | 1,397.22 | 1,373.53 | 23.69 | 780 → 750 min |
+| TC2 | 1,546.29 | 1,522.04 | 24.25 | 810 → 780 min |
+| TC3 | 1,360.34 | 1,336.37 | 23.97 | 750 → 720 min |
+| FR1 | 1,007.76 | 983.79 | 23.97 | 690 → 660 min |
+| FR2 | 1,283.88 | 1,260.74 | 23.14 | 780 → 750 min |
+
+(Costs are GlazePro's, so each is short by the known gearbox snapshot gap; the
+differences are what matter here. Each drop is the nosing's own component line
+plus rule 251's 30 minutes of install labour.)
+
+**Why:**
+
+Both are the same principle: a new drawing should start as the window Nathan
+sells and quote what the job actually costs. A fanlight that needs its rail
+reduced is a warning the surveyor would have to act on every time, and a
+nosing nobody is charged for is an overcharge that nothing on screen explains.
+
+**What is NOT changed:** the stored-surround model stays exactly as Step AV
+built it. `storedSurroundParts` still reads `values.surroundLines` and replaces
+the allocator's surrounds when a list is present, and `has_deep_window_board`
+still fires rule 251's 30 minutes — so a surveyor who adds a nosing gets it
+priced. The TC and FR **fixtures** keep their recorded nosing and stay exact,
+because the Integrate drawings they were read from were never saved.
+
+---
+
 # Parked residuals
 
 Added by Step AT (12 Oct 2026), under the small-differences policy in
