@@ -1,0 +1,151 @@
+# Integrate facts — single garden doors (open out), read 13 Oct 2026, wandsworth.work, L31115 item 10 "TEST French doors",
+# Ground Floor, Rear — test drawings 7-11 added with Nathan's approval. PF30, range single_and_french_doors (GlazePro profile
+# open_out_doors), Solid Utile Hardwood frame / leaf / cill (material 44), Teknos Spray Finish Clean White both sides (single
+# finish), complete new, supply & install. Priced through the temporary Quote 2 test quote (item 10's slot switched between
+# drawings); lines are the PF30 price-file test view (cost; price = each line x 2, rounded per line). Every benchmark is a
+# SAVED drawing (saving adds the multipoint-lock part and recomputes the Utile section lengths).
+# Nathan (13 Oct): single garden doors sold as ALL FOUR layouts — plain; with a fanlight over (transom in the same frame);
+# with full-height side light(s) in the same frame; and with half-height "flag" side windows made as SEPARATE frames coupled
+# to the door frame (Integrate templates 69-72 — NOT this step, see the end). Default handle: Hardwick Lyndon espag set.
+
+## Integrate's templates (Door group "2. Open Out Doors")
+# 15 "Fully Glazed Single Door" 1099 x 2199                 -> SD1 = drawing 10/7 (drawingId 310630), template size, SAVED
+# SD2 / SD3 / SD4 were BUILT on the board from template 15 (Integrate has no single-frame template for them):
+#   SD2 = drawing 10/9  (310632) door + fixed fanlight over, transom in the same frame
+#   SD3 = drawing 10/10 (310633) door + one full-height fixed side light, mullion in the same frame
+#   SD4 = drawing 10/11 (310634) 3 x 2: fixed side light each side of the door, three fixed fanlights over
+# 28 "Doorset with Fully Glazed Sidelights" 2820 x 2199     -> FD7 = drawing 10/8 (310631), template size, SAVED.
+#   NOT a single door: a FRENCH PAIR between two direct glazed side panels (one frame, two mullions). A French doorset
+#   variant (Step BA family) — benchmarked here because it is cheap and it is a doorset Nathan sells.
+# 69 "Doorset with Flag and Fan Lights", 70 / 71 / 72 (unnamed) — coupled multi-frame doorsets, read but not drawn (below).
+
+## How Integrate stores a single door (SD1 tree, unchanged parts omitted)
+# AssemblyFrame{1099 x 2199, solid_profiled, head/jambs 47 (+20 stop = 67 finished), cill height 37 (63 finished),
+#   frameDepth 96, cillDepth 145, stops head 20 / stile 20 / cill 26}  internal 1005 x 2115
+#   DoorLeafPart A1 {operationId 17 (Left Hand Hung; 18 RH; 11 Fix), typeId 7 (open out), thickness 54,
+#     clearances top 2 / left 3 / right 3 / bottom 3, top 110, stiles 110 / 110, bottom 163 (ext 170), btmRailShapeId 101
+#     stepped, toBeReplaced}  = 999 x 2110 (= 1005 - 3 - 3 ; 2115 - 2 - 3)
+#     GlassPart {GL100010 / GL100080 DGU, rebate 15, tolerance 3} sightline 779 x 1837 -> cut 803 x 1861 = 1.49 m2 (square)
+#   CillPart 1005 x 37
+# NOTE the door leaf is a plain DoorLeafPart DIRECTLY in the frame opening — no pair part (contrast frenchDoorPart).
+# Single-door clearances are 2 / 3 / 3 / 3 (French pair: 3 / 1 / 1 / 3). Leaf sections as a French leaf (110 / 163).
+# Stored ironmongery (template list, Integrate never recomputes it): 102mm_hinges PB x 2 (pairs), double_euro_cylinder PB,
+#   trickle_vent_xr16 Wht, windsor_inline_handle PB.  Paint part: isDoorMpls true, isFrontDoor false.
+# Allocated on save: Utile sections + RJZ2382 (Winkhaus Thunderbolt Master Multipoint Lock) x 1 — allocator 2020
+#   "MPLS non-front non-french" (is_door_mpls and not is_front_door and not is_french_door_leaf). Nothing else
+#   (no flush bolt / shootbolt / keeps — those are French-pair parts).
+
+## Utile sections (Integrate allocates on save; same formulas as the French doors)
+# frame 67x96 = W + 2H (overall) ; 63x200 = cill W (overall) + leaf W ; 63x120 = 2 x leaf H + leaf W - 6 ;
+# each fixed casement sash in the door frame (fanlight or side light) 63x63 = W + 2H + 14 ; its 86 rail 63x96 = W.
+# Integrate allocates NOTHING for the transom or the mullions.
+#   SD1: 63x120 5213 (2 x 2110 + 999 - 6) ; 63x200 2098 (1099 + 999) ; 67x96 5497 (1099 + 2 x 2199)
+#   SD2: 63x120 5133 (2 x 2070 + 999 - 6) ; 63x200 2098 ; 63x63 1809 (1003 + 2 x 396 + 14) ; 63x96 1003 ; 67x96 6297
+#   SD3: 63x120 5213 ; 63x200 2698 (1699 + 999) ; 63x63 4795 (557 + 2 x 2112 + 14) ; 63x96 557 ; 67x96 6097
+#   SD4: 63x120 5133 ; 63x200 3248 (2249 + 999) ; 63x63 13865 (2 x 1338 + 1809 + 2 x 4690) ; 63x96 3131 ; 67x96 7447
+#   FD7: 63x120 9849 (2 leaves) ; 63x200 4245 (2820 + 2 x 712.5) ; 67x96 7218
+
+## SD1 — Fully Glazed Single Door 1099 x 2199 (template 15)        Integrate 1,867.12 / 3,734.23
+# Lines (cost / price):
+#   Square Glass 1.49 x 58.50 = 87.17 / 174.33 ; Energy 29.80 kg x 0.17 = 5.07 / 10.13
+#   Ironmongery: hinges (pair) x 2 14.70 / 29.40 ; double euro cylinder 21.00 / 42.00 ; XR16 slot vent 3.15 / 6.30 ;
+#     Windsor inline 16.80 / 33.60 ; Thunderbolt RJZ2382 53.55 / 107.10            = 109.20 / 218.40
+#   Components: Ogee architrave MDF 2.85 x 4.60 = 13.11 / 26.22 ; 2.85 x 1.20 = 3.42 / 6.84
+#   Installation Consumables 30.00 / 60.00 ; LTW General Consumables 25.00 / 50.00
+#   Production 36.33 h x 24.66 = 895.90 / 1,791.80 ; Labour 11.75 h x 40.21 = 472.47 / 944.94
+#   Utile 63x120 5.213 m x 17.30 = 90.18 / 180.37 ; 63x200 2.098 x 29.00 = 60.84 / 121.68 ; 67x96 5.497 x 13.60 = 74.76 / 149.52
+# Groups: glass 92.24 / 184.46 ; installation_materials 155.73 / 311.46 ; manufacture 895.90 / 1,791.80 ;
+#   labour 472.47 / 944.94 ; manufacture_materials 250.78 / 501.57 ; TOTAL 1,867.12 / 3,734.23
+# Production 2180 min = Door Leaf 1035 + Machining & Joining a Door Frame 855 + Door Frame Single Finish 180 +
+#   Door Leaf Single Finish 90 + Glazing a Sash 20.
+# Labour 705 min (Fitting Units test view, read) = Single Door Only 660 (not is_front_door and is_complete_new and
+#   is_installation_included and door_leaf_qty == 1; qty door_leaf_qty x 660) + Any Door Overweight 45 (leaf > 50 kg).
+
+## SD2 — single door + fixed fanlight 1099 x 2599, transom 41 (77 finished) offset 399 / 2075     Integrate 2,268.91 / 4,537.82
+# Fanlight A1 CasementSashPart op 11 FIXED, 54, 62 / 62 / 62, bottom 86 (ext 93), clearances 1/1/1/2 = 1003 x 396,
+#   glass 879 x 248 -> cut 0.25 -> 0.30 min. Door A2 999 x 2070 (2075 - 2 - 3), glass 779 x 1797 -> cut 1.46 m2.
+# Lines: Square Glass 0.30 = 17.55 / 35.10 and 1.46 = 85.41 / 170.82 ; Energy 6.00 kg 1.02 / 2.04 and 29.20 kg 4.96 / 9.93 ;
+#   Ironmongery as SD1 109.20 / 218.40 ; Components 2.85 x 5.40 = 15.39 / 30.78 and 2.85 x 1.20 = 3.42 / 6.84 ;
+#   Consumables 30 ; LTW 25 ; Production 47.08 h = 1,160.99 / 2,321.99 ; Labour 13.75 h = 552.89 / 1,105.78 ;
+#   Utile 63x120 88.80 / 177.60 ; 63x200 60.84 / 121.68 ; 63x63 15.56 / 31.11 ; 63x96 12.24 / 24.47 ; 67x96 85.64 / 171.28
+# Groups: glass 108.94 / 217.89 ; installation_materials 158.01 / 316.02 ; manufacture 1,160.99 / 2,321.99 ;
+#   labour 552.89 / 1,105.78 ; manufacture_materials 288.08 / 576.14 ; TOTAL 2,268.91 / 4,537.82
+# Production 2825 = SD1 2180 + Door Frame Single Finish (Mullions) 85 + Additional for Frame Mullion or Transom 180 +
+#   Fanlights in Doorsets 300 + Casement Sash Single Finish 60 + Glazing a Sash 20.
+# Labour 825 = Single Door Only 660 + Fixed Fanlight 120 (per fixed casement sash) + Any Door Overweight 45.
+# INTEGRATE QUIRK (fixed before reading): a door leaf put into an opening with the board's "Change ..." came in with
+#   Arch Head + Half Circle ON (archHeight 389.5) — priced as SHAPED glass 1.14 m2 at 71.88 and +240 production
+#   ("Additional for Swept Head (Door)"). Unticked, re-saved, re-read: the figures above are the square door.
+
+## SD3 — single door + full-height fixed side light 1699 x 2199, mullion 41 offset 1005 / 559    Integrate 2,571.71 / 5,143.39
+# Door A1 999 x 2110 (opening 1005), side light B1 CasementSashPart FIXED 62/62/62, 86 (93), clearances 1/1/1/2 = 557 x 2112,
+#   glass 433 x 1964 -> cut 0.91 m2. Two CillParts 1005 / 559 (GlazePro: one full-width cill, as casements).
+# Lines: Square Glass 1.49 = 87.17 / 174.33 and 0.91 = 53.24 / 106.47 ; Energy 29.80 kg 5.07 / 10.13 and 18.20 kg 3.09 / 6.19 ;
+#   Ironmongery as SD1 ; Components 2.85 x 4.60 = 13.11 / 26.22 and 2.85 x 1.80 = 5.13 / 10.26 ; Consumables 30 ; LTW 25 ;
+#   Production 55.08 h = 1,358.27 / 2,716.55 ; Labour 14.50 h = 583.05 / 1,166.09 ;
+#   Utile 63x120 90.18 / 180.37 ; 63x200 78.24 / 156.48 ; 63x63 41.24 / 82.47 ; 63x96 6.80 / 13.59 ; 67x96 82.92 / 165.84
+# Groups: glass 148.57 / 297.12 ; installation_materials 157.44 / 314.88 ; manufacture 1,358.27 / 2,716.55 ;
+#   labour 583.05 / 1,166.09 ; manufacture_materials 324.38 / 648.75 ; TOTAL 2,571.71 / 5,143.39
+# Production 3305 = SD1 2180 + Mullions finish 85 + Additional Mullion/Transom 180 + Sidelights in Doorsets 780 +
+#   Casement Sash Single Finish 60 + Glazing a Sash 20.
+# Labour 870 = Single Door Only 660 + Fixed Fanlight 120 (the fixed side light — Integrate's rule counts every fixed
+#   casement sash in a door) + Any Sash Overweight 45 (side light > 25 kg) + Any Door Overweight 45.
+
+## SD4 — 3 x 2 doorset 2249 x 2599: mullions 41 at 534 / 1580 and 1580 / 534, transom 41 at 399 / 2075, all full length
+#   Integrate 4,211.29 / 8,422.57
+# Top row three FIXED fanlights A1 532 x 396, B1 1003 x 396, C1 532 x 396 ; bottom row side light A2 532 x 2072, door B2
+#   999 x 2070, side light C2 532 x 2072 (all casement sashes 62/62/62, 86 (93), clearances 1/1/1/2). Three CillParts.
+# Lines (in Integrate's order): Square Glass 0.30 = 17.55 / 35.10 ; 0.84 = 49.14 / 98.28 ; 0.30 = 17.55 / 35.10 ;
+#   1.46 = 85.41 / 170.82 ; 0.30 = 17.55 / 35.10 ; 0.84 = 49.14 / 98.28 — the three fanlights cut under 0.30 (A1 / C1
+#   432 x 272, B1 903 x 272 = 0.25) and take the 0.30 minimum ; side lights 432 x 1948 = 0.84 each ; door 803 x 1821 = 1.46.
+#   Energy 6.00 / 16.80 / 6.00 / 29.20 / 6.00 / 16.80 kg = 1.02 / 2.86 / 1.02 / 4.96 / 1.02 / 2.86 (prices 2.04 / 5.71 /
+#   2.04 / 9.93 / 2.04 / 5.71) ; Ironmongery as SD1 ; Components 2.85 x 5.40 = 15.39 / 30.78 and 2.85 x 2.40 = 6.84 / 13.68 ;
+#   Consumables 30 ; LTW 25 ; Production 97.25 h = 2,398.19 / 4,796.37 ; Labour 23.25 h = 934.88 / 1,869.77 ;
+#   Utile 63x120 88.80 / 177.60 ; 63x200 94.19 / 188.38 ; 63x63 119.24 / 238.48 ; 63x96 38.20 / 76.40 ; 67x96 101.28 / 202.56
+# Groups: glass 250.08 / 500.15 ; installation_materials 161.43 / 322.86 ; manufacture 2,398.19 / 4,796.37 ;
+#   labour 934.88 / 1,869.77 ; manufacture_materials 466.71 / 933.42 ; TOTAL 4,211.29 / 8,422.57
+# Production 5835 = Door Leaf 1035 + Door Frame 855 + frame finish 180 + Mullions finish 85 x 3 + Door Leaf finish 90 +
+#   Glazing a Sash 20 x 6 + Additional Mullion/Transom 180 x 3 + Sidelights in Doorsets 780 x 2 + Fanlights in Doorsets
+#   300 x 3 + Casement Sash Single Finish 60 x 5.
+# Labour 1395 = Single Door Only 660 + Fixed Fanlight 120 x 5 + Any Sash Overweight 45 x 2 + Any Door Overweight 45.
+
+## FD7 — French pair between two direct glazed side panels 2820 x 2199 (template 28)            Integrate 3,311.75 / 6,623.52
+# Frame dividers: two full-height mullions 41 (columns 618 / 1405 / 621). A1 GlassPart DIRECT GLAZED clearance 15,
+#   hidden 0 (template quirk, as FD5's A1) 588 x 2085 -> 1.22 m2 ; frenchDoorPart in B (1403 x 2109, leaves 712.5 x 2109,
+#   LH B1 / RH master C1) ; D1 GlassPart DIRECT GLAZED clearance 15, hidden 12, 591 x 2085 -> cut 615 x 2109 = 1.30 m2.
+#   Three CillParts 618 / 1405 / 621.
+# Lines: Square Glass 1.22 = 71.37 / 142.74 ; 0.96 = 56.16 / 112.32 x 2 (leaves) ; 1.30 = 76.05 / 152.10 ;
+#   Energy 24.40 / 19.20 / 19.20 / 26.00 kg = 4.15 / 3.26 / 3.26 / 4.42 (prices 8.30 / 6.53 / 6.53 / 8.84) ;
+#   Ironmongery: hinges (pair) x 4 29.40 ; Adj Single Shootbolt Keep 6.30 ; double euro cylinder 21.00 ; XR16 3.15 ;
+#     Windsor inline 16.80 ; Winkhaus FAB Shootbolt 399 36.75 ; Winkhaus Flushbolt LH 93.45 ; Thunderbolt 53.55 = 260.40 / 520.80
+#   Components 2.85 x 4.60 = 13.11 / 26.22 and 2.85 x 2.90 = 8.27 / 16.53 ; Consumables 30 ; LTW 25 ;
+#   Production 66.17 h = 1,631.75 / 3,263.50 ; Labour 16.83 h = 676.73 / 1,353.47 ;
+#   Utile 63x120 170.39 / 340.78 ; 63x200 123.11 / 246.21 ; 67x96 98.16 / 196.33
+# Groups: glass 274.83 / 549.68 ; installation_materials 311.78 / 623.55 ; manufacture 1,631.75 / 3,263.50 ;
+#   labour 676.73 / 1,353.47 ; manufacture_materials 416.66 / 833.32 ; TOTAL 3,311.75 / 6,623.52
+# Production 3970 = Door Leaf 1035 x 2 + Door Frame 855 + frame finish 180 + Mullions finish 85 x 2 + Door Leaf finish 90 x 2 +
+#   Glazing a Sash 20 x 4 + Additional Mullion/Transom 180 x 2 + Frame with Doors/Casements and Direct Glazed 75.
+# Labour 1010 = French Doors 780 + Direct Glazed Unit 45 x 2 + 1.75sqm Direct Glazed Unit in Frame 70 x 2.
+
+## GlazePro's deliberate differences on these (cost; all already decided)
+# - Transom and mullions charged at Utile67x96 for their full INTERNAL length (Nathan's transom decision, reviewer's
+#   extension to mullions — docs/integrate-differences.md 7b and 11). Lines are recomputed on the whole 67x96 length:
+#   SD1 none ; SD2 transom 1005 -> 67x96 7302 mm = 99.31 (Integrate 85.64) +13.67 ;
+#   SD3 mullion 2115 -> 8212 mm = 111.68 (82.92) +28.76 ; SD4 transom 2155 + mullions 2 x 2515 -> 14632 mm = 199.00
+#   (101.28) +97.72 ; FD7 mullions 2 x 2115 -> 11448 mm = 155.69 (98.16) +57.53.
+# - Default ironmongery (a GlazePro-built door, not the fixtures, which copy Integrate's stored lists): Integrate's own
+#   default rules already give a single door Hardwick Lyndon espag set (rule 5), 2 x 102mm hinges (10), double euro
+#   cylinder (3), slot vent (50) and grille (52) — Nathan's choice. vs the template's stored Windsor list: +59.85 cost.
+# - Fanlights made by GlazePro default to the 62 rail (charged at 63x63); the SD2 / SD4 fixtures keep Integrate's 86.
+
+## Coupled multi-frame doorsets (NEXT step — read only, not drawn)
+# Integrate stores these as a ContainerPart (999999999 x 999999999) holding SEPARATE AssemblyFrameParts side by side:
+#   70: flag frame 693 x 1137 (one FIXED casement sash 597 x 1050) | door frame 995 x 2101 (DoorLeafPart 895 x 2012) |
+#       flag frame 693 x 1136 (fixed casement 597 x 1049). Stored ironmongery adds trickle grille.
+#   71: door frame 998 x 2101 + right flag frame 693 x 1136.   72: left flag frame 696 x 1136 + door frame 1001 x 2101.
+#   69 "Doorset with Flag and Fan Lights": flag frames 650 x 1632 each with a TOP-HUNG fanlight (op 15) 554 x 345 over a
+#     fixed casement 554 x 1156 (transom 41 at 348) ; door frame 1082 x 2496 with a fixed fanlight 986 x 345 over the
+#     door leaf 982 x 2018 (transom 41 at 348) ; stored ironmongery adds Connoisseur handles, Defender stays, Kenrick
+#     extensions and gearboxes for the top-hung fanlights.
+# GlazePro already has containerPart and drawingItemPart -> containerPart -> assemblyFramePart containment; the board and
+# the engine handle one frame only. Benchmarks for these come with that step.

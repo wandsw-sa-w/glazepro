@@ -1319,5 +1319,160 @@
       "production": 116.33,
       "labour": 24.5
     }
+  },
+  "benchmarkSD1_single_door": {
+    "source": "L31115 Item 10 Drawing 7 (template 15 'Fully Glazed Single Door', 1099 x 2199). Read 13 Oct 2026 via the temporary Quote 2 test quote; drawing SAVED in Integrate. Facts: docs/integrate-L31115-single-doors.txt.",
+    "total_cost": 1867.12,
+    "total_price": 3734.23,
+    "groups": {
+      "glass_done": {
+        "cost": 92.24,
+        "price": 184.46
+      },
+      "installation_materials": {
+        "cost": 155.73,
+        "price": 311.46
+      },
+      "manufacture": {
+        "cost": 895.9,
+        "price": 1791.8
+      },
+      "labour": {
+        "cost": 472.47,
+        "price": 944.94
+      },
+      "manufacture_materials": {
+        "cost": 250.78,
+        "price": 501.57
+      }
+    },
+    "hours": {
+      "production": 36.33,
+      "labour": 11.75
+    }
+  },
+  "benchmarkSD2_single_door_with_fanlight": {
+    "source": "L31115 Item 10 Drawing 9 (built from template 15: 1099 x 2599, transom 41 at 399, fixed fanlight rail 86). Read 13 Oct 2026 via the temporary Quote 2 test quote; drawing SAVED in Integrate. Facts: docs/integrate-L31115-single-doors.txt. Integrate charges no transom timber (GlazePro will: deliberate difference, +13.67)",
+    "total_cost": 2268.91,
+    "total_price": 4537.82,
+    "groups": {
+      "glass_done": {
+        "cost": 108.94,
+        "price": 217.89
+      },
+      "installation_materials": {
+        "cost": 158.01,
+        "price": 316.02
+      },
+      "manufacture": {
+        "cost": 1160.99,
+        "price": 2321.99
+      },
+      "labour": {
+        "cost": 552.89,
+        "price": 1105.78
+      },
+      "manufacture_materials": {
+        "cost": 288.08,
+        "price": 576.14
+      }
+    },
+    "hours": {
+      "production": 47.08,
+      "labour": 13.75
+    }
+  },
+  "benchmarkSD3_single_door_with_sidelight": {
+    "source": "L31115 Item 10 Drawing 10 (built from template 15: 1699 x 2199, mullion 41 at 1005, fixed side light rail 86). Read 13 Oct 2026 via the temporary Quote 2 test quote; drawing SAVED in Integrate. Facts: docs/integrate-L31115-single-doors.txt. Integrate charges no mullion timber (GlazePro will: +28.76)",
+    "total_cost": 2571.71,
+    "total_price": 5143.39,
+    "groups": {
+      "glass_done": {
+        "cost": 148.57,
+        "price": 297.12
+      },
+      "installation_materials": {
+        "cost": 157.44,
+        "price": 314.88
+      },
+      "manufacture": {
+        "cost": 1358.27,
+        "price": 2716.55
+      },
+      "labour": {
+        "cost": 583.05,
+        "price": 1166.09
+      },
+      "manufacture_materials": {
+        "cost": 324.38,
+        "price": 648.75
+      }
+    },
+    "hours": {
+      "production": 55.08,
+      "labour": 14.5
+    }
+  },
+  "benchmarkSD4_single_doorset_sidelights_fanlights": {
+    "source": "L31115 Item 10 Drawing 11 (built from template 15: 2249 x 2599, mullions at 534 / 1580, transom at 399; fixed side lights and three fixed fanlights, rails 86). Read 13 Oct 2026 via the temporary Quote 2 test quote; drawing SAVED in Integrate. Facts: docs/integrate-L31115-single-doors.txt. Integrate charges no mullion / transom timber (GlazePro will: +97.72)",
+    "total_cost": 4211.29,
+    "total_price": 8422.57,
+    "groups": {
+      "glass_done": {
+        "cost": 250.08,
+        "price": 500.15
+      },
+      "installation_materials": {
+        "cost": 161.43,
+        "price": 322.86
+      },
+      "manufacture": {
+        "cost": 2398.19,
+        "price": 4796.37
+      },
+      "labour": {
+        "cost": 934.88,
+        "price": 1869.77
+      },
+      "manufacture_materials": {
+        "cost": 466.71,
+        "price": 933.42
+      }
+    },
+    "hours": {
+      "production": 97.25,
+      "labour": 23.25
+    }
+  },
+  "benchmarkFD7_french_doorset_dgu_sidelights": {
+    "source": "L31115 Item 10 Drawing 8 (template 28 'Doorset with Fully Glazed Sidelights', 2820 x 2199: French pair between two direct glazed side panels, two mullions; A1 hidden 0 template quirk). Read 13 Oct 2026 via the temporary Quote 2 test quote; drawing SAVED in Integrate. Facts: docs/integrate-L31115-single-doors.txt. Integrate charges no mullion timber (GlazePro will: +57.53)",
+    "total_cost": 3311.75,
+    "total_price": 6623.52,
+    "groups": {
+      "glass_done": {
+        "cost": 274.83,
+        "price": 549.68
+      },
+      "installation_materials": {
+        "cost": 311.78,
+        "price": 623.55
+      },
+      "manufacture": {
+        "cost": 1631.75,
+        "price": 3263.5
+      },
+      "labour": {
+        "cost": 676.73,
+        "price": 1353.47
+      },
+      "manufacture_materials": {
+        "cost": 416.66,
+        "price": 833.32
+      }
+    },
+    "hours": {
+      "production": 66.17,
+      "labour": 16.83
+    }
   }
 }
