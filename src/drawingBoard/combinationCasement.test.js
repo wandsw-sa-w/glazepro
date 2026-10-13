@@ -267,21 +267,25 @@ d('Step AV — the board’s trees price as the fixtures do', () => {
       'connoisseur_handle_lh x2', 'kenrick_extension_490mm x2', 'kenrick_extension_950mm x2',
     ]))
 
-    // Two differences from Integrate's stored lists, recorded as they stand
-    // so a later change to the rules is noticed. NOT targets: Integrate's
-    // figures are the facts, and these are what GlazePro gives today.
+    // ONE difference from Integrate's stored lists, recorded as it stands
+    // so a later change to the rules is noticed. NOT a target: Integrate's
+    // figures are the facts, and this is what GlazePro gives today.
     //
-    // 1. The centre strike. Integrate charges defender_209mm on TC1 and
-    //    defender_310mm on TC2 and TC3; the rules here charge 209 on all
-    //    three.
+    // The centre strike. Integrate charges defender_209mm on TC1 and
+    // defender_310mm on TC2 and TC3; the rules here charge 209 on all three.
     for (const [label] of CASES) {
       expect(report[label].some(l => l.startsWith('defender_209mm')), label).toBe(true)
       expect(report[label].some(l => l.startsWith('defender_310mm')), label).toBe(false)
     }
-    // 2. A bare "trickle" line comes out alongside trickle_vent_xr16 on
-    //    every layout, so the vent is listed twice under two names.
+
+    // Step AY item 1 — Nathan (13 Oct): a casement gets BOTH vents, and
+    // that is INTENDED, not a defect. The slot vent (rule 50,
+    // trickle_vent_xr16) and the grille (rule 52, "trickle") are two
+    // different products and a casement is sold with both. Rule 52 is gated
+    // on "not is_sw", which is why a box sash gets only the slot vent.
+    // Recorded in docs/integrate-differences.md so nobody "fixes" it.
     for (const [label] of CASES) {
-      expect(report[label], `${label} trickle`).toEqual(expect.arrayContaining([
+      expect(report[label], `${label} both vents`).toEqual(expect.arrayContaining([
         'trickle_vent_xr16 x1', 'trickle x1',
       ]))
     }

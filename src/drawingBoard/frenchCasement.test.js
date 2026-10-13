@@ -490,8 +490,12 @@ d('Step AX — what it all prices', () => {
       'kenrick_extension_gear_box x3',
     ]))
 
-    // The bare "trickle" line, recorded as it stands. Both rules are active
-    // and both fire on a casement, which is why the vent is listed twice.
+    // Both vent rules are active and both fire on a casement. Step AY item
+    // 1 — Nathan (13 Oct): that is INTENDED. The slot vent (rule 50,
+    // trickle_vent_xr16) and the grille (rule 52, "trickle") are two
+    // different products and a casement is sold with both; rule 52's
+    // "not is_sw" is what keeps the grille off a box sash. Recorded in
+    // docs/integrate-differences.md so nobody "fixes" it.
     const trickles = (SNAPSHOT.ironmongeryRules ?? [])
       .filter(r => /trickle/i.test(r.product_short_name ?? ''))
       .map(r => ({ sort_order: r.sort_order, label: r.label, product: r.product_short_name,
@@ -504,7 +508,7 @@ d('Step AX — what it all prices', () => {
     expect(byProduct.trickle_vent_xr16.condition).not.toMatch(/is_sw/)
     expect(byProduct.trickle.condition).toMatch(/not is_sw/)
     for (const label of ['FR1', 'FR2']) {
-      expect(report[label], `${label} vent listed twice`).toEqual(expect.arrayContaining([
+      expect(report[label], `${label} both vents`).toEqual(expect.arrayContaining([
         'trickle_vent_xr16 x1', 'trickle x1',
       ]))
     }

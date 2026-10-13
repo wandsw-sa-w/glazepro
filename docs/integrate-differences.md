@@ -259,6 +259,44 @@ because the Integrate drawings they were read from were never saved.
 
 ---
 
+## 6. A casement gets BOTH trickle vents
+
+**Date:** 13 October 2026
+**Decided by:** Nathan Smith
+**Code:** none — this is a decision ABOUT the data, recorded so nobody
+"fixes" it. Asserted as intended in `src/drawingBoard/combinationCasement.test.js`
+and `src/drawingBoard/frenchCasement.test.js`.
+
+**What looks wrong and is not:**
+
+Two live `default_ironmongery` rules both carry the label "Trickle Vent", and
+on a casement **both fire**, so the default list shows a vent twice under two
+names:
+
+| sort | label | product | condition |
+|---|---|---|---|
+| **50** | Trickle Vent | `trickle_vent_xr16` Wht | `frame_to_be_replaced and not is_front_door and not is_heritage_range` |
+| **52** | Trickle Vent | `trickle` Wht | `frame_to_be_replaced and not is_front_door and not is_heritage_range and not is_sw` |
+
+`is_sw` is `is_box_sash`, so on a casement `not is_sw` is true and rule 52
+fires alongside rule 50; on a box sash only rule 50 does.
+
+Step AV reported this as a probable defect and Step AX repeated it, reading
+rule 52's `not is_sw` as the half of an exclusive pair whose other half (an
+`and is_sw` on rule 50) had been forgotten.
+
+**It is not a defect.** Nathan (13 Oct): the two are **different products** —
+rule 50 is the slot vent (XR16) and rule 52 the vent **grille** — and a
+casement is sold with both. Rule 52's `not is_sw` is doing exactly what it
+should: keeping the grille off a box sash, which does not get one.
+
+**Why this is recorded here:** the shared label makes the two lines look like
+one line twice, and the obvious "fix" — adding `and is_sw` to rule 50 — would
+silently stop charging for the grille on every casement GlazePro quotes. No
+rule data was changed in Step AY and none should be.
+
+---
+
 # Parked residuals
 
 Added by Step AT (12 Oct 2026), under the small-differences policy in
