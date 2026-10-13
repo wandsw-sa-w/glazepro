@@ -115,3 +115,67 @@
 #   Set right leaf width ; Left / Right / Top / Bottom Clearance 1 / 1 / 3 / 3
 # RHS Door Leaf: Arch Head ; To Be Replaced ; Special Joinery Details ; Special Glass Details ; Divider Spacing (x2) ;
 #   Operation (Fix / Right Hand Hung) ; Bottom Rail (int) 163 ; Master Leaf
+
+## ===== French door variants (read 13 Oct 2026, same item 10, all SAVED, PF30, utile, same stored ironmongery as FD1
+## unless stated: 102mm_hinges PB 4; double_euro_cylinder PB 1; trickle_vent_xr16 Wht 1; windsor_inline_handle PB 1;
+## allocated lock parts RJZ2382 / RHZ1648 / RHZ1653 / RHZ1667 as FD1) =====
+
+# FD4 = drawing 10/4 (310627), template 79 "French Doors with Panels", 1399 x 2199, saved at template size.
+#   Pair as FD1 (internal 1305 x 2115): leaves 662.5 x 2109, 110 / 110 / 110, bottom 163 (ext 170).
+#   EACH LEAF has its own divider: TransomPart isMidrail true, thickness 170 (midrailThickness 170, finished 206, stops 18),
+#   offset 1241 (glass above) / offset2 425 (panel below): 2109 - 110 - 163 = 1836 = 1241 + 170 + 425.
+#   Above: GlassPart 442.5 x 1241 (GL100010 / GL100080, rebate 15, tolerance 3) -> cut 466.5 x 1265 = 0.59 m2.
+#   Below: PanelPart 442.5 x 425 {internalPanelTypeId 110, externalPanelTypeId 110 (Raised & Fielded both sides),
+#     internalPanelBeadId 120, externalPanelBeadId 120 (Ovolo), insulationThickness 15, createVisionPanel true}.
+#   Surround 2 x 2300, 1 x 1500.
+#   Utile sections: 67x96 5797 (= W + 2H); 63x120 9749 (= per leaf 2H + W - 6, as FD1);
+#     63x200 4029 = cill 1399 + leaf bottom rails 2 x 662.5 + MID RAILS 2 x 652.5 (= leaf W - 10) — single reading.
+#   Price lines (cost): glass 2 x (0.59 x 58.50 = 34.52 + energy 11.80 x 0.17 = 2.01) = 73.06 ; ironmongery 260.40 ;
+#     components 13.11 + 4.28 ; consumables 30 ; Production 59.42 h = 1,465.30 ; Labour 13.00 h = 522.73 ;
+#     Tricoya Panel 2 x (0.19 -> 0.1880625 m2 unrounded x 188.85 = 35.52) ; LTW 25 ;
+#     Utile 63x120 9.749 x 17.30 = 168.66 ; 63x200 4.029 x 29.00 = 116.84 ; 67x96 5.797 x 13.60 = 78.84
+#   Groups: glass 73.06 ; installation_materials 307.79 ; manufacture 1,465.30 ; labour 522.73 ;
+#     manufacture_materials 460.38 ; COST 2,829.26 ; PRICE 5,658.44
+#   Production 3565 = FD1's 3325 + Additional for R&F Panel 120 x 2 (loop panel). Labour 780 (leaves under 50 kg).
+#   Tricoya Panel = live GlazePro rule (loop panel, not stained): qty visible W x H / 1e6, value (62.95 x 1.5) x 2.
+
+# FD5 = drawing 10/5 (310628), template 29 "French Door W Lights - Attached Bottom and Top Rail", 2814 x 2710, saved.
+#   Frame dividers: MullionPart 41 (77 finished) offset 648 / offset2 2031 ; MullionPart 41 offset 2028 / offset2 651 ;
+#   TransomPart 41 (77) offset 448 / offset2 2137 ; all startDivider / endDivider '0' (full length).
+#   Internal 2720 x 2626 = 648 + 41 + 1339 + 41 + 651 ; 448 + 41 + 2137. Columns A 648, B 1339, D 651.
+#   Top row (448 high): THREE DIRECT GLAZED UNITS (GlassPart in frame, clearance 15 all round): A1 618 x 418 (hidden 0 —
+#     template quirk), B1 1309 x 418 (hidden 12), D1 621 x 418 (hidden 12) -> cut 0.258 -> 0.30 min, 0.59, 0.285 -> 0.30.
+#   Bottom row: A2 CasementSashPart op 11 FIXED, 54, 62/62/62, bottom 86 (ext 93), clearances 1/1/1/2, 646 x 2134 (side light);
+#     B2/C2 the French pair in the middle opening 1339 x 2137 -> leaves 679.5 x 2131 ; D2 fixed casement sash 649 x 2134.
+#   Three CillParts 648 / 1339 / 651 (GlazePro: one full-width cill, as casements).
+#   Surround 2 x 2810, 1 x 2910.
+#   Utile sections: 67x96 8234 (W + 2H — mullions and transom NOT allocated) ; 63x200 4173 (W + leaf widths) ;
+#     63x120 9871 (leaves) ; 63x63 9859 = side lights (646 + 2 x 2134 + 14) + (649 + 2 x 2134 + 14) ;
+#     63x96 1295 = side-light bottom rails 646 + 649.
+#   Price lines (cost): glass 0.30 / 1.10 / 0.59 / 0.91 / 0.91 / 0.30 / 1.10 m2 = 304.80 + energy 17.71 ;
+#     ironmongery 260.40 ; components 15.96 + 8.27 ; consumables 30 ; Production 99.58 h = 2,455.64 ;
+#     Labour 24.25 h = 975.09 ; LTW 25 ; Utile 170.77 / 121.02 / 84.79 / 15.80 / 111.98
+#   Groups: glass 322.51 ; installation_materials 314.63 ; manufacture 2,455.64 ; labour 975.09 ;
+#     manufacture_materials 529.36 ; COST 4,597.23 ; PRICE 9,194.43
+#   Production 5975 = Door Leaf 2 x 1035 + Machining & Joining a Door Frame 855 + Door Frame Single Finish 180 +
+#     Door Frame Single Finish (Mullions) 85 x 3 + Door Leaf Single Finish 2 x 90 + Glazing a Sash 20 x 7 glass units +
+#     Sidelights in Doorsets 780 x 2 + Additional for Frame Mullion or Transom 180 x 3 + Casement Sash Single Finish 60 x 2 +
+#     Frame with Doors/Casements and Direct Glazed 75.
+#   Labour 1455 (Fitting Units test view, read) = French Doors 780 + Direct Glazed Unit 45 x 3 + Fixed Fanlight 120 x 2
+#     (fixed casement sashes) + Any Sash Overweight (Casement) 45 x 2 (side lights over 25 kg) +
+#     1.75sqm Direct Glazed Unit in Frame (Small) 70 x 3.
+
+# FD6 = drawing 10/6 (310629), template 46 "French Door Set W Casement Lights" — FD5 with the top row as THREE FIXED
+#   CASEMENT SASHES (fanlights, 62/62/62, bottom 86, clearances 1/1/1/2): A1 646 x 445, B1 1337 x 445, D1 649 x 445.
+#   Stored ironmongery adds `trickle` Wht 1 (the XHD16 grille, 2.10).
+#   Utile: 63x63 15203 (= FD5 + 3 fanlights, each W + 2H + 14) ; 63x96 3927 (= 1295 + 646 + 1337 + 649) ; others as FD5.
+#   Glass: fanlights 0.30 (min) / 0.40 / 0.30 ; rest as FD5.
+#   Groups: glass 310.74 ; installation_materials 316.73 ; manufacture 2,868.70 ; labour 985.15 ;
+#     manufacture_materials 607.43 ; COST 5,088.75 ; PRICE 10,177.46
+#   Production 6980 = FD5 + Fanlights in Doorsets 300 x 3 + Casement Sash Single Finish 60 x 3 - 75 (no DGU now).
+#   Labour 1470 = French Doors 780 + Fixed Fanlight 120 x 5 + Any Sash Overweight (Casement) 45 x 2.
+
+# A casement sash in a doorset is a FANLIGHT when it sits above a transom (FD6 top row -> Fanlights in Doorsets 300), and a
+# SIDELIGHT when it sits beside the door (Sidelights in Doorsets 780) — is_fanlight decides, per sash.
+# Nathan's transom decision (charge it, 67x96, internal width, PROVISIONAL) is applied to the frame MULLIONS of a doorset in
+# the same way (internal height each) — reviewer's call for consistency, flagged to Nathan.

@@ -1226,5 +1226,98 @@
       "production": 66.17,
       "labour": 14.5
     }
+  },
+  "benchmarkFD4_french_doors_with_panels": {
+    "source": "L31115 Item 10 Drawing 4 (template 79 French Doors with Panels, 1399 x 2199, R&F Tricoya panels under a 170 mid rail). Read 13 Oct 2026 via the temporary Quote 2 test quote; drawing SAVED in Integrate. Facts: docs/integrate-L31115-french-doors.txt (variants section)",
+    "total_cost": 2829.26,
+    "total_price": 5658.44,
+    "groups": {
+      "glass_done": {
+        "cost": 73.06,
+        "price": 146.08
+      },
+      "installation_materials": {
+        "cost": 307.79,
+        "price": 615.57
+      },
+      "manufacture": {
+        "cost": 1465.3,
+        "price": 2930.59
+      },
+      "labour": {
+        "cost": 522.73,
+        "price": 1045.46
+      },
+      "manufacture_materials": {
+        "cost": 460.38,
+        "price": 920.74
+      }
+    },
+    "hours": {
+      "production": 59.42,
+      "labour": 13.0
+    }
+  },
+  "benchmarkFD5_french_doorset_sidelights_toplights": {
+    "source": "L31115 Item 10 Drawing 5 (template 29, 2814 x 2710: fixed casement side lights, three direct glazed top lights, two mullions + transom). Read 13 Oct 2026 via the temporary Quote 2 test quote; drawing SAVED in Integrate. Facts: docs/integrate-L31115-french-doors.txt (variants section). Integrate charges no mullion / transom timber (GlazePro will: deliberate difference)",
+    "total_cost": 4597.23,
+    "total_price": 9194.43,
+    "groups": {
+      "glass_done": {
+        "cost": 322.51,
+        "price": 645.0
+      },
+      "installation_materials": {
+        "cost": 314.63,
+        "price": 629.25
+      },
+      "manufacture": {
+        "cost": 2455.64,
+        "price": 4911.29
+      },
+      "labour": {
+        "cost": 975.09,
+        "price": 1950.19
+      },
+      "manufacture_materials": {
+        "cost": 529.36,
+        "price": 1058.7
+      }
+    },
+    "hours": {
+      "production": 99.58,
+      "labour": 24.25
+    }
+  },
+  "benchmarkFD6_french_doorset_casement_lights": {
+    "source": "L31115 Item 10 Drawing 6 (template 46, 2814 x 2710: fixed casement side lights and three fixed casement fanlights, two mullions + transom). Read 13 Oct 2026 via the temporary Quote 2 test quote; drawing SAVED in Integrate. Facts: docs/integrate-L31115-french-doors.txt (variants section). Integrate charges no mullion / transom timber (GlazePro will: deliberate difference)",
+    "total_cost": 5088.75,
+    "total_price": 10177.46,
+    "groups": {
+      "glass_done": {
+        "cost": 310.74,
+        "price": 621.48
+      },
+      "installation_materials": {
+        "cost": 316.73,
+        "price": 633.45
+      },
+      "manufacture": {
+        "cost": 2868.7,
+        "price": 5737.4
+      },
+      "labour": {
+        "cost": 985.15,
+        "price": 1970.29
+      },
+      "manufacture_materials": {
+        "cost": 607.43,
+        "price": 1214.84
+      }
+    },
+    "hours": {
+      "production": 116.33,
+      "labour": 24.5
+    }
   }
 }
