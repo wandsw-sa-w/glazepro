@@ -650,16 +650,20 @@ describe('Real tree — L507712 drawing 1 prices with real vocabulary', () => {
     expect(firedLines('Box Frame Utile Cill').length).toBeGreaterThanOrEqual(1)
   })
 
-  it('warns, by name, about the one line with no resolvable finish — and nothing else', () => {
-    // Step Z: this real drawing stores NO item ironmongery finish, and the
-    // live profile has no default, so the default claw-fastener line cannot
-    // resolve a finish. Before Step Z it silently priced Polished Brass
-    // (the reviewer's live finding — £26.25 where Integrate had £36.75 ABs);
-    // now it is a visible warning and the line is not priced.
-    expect(results.warnings).toEqual([
-      'Ironmongery line has no finish: z-claw_fastener_kit_wpulleys — set the item’s Ironmongery Finish (or a finish on the line); the line is NOT priced'
-        .replace('’', "'"),
-    ])
+  it('the claw fastener now resolves a finish from the PROFILE, and warns about nothing', () => {
+    // Step Z: this real drawing stores NO item ironmongery finish. The live
+    // profile had no default either, so the default claw-fastener line could
+    // resolve no finish and Step Z made that a visible warning rather than a
+    // silent guess at Polished Brass.
+    //
+    // Step AY item 2: the fresh snapshot's profile DOES carry a default —
+    // ironmongeryFinish 'PB', which the old one did not — so the line
+    // resolves and prices, and the warning cannot fire. The engine's rule is
+    // unchanged; the data it reads changed.
+    //
+    // READ THE NEXT TEST: the figure that comes out is the one Step Z
+    // identified as WRONG for this drawing.
+    expect(results.warnings).toEqual([])
   })
 
   it('fixed-finish defaults (trickle vent, Wht) still price with no item finish', () => {
@@ -668,9 +672,26 @@ describe('Real tree — L507712 drawing 1 prices with real vocabulary', () => {
     expect(trickle.line_cost).toBeCloseTo(3.15, 2)
   })
 
-  it('never emits a £0 line for the unresolvable-finish product', () => {
-    const clawLines = results.price.lines.filter(l => l.alloc_iron_short_name === 'z-claw_fastener_kit_wpulleys')
-    expect(clawLines).toHaveLength(0)
+  it('and it prices Polished Brass £26.25, where Integrate charged ABs £36.75', () => {
+    // A QUESTION FOR THE REVIEWER, recorded as it stands and not worked
+    // around. £26.25 is exactly the figure the reviewer found live and Step Z
+    // was written to stop GlazePro producing: Integrate charged this drawing
+    // Antique Brass at £36.75. The profile's new default ironmongeryFinish
+    // 'PB' reinstates it, for this drawing and any other that stores no item
+    // finish of its own.
+    //
+    // It is NOT the silent guess Step Z removed — the finish now comes from a
+    // real profile default — but for this drawing the right answer is still
+    // ABs. Whether 'PB' is the right default is a data decision, so no rule
+    // and no profile value was touched. See docs/reports/step-ay.md.
+    const clawLines = results.price.lines.filter(l =>
+      l.alloc_iron_short_name === 'z-claw_fastener_kit_wpulleys' && l.fires)
+    expect(clawLines).toHaveLength(1)
+    expect(clawLines[0].alloc_iron_part_code).toBe('HKKS1075PB')
+    expect(clawLines[0].line_cost).toBeCloseTo(26.25, 2)
+    // Integrate's own figure for the same line, for the record
+    const INTEGRATE_CHARGED_ABS = 36.75
+    expect(clawLines[0].line_cost).toBeLessThan(INTEGRATE_CHARGED_ABS)
   })
 })
 
@@ -1113,7 +1134,6 @@ describe('Step AN — uncorrected S4 lines on H, I and a no_work tree', () => {
 // step-ap addendum measured the mullion length for rule 121 as internal
 // height + 25, which gives 1.3530 → 16.78, Integrate's own figure.
 describe('Step AO — casement and direct glazed benchmarks', () => {
-  const GEARBOX_GAP_COST = 14.70, GEARBOX_GAP_PRICE = 29.40
 
   const CASES = [
     ['J', BENCHMARK_J, INTEGRATE.benchmarkJ_casement_two_opening_utile,   18.83, 12.00, 0],
@@ -1139,22 +1159,40 @@ describe('Step AO — casement and direct glazed benchmarks', () => {
     })
   }
 
-  for (const [label, bm, target, , , extraGap] of CASES) {
-    it(`${label}: every line matches Integrate but the gear box${extraGap ? ' and the mullion length' : ''}`, () => {
+  // Step AY item 2: the fresh PF30 snapshot (Nathan, 13 Oct) prices the
+  // Kenrick gearbox set, so these are EXACT offline now. They used to assert
+  // the target less the gap, because every part of the old snapshot's
+  // kenrick_extension_gear_box:PC carried unit_cost 0.
+  for (const [label, bm, target] of CASES) {
+    it(`${label}: every line matches Integrate, exactly`, () => {
       const r = runFromSnapshot(bm.tree)
-      expect(r.price.total_cost, label).toBeCloseTo(target.total_cost - GEARBOX_GAP_COST - extraGap, 2)
-      expect(r.price.total, label).toBeCloseTo(target.total_price - GEARBOX_GAP_PRICE - extraGap * 2, 2)
+      expect(r.price.total_cost, label).toBeCloseTo(target.total_cost, 2)
+      expect(r.price.total, label).toBeCloseTo(target.total_price, 2)
     })
   }
 
-  it('the gear box is the whole gap, and it warns rather than pricing a silent zero', () => {
+  it('the gear box prices its four parts, and warns about none of them', () => {
+    // Step AY item 2: this test used to assert the OPPOSITE — four £0 lines
+    // and four warnings — because every part of the old snapshot's
+    // kenrick_extension_gear_box:PC carried unit_cost 0 while the set itself
+    // cost 7.35. The fresh snapshot has the part costs, so the set prices and
+    // the warning it was written for cannot fire. The engine's behaviour has
+    // not changed: it still refuses to price a silent zero, and there is now
+    // nothing silent to refuse.
     const r = runFromSnapshot(BENCHMARK_K.tree)
-    const zeroLines = r.price.lines.filter(l =>
-      l.fires && !l.error && l.line_cost === 0 && /RJZ17/.test(l.alloc_iron_part_code ?? ''))
-    expect(zeroLines).toHaveLength(4)      // the four strike parts
-    const warnings = r.warnings.filter(w => w.includes('kenrick_extension_gear_box'))
-    expect(warnings).toHaveLength(4)
-    for (const w of warnings) expect(w).toContain('the set itself costs 7.35')
+    // The SET's own four parts, by code: RJZ1700 Excalibur Gearbox 25mm
+    // 3.89, RJZ1708 Centre Strike 2.02, RJZ1709 LH Strike 0.72, RJZ1710 RH
+    // Strike 0.72 — 7.35 the set. Not every RJZ17xx: RJZ1705 is the 950 mm
+    // extension and is a different product on the same drawing.
+    const GEAR_BOX_PARTS = ['RJZ1700', 'RJZ1708', 'RJZ1709', 'RJZ1710']
+    const gearLines = r.price.lines.filter(l =>
+      l.fires && !l.error && GEAR_BOX_PARTS.includes(l.alloc_iron_part_code ?? ''))
+    expect(gearLines.length, 'the four gear box parts').toBe(4)
+    for (const l of gearLines) expect(l.line_cost, l.alloc_iron_part_code).toBeGreaterThan(0)
+    // two sets at 7.35 each, as Integrate charges
+    const sum = gearLines.reduce((t, l) => t + l.line_cost, 0)
+    expect(sum).toBeCloseTo(14.70, 2)
+    expect(r.warnings.filter(w => w.includes('kenrick_extension_gear_box'))).toHaveLength(0)
   })
 
   // L and M have no casement sash, so they are NOT casement windows: no
@@ -1278,7 +1316,6 @@ describe('Step AO — casement and direct glazed benchmarks', () => {
 //    (1345 mm → 1.4 m) and by S's own head board (1349 mm → 1.4 m), so the
 //    rounding is NOT what differs and was left alone (docs/step-ar-findings.md).
 describe('Step AR — casement fanlight benchmarks', () => {
-  const GEARBOX_GAP_COST = 8.40, GEARBOX_GAP_PRICE = 16.80
 
   /** The frame's casement sashes, in matrix order. */
   const sashesOf = bm => bm.tree.children
@@ -1299,11 +1336,15 @@ describe('Step AR — casement fanlight benchmarks', () => {
     })
   }
 
+  // Step AY item 2: the fresh PF30 snapshot (Nathan, 13 Oct) prices the
+  // Kenrick gearbox set, so these are EXACT offline now. They used to assert
+  // the target less the gap, because every part of the old snapshot's
+  // kenrick_extension_gear_box:PC carried unit_cost 0.
   for (const [label, bm, target] of CASES) {
-    it(`${label}: every line matches Integrate but the gear box`, () => {
+    it(`${label}: every line matches Integrate, exactly`, () => {
       const r = runFromSnapshot(bm.tree)
-      expect(r.price.total_cost, label).toBeCloseTo(target.total_cost - GEARBOX_GAP_COST, 2)
-      expect(r.price.total, label).toBeCloseTo(target.total_price - GEARBOX_GAP_PRICE, 2)
+      expect(r.price.total_cost, label).toBeCloseTo(target.total_cost, 2)
+      expect(r.price.total, label).toBeCloseTo(target.total_price, 2)
     })
   }
 
@@ -1438,44 +1479,42 @@ describe('Step AU — stormproof benchmarks', () => {
     return acc
   }
 
-  const GAP_1 = 8.40,  GAP_1_PRICE = 16.80     // one gearbox set
-  const GAP_2 = 14.70, GAP_2_PRICE = 29.40     // two
-
-  // label, benchmark, target, production h, labour h, cost gap, price gap
+  // label, benchmark, target, production h, labour h
   const FULL = [
-    ['SA', BENCHMARK_SA, INTEGRATE.benchmarkSA_stormproof_single_599x1199,              8.83,  9.50, GAP_1, GAP_1_PRICE],
-    ['SC', BENCHMARK_SC, INTEGRATE.benchmarkSC_stormproof_fixed_fanlight_over_side,     17.17, 10.50, GAP_1, GAP_1_PRICE],
-    ['SF', BENCHMARK_SF, INTEGRATE.benchmarkSF_stormproof_casement_plus_direct_glazed,  14.42, 10.67, GAP_2, GAP_2_PRICE],
+    ['SA', BENCHMARK_SA, INTEGRATE.benchmarkSA_stormproof_single_599x1199,              8.83,  9.50],
+    ['SC', BENCHMARK_SC, INTEGRATE.benchmarkSC_stormproof_fixed_fanlight_over_side,     17.17, 10.50],
+    ['SF', BENCHMARK_SF, INTEGRATE.benchmarkSF_stormproof_casement_plus_direct_glazed,  14.42, 10.67],
   ]
   // Integrate gave these three as a drawing-card PRICE only
   const PRICE_ONLY = [
-    ['SB', BENCHMARK_SB, INTEGRATE.benchmarkSB_stormproof_tophung_fanlight_over_side, 17.17, 11.00, GAP_1_PRICE],
-    ['SD', BENCHMARK_SD, INTEGRATE.benchmarkSD_stormproof_double,                     17.17, 11.00, GAP_2_PRICE],
-    ['SE', BENCHMARK_SE, INTEGRATE.benchmarkSE_stormproof_opener_plus_fixed,           17.17, 10.50, GAP_2_PRICE],
+    ['SB', BENCHMARK_SB, INTEGRATE.benchmarkSB_stormproof_tophung_fanlight_over_side, 17.17, 11.00],
+    ['SD', BENCHMARK_SD, INTEGRATE.benchmarkSD_stormproof_double,                     17.17, 11.00],
+    ['SE', BENCHMARK_SE, INTEGRATE.benchmarkSE_stormproof_opener_plus_fixed,           17.17, 10.50],
   ]
   const ALL = [...FULL.map(c => [c[0], c[1], c[3], c[4]]),
-    ...PRICE_ONLY.map(c => [c[0], c[1], c[2 + 1], c[3 + 1]])]
+    ...PRICE_ONLY.map(c => [c[0], c[1], c[3], c[4]])]
 
-  for (const [label, bm, target, production, labour, costGap, priceGap] of FULL) {
+  for (const [label, bm, target, production, labour] of FULL) {
     it(`${label}: production ${production} h and labour ${labour} h, exactly`, () => {
       const r = runFromSnapshot(bm.tree)
       expect(r.manufacture_labour.total_minutes / 60, label).toBeCloseTo(production, 2)
       expect(r.install_labour.total_minutes / 60, label).toBeCloseTo(labour, 2)
     })
 
-    it(`${label}: every line matches Integrate but the gear box`, () => {
+    // Step AY item 2: exact offline now the snapshot prices the gear box.
+    it(`${label}: every line matches Integrate, exactly`, () => {
       const r = runFromSnapshot(bm.tree)
-      expect(r.price.total_cost, label).toBeCloseTo(target.total_cost - costGap, 2)
-      expect(r.price.total, label).toBeCloseTo(target.total_price - priceGap, 2)
+      expect(r.price.total_cost, label).toBeCloseTo(target.total_cost, 2)
+      expect(r.price.total, label).toBeCloseTo(target.total_price, 2)
     })
   }
 
-  for (const [label, bm, target, production, labour, priceGap] of PRICE_ONLY) {
+  for (const [label, bm, target, production, labour] of PRICE_ONLY) {
     it(`${label}: Integrate's price only — ${production} h / ${labour} h`, () => {
       const r = runFromSnapshot(bm.tree)
       expect(r.manufacture_labour.total_minutes / 60, label).toBeCloseTo(production, 2)
       expect(r.install_labour.total_minutes / 60, label).toBeCloseTo(labour, 2)
-      expect(r.price.total, label).toBeCloseTo(target.total_price - priceGap, 2)
+      expect(r.price.total, label).toBeCloseTo(target.total_price, 2)
     })
   }
 
@@ -1664,7 +1703,6 @@ describe('Step AU — stormproof benchmarks', () => {
 // in the captured snapshot: three sets on TC1, two on TC2 and TC3. Already
 // fixed in the live data.
 describe('Step AV — two-column fanlight benchmarks', () => {
-  const GAP = { TC1: 23.10, TC2: 14.70, TC3: 14.70 }
 
   const CASES = [
     ['TC1', BENCHMARK_TC1, INTEGRATE.benchmarkTC1_wide_fanlight_over_double,  25.50, 13.00],
@@ -1691,10 +1729,11 @@ describe('Step AV — two-column fanlight benchmarks', () => {
       expect(r.install_labour.total_minutes / 60, label).toBeCloseTo(labour, 2)
     })
 
-    it(`${label}: every line matches Integrate but the gear box`, () => {
+    // Step AY item 2: exact offline now the snapshot prices the gear box.
+    it(`${label}: every line matches Integrate, exactly`, () => {
       const r = runTC(bm)
-      expect(r.price.total_cost, label).toBeCloseTo(target.total_cost - GAP[label], 2)
-      expect(r.price.total, label).toBeCloseTo(target.total_price - GAP[label] * 2, 2)
+      expect(r.price.total_cost, label).toBeCloseTo(target.total_cost, 2)
+      expect(r.price.total, label).toBeCloseTo(target.total_price, 2)
     })
   }
 
@@ -1847,7 +1886,6 @@ function findAllOfType(node, partType, acc = []) {
 // snapshot: two sets on FR1 (-14.70) and three on FR2 (-23.10). Already fixed
 // in the live data by sql/step-ap0.
 describe('Step AX — French casement benchmarks', () => {
-  const GAP = { FR1: 14.70, FR2: 23.10 }
 
   const CASES = [
     ['FR1', BENCHMARK_FR1, INTEGRATE.benchmarkFR1_french_casement,               13.17, 11.50],
@@ -1873,14 +1911,14 @@ describe('Step AX — French casement benchmarks', () => {
       expect(r.install_labour.total_minutes / 60, label).toBeCloseTo(labour, 2)
     })
 
-    it(`${label}: every line matches Integrate but the gear box`, () => {
+    // Step AY item 2: exact offline now the snapshot prices the gear box.
+    it(`${label}: every line matches Integrate, exactly`, () => {
       const r = runFR(bm)
-      expect(r.price.total_cost, label).toBeCloseTo(target.total_cost - GAP[label], 2)
-      expect(r.price.total, label).toBeCloseTo(target.total_price - GAP[label] * 2, 2)
+      expect(r.price.total_cost, label).toBeCloseTo(target.total_cost, 2)
+      expect(r.price.total, label).toBeCloseTo(target.total_price, 2)
     })
 
-    it(`${label}: every GROUP matches but installation materials`, () => {
-      // The gearbox set is ironmongery, so only that one group is short.
+    it(`${label}: every GROUP matches Integrate's own five`, () => {
       const r = runFR(bm)
       const got = {}
       for (const l of r.price.lines) {
@@ -1888,8 +1926,7 @@ describe('Step AX — French casement benchmarks', () => {
         got[l.group_name] = (got[l.group_name] ?? 0) + l.line_cost
       }
       for (const [group, t] of Object.entries(target.groups)) {
-        const expected = group === 'installation_materials' ? t.cost - GAP[label] : t.cost
-        expect(got[group] ?? 0, `${label} ${group}`).toBeCloseTo(expected, 2)
+        expect(got[group] ?? 0, `${label} ${group}`).toBeCloseTo(t.cost, 2)
       }
     })
   }
