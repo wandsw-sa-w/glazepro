@@ -36,6 +36,7 @@ import { stormproofJambType,
   isStormproofSash, isStormproofWindow,
   SASH_TYPE_STORMPROOF, SASH_TYPE_FLUSH,
 } from './casementOpenings.js'
+import { FRENCH_PAIR_PART, FRENCH_SASH_TYPES } from '../pricing/casementGeometry.js'
 
 // The sash-type codes, the two predicates and the profile resolution live in
 // casementOpenings.js, beside the flush ones they belong with — changeOpening
@@ -137,6 +138,28 @@ export function setStormproof(tree, on, profileValues, refOptions = {}) {
     if (child.part_type === 'casementSashPart') {
       changed.push(child.key)
       return { ...child, values: stormproofSashValues(child.values, on, storm.values, flush.values) }
+    }
+    // Step AX: a FRENCH pair converts COMPLETELY (Nathan, 13 Oct). Integrate's
+    // own conversion only relabels one — FR3 kept a flush frame and 83 rails
+    // — and GlazePro's switch is a whole-window switch, so the pair and both
+    // its leaves take the stormproof type, the 76 mm rail and the 7 mm
+    // overlap along with the frame and the cill.
+    //
+    // The leaves keep their THICKNESS of 57: the stormproof sections are the
+    // rails and the lap, not the pair's thickness, and stormproofSashValues
+    // does not touch it. Each leaf also keeps its own two stiles, so the
+    // meeting stile stays the meeting stile.
+    if (child.part_type === FRENCH_PAIR_PART) {
+      changed.push(child.key)
+      const leaves = (child.children ?? []).map(leaf => {
+        if (!FRENCH_SASH_TYPES.includes(leaf.part_type)) return leaf
+        changed.push(leaf.key)
+        return { ...leaf, values: stormproofSashValues(leaf.values, on, storm.values, flush.values) }
+      })
+      const pairValues = { ...child.values, casementTypeId: on ? SASH_TYPE_STORMPROOF : SASH_TYPE_FLUSH }
+      if (on) pairValues.stormProofOverlap = storm.values.sashOverlap
+      else delete pairValues.stormProofOverlap
+      return { ...child, values: pairValues, children: leaves }
     }
     // Transoms, mullions and direct glazed units: untouched
     return child
