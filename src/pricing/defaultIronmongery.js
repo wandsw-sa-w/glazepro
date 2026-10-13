@@ -15,7 +15,7 @@ import { owningSashPair } from './derivedGeometry.js'
 import { casementSashVariables } from './casementSashVariables.js'
 import { evaluateCondition, evaluateNumber, getExpressionVariables } from './evaluator.js'
 import { computeDerived } from '../drawingBoard/computeDerived.js'
-import { operationKind, casementIsFixed } from './optionVocabulary.js'
+import { operationKind, casementIsFixed, casementOpensIn } from './optionVocabulary.js'
 import { CASEMENT_SASH_TYPES } from './casementGeometry.js'
 import {
   DOOR_LEAF_TYPES, FRENCH_DOOR_LEAF_TYPES, doorLeafSize, doorLeafWeightKg,
@@ -154,8 +154,13 @@ function computePartVars(partNode, tree, derived, baseVars, glassCatalogue, prof
       is_slave_leaf_in_french_pair:  pair != null && !isMaster,
       is_left_hand_hung_viewed_internally:  isLeft,
       is_right_hand_hung_viewed_internally: !isLeft,
-      is_opening_in:   false,
-      is_opening_out:  true,
+      // Step BD item 7: which way the leaf OPENS, from the same vocabulary
+      // the allocator uses. These were hard-coded open-out, so an open-in
+      // front door matched Integrate’s "Front Door Open Out" rule and a new
+      // door was allocated a different locking system from the one
+      // Integrate’s own open-in template stores.
+      is_opening_in:   casementOpensIn(partNode),
+      is_opening_out:  !casementOpensIn(partNode),
       is_side_hung:    true,
       is_french_casement_sash: false,
     }

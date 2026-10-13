@@ -201,7 +201,23 @@ function transom(key, offset) {
   }
 }
 
-function doorTree({ width, height, dividers = [], openings, ironmongeryLines, product = 'french_door' }) {
+/**
+ * Step BD: the open-in options. A FRONT door sits in the same frame part as
+ * every other door, with three differences the facts file records: the
+ * frame bottom (and so the cill) is 50 not 37, the finish is DUAL (Clean
+ * White inside, Custom Colour TBC outside — which is what fires the three
+ * "- Dual Finish" door rules instead of the "- Single Finish" ones), and
+ * the paint part carries isFrontDoor.
+ *
+ * The defaults are the open-out garden door, so FD1-FD7, SD1-SD4 and
+ * CD1-CD4 are untouched by construction.
+ */
+function doorTree({
+  width, height, dividers = [], openings, ironmongeryLines, product = 'french_door',
+  frameBottomHeight = 37, cillHeight = 37, isFrontDoor = false,
+  internalFinish = 'clean_white', externalFinish = 'clean_white',
+  frameArch = null,
+}) {
   return {
     key: 'item1',
     part_type: 'drawingItemPart',
@@ -225,15 +241,15 @@ function doorTree({ width, height, dividers = [], openings, ironmongeryLines, pr
         values: {
           // Teknos Spray Finish Clean White both sides — a SINGLE finish,
           // which is what fires the three "- Single Finish" door rules.
-          internalFinish: 'clean_white',
-          externalFinish: 'clean_white',
+          internalFinish,
+          externalFinish,
           cillFinish: 'clean_white',
           cutOutBrickReveal: false,
           ironmongeryFinish: 'PB',
           // Integrate stores both of these on the paint part (SD1 facts), and
           // the allocator reads isDoorMpls to add the multipoint lock.
           isDoorMpls: true,
-          isFrontDoor: false,
+          isFrontDoor,
           ironmongeryLines: ironmongeryLines.map(l => ({ ...l })),
         },
         children: [],
@@ -245,10 +261,11 @@ function doorTree({ width, height, dividers = [], openings, ironmongeryLines, pr
         part_type: 'assemblyFramePart',
         values: {
           width, height,
-          leftWidth: 47, rightWidth: 47, topHeight: 47, bottomHeight: 37,
+          leftWidth: 47, rightWidth: 47, topHeight: 47, bottomHeight: frameBottomHeight,
           frameDepth: 96, jambType: 'solid_profiled',
           frameHeadStopSize: 20, frameStileStopSize: 20, cillStopSize: 26,
           rakeFrame: false, archHead: false,
+          ...(frameArch ?? {}),
           toBeReplaced: true,
         },
         children: [
@@ -257,7 +274,7 @@ function doorTree({ width, height, dividers = [], openings, ironmongeryLines, pr
           {
             key: 'cill1',
             part_type: 'cillPart',
-            values: { height: 37, depth: 145 },
+            values: { height: cillHeight, depth: 145 },
             children: [],
           },
         ],
@@ -1103,4 +1120,172 @@ export const BENCHMARK_CD4 = {
   ironmongeryLines: COUPLED_IRONMONGERY_CD4,
   profileCode: 'open_out_doors',
   assumptions: COUPLED_ASSUMPTIONS,
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Step BD — FRONT DOORS (open in, panelled): FT1-FT3
+// docs/integrate-L31115-front-doors.txt, L31115 item 10 drawings 16-18,
+// read and priced 13 Oct 2026. All three are SAVED drawings.
+//
+// A front door is an OPEN IN door (Integrate range open_in_doors, leaf
+// typeId 8) and differs from the open-out garden door of Step BB in four
+// ways that reach the price:
+//   - the frame bottom and the cill are 50, not 37;
+//   - the leaf's clearances are 3 / 4 / 4 / 14 against the garden door's
+//     2 / 3 / 3 / 3, and its bottom rail is 170;
+//   - the leaf carries its OWN GRID — a 120 muntin and a mid rail — with a
+//     Tricoya panel (or a glass unit) in each cell;
+//   - the finish is DUAL (Clean White in, Custom Colour TBC out), so the
+//     three "- Dual Finish" door rules fire instead of the single-finish ones.
+// ═════════════════════════════════════════════════════════════════════════════
+
+/**
+ * The open_in_doors profile. Integrate's own values, from the facts file.
+ *
+ * The leaf keys are what the BOARD reads when a surveyor drops a front door
+ * in; the fixtures carry the same figures on the nodes, as every other door
+ * fixture does.
+ */
+export const OPEN_IN_PROFILE_VALUES = {
+  ...DOOR_PROFILE_VALUES,
+  // the frame: a 50 bottom and a 50 cill, not the garden door's 37
+  'assemblyFramePart.bottomHeight': 50,
+  'cillPart.height': 50,
+  // the leaf
+  'doorLeafPart.thickness': 54,
+  'doorLeafPart.topHeight': 110,
+  'doorLeafPart.leftWidth': 110,
+  'doorLeafPart.rightWidth': 110,
+  'doorLeafPart.bottomHeight': 170,
+  'doorLeafPart.mechanicalClearanceTop': 3,
+  'doorLeafPart.mechanicalClearanceLeft': 4,
+  'doorLeafPart.mechanicalClearanceRight': 4,
+  'doorLeafPart.mechanicalClearanceBottom': 14,
+  'doorLeafPart.defaultMuntinThickness': 120,
+  'doorLeafPart.midrailThickness': 170,
+}
+
+/** A muntin INSIDE a leaf: a vertical divider of the leaf's own grid. */
+function leafMuntin(key, { offset, thickness = 120 }) {
+  return {
+    key,
+    part_type: 'mullionPart',
+    values: {
+      isMuntin: true,
+      offset,
+      thicknessInFrame: thickness,
+      muntinThickness: thickness,
+      mullionStopSize: 0,
+      startDivider: '0', endDivider: '0',
+    },
+    children: [],
+  }
+}
+
+/** A raised-and-fielded Tricoya panel, as doorPanel but with its own key. */
+function frontDoorPanel(key) {
+  return doorPanel(key)
+}
+
+/**
+ * A front door leaf: open in, its own clearances and rails, and its own grid.
+ *
+ * `cells` are the leaf's children in CELL ORDER (left to right, top row
+ * first) — a panel or a glass unit each, exactly as the frame's openings sit
+ * in the frame's cells.
+ */
+function frontDoorLeaf(key, {
+  operation = 'left_hand_hung',
+  bottomHeight = 170,
+  dividers = [],
+  cells = [],
+  arch = null,
+} = {}) {
+  return {
+    key,
+    part_type: 'doorLeafPart',
+    values: {
+      operation,                      // Integrate 17 LH / 18 RH
+      casementTypeId: 'open_in',      // Integrate typeId 8
+      thickness: 54,
+      topHeight: 110,
+      leftWidth: 110,
+      rightWidth: 110,
+      bottomHeight,
+      bottomHeightExternal: bottomHeight,
+      btmRailShapeId: 'stepped',
+      // open IN: Integrate's own clearances, which are not a garden door's
+      mechanicalClearanceTop: 3,
+      mechanicalClearanceLeft: 4,
+      mechanicalClearanceRight: 4,
+      mechanicalClearanceBottom: 14,
+      defaultMuntinThickness: 120,
+      archHead: false,
+      ...(arch ?? {}),
+      toBeReplaced: true,
+    },
+    children: [...dividers, ...cells],
+  }
+}
+
+/**
+ * FT1-FT3's stored ironmongery: Integrate's Balham set.
+ *
+ * av3_heritage_locking_system_lh is a SET of four parts in the live
+ * catalogue (a thumbturn cylinder, the AV4 Heritage Lock, a pocket keep and
+ * a centre keep w dayswitch) — which is how GlazePro holds what Integrate's
+ * ALLOCATOR adds on save. Integrate prices RIGHT-hand AV4 parts on this
+ * LEFT-hand door and so does the live GlazePro set; brief item 7.
+ */
+const FRONT_DOOR_IRONMONGERY = [
+  { product_short_name: '102mm_hinges', finish_code: 'PB', qty: 2, source: 'survey' },
+  { product_short_name: 'av3_heritage_locking_system_lh', finish_code: 'PC', qty: 1, source: 'survey' },
+  { product_short_name: 'euro_cylinder_pull', finish_code: 'PB', qty: 1, source: 'survey' },
+  { product_short_name: 'premium_letter_tidy', finish_code: 'PB', qty: 1, source: 'survey' },
+  { product_short_name: 'small_letterplate', finish_code: 'PB', qty: 1, source: 'survey' },
+]
+
+const FRONT_DOOR_ASSUMPTIONS = [
+  'Every FT drawing is SAVED in Integrate — a door recomputes its allocated sections on save',
+  'The leaf grid is stored as the leaf\'s OWN dividers (a 120 mullionPart muntin and a transomPart mid rail) with a panel or a glass unit per cell, which is how Integrate stores it',
+  'btmRailShapeId 99 on Integrate\'s front door leaf is mapped to GlazePro\'s "stepped": NOT VERIFIED, and no rule reads it',
+  'The open-in clearances 3 / 4 / 4 / 14 and the 50 cill are single readings from drawings 16-18, consistent across all three',
+]
+
+// ── FT1: the Balham, on its own (Integrate template 128168) ──────────────────
+// 1099 x 2182; leaf 997 x 2068, leaf interior 777 x 1788. A 120 muntin at
+// 373 and a 170 mid rail at 983 give four cells: 373 x 983, 284 x 983,
+// 373 x 635, 284 x 635 — four raised-and-fielded Tricoya panels, no glass.
+
+export const BENCHMARK_FT1 = {
+  name: 'Benchmark FT1 — front door, four panels (L31115 Item 10 Drawing 16)',
+  tree: doorTree({
+    width: 1099, height: 2182,
+    openings: [frontDoorLeaf('ft1_leaf', {
+      dividers: [
+        leafMuntin('ft1_muntin', { offset: 373 }),
+        leafMidRail('ft1_midrail', { offset: 983, thickness: 170 }),
+      ],
+      cells: [
+        frontDoorPanel('ft1_panel_a1'),
+        frontDoorPanel('ft1_panel_b1'),
+        frontDoorPanel('ft1_panel_a2'),
+        frontDoorPanel('ft1_panel_b2'),
+      ],
+    })],
+    product: 'door',
+    frameBottomHeight: 50,
+    cillHeight: 50,
+    isFrontDoor: true,
+    internalFinish: 'clean_white',
+    externalFinish: 'custom_colour_tbc',
+    ironmongeryLines: FRONT_DOOR_IRONMONGERY,
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkFT1_front_door_balham },
+  partCostMap: DOOR_PART_COST_MAP,
+  profileValues: OPEN_IN_PROFILE_VALUES,
+  glassCatalogue: {},
+  ironmongeryLines: FRONT_DOOR_IRONMONGERY,
+  profileCode: 'open_in_doors',
+  assumptions: FRONT_DOOR_ASSUMPTIONS,
 }

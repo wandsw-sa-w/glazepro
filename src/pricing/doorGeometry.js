@@ -51,6 +51,11 @@ function findAll(node, partType, acc = []) {
   return acc
 }
 
+/** An OPEN IN leaf — a front door. Integrate stores it as typeId 8. */
+export function isOpenInLeaf(leafNode) {
+  return String(leafNode?.values?.casementTypeId ?? '').toLowerCase() === 'open_in'
+}
+
 /** Every door leaf in the tree, in tree order. */
 export function doorLeaves(tree) {
   return DOOR_LEAF_TYPES.flatMap(t => findAll(tree, t))
@@ -140,7 +145,116 @@ function openingFor(tree, node) {
  * below it is the panel, which is how a frame transom's offset works too.
  */
 export function leafMidRail(leafNode) {
-  return (leafNode?.children ?? []).find(c => c.part_type === 'transomPart') ?? null
+  return leafMidRails(leafNode)[0] ?? null
+}
+
+// ── Step BD: the leaf’s OWN grid ─────────────────────────────────────────
+//
+// A front door leaf is divided like a little frame: Integrate stores a
+// MullionPart (a 120 muntin) and a TransomPart (a mid rail) INSIDE the leaf,
+// and a PanelPart or a GlassPart in each cell they make. FT1 is four
+// raised-and-fielded panels: a muntin at 373 and a 170 mid rail at 983 over
+// a 777 x 1788 interior.
+//
+// Step BA built the one case Integrate’s French doors need — ONE mid rail
+// with the glass above and one panel below — by measuring "what is left of
+// the leaf". That answer is a single size, so FT1’s four panels all priced
+// 777 x 635 and all four Tricoya lines came out at 0.49 m2 instead of
+// 0.37 / 0.28 / 0.24 / 0.18.
+
+const byOffset = (a, b) => (num(a.values?.offset) ?? 0) - (num(b.values?.offset) ?? 0)
+
+/** A leaf’s muntins (vertical dividers of its own grid), left to right. */
+export function leafMuntins(leafNode) {
+  return (leafNode?.children ?? []).filter(c => c.part_type === 'mullionPart').sort(byOffset)
+}
+
+/** A leaf’s mid rails (horizontal dividers), top to bottom. */
+export function leafMidRails(leafNode) {
+  return (leafNode?.children ?? []).filter(c => c.part_type === 'transomPart').sort(byOffset)
+}
+
+/** What a divider in a leaf takes out of it. */
+function dividerThickness(node) {
+  const v = node?.values ?? {}
+  return num(v.midrailThickness) ?? num(v.muntinThickness) ?? num(v.thicknessInFrame) ?? 0
+}
+
+/**
+ * A leaf’s INTERIOR: inside its stiles and rails, which is what its grid
+ * divides. FT1: 997 - 110 - 110 = 777 by 2068 - 110 - 170 = 1788.
+ */
+export function leafInterior(tree, leafNode) {
+  const leaf = doorLeafSize(tree, leafNode)
+  if (leaf.width == null || leaf.height == null) return { width: null, height: null }
+  const v = leafNode?.values ?? {}
+  return {
+    width:  leaf.width  - (num(v.leftWidth) ?? 0) - (num(v.rightWidth) ?? 0),
+    height: leaf.height - (num(v.topHeight) ?? 0) - (num(v.bottomHeight) ?? 0),
+  }
+}
+
+/**
+ * The spans a run of dividers makes across a total. A divider’s `offset` is
+ * the span BEFORE it and its thickness comes out of what is left — the same
+ * convention a frame transom’s offset follows.
+ */
+function spans(total, dividers) {
+  if (total == null) return []
+  const out = []
+  let used = 0
+  for (const d of dividers) {
+    const offset = num(d.values?.offset) ?? 0
+    out.push({ start: used, size: offset })
+    used = offset + dividerThickness(d)
+  }
+  out.push({ start: used, size: total - used })
+  return out
+}
+
+/**
+ * The cells of a leaf’s own grid, ROW-MAJOR — the top row left to right,
+ * then the next. That is the order Integrate stores the leaf’s panels and
+ * glass in, so cell i belongs to the i-th panel or glass child.
+ */
+export function leafCells(tree, leafNode) {
+  const interior = leafInterior(tree, leafNode)
+  if (interior.width == null || interior.height == null) return []
+  const cols = spans(interior.width,  leafMuntins(leafNode))
+  const rows = spans(interior.height, leafMidRails(leafNode))
+  const cells = []
+  rows.forEach((r, row) => cols.forEach((c, col) => {
+    cells.push({ x: c.start, y: r.start, width: c.size, height: r.size, col, row })
+  }))
+  return cells
+}
+
+/** The parts that sit IN a leaf’s cells, in cell order. */
+export function leafCellParts(leafNode) {
+  return (leafNode?.children ?? [])
+    .filter(c => c.part_type === 'panelPart' || c.part_type === 'glassPart')
+}
+
+/** The leaf a panel or a glass unit belongs to, or null. */
+export function leafHolding(tree, node) {
+  return doorLeaves(tree)
+    .find(l => (l.children ?? []).some(c => c.key === node?.key)) ?? null
+}
+
+/** The cell a panel or a glass unit sits in, by its place among them. */
+export function leafCellOf(tree, node) {
+  const leaf = leafHolding(tree, node)
+  if (!leaf) return null
+  const idx = leafCellParts(leaf).findIndex(c => c.key === node?.key)
+  if (idx < 0) return null
+  return leafCells(tree, leaf)[idx] ?? null
+}
+
+/** A PANEL’s visible size: its own cell. */
+export function panelSizeFor(tree, panelNode) {
+  const cell = leafCellOf(tree, panelNode)
+  if (!cell) return { width: null, height: null }
+  return { width: cell.width, height: cell.height }
 }
 
 /** A mid rail's own thickness in the leaf. */
@@ -157,15 +271,28 @@ function midRailThickness(rail) {
  * 2109 high and its glass 1241 — without this the glass ran the full 1836
  * and priced a third more glass than the door has.
  */
-export function doorGlassSightline(tree, leafNode) {
+export function doorGlassSightline(tree, leafNode, glassNode = null) {
+  // Step BD: the glass unit's OWN cell when the caller names it. A leaf can
+  // hold several (a muntin between two lights), and every one of them used
+  // to take the same “above the first mid rail” answer.
+  if (glassNode) {
+    const cell = leafCellOf(tree, glassNode)
+    if (cell) return { width: cell.width, height: cell.height }
+  }
+  const cells = leafCells(tree, leafNode)
+  if (cells.length) {
+    // No node named: the leaf’s FIRST cell, which is the glass on every
+    // door Integrate draws (glass above, panel below).
+    const glassIdx = leafCellParts(leafNode)
+      .findIndex(c => c.part_type === 'glassPart')
+    const cell = cells[glassIdx >= 0 ? glassIdx : 0]
+    if (cell) return { width: cell.width, height: cell.height }
+  }
   const leaf = doorLeafSize(tree, leafNode)
   if (leaf.width == null || leaf.height == null) return { width: null, height: null }
   const v = leafNode.values ?? {}
-  const width = leaf.width - (num(v.leftWidth) ?? 0) - (num(v.rightWidth) ?? 0)
-  const rail = leafMidRail(leafNode)
-  if (rail) return { width, height: num(rail.values?.offset) ?? 0 }
   return {
-    width,
+    width: leaf.width - (num(v.leftWidth) ?? 0) - (num(v.rightWidth) ?? 0),
     height: leaf.height - (num(v.topHeight) ?? 0) - (num(v.bottomHeight) ?? 0),
   }
 }
@@ -181,15 +308,18 @@ export function doorGlassSightline(tree, leafNode) {
 export function doorPanelSize(tree, leafNode) {
   const rail = leafMidRail(leafNode)
   if (!rail) return { width: null, height: null }
-  const leaf = doorLeafSize(tree, leafNode)
-  const glass = doorGlassSightline(tree, leafNode)
-  if (leaf.height == null || glass.height == null) return { width: null, height: null }
-  const v = leafNode.values ?? {}
-  return {
-    width: glass.width,
-    height: leaf.height - (num(v.topHeight) ?? 0) - glass.height -
-      midRailThickness(rail) - (num(v.bottomHeight) ?? 0),
+  // Step BD: the FIRST panel's own cell. On a one-mid-rail leaf that is
+  // what the arithmetic here worked out (FD4: 442.5 x 425); on a leaf with
+  // a muntin too it is the cell the panel actually occupies.
+  const panel = leafCellParts(leafNode)
+    .find(c => c.part_type === 'panelPart')
+  if (panel) {
+    const size = panelSizeFor(tree, panel)
+    if (size.width != null) return size
   }
+  const cells = leafCells(tree, leafNode)
+  const last = cells[cells.length - 1]
+  return last ? { width: last.width, height: last.height } : { width: null, height: null }
 }
 
 /** The leaf a panel belongs to, or null. */
@@ -233,6 +363,12 @@ export const DOOR_MATERIALS = {
  * not derived — if a third drawing disagrees, these are the numbers to doubt.
  */
 export const LEAF_SECTION_OFFSET_MM = -6     // per leaf, on 2 x H + W
+/**
+ * Step BD: an OPEN IN leaf takes -20 where an open-out one takes -6. Read
+ * on all three front-door drawings (FT1 5113 on a 997 x 2068 leaf, FT2 4995,
+ * FT3 5147) and consistent across them — still a reading, not a derivation.
+ */
+export const OPEN_IN_LEAF_SECTION_OFFSET_MM = -20
 export const FANLIGHT_SECTION_OFFSET_MM = 14 // per fanlight, on W + 2 x H
 /**
  * A leaf MID RAIL is cut from the cill-and-bottom-rail section at the leaf
@@ -308,13 +444,35 @@ export function allocatedSectionParts(tree, { material = 'utile' } = {}) {
   for (const leaf of leaves) {
     const z = doorLeafSize(tree, leaf)
     add(codes.cillAndBottom, z.width ?? 0, 'Door bottom rail')
-    // Each leaf's two stiles and its top rail
-    add(codes.leaf, 2 * (z.height ?? 0) + (z.width ?? 0) + LEAF_SECTION_OFFSET_MM,
+    // Each leaf's two stiles and its top rail. Step BD: an OPEN IN leaf
+    // takes -20 (the three front-door drawings), an open-out one -6.
+    const leafOffset = isOpenInLeaf(leaf)
+      ? OPEN_IN_LEAF_SECTION_OFFSET_MM
+      : LEAF_SECTION_OFFSET_MM
+    add(codes.leaf, 2 * (z.height ?? 0) + (z.width ?? 0) + leafOffset,
       'Door stiles and top rail')
-    // A panelled leaf's MID RAIL, from the same 63x200 section as the bottom
-    // rail — it is the same 170-ish deep rail (Step BA).
-    if (leafMidRail(leaf)) {
-      add(codes.cillAndBottom, (z.width ?? 0) + MID_RAIL_SECTION_OFFSET_MM, 'Leaf mid rail')
+    const interior = leafInterior(tree, leaf)
+    for (const rail of leafMidRails(leaf)) {
+      const thickness = dividerThickness(rail)
+      // A 170 MID RAIL comes from the same 63x200 section as the bottom
+      // rail — the same deep rail, at the leaf width less 10 (Step BA,
+      // read on FD4 and confirmed by FT1 and FT2).
+      if (thickness >= 150) {
+        add(codes.cillAndBottom, (z.width ?? 0) + MID_RAIL_SECTION_OFFSET_MM, 'Leaf mid rail')
+        continue
+      }
+      // A 120 MID RAIL (the arched door’s) is not in Integrate’s 63x200
+      // length at all and it allocates nothing else for it. Nathan’s
+      // standing rule: GlazePro charges door timber Integrate omits — at
+      // 63x120 for the leaf’s interior width. PROVISIONAL, workshop to
+      // confirm the stock (docs/integrate-differences.md).
+      add(codes.leaf, interior.width ?? 0, 'Leaf 120 mid rail (provisional section)')
+    }
+    // A leaf MUNTIN, the same way: a 120 section running the leaf’s
+    // interior height between the rails (FT1 1788). Integrate allocates
+    // nothing for it either. PROVISIONAL.
+    for (const _m of leafMuntins(leaf)) {
+      add(codes.leaf, interior.height ?? 0, 'Leaf muntin (provisional section)')
     }
   }
 

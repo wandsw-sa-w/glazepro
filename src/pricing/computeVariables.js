@@ -146,7 +146,17 @@ export function computeVariables(tree, derived = {}, pfVariables = {}, opts = {}
     // fed the stormproof sections. Only validation rules 42-46 read them.
     const is_stormproof_casement   = allCasementSashes.some(isStormproofSash)
     const is_flush_casement        = hasCasementSash && !is_stormproof_casement
-    const is_front_door            = false  // NEEDS-DATA
+    // Step BD item 1: a FRONT DOOR, from the drawing. Integrate stores the
+    // flag on the PaintAndIronmongeryPart (isFrontDoor), set by the open-in
+    // templates, and this was hard-coded false — so a front door was
+    // installed as a garden door (Single Door Only 660 instead of Front Door
+    // and Frame 840), GlazePro allocated the Winkhaus Thunderbolt that only
+    // a NON-front door takes, and not one of Integrate’s six front-door
+    // ironmongery rules could fire.
+    //
+    // The ITEM RANGE is not the test: open_in_doors holds back doors too,
+    // and a front door in another range would still be one. The flag is.
+    const is_front_door            = paintNode?.values?.isFrontDoor === true
     // Step AZ: a FRENCH door is a frame holding a frenchDoorPart (the pair).
     // Integrate's own rules distinguish them by door_leaf_qty, so a single
     // door is literally one leaf, not 'has a leaf'.

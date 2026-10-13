@@ -143,7 +143,7 @@ import {
 import {
   DOOR_LEAF_TYPES, FRENCH_DOOR_LEAF_TYPES, doorLeafSize, doorGlassSightline,
   frenchDoorPairFor, doorLeafWeightKg, allocatedSectionParts,
-  doorPanelSize, leafForPanel,
+  doorPanelSize, leafForPanel, panelSizeFor,
 } from './doorGeometry.js'
 import { isFanlightSash } from './casementSashVariables.js'
 
@@ -577,7 +577,14 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
   if (pt === 'panelPart') {
     const is_complete_new = baseVars.is_complete_new ?? false
     const leaf = leafForPanel(tree, partNode)
-    const size = leaf ? doorPanelSize(tree, leaf) : { width: null, height: null }
+    // Step BD: this panel’s OWN cell in the leaf’s grid. doorPanelSize is
+    // one size for the whole leaf, so FT1’s four panels each priced
+    // 777 x 635 (0.49 m2) instead of Integrate’s 0.37 / 0.28 / 0.24 / 0.18.
+    const size = leaf
+      ? (panelSizeFor(tree, partNode).width != null
+        ? panelSizeFor(tree, partNode)
+        : doorPanelSize(tree, leaf))
+      : { width: null, height: null }
     const internal = panelType(v.internalPanelTypeId)
     const external = panelType(v.externalPanelTypeId)
     const beadIn   = panelBead(v.internalPanelBeadId)
@@ -636,7 +643,8 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
     let sightlineWidth = 0
     let sightlineHeight = 0
     if (isDoorGlass) {
-      const sl = doorGlassSightline(tree, parentSash)
+      // Step BD: the glass unit’s own cell (a leaf can hold more than one).
+      const sl = doorGlassSightline(tree, parentSash, partNode)
       sightlineWidth  = sl.width  ?? 0
       sightlineHeight = sl.height ?? 0
     } else if (isDirectGlazed) {
