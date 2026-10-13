@@ -74,6 +74,60 @@ export function isMultiFrame(tree) {
   return itemFrames(tree).length > 1
 }
 
+/**
+ * The size of a COUPLED SET — the one question a container drawing cannot
+ * answer by pointing at a part.
+ *
+ * WIDTH is the frames' widths less one jamb per joint, because
+ * `containerPart.partSpacing` is -47: each frame starts one jamb before the
+ * previous one ends. CD1's 693 + 995 + 693 is a 2,287 mm set, not 2,381.
+ *
+ * HEIGHT is the DOOR frame's — the frame with a leaf in it. A flag light is a
+ * high side window over a wall, so the set is as tall as the door and not as
+ * tall as its tallest frame happens to be. With no door at all (a coupled
+ * casement, which nothing builds yet) it is the tallest frame.
+ *
+ * A one-frame drawing is simply its frame, so every caller can ask this
+ * without first asking whether the drawing is coupled.
+ *
+ * @returns {{width: number|null, height: number|null, frames: number}}
+ */
+export function coupledSetSize(tree) {
+  const frames = itemFrames(tree)
+  if (frames.length === 0) return { width: null, height: null, frames: 0 }
+  const w = f => num(f.values?.width) ?? 0
+  const h = f => num(f.values?.height) ?? 0
+  if (frames.length === 1) {
+    return { width: w(frames[0]), height: h(frames[0]), frames: 1 }
+  }
+  const container = findFirst(tree, 'containerPart')
+  const spacing = num(container?.values?.partSpacing) ?? 0
+  const width = frames.reduce((t, f) => t + w(f), 0) + (frames.length - 1) * spacing
+
+  const hasLeaf = node => DOOR_LEAF_LIKE.includes(node.part_type) ||
+    (node.children ?? []).some(hasLeaf)
+  const doorFrame = frames.find(f => (f.children ?? []).some(hasLeaf))
+  const height = doorFrame ? h(doorFrame) : Math.max(...frames.map(h))
+  return { width, height, frames: frames.length }
+}
+
+// The leaf types coupledSetSize looks for. Spelled out here rather than
+// imported from doorGeometry, which imports this module.
+const DOOR_LEAF_LIKE = ['doorLeafPart', 'leftFrenchDoorLeafPart', 'rightFrenchDoorLeafPart']
+
+/**
+ * What the board's summary shows against "Frame:".
+ *
+ * On a coupled set it used to read the FIRST frame — 693 x 1136 on CD1, which
+ * is a flag light, on a drawing that is a 2287 x 2101 door set.
+ */
+export function frameSizeLabel(tree) {
+  const { width, height, frames } = coupledSetSize(tree)
+  if (!width || !height) return '—'
+  const size = `${width} × ${height} mm`
+  return frames > 1 ? `${size} (${frames} frames, coupled)` : size
+}
+
 /** The frame that OWNS a node, or null. */
 export function frameOwning(tree, node) {
   if (!node) return null

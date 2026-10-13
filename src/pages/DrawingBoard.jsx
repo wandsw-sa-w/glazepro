@@ -45,7 +45,7 @@ import { SashElevation } from '../drawingBoard/renderElevation.jsx'
 import {
   applyDividers, applyBars, frameGrid, splitOpening, removeDivider, makeDividersEqual,
 } from '../drawingBoard/gridActions.js'
-import { FRENCH_PAIR_PART, isPairPart } from '../pricing/casementGeometry.js'
+import { FRENCH_PAIR_PART, isPairPart, frameSizeLabel } from '../pricing/casementGeometry.js'
 import { isDirectGlazedUnit } from '../pricing/casementGeometry.js'
 import { findRequiredEmpty } from '../drawingBoard/requiredFields.js'
 import { loadGlassCatalogue } from '../pricing/loadPricingContext.js'
@@ -1050,9 +1050,11 @@ function Summary({ tree, fieldDefs, derived, refOptions, onSelectKey, drawingMet
     ? ((refOptions['type_of_work'] ?? []).find(o => o.code === towCode)?.label ?? towCode)
     : '\u2014'
 
-  const frameW = frame?.values?.width
-  const frameH = frame?.values?.height
-  const frameSize = frameW && frameH ? `${frameW} \u00d7 ${frameH} mm` : '\u2014'
+  // Step BC follow-up: the SET's size, not the first frame's. A coupled
+  // drawing read 693 \u00d7 1136 \u2014 a flag light \u2014 on a drawing that is a
+  // 2287 \u00d7 2101 door set. The width carries the container's -47 coupling
+  // overlaps and the height is the DOOR frame's.
+  const frameSize = frameSizeLabel(tree)
 
   const requiredEmpty = findRequiredEmpty(tree, fieldDefs, visibilityMap, boardMode, showHidden)
 

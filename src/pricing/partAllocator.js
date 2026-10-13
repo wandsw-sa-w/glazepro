@@ -17,7 +17,7 @@ import { operationKind, casementOpensOut } from './optionVocabulary.js'
 import {
   DOOR_LEAF_TYPES, FRENCH_DOOR_LEAF_TYPES, doorLeafSize, frenchDoorPairFor,
 } from './doorGeometry.js'
-import { itemFrames } from './casementGeometry.js'
+import { itemFrames, coupledSetSize } from './casementGeometry.js'
 import { computeDerived } from '../drawingBoard/computeDerived.js'
 
 // ── Tree helpers ──────────────────────────────────────────────────────────────
@@ -217,10 +217,9 @@ function computePartVarsForAllocator(partNode, tree, derived, baseVars, glassCat
  */
 function wholeSetFrame(tree, frames) {
   const num = v => (isFinite(Number(v)) ? Number(v) : 0)
-  const container = findFirst(tree, 'containerPart')
-  const spacing = num(container?.values?.partSpacing)
-  const joints = Math.max(0, frames.length - 1)
-  const width = frames.reduce((t, f) => t + num(f.values?.width), 0) + joints * spacing
+  // Step BC follow-up: ONE definition of a set's size, shared with the
+  // board summary (casementGeometry.coupledSetSize) — two would drift.
+  const { width } = coupledSetSize(tree)
   // The DOOR frame — the one with a leaf — else the tallest.
   const hasLeaf = f => {
     const walk = n => DOOR_LEAF_TYPES.includes(n.part_type) ||

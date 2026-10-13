@@ -1303,3 +1303,52 @@ export function buildCoupledSingleDoorFrame(profileValues, {
     missing: [],
   }
 }
+
+/**
+ * The four coupled flag-frame templates, as CODE rather than as a line in a
+ * generator script (Step BC follow-up item 3).
+ *
+ * `sql/step-bc2` built its trees from a scratch script, and the one thing
+ * that script got wrong was invisible until the reviewer compared the live
+ * template with Integrate's drawing: template 69's door is RIGHT hand
+ * (Integrate operation 18) and the board's default is left. With the specs
+ * here, the SQL generator and the tests read the same definitions, so a hand
+ * or a size can be checked without running SQL.
+ */
+export const FLAG_FRAME_TEMPLATES = [
+  {
+    name: 'Single Door With Flag Lights',
+    sort_order: 100,
+    integrate: 70,
+    options: { doorWidth: 995, doorHeight: 2101, flags: ['left', 'right'] },
+  },
+  {
+    name: 'Single Door With Flag Light Right',
+    sort_order: 110,
+    integrate: 71,
+    options: { doorWidth: 998, doorHeight: 2101, flags: ['right'] },
+  },
+  {
+    // Integrate's own 72 is 1001 / 696; GlazePro mirrors 71 instead, so the
+    // left- and right-flag templates are the same drawing either way round.
+    name: 'Single Door With Flag Light Left',
+    sort_order: 120,
+    integrate: 72,
+    options: { doorWidth: 998, doorHeight: 2101, flags: ['left'] },
+  },
+  {
+    name: 'Single Door With Flag And Fan Lights',
+    sort_order: 130,
+    integrate: 69,
+    options: {
+      doorWidth: 1082, doorHeight: 2496,
+      flagWidth: 650, flagHeight: 1632,
+      flags: ['left', 'right'],
+      fanlights: { doorOffset: 348, flagOffset: 348 },
+      // Integrate's CD4 leaf is operation 18, RIGHT hand hung. The other
+      // three templates are left hand, which is the board's default and what
+      // Integrate's own 70 / 71 / 72 have.
+      operation: 'right_hand_hung',
+    },
+  },
+]
