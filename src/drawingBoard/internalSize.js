@@ -32,6 +32,11 @@ export const JAMB_SIZE_FIELDS = new Set([
 
 // ── Tree helpers (local copies — this module stays pure) ────────────────────
 
+// Step BC board: which frame a size belongs to. casementOpenings.js does not
+// import this module, so there is no cycle, and one definition of "which
+// frame" is worth more than five lines saved.
+import { resolveFrameArg } from './casementOpenings.js'
+
 function findFirst(node, partType) {
   if (!node) return null
   if (node.part_type === partType) return node
@@ -92,10 +97,16 @@ export function sizeEntryMode(tree) {
 
 // ── The arithmetic (both directions) ────────────────────────────────────────
 
-/** The jamb/head/cill sizes the two sizes differ by. */
-function frameMargins(tree) {
-  const frame = findFirst(tree, 'assemblyFramePart')
-  const cill  = findFirst(tree, 'cillPart')
+/**
+ * The jamb/head/cill sizes the two sizes differ by.
+ *
+ * Step BC board: of the frame asked about, with ITS OWN cill — a coupled
+ * set has several of each.
+ */
+function frameMargins(tree, frameOrKey = null) {
+  const frame = resolveFrameArg(tree, frameOrKey)
+  const cill  = (frame?.children ?? []).find(c => c.part_type === 'cillPart')
+    ?? findFirst(tree, 'cillPart')
   const fv = frame?.values ?? {}
   return {
     frameKey: frame?.key ?? null,
@@ -113,10 +124,10 @@ function frameMargins(tree) {
  *
  * @returns {{width: number|null, height: number|null}}
  */
-export function internalSizeOf(tree) {
-  const frame = findFirst(tree, 'assemblyFramePart')
+export function internalSizeOf(tree, frameOrKey = null) {
+  const frame = resolveFrameArg(tree, frameOrKey)
   const fv = frame?.values ?? {}
-  const m = frameMargins(tree)
+  const m = frameMargins(tree, frame)
   const w = num(fv.width)
   const h = num(fv.height)
   return {

@@ -298,6 +298,32 @@ export const OPENING_KINDS = ['opening_casement', 'fixed_casement', 'direct_glaz
 // filtered per tree rather than listed everywhere and refused later.
 export const DOOR_OPENING_KINDS = [...OPENING_KINDS, 'single_door']
 
+/**
+ * The frame a board action means: the frame itself, its key, or any node
+ * inside it — and, given nothing, the FIRST frame, which is what every
+ * one-frame drawing means by "the frame".
+ */
+export function resolveFrameArg(tree, frameOrKey = null) {
+  if (!frameOrKey) return findFirst(tree, 'assemblyFramePart')
+  const node = typeof frameOrKey === 'string'
+    ? findByKey(tree, frameOrKey)
+    : frameOrKey
+  return frameOwning(tree, node) ?? findFirst(tree, 'assemblyFramePart')
+}
+
+/**
+ * THE KEY OF THE FRAME A BOARD ACTION ACTS ON — the frame that owns the
+ * selected node.
+ *
+ * Every handler on the board takes its frame from here, so there is one
+ * answer to "which frame" rather than a dozen `findFirst` calls that each
+ * said "the first one". A one-frame drawing always resolves to its only
+ * frame, so nothing about it changes.
+ */
+export function actionFrameKey(tree, selectedKey = null) {
+  return resolveFrameArg(tree, selectedKey)?.key ?? null
+}
+
 /** The opening kinds this drawing can offer. */
 export function openingKindsFor(tree) {
   const frame = findFirst(tree, 'assemblyFramePart')
@@ -870,11 +896,17 @@ export function isStormproofWindow(tree) {
 
 /** Is this a casement/direct-glazed frame (as opposed to a box sash one)? */
 export function isCasementFrameTree(tree) {
-  const frame = findFirst(tree, 'assemblyFramePart')
-  if (!frame) return false
-  const children = frame.children ?? []
-  if (children.some(c => c.part_type === 'sashPairPart')) return false
-  return children.some(c => OPENING_TYPES.includes(c.part_type))
+  // Step BC board: ANY frame of the item. On a coupled set this read the
+  // first frame alone, so a set whose first frame happened to hold nothing
+  // but the door would have been treated as a box sash — and the parts
+  // list, the elevation and the divider picker all key off it.
+  const frames = itemFrames(tree)
+  if (frames.length === 0) return false
+  if (frames.some(f => (f.children ?? []).some(c => c.part_type === 'sashPairPart'))) {
+    return false
+  }
+  return frames.some(f => (f.children ?? []).some(
+    c => OPENING_TYPES.includes(c.part_type)))
 }
 
 // ── Changing an opening ──────────────────────────────────────────────────────
@@ -888,7 +920,11 @@ export function isCasementFrameTree(tree) {
  */
 export function changeOpening(tree, openingKey, kind, profileValues) {
   if (!OPENING_KINDS.includes(kind)) return { tree, changed: false }
-  const frame = findFirst(tree, 'assemblyFramePart')
+  // Step BC board: the frame that HOLDS this opening. Looking in the first
+  // frame returned "unchanged" for every opening of every other frame, so
+  // the Change-to buttons did nothing at all on a coupled set.
+  const frame = frameOwning(tree, findByKey(tree, openingKey)) ??
+    findFirst(tree, 'assemblyFramePart')
   if (!frame) return { tree, changed: false }
   const idx = (frame.children ?? []).findIndex(c => c.key === openingKey)
   if (idx < 0) return { tree, changed: false }
@@ -1187,8 +1223,17 @@ export function buildCasementFrame(profileValues, {
  * @param {{width?: number, height?: number}} size  the NEW frame size
  * @returns {{tree: Object, changed: string[]}}  the keys that moved
  */
-export function resizeCasementFrame(tree, { width = null, height = null } = {}) {
-  const frame = findFirst(tree, 'assemblyFramePart')
+/**
+ * Step BC board: WHICH frame. A coupled set has several, and this resized
+ * the first one whatever frame the surveyor had selected — the reviewer
+ * typed 720 on frame C and frame A became 720, while the panel went on
+ * showing C's own unchanged 650.
+ *
+ * `frameOrKey` is the frame, its key, or any node inside it. Omitted, it is
+ * the first frame — which is what a one-frame drawing has always meant.
+ */
+export function resizeCasementFrame(tree, { width = null, height = null } = {}, frameOrKey = null) {
+  const frame = resolveFrameArg(tree, frameOrKey)
   if (!frame) return { tree, changed: [] }
   const fv = frame.values ?? {}
 

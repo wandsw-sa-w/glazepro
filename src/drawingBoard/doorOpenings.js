@@ -312,6 +312,17 @@ export function buildFrenchDoorFrame(profileValues, {
   return { tree, missing: [] }
 }
 
+/**
+ * Is this drawing a DOOR at all — a French pair or a single leaf, in any of
+ * its frames? (Step BC board: what the flag-frame buttons are offered on.)
+ */
+export function isDoorTree(tree) {
+  const walk = node => DOOR_LEAF_TYPES.includes(node?.part_type) ||
+    node?.part_type === 'frenchDoorPart' ||
+    (node?.children ?? []).some(walk)
+  return walk(tree)
+}
+
 /** Is this drawing a French door? */
 export function isFrenchDoorTree(tree) {
   function walk(node) {

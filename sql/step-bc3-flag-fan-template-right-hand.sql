@@ -190,6 +190,7 @@ ORDER  BY sort_order;
 --     updated_at = now()
 -- WHERE t.name = 'Single Door With Flag And Fan Lights';
 --
--- (If that path expression is awkward in the editor, the simpler undo is to
--- re-run sql/step-bc2-flag-frame-templates.sql, which rewrites all four
--- trees as they were — including this one, left hand.)
+-- (CORRECTED, Step BC board: re-running sql/step-bc2 is NOT an undo any
+-- more. The follow-up corrected its embedded tree to RIGHT hand so that a
+-- re-run would stop reverting this file, so re-running it now writes exactly
+-- what this file writes. The UPDATE above is the only undo.)

@@ -27,16 +27,17 @@ import {
   cillRepairApplies, showsFullCillReplacement, applyCillRules,
 } from '../drawingBoard/cillReplacement.js'
 import { applyFanlightBottomRails, isStormproofWindow,
-  openingLabel, columnCount, resizeCasementFrame,
+  resizeCasementFrame,
   OPENING_KINDS, OPENING_KIND_LABELS, CASEMENT_OPERATIONS, openingKindOf, openingKindsFor,
   openingNodes, openingMatrixIndex, isCasementFrameTree, changeOpening,
   setFrenchMasterLeaf, FRENCH_MASTER_LEAVES, DEFAULT_FRENCH_MASTER_LEAF,
+  actionFrameKey,
   setCasementOperation, casementProfileDefaults,
 } from '../drawingBoard/casementOpenings.js'
 import { setStormproof } from '../drawingBoard/stormproof.js'
 import {
   setLeafMidRail, leafMidRailOf, leafMidRailOffsetFor, DEFAULT_LEAF_PANEL_HEIGHT_MM,
-  changeOpeningToSingleDoor,
+  changeOpeningToSingleDoor, addFlagFrame, removeFrame, isDoorTree,
 } from '../drawingBoard/doorOpenings.js'
 import { DOOR_LEAF_TYPES, doorLeafSize, doorPanelSize } from '../pricing/doorGeometry.js'
 import { computeSashWeight } from '../pricing/sashWeight.js'
@@ -46,7 +47,7 @@ import {
   applyDividers, applyBars, frameGrid, splitOpening, removeDivider, makeDividersEqual,
 } from '../drawingBoard/gridActions.js'
 import { FRENCH_PAIR_PART, isPairPart, frameSizeLabel } from '../pricing/casementGeometry.js'
-import { isDirectGlazedUnit } from '../pricing/casementGeometry.js'
+import { partLabel, PART_LABELS } from '../drawingBoard/partLabels.js'
 import { findRequiredEmpty } from '../drawingBoard/requiredFields.js'
 import { loadGlassCatalogue } from '../pricing/loadPricingContext.js'
 import { saveAsTemplate, listTemplates, templateGlassNameWarnings } from '../drawingBoard/templates.js'
@@ -63,28 +64,9 @@ import { hornKind, HORN_TYPE_DEFAULT_LENGTH_MM } from '../pricing/optionVocabula
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const PART_LABELS = {
-  drawingItemPart:         'Item',
-  paintAndIronmongeryPart: 'Finish & Ironmongery',
-  notesPart:               'Access & H&S',
-  pricePart:               'Price',
-  assemblyFramePart:       'Frame',
-  cillPart:                'Cill',
-  sashPairPart:            'Pair of Sashes',
-  topSashPart:             'Top Sash',
-  bottomSashPart:          'Bottom Sash',
-  glassPart:               'Glazing',
-  containerPart:           'Container',
-  visionPanelGlassPart:    'Vision Panel Glazing',
-  casementSashPart:        'Casement Sash',
-  frenchCasementPart:          'French Casement',
-  leftFrenchCasementSashPart:  'French Casement Sash Left',
-  rightFrenchCasementSashPart: 'French Casement Sash Right',
-  mullionPart:             'Mullion',
-  transomPart:             'Transom',
-  verticalGlazingBarPart:  'Vertical GB',
-  horizontalGlazingBarPart:'Horizontal GB',
-}
+// Step BC board: PART_LABELS and partLabel moved to
+// src/drawingBoard/partLabels.js so they could be tested — a coupled set
+// showed its door leaf as "doorLeafPart", and nothing could catch that.
 
 const OPERATION_FIELDS = new Set([
   'topSashPart.operation',
@@ -147,31 +129,6 @@ function collectCategories(fieldDefs) {
   return [...cats]
 }
 
-
-// Step AQ item 4: "casementSashPart" used to show raw in the parts list
-// because PART_LABELS had no entry for it, and a DIRECT GLAZED unit showed
-// "Glazing" — it is a glassPart, but a glassPart that is a direct child of
-// the frame is a direct glazed unit, which is what Integrate calls it. The
-// tree is needed to tell the two apart, so it is optional here and the
-// label falls back to "Glazing" without it.
-function partLabel(node, tree = null) {
-  if (node?.label_override) return node.label_override
-  // Step AR item 2: a casement frame's openings carry Integrate's own name
-  // AND their matrix position — "Fanlight A1", "Casement Sash A2", "Direct
-  // Glazed Unit B1" — so the parts list cannot be read in a different order
-  // from the drawing. A casement sash in the TOP row of a multi-row frame is
-  // a Fanlight, which is what Integrate's Explorer calls it.
-  if (tree && isCasementFrameTree(tree) &&
-      (node?.part_type === 'casementSashPart' ||
-       (node?.part_type === 'glassPart' && isDirectGlazedUnit(tree, node)))) {
-    const label = openingLabel(tree, node)
-    if (label) return label
-  }
-  if (tree && node?.part_type === 'glassPart' && isDirectGlazedUnit(tree, node)) {
-    return 'Direct Glazed Unit'
-  }
-  return PART_LABELS[node.part_type] || node.part_type
-}
 
 // ── InfoNoteIcon ─────────────────────────────────────────────────────────────
 
@@ -2253,10 +2210,14 @@ function DrawingBoard() {
     // height leaves transoms alone, so the fanlight keeps its row and the
     // bottom row takes the whole change (drawing 23: 356 kept, 503 -> 1022).
     // This replaces Step AP's "a resize leaves mullions where they are".
-    if ((fieldKey === 'assemblyFramePart.width' || fieldKey === 'assemblyFramePart.height') &&
+  if ((fieldKey === 'assemblyFramePart.width' || fieldKey === 'assemblyFramePart.height') &&
         isCasementDrawing) {
       const axis = fieldKey === 'assemblyFramePart.width' ? 'width' : 'height'
-      const { tree: resized } = resizeCasementFrame(tree, { [axis]: Number(newValue) })
+      // Step BC board: THE FRAME BEING EDITED. nodeKey is the frame whose
+      // panel the surveyor typed into; this resized the first frame of the
+      // drawing, so on a coupled set the wrong frame changed and the panel
+      // went on showing the selected frame's own unchanged size.
+      const { tree: resized } = resizeCasementFrame(tree, { [axis]: Number(newValue) }, nodeKey)
       commit(resized)
       return
     }
@@ -2327,10 +2288,12 @@ function DrawingBoard() {
       ? changeOpeningToSingleDoor(tree, selectedKey, profileValues)
       : changeOpening(tree, selectedKey, kind, profileValues)
     if (!changed) return
-    // The replacement is a new node, so move the selection to it
-    const frame = findFirst(next, 'assemblyFramePart')
-    const idx = (findFirst(tree, 'assemblyFramePart')?.children ?? []).findIndex(c => c.key === selectedKey)
-    const replacement = (frame?.children ?? [])[idx]
+    // The replacement is a new node, so move the selection to it —
+    // Step BC board: in the frame the opening was in, not the first.
+    const frameKey = actionFrameKey(tree, selectedKey)
+    const idx = (findNodeByKey(tree, frameKey)?.children ?? [])
+      .findIndex(c => c.key === selectedKey)
+    const replacement = (findNodeByKey(next, frameKey)?.children ?? [])[idx]
     commit(next)
     if (replacement) setSelectedKey(replacement.key)
   }, [tree, selectedKey, profileValues])  // eslint-disable-line react-hooks/exhaustive-deps
@@ -2400,15 +2363,21 @@ function DrawingBoard() {
 
   // Step AQ item 7: the grid the frame is already on, so the picker opens
   // showing it instead of "1 × 1 — 0 mullions" on a frame with a mullion.
-  const currentFrameGrid = frameGrid(tree, findFirst(tree, 'assemblyFramePart')?.key ?? null)
+  // Step BC board: the SELECTED frame's grid, on a coupled set.
+  const currentFrameGrid = frameGrid(tree, actionFrameKey(tree, selectedKey))
 
   function handleApplyDividers(cols, rows) {
     if (!tree) return
-    const frame = findFirst(tree, 'assemblyFramePart')
+    // Step BC board: the frame the selection is in, and ITS OWN divider
+    // counts. findAll over the whole tree counted every frame's dividers,
+    // so on a coupled set the picker thought a 1 x 1 pick was shrinking a
+    // frame that already had none.
+    const frame = findNodeByKey(tree, actionFrameKey(tree, selectedKey))
     if (!frame) return
 
-    const currentCols = findAll(tree, 'mullionPart').length + 1
-    const currentRows = findAll(tree, 'transomPart').length + 1
+    const own = type => (frame.children ?? []).filter(c => c.part_type === type).length
+    const currentCols = own('mullionPart') + 1
+    const currentRows = own('transomPart') + 1
     const shrinkingToSingle = cols === 1 && rows === 1 && (currentCols > 1 || currentRows > 1)
     if (shrinkingToSingle) {
       setDividerConfirmPending({ cols, rows })
@@ -2419,10 +2388,13 @@ function DrawingBoard() {
   }
 
   function applyDividersNow(cols, rows, frameOverride) {
-    const frame = frameOverride || findFirst(tree, 'assemblyFramePart')
+    const frame = frameOverride ||
+      findNodeByKey(tree, actionFrameKey(tree, selectedKey))
     if (!frame) return
     const fv = frame.values ?? {}
-    const cillH = findFirst(tree, 'cillPart')?.values?.height ?? 0
+    // Step BC board: the frame's OWN cill, not the drawing's first.
+    const cillH = (frame.children ?? []).find(c => c.part_type === 'cillPart')?.values?.height
+      ?? findFirst(tree, 'cillPart')?.values?.height ?? 0
     // The WHOLE interior, from the frame values — since Step AD a pair's
     // derived internalWidth is its own OPENING, not the interior, so it
     // must not be used here (re-gridding a 2-opening frame would otherwise
@@ -2458,7 +2430,8 @@ function DrawingBoard() {
   // goes in the middle; the surveyor then types the exact Offset on the part.
   function handleSplitPick(cols, rows) {
     if (!tree || !splitTarget) return
-    const frame = findFirst(tree, 'assemblyFramePart')
+    // Step BC board: the frame that holds the opening being split.
+    const frame = findNodeByKey(tree, actionFrameKey(tree, splitTarget.key))
     if (!frame) return
     // "1x2" is one column and two rows, so it is a transom; "2x1" a mullion.
     const axis = rows > cols ? 'transom' : 'mullion'
@@ -2501,12 +2474,49 @@ function DrawingBoard() {
     commit(setLeafMidRail(tree, leafKey, { offset }))
   }
 
+  // ── Step BC board: flag frames ────────────────────────────────────────
+  //
+  // Integrate calls these "Copy selected frame to left / right"; what Nathan
+  // sells beside a door is a FLAG light, so the board adds one of those
+  // rather than a copy. A one-frame drawing becomes a coupled set the first
+  // time a flag is added, and comes back out of the container when the last
+  // flag is removed.
+  function handleAddFlagFrame(side) {
+    if (!tree) return
+    const frameKey = actionFrameKey(tree, selectedKey)
+    if (!frameKey) return
+    const { tree: next, changed, missing } = addFlagFrame(tree, frameKey, side, profileValues)
+    if (!changed) {
+      setDividerError(missing?.length
+        ? `The profile is missing ${missing.join(', ')} — no flag frame was added.`
+        : 'No flag frame was added.')
+      return
+    }
+    setDividerError(null)
+    commit(next)
+  }
+
+  function handleRemoveFrame() {
+    if (!tree) return
+    const frameKey = actionFrameKey(tree, selectedKey)
+    if (!frameKey) return
+    const { tree: next, changed, reason } = removeFrame(tree, frameKey)
+    if (!changed) {
+      setDividerError(reason ? `That frame cannot be removed: it is ${reason}.` : 'That frame cannot be removed.')
+      return
+    }
+    setDividerError(null)
+    setSelectedKey(null)
+    commit(next)
+  }
+
   // Step AW: Integrate's "Divider Spacing" on an opening's panel.
   function handleMakeDividersEqual(axis) {
     if (!tree) return
-    const frame = findFirst(tree, 'assemblyFramePart')
-    if (!frame) return
-    commit(makeDividersEqual(tree, frame.key, axis))
+    // Step BC board: the selected frame's own dividers.
+    const frameKey = actionFrameKey(tree, selectedKey)
+    if (!frameKey) return
+    commit(makeDividersEqual(tree, frameKey, axis))
   }
 
   function handleDividerConfirm() {
@@ -2539,9 +2549,11 @@ function DrawingBoard() {
     // sash pairs rather than frame cells.
     const isCasementDivider = isCasementFrameTree(tree) &&
       (node.part_type === 'mullionPart' || node.part_type === 'transomPart')
-    const frame = findFirst(tree, 'assemblyFramePart')
-    const newTree = isCasementDivider && frame
-      ? removeDivider(tree, frame.key, selectedKey)
+    // Step BC board: the divider's OWN frame, so removing a divider from
+      // the third frame of a set does not re-point the first frame's.
+    const frameKey = actionFrameKey(tree, selectedKey)
+    const newTree = isCasementDivider && frameKey
+      ? removeDivider(tree, frameKey, selectedKey)
       : removeNode(tree, selectedKey)
     setSelectedKey(null)
     commit(newTree)
@@ -2599,6 +2611,16 @@ function DrawingBoard() {
   // "Change to" swaps its kind in place and the operation buttons set a
   // casement sash's operation.
   const isCasementDrawing = tree ? isCasementFrameTree(tree) : false
+  // Step BC board: the flag-frame buttons belong to a DOOR drawing — nothing
+  // else in GlazePro is sold with flag lights — and they act on the frame the
+  // selection is in, which is what their label says.
+  const isDoorDrawing = tree ? isDoorTree(tree) : false
+  const selectedFrameNode = tree ? findNodeByKey(tree, actionFrameKey(tree, selectedKey)) : null
+  const selectedFrameLabel = selectedFrameNode ? partLabel(selectedFrameNode, tree) : 'Frame'
+  // removeFrame refuses the door's frame and the last frame; the button says
+  // so rather than failing when pressed.
+  const canRemoveFrame = !!(tree && selectedFrameNode &&
+    removeFrame(tree, selectedFrameNode.key).changed)
   const selectedOpeningKind = isCasementDrawing && selectedNode
     ? (openingNodes(tree).some(n => n.key === selectedNode.key) ? openingKindOf(selectedNode) : null)
     : null
@@ -3042,14 +3064,35 @@ function DrawingBoard() {
                 Remove
               </button>
 
-              {/* Copy frame stub */}
-              <button
-                disabled
-                title="Copy frame (multi-frame items — coming soon)"
-                style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, cursor: 'default', border: '1px solid #d8d5cf', background: '#f7f6f2', color: '#aaa' }}
-              >
-                Copy frame
-              </button>
+              {/* Step BC board: flag frames, in place of the old stub */}
+              {isDoorDrawing && (
+                <>
+                  <div style={{ width: 1, height: 20, background: '#e8e6e0', flexShrink: 0, margin: '0 2px' }} />
+                  <span style={{ fontSize: 11, color: '#888', flexShrink: 0 }}>
+                    {selectedFrameLabel}:
+                  </span>
+                  {[['left', '+ Flag left'], ['right', '+ Flag right']].map(([side, label]) => (
+                    <button
+                      key={side}
+                      onClick={() => handleAddFlagFrame(side)}
+                      title={`Add a flag frame (693 × 1136, one fixed light) to the ${side} of ${selectedFrameLabel}`}
+                      style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, flexShrink: 0, cursor: 'pointer', border: '1px solid #d8d5cf', background: '#fff', color: '#555' }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                  <button
+                    onClick={handleRemoveFrame}
+                    disabled={!canRemoveFrame}
+                    title={canRemoveFrame
+                      ? `Remove ${selectedFrameLabel} from the set`
+                      : 'A set keeps its door frame and its last frame'}
+                    style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, flexShrink: 0, cursor: canRemoveFrame ? 'pointer' : 'default', border: `1px solid ${canRemoveFrame ? '#fca5a5' : '#d8d5cf'}`, background: canRemoveFrame ? '#fef2f2' : '#f7f6f2', color: canRemoveFrame ? '#b91c1c' : '#aaa' }}
+                  >
+                    Remove frame
+                  </button>
+                </>
+              )}
 
               <div style={{ flex: 1 }} />
 
