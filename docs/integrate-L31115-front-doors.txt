@@ -1,0 +1,96 @@
+# INTEGRATE — FRONT DOORS (open in), read 13 Oct 2026 by the reviewer on L31115 item 10 (TEST lead), Quote 2 (temporary).
+# Drawings 16, 17, 18 SAVED in Integrate (frame width +1 and back, Save Drawing), priced one at a time through Quote 2 item 10,
+# then item 10 restored to drawing 15. Drawing 19 (a second Balham, an abandoned side-light build) exists unsaved-as-modified.
+# PF30: workshop 24.66 / h, installation 40.21 / h, markup 2.00. Item range "open_in_doors" (Integrate group "1. Open In Doors").
+#
+# Nathan (13 Oct): front doors sold on their own, with a fanlight over, with side lights, and with an arched head. ONE plain
+# panelled design to start (the reviewer chose Balham — four raised-and-fielded panels, no glass). Default ironmongery =
+# whatever Integrate's rules give. Default finish as Integrate's templates: Clean White inside, Custom Colour TBC outside
+# (dual finish). Side lights: GLASS OVER A PANEL matching the door's mid rail (construction still to settle — see the end).
+#
+# ── How Integrate stores a front door ───────────────────────────────────────────────────────────────────────────────────
+# DrawingItemPart range open_in_doors, itemTypeId 4, materials 44 (utile). PaintAndIronmongeryPart: isFrontDoor true,
+#   isDoorMpls true, internalFinish "Teknos Spray Finish Clean White", externalFinish "Teknos Spray Finish Custom Colour TBC",
+#   cillFinish Clean White, autoCalcSurroundComponents architrave_and_bullnose. The template carries a stored surround list
+#   (Ogee Architrave) and a stored ironmongerySet (below).
+# AssemblyFramePart: jambs / head 47 (+20 stop = 67 finished), cill height 50 (NOT 37 as the open-out doors), frameDepth 96,
+#   cillDepth 145, jambType solid_profiled. One CillPart (height 50, depth 145).
+# DoorLeafPart (open in): thickness 54, operationId 17 (LH), typeId 8, clearances top 3 / left 4 / right 4 / bottom 14,
+#   rails top 110, stiles 110 / 110, bottom 170 (btmRailShapeId 99), defaultMuntinThickness 120.
+#   The leaf holds its OWN dividers (leaf.dividers, like the French-door mid rail of FD4) and its cells hold PanelPart /
+#   GlassPart children:
+#     MullionPart (a muntin) thickness 120, startDivider 0 / endDivider 0 (full height between top and bottom rails);
+#     TransomPart isMidrail true, thickness 170 (midrailThickness 170) or 120 (Arched Door), full width.
+#   PanelPart: internalPanelTypeId 110 / externalPanelTypeId 110 (Raised & Fielded both sides, as FD4), beads 120 (Ovolo),
+#     insulationThickness 15, thickness 56, createVisionPanel true; width x height = the cell.
+#
+# ── FT1 = drawing 10/16 (310639), template "Balham" (128168), 1099 x 2182 ─────────────────────────────────────────────────
+# Leaf 997 x 2068 (1099 - 2x47 - 4 - 4 = 997 ; 2182 - 47 - 50 - 3 - 14 = 2068). Leaf interior 777 x 1788.
+# Muntin 120 at offset 373 (left) / 284 (right) — NOT centred (Integrate's template); mid rail 170 at offset 983 / 635.
+# Panels (cells): 373 x 983, 284 x 983, 373 x 635, 284 x 635.
+# Integrate cost 2,448.30 / price 4,896.59:
+#   Ironmongery 263.55: 102mm Ball Bearing Hinges (pair) PB 14.70 ; Croft Euro Cylinder Pull PB 29.40 ; Premium Letter Tidy
+#     PB 27.30 ; Small Victorian Letterplate PB 15.75 ; Thumbturn Euro Cylinder 40/40 PC 27.30 ; Winkhaus AV4 Heritage Lock
+#     RH 112.35 ; Winkhaus AV4 Pocket Keep 5.25 ; Winkhaus AV4 RH Centre Keep w Dayswitch 31.50.
+#     Stored set = 102mm_hinges PB x2, av3_heritage_locking_system_lh PC, euro_cylinder_pull PB, premium_letter_tidy PB,
+#     small_letterplate PB (matrix shows "AV4 Heritage Locking System LH"). The thumbturn cylinder, the RH lock and the keeps
+#     come from Integrate's allocator — note it prices RIGHT-hand lock parts on a LEFT-hand door (same on FT2 / FT3).
+#   Components: Ogee Architrave MDF 2.85 x 4.60 (2 jambs, 2182 + 100 -> 2290 -> 2.3) = 13.11 + 2.85 x 1.20 (head) = 3.42.
+#   Installation Consumables 30. LTW General Consumables 25 (one frame).
+#   Tricoya Panel (188.85 / m2, visible cell size, 2 dp): 0.37 = 69.24 ; 0.28 = 52.72 ; 0.24 = 44.73 ; 0.18 = 34.06 (= 200.75).
+#   Utile (server allocation, on save): 63x120 5113 mm = 88.45 ; 63x200 3083 = 89.41 ; 67x96 5463 = 74.30.
+#   Production 44.50 h = 1,097.37 ; Labour 14.00 h = 562.94 (Fitting Units: ONLY "Front Door and Frame" 840 fired; the leaf
+#     is under 50 kg so no overweight; item weight shown 76 kg).
+#   Groups: installation_materials 310.08 / 620.16 ; manufacture 1,097.37 / 2,194.74 ; labour 562.94 / 1,125.88 ;
+#     manufacture_materials 477.91 / 955.81 (no glass group).
+#
+# ── FT2 = drawing 10/17 (310640), template "Bedford Front Door w Fanlight" (22253), 1099 x 2595 ─────────────────────────────
+# Frame dividers: TransomPart 41 (77 finished, stops 18 / 18) at offset 431 / offset2 2026.
+# Fanlight A1 = a GlassPart directly in the frame (a DIRECT GLAZED UNIT, clearances 15, tolerance 2) — NOT a casement sash.
+# Leaf A2 997 x 2009: mid rail 170 at offset 941 / 618 ; GlassPart 777 x 941 above ; PanelPart 777 x 618 below. No muntin.
+# Integrate cost 2,632.85 / price 5,265.68:
+#   Square Glass 0.43 = 25.16 (fanlight DGU) ; 0.77 = 45.05 (leaf glass, cut 801 x 965) ; Energy 8.60 kg 1.46 ; 15.40 kg 2.62.
+#   Ironmongery 263.55 (as FT1). Components 2.85 x 5.40 (2595 + 100 -> 2700 -> 2.7 x 2) = 15.39 + 3.42. Consumables 30.
+#   Tricoya Panel 0.48 = 90.68. LTW 25. Utile 63x120 4995 = 86.41 ; 63x200 3083 = 89.41 ; 67x96 6289 = 85.53.
+#   Production 46.17 h = 1,138.55 ; Labour 18.17 h = 730.62 = Front Door and Frame 840 + Front Door and Frame (transom) 90 +
+#     Direct Glazed Unit 45 + Any Door Overweight 45 + "1.75sqm Direct Glazed Unit in Frame" 70 (direct glazed group,
+#     frame_to_be_replaced and actual_area < 1.75 and is_direct_glazed_unit) = 1090 min.
+#   Groups: glass_done 74.29 / 148.56 ; installation_materials 312.36 / 624.72 ; manufacture 1,138.55 / 2,277.10 ;
+#     labour 730.62 / 1,461.23 ; manufacture_materials 377.03 / 754.07.
+#
+# ── FT3 = drawing 10/18 (310641), template "Arched Door" (6619), 1099 x 2199 ──────────────────────────────────────────────
+# Frame: frameLevelArchHead true, frameLevelArchHeight 508.891, frameLevelArchRadius 551.121, shoulders 1690 / 1690.
+# Leaf 997 x 2085, curvedSashHead + curvedFrameHead, archHeight 345.92, archRadius 391.12, shoulderHeight 1459.08.
+#   Mid rail 120 (isMidrail) at offset 1103 / 582 ; shaped GlassPart 777 x 1103 above ; PanelPart 777 x 582 below.
+# Integrate cost 2,636.94 / price 5,273.91:
+#   Shaped Glass 0.62 x 71.88 = 44.56 ; Energy 12.40 kg 2.11. Ironmongery 263.55. Components 2.85 x 4.60 (2199 + 100 ->
+#     2300 -> 2.3 x 2, the arch NOT lengthened) = 13.11 + 3.42. Consumables 30. Tricoya Panel 0.45 = 85.40. LTW 25.
+#   Utile 63x120 5147 = 89.04 ; 63x200 2096 = 60.78 ; 67x96 5497 = 74.76 (W + 2H, the arch NOT lengthened).
+#   Production 54.83 h = 1,352.11 ; Labour 14.75 h = 593.10 = Front Door and Frame 840 + Any Door Overweight 45.
+#   Groups: glass_done 46.67 / 93.35 ; installation_materials 310.08 / 620.16 ; manufacture 1,352.11 / 2,704.22 ;
+#     labour 593.10 / 1,186.20 ; manufacture_materials 334.98 / 669.98.
+#
+# ── Utile allocation, as read (to be confirmed by the engine) ────────────────────────────────────────────────────────────
+#   67x96  = W + 2H (FT1 5463, FT2 6289, FT3 5497 — arch and frame transom not counted).
+#   63x120 = 2 x leaf H + leaf W - 20 (FT1 2x2068+977, FT2 2x2009+977, FT3 2x2085+977). OPEN-IN: -20 (open-out leaves -6).
+#            The 120 muntin (FT1) and the 120 mid rail (FT3) are NOT allocated.
+#   63x200 = cill W + leaf W (bottom rail) [+ a 170 mid rail at leaf W - 10]: FT1 / FT2 1099 + 997 + 987 = 3083 ; FT3
+#            1099 + 997 = 2096 (its 120 mid rail is not at 63x200).
+#
+# ── Production, as far as it reconciles (Integrate shows no production breakdown; rules from docs/integrate-rules-export.txt) ─
+#   Base: Door Leaf 1035 + Machining & Joining a Door Frame 855 + Door Frame Dual Finish 240 + Door Leaf Dual Finish 180
+#         (inside Clean White, outside Custom Colour: not the same colour) + Additional for R&F Panel 120 per panel.
+#   FT2 = base 2310 + 1 panel 120 + Door Frame Dual Finish (mullions) 45 + Additional for Frame Mullion or Transom 180 +
+#         Frame with Doors and Direct Glazed 75 + Glazing 20 x 2 = 2770 = 46.17 h. EXACT.
+#   FT3 = base 2310 + 1 panel 120 + Glazing 20 + leaf Additional for Swept Head (curved head sash) 360 + Additional Frame
+#         Curved Head 240 + Additional Frame Swept Head 240 = 3290 = 54.83 h. EXACT.
+#   FT1 = base 2310 + 4 panels 480 = 2790, but Integrate 2670 (44.50 h): 120 UNEXPLAINED. Candidates: one panel not
+#         counted, or flat panels (60 x 4) + "Door Muntin" 60 x 2. GlazePro's engine run on FT1 should say which rules fire;
+#         settle it from that before tuning anything.
+#
+# ── Side lights (NOT read) ───────────────────────────────────────────────────────────────────────────────────────────────
+#   No Open-In template has side lights. Built on drawing 19 (Balham, frame 1599, frame mullion 41 at offset 1005 / 459,
+#   the side opening changed to a Casement sash, Fix, split 1x2, panel below) — but a casement sash's internal rail is a
+#   40 mm bar (width not editable), so it cannot carry a 170 mid rail matching the door. The only way to match is a FIXED
+#   DOOR LEAF as the side light (Integrate's install rule "Combination Frame" 660 exists for door_leaf_qty > 1 and
+#   fixed_door_leaf_qty > 0). Drawing 19 left as created (not saved with the side light). Question for Nathan.

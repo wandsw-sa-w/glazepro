@@ -1598,5 +1598,94 @@
       "production": 103.25,
       "labour": 20.75
     }
+  },
+  "benchmarkFT1_front_door_balham": {
+    "source": "L31115 Item 10 Drawing 16 (template 'Balham', Open In Doors, 1099 x 2182, four raised-and-fielded panels, no glass). Read 13 Oct 2026 via the temporary Quote 2 test quote; drawing SAVED in Integrate. Facts: docs/integrate-L31115-front-doors.txt.",
+    "total_cost": 2448.3,
+    "total_price": 4896.59,
+    "groups": {
+      "installation_materials": {
+        "cost": 310.08,
+        "price": 620.16
+      },
+      "manufacture": {
+        "cost": 1097.37,
+        "price": 2194.74
+      },
+      "labour": {
+        "cost": 562.94,
+        "price": 1125.88
+      },
+      "manufacture_materials": {
+        "cost": 477.91,
+        "price": 955.81
+      }
+    },
+    "hours": {
+      "production": 44.5,
+      "labour": 14.0
+    }
+  },
+  "benchmarkFT2_front_door_fanlight": {
+    "source": "L31115 Item 10 Drawing 17 (template 'Bedford Front Door w Fanlight', 1099 x 2595, direct glazed fanlight over a 41 transom, leaf glass over a 170 mid rail and one panel). Read 13 Oct 2026 via the temporary Quote 2 test quote; drawing SAVED in Integrate. Facts: docs/integrate-L31115-front-doors.txt.",
+    "total_cost": 2632.85,
+    "total_price": 5265.68,
+    "groups": {
+      "glass_done": {
+        "cost": 74.29,
+        "price": 148.56
+      },
+      "installation_materials": {
+        "cost": 312.36,
+        "price": 624.72
+      },
+      "manufacture": {
+        "cost": 1138.55,
+        "price": 2277.1
+      },
+      "labour": {
+        "cost": 730.62,
+        "price": 1461.23
+      },
+      "manufacture_materials": {
+        "cost": 377.03,
+        "price": 754.07
+      }
+    },
+    "hours": {
+      "production": 46.17,
+      "labour": 18.17
+    }
+  },
+  "benchmarkFT3_front_door_arched": {
+    "source": "L31115 Item 10 Drawing 18 (template 'Arched Door', 1099 x 2199, segmental arch at frame level, arched leaf with shaped glass over a 120 mid rail and one panel). Read 13 Oct 2026 via the temporary Quote 2 test quote; drawing SAVED in Integrate. Facts: docs/integrate-L31115-front-doors.txt.",
+    "total_cost": 2636.94,
+    "total_price": 5273.91,
+    "groups": {
+      "glass_done": {
+        "cost": 46.67,
+        "price": 93.35
+      },
+      "installation_materials": {
+        "cost": 310.08,
+        "price": 620.16
+      },
+      "manufacture": {
+        "cost": 1352.11,
+        "price": 2704.22
+      },
+      "labour": {
+        "cost": 593.1,
+        "price": 1186.2
+      },
+      "manufacture_materials": {
+        "cost": 334.98,
+        "price": 669.98
+      }
+    },
+    "hours": {
+      "production": 54.83,
+      "labour": 14.75
+    }
   }
 }
