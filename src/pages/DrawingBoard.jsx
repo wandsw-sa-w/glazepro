@@ -505,7 +505,7 @@ function PropertyField({ field, value, derivedValue, onChange, refOptions, requi
 
 // ── IronmongeryPanel ──────────────────────────────────────────────────────────
 
-function IronmongeryPanel({ node, tree, derived, refOptions, onChangeField, onAutoApplyDefaults, ironmongeryRules, ironmongeryProducts, profileValueMap }) {
+export function IronmongeryPanel({ node, tree, derived, refOptions, onChangeField, onAutoApplyDefaults, ironmongeryRules, ironmongeryProducts, profileValueMap, profileCode = null }) {
   const lines      = node.values?.ironmongeryLines  ?? []
   // The STORED item finish — null means not set (no silent 'PB' default;
   // an unset finish is a visible warning, Step Z)
@@ -520,8 +520,11 @@ function IronmongeryPanel({ node, tree, derived, refOptions, onChangeField, onAu
   function computeBaseVars() {
     // Step AY item 4: the drawing's profile CODE, so rule 12
     // (is_replacement_sashes_range) evaluates for real on a sashes-only
-    // drawing instead of always being false.
-    try { return computeVariables(tree, derived, {}, { profileCode: profile?.code }) ?? {} }
+    // drawing instead of always being false. It arrives as a PROP: `profile`
+    // is DrawingBoard's own state and is not in scope here, and the catch
+    // below swallowed the ReferenceError, so every default ironmongery rule
+    // was evaluated against NO variables at all (Step AY hotfix).
+    try { return computeVariables(tree, derived, {}, { profileCode }) ?? {} }
     catch { return {} }
   }
 
@@ -676,7 +679,7 @@ function IronmongeryPanel({ node, tree, derived, refOptions, onChangeField, onAu
 
 // ── PropertyEditor ────────────────────────────────────────────────────────────
 
-function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, onAutoApplyDefaults, onPrev, onNext, prevDisabled, nextDisabled, prevLabel, nextLabel, visibilityMap, boardMode, showHidden, tree, ironmongeryRules, ironmongeryProducts, onShowPriceBreakdown, profileValueMap, onSetCompleteNewThickness, onSetSashesReplaced, onChangeInternalSize, onMakeDividersEqual, onSetFrenchMasterLeaf }) {
+function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, onAutoApplyDefaults, onPrev, onNext, prevDisabled, nextDisabled, prevLabel, nextLabel, visibilityMap, boardMode, showHidden, tree, ironmongeryRules, ironmongeryProducts, onShowPriceBreakdown, profileValueMap, onSetCompleteNewThickness, onSetSashesReplaced, onChangeInternalSize, onMakeDividersEqual, onSetFrenchMasterLeaf, profileCode = null }) {
   if (!node) {
     return (
       <div style={{ padding: 16, color: '#aaa', fontSize: 12, textAlign: 'center', paddingTop: 48 }}>
@@ -857,6 +860,7 @@ function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, o
             ironmongeryRules={ironmongeryRules}
             ironmongeryProducts={ironmongeryProducts}
             profileValueMap={profileValueMap}
+            profileCode={profileCode}
           />
         )}
         {node.part_type === 'paintAndIronmongeryPart' && fields.length > 0 && (
@@ -1095,7 +1099,7 @@ function Summary({ tree, fieldDefs, derived, refOptions, onSelectKey, drawingMet
 
 // ── ValidationPanel ──────────────────────────────────────────────────────────
 
-function ValidationPanel({ tree, derived, onSelectKey }) {
+export function ValidationPanel({ tree, derived, onSelectKey, profileCode = null }) {
   const [rules, setRules] = useState([])
   const [lists, setLists] = useState({})
   const [loading, setLoading] = useState(true)
@@ -1141,8 +1145,12 @@ function ValidationPanel({ tree, derived, onSelectKey }) {
     return () => { cancelled = true }
   }, [])
 
+  // Step AY item 4: the profile CODE as a PROP — `profile` is
+  // DrawingBoard's own state and is not in scope here. Reading it threw a
+  // ReferenceError on every render of this panel, which took the whole
+  // drawing board down (Step AY hotfix).
   const variables = tree
-    ? (computeVariables(tree, derived || {}, {}, { profileCode: profile?.code }) || {})
+    ? (computeVariables(tree, derived || {}, {}, { profileCode }) || {})
     : {}
   const results = !loading && tree
     ? validateDrawing(tree, variables, rules, lists, { glassCatalogue })
@@ -2830,6 +2838,7 @@ function DrawingBoard() {
               onChangeInternalSize={handleChangeInternalSize}
               onMakeDividersEqual={handleMakeDividersEqual}
               onSetFrenchMasterLeaf={handleSetFrenchMasterLeaf}
+              profileCode={profile?.code ?? null}
             />
           </div>
 
@@ -3050,7 +3059,8 @@ function DrawingBoard() {
               profile={profile}
             />
             {/* Validation */}
-            <ValidationPanel tree={tree} derived={derived} onSelectKey={setSelectedKey} />
+            <ValidationPanel tree={tree} derived={derived} onSelectKey={setSelectedKey}
+              profileCode={profile?.code ?? null} />
             {/* History */}
             <HistoryPanel entries={historyEntries} loading={historyLoading} error={historyError} />
             {historyWarning && (
