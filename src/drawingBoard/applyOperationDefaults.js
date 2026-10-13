@@ -44,7 +44,18 @@ function isSpiralCode(code, sashOpOptions) {
 }
 
 // Map a raw jambType value (label or code) to a jamb_type option code.
-function resolveJambTypeCode(raw, jambTypeOptions) {
+/**
+ * A stored jamb-type LABEL ('Solid Profiled') to its reference code
+ * ('solid_profiled'). Exported in Step AU fixes so the casement stormproof
+ * sections resolve theirs the SAME way, rather than a second copy of this
+ * drifting from it — Integrate stores the label in
+ * casementSashPart.defaultStormProofFrameJambType exactly as it stores
+ * sashPairPart.defaultCordFrameJambType.
+ *
+ * With no options to match against it returns the raw string, so a caller
+ * that cannot supply them must have its own fallback.
+ */
+export function resolveJambTypeCode(raw, jambTypeOptions) {
   if (!raw) return null
   // Exact code match first
   let m = jambTypeOptions.find(o => o.code === raw)

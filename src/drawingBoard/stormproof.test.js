@@ -14,7 +14,7 @@ import {
   buildCasementFrame, openingNodes, openingLabel, setCasementOperation,
   changeOpening, applyFanlightBottomRails, resizeCasementFrame,
   isStormproofSash, isStormproofWindow, stormproofProfileDefaults,
-  stormproofSectionsFor, SASH_TYPE_STORMPROOF, SASH_TYPE_FLUSH,
+  stormproofSectionsFor, stormproofJambType, SASH_TYPE_STORMPROOF, SASH_TYPE_FLUSH,
 } from './casementOpenings.js'
 import { setStormproof, stormproofSashValues } from './stormproof.js'
 import { applyDividers } from './gridActions.js'
@@ -56,13 +56,43 @@ const PV = {
   'glassPart.defaultDirGuStopSize': 20,
   'glassPart.defaultDoubleGlazingRebateWidthForDirGU': 20,
   'glassPart.defaultDoubleGlazingToleranceForDirGU': 2,
+  // Step AU FIXES: the keys Integrate's import actually created, read live on
+  // 13 Oct — all on casementSashPart, in Integrate's own
+  // default<Variant><Thing> convention. The spellings my Step AU SQL guessed
+  // do not exist anywhere in the live database.
+  'casementSashPart.defaultStormProofFrameJamb': 41,
+  'casementSashPart.defaultStormProofFrameHead': 41,
+  'casementSashPart.defaultStormProofFrameDepth': 69,
+  'casementSashPart.defaultStormProofFrameJambType': 'Solid Profiled',
+  'casementSashPart.defaultStormProofCillHeight': 56,
+  'casementSashPart.defaultStormProofCillDepth': 69,
+  'casementSashPart.defaultStormProofFrameHeadStopSize': 15,
+  'casementSashPart.defaultStormProofFrameStileStopSize': 15,
+  'casementSashPart.defaultStormProofCillStopSize': 15,
+  'casementSashPart.stormProofOverlap': 7,
+  'casementSashPart.stormProofLipThickness': 15,
+  // The one value Integrate has no key for, added by the reviewer's rewrite
+  // of sql/step-au1 section 2 (Nathan's 76 mm rail)
+  'casementSashPart.defaultStormProofBottomHeight': 76,
+}
+
+/** The jamb_type reference options, as loadReferenceOptions groups them. */
+const REF_OPTIONS = {
+  jamb_type: [
+    { code: 'solid_profiled', label: 'Solid Profiled' },
+    { code: 'cased',          label: 'Cased' },
+  ],
+}
+
+/** The spellings my Step AU SQL guessed. None exists live; none is read. */
+const GUESSED_KEYS = {
   'assemblyFramePart.stormProofLeftWidth': 41, 'assemblyFramePart.stormProofRightWidth': 41,
   'assemblyFramePart.stormProofTopHeight': 41, 'assemblyFramePart.stormProofBottomHeight': 56,
   'assemblyFramePart.stormProofFrameDepth': 69,
   'assemblyFramePart.stormProofHeadStopSize': 15, 'assemblyFramePart.stormProofStileStopSize': 15,
   'assemblyFramePart.stormProofCillStopSize': 15,
   'cillPart.stormProofHeight': 56, 'cillPart.stormProofDepth': 69,
-  'casementSashPart.stormProofBottomHeight': 76, 'casementSashPart.stormProofOverlap': 7,
+  'casementSashPart.stormProofBottomHeight': 76,
 }
 // Before sql/step-au1 the profile has none of the stormproof keys
 const PV_BEFORE_SQL = Object.fromEntries(
@@ -131,14 +161,14 @@ describe('Step AU — the stormproof sections', () => {
   it('reports every missing key before the SQL has run, and converts nothing', () => {
     const { missing } = stormproofProfileDefaults(PV_BEFORE_SQL)
     expect(missing.length).toBe(12)
-    expect(missing.join(' ')).toMatch(/stormProofLeftWidth/)
+    expect(missing.join(' ')).toMatch(/defaultStormProofFrameJamb/)
     // All-or-nothing: no half set of sections
     expect(stormproofSectionsFor(PV_BEFORE_SQL)).toBeNull()
   })
 
   it('a stormproof build with no sections fails instead of falling back to flush', () => {
     const { tree, missing } = buildCasementFrame(PV_BEFORE_SQL, {
-      width: 499, height: 999, openings: ['opening_casement'], stormproof: true,
+      width: 499, height: 999, openings: ['opening_casement'], stormproof: true, refOptions: REF_OPTIONS,
     })
     expect(tree).toBeNull()
     expect(missing.length).toBeGreaterThan(0)
@@ -151,7 +181,7 @@ describe('Step AU — the Single Stormproof Casement template', () => {
   it('is Integrate’s template 21: 499 x 999, one LH stormproof opener', () => {
     const { tree, missing } = buildCasementFrame(PV, {
       width: 499, height: 999, openings: ['opening_casement'],
-      stormproof: true, product: 'casement',
+      stormproof: true, product: 'casement', refOptions: REF_OPTIONS,
     })
     expect(missing).toEqual([])
     expect(frameOf(tree).values).toMatchObject({ width: 499, height: 999, ...STORMPROOF_FRAME })
@@ -200,7 +230,7 @@ describe('Step AU — converting a whole window', () => {
 
   it('turning it on converts the frame, the cill and EVERY sash', () => {
     const before = flushDouble()
-    const { tree, changed, missing } = setStormproof(before, true, PV)
+    const { tree, changed, missing } = setStormproof(before, true, PV, REF_OPTIONS)
     expect(missing).toEqual([])
     expect(changed.length).toBeGreaterThan(0)
     expect(frameOf(tree).values).toMatchObject(STORMPROOF_FRAME)
@@ -215,7 +245,7 @@ describe('Step AU — converting a whole window', () => {
 
   it('turning it off restores the flush values and REMOVES the overlap', () => {
     const storm = setStormproof(flushDouble(), true, PV).tree
-    const { tree } = setStormproof(storm, false, PV)
+    const { tree } = setStormproof(storm, false, PV, REF_OPTIONS)
     expect(frameOf(tree).values).toMatchObject({
       leftWidth: 37, rightWidth: 37, topHeight: 47, bottomHeight: 47,
       frameDepth: 96, frameHeadStopSize: 20, frameStileStopSize: 20, cillStopSize: 20,
@@ -249,7 +279,7 @@ describe('Step AU — converting a whole window', () => {
       frameOf(tree).children.find(c => c.part_type === 'mullionPart').values)
     const dguBefore = JSON.stringify(openingNodes(tree)[1].values)
 
-    const after = setStormproof(tree, true, PV).tree
+    const after = setStormproof(tree, true, PV, REF_OPTIONS).tree
     expect(JSON.stringify(frameOf(after).children
       .find(c => c.part_type === 'mullionPart').values)).toBe(mullionBefore)
     expect(JSON.stringify(openingNodes(after)[1].values)).toBe(dguBefore)
@@ -260,10 +290,10 @@ describe('Step AU — converting a whole window', () => {
   it('a bottom rail the surveyor typed survives the conversion both ways', () => {
     const before = flushDouble()
     openingNodes(before)[0].values.bottomHeight = 70
-    const storm = setStormproof(before, true, PV).tree
+    const storm = setStormproof(before, true, PV, REF_OPTIONS).tree
     expect(openingNodes(storm)[0].values.bottomHeight).toBe(70)
     expect(openingNodes(storm)[1].values.bottomHeight).toBe(76)
-    const back = setStormproof(storm, false, PV).tree
+    const back = setStormproof(storm, false, PV, REF_OPTIONS).tree
     expect(openingNodes(back)[0].values.bottomHeight).toBe(70)
     expect(openingNodes(back)[1].values.bottomHeight).toBe(83)
   })
@@ -354,7 +384,7 @@ describe.skipIf(!SNAPSHOT)('Step AU — the board builds SA, SC and SF', () => {
     let { tree } = buildCasementFrame(PV, {
       width: 1040, height: 980, openings: ['opening_casement'], product: 'casement',
     })
-    tree = setStormproof(tree, true, PV).tree
+    tree = setStormproof(tree, true, PV, REF_OPTIONS).tree
     tree = applyGrid(tree, 1, 2)
     // Integrate's fanlight row is 349 on this frame, not the template's 356
     frameOf(tree).children.find(c => c.part_type === 'transomPart').values.offset = 349
@@ -370,7 +400,7 @@ describe.skipIf(!SNAPSHOT)('Step AU — the board builds SA, SC and SF', () => {
     let { tree } = buildCasementFrame(PV, {
       width: 1199, height: 1299, openings: ['opening_casement'], product: 'casement',
     })
-    tree = setStormproof(tree, true, PV).tree
+    tree = setStormproof(tree, true, PV, REF_OPTIONS).tree
     tree = applyGrid(tree, 2, 1)
     tree = changeOpening(tree, openingNodes(tree)[1].key, 'direct_glazed', PV).tree
 
@@ -384,7 +414,7 @@ describe.skipIf(!SNAPSHOT)('Step AU — the board builds SA, SC and SF', () => {
     // The brief: assert the difference is sash timber and glass alone.
     const { tree } = buildCasementFrame(PV, {
       width: 599, height: 1199, openings: ['opening_casement'],
-      stormproof: true, product: 'casement',
+      stormproof: true, product: 'casement', refOptions: REF_OPTIONS,
     })
     withFixtureIronmongery(tree, BENCHMARK_SA)
     const ours = priceFromSnapshot(tree, BENCHMARK_SA.ironmongeryLines)
@@ -419,5 +449,132 @@ describe.skipIf(!SNAPSHOT)('Step AU — the board builds SA, SC and SF', () => {
     // The hours do not move: the rail changes no minute rule
     expect(ours.manufacture_labour.total_minutes).toBe(theirs.manufacture_labour.total_minutes)
     expect(ours.install_labour.total_minutes).toBe(theirs.install_labour.total_minutes)
+  })
+})
+
+// ── Step AU FIXES — the live keys, and nothing but them ─────────────────────
+
+describe('Step AU fixes — the stormproof sections come from the LIVE keys', () => {
+  it('resolves every section from Integrate’s own keys', () => {
+    const { values, missing, keysUsed } = stormproofProfileDefaults(PV)
+    expect(missing).toEqual([])
+    expect(values).toMatchObject({
+      frameJambLeft: 41, frameJambRight: 41, frameHead: 41, frameBottom: 56,
+      frameDepth: 69, headStop: 15, stileStop: 15, cillStop: 15,
+      cillHeight: 56, cillDepth: 69, sashBottom: 76, sashOverlap: 7,
+    })
+    // EVERY section from a casementSashPart.* key — the live prefix
+    for (const [name, key] of Object.entries(keysUsed)) {
+      expect(key, name).toMatch(/^casementSashPart\./)
+    }
+    // The frame's bottomHeight has no key of its own, so it comes from the
+    // stormproof CILL HEIGHT, which Integrate's drawings all have it equal to.
+    expect(keysUsed.frameBottom).toBe('casementSashPart.defaultStormProofCillHeight')
+    expect(values.frameBottom).toBe(values.cillHeight)
+  })
+
+  it('resolves NOTHING from the spellings Step AU guessed', () => {
+    // The guessed keys alone must leave every section missing. If one ever
+    // resolved, a stray key would be supplying a section the live profile
+    // does not hold — the failure this fix exists to remove.
+    const { values, missing } = stormproofProfileDefaults(GUESSED_KEYS)
+    expect(missing.length).toBe(12)
+    for (const [name, v] of Object.entries(values)) {
+      expect(v, name).toBeNull()
+    }
+    expect(stormproofSectionsFor(GUESSED_KEYS)).toBeNull()
+    // and a build from them fails rather than half-working
+    const { tree } = buildCasementFrame(GUESSED_KEYS, {
+      width: 499, height: 999, openings: ['opening_casement'], stormproof: true,
+    })
+    expect(tree).toBeNull()
+  })
+
+  it('the jamb type comes from Integrate’s LABEL, not a hard-coded code', () => {
+    // Integrate stores 'Solid Profiled'; the code is resolved the same way
+    // applyOperationDefaults resolves a box sash's jamb type.
+    expect(stormproofJambType(PV, REF_OPTIONS)).toBe('solid_profiled')
+    // A different label resolves to ITS code, so the label is really read
+    const other = { ...PV, 'casementSashPart.defaultStormProofFrameJambType': 'Cased' }
+    expect(stormproofJambType(other, REF_OPTIONS)).toBe('cased')
+    // With no options, or no key, the fallback applies
+    expect(stormproofJambType(PV, {})).toBe('solid_profiled')
+    expect(stormproofJambType(GUESSED_KEYS, REF_OPTIONS)).toBe('solid_profiled')
+  })
+
+  it('a built frame carries the resolved jamb type', () => {
+    const { tree } = buildCasementFrame(PV, {
+      width: 499, height: 999, openings: ['opening_casement'],
+      stormproof: true, refOptions: REF_OPTIONS,
+    })
+    expect(frameOf(tree).values.jambType).toBe('solid_profiled')
+
+    const cased = buildCasementFrame(
+      { ...PV, 'casementSashPart.defaultStormProofFrameJambType': 'Cased' },
+      {
+        width: 499, height: 999, openings: ['opening_casement'],
+        stormproof: true, refOptions: REF_OPTIONS,
+      })
+    expect(frameOf(cased.tree).values.jambType).toBe('cased')
+  })
+
+  it('a missing jamb-type key does not block a conversion', () => {
+    // Only the SIZES are required; the jamb type has a fallback.
+    const noJambType = { ...PV }
+    delete noJambType['casementSashPart.defaultStormProofFrameJambType']
+    expect(stormproofProfileDefaults(noJambType).missing).toEqual([])
+    const { tree, missing } = buildCasementFrame(noJambType, {
+      width: 499, height: 999, openings: ['opening_casement'],
+      stormproof: true, refOptions: REF_OPTIONS,
+    })
+    expect(missing).toEqual([])
+    expect(frameOf(tree).values.jambType).toBe('solid_profiled')
+  })
+
+  it('the conversion resolves the jamb type too', () => {
+    const { tree } = buildCasementFrame(PV, {
+      width: 1040, height: 980, openings: ['opening_casement'], product: 'casement',
+    })
+    const storm = setStormproof(tree, true, PV, REF_OPTIONS).tree
+    expect(frameOf(storm).values.jambType).toBe('solid_profiled')
+    const cased = setStormproof(tree, true,
+      { ...PV, 'casementSashPart.defaultStormProofFrameJambType': 'Cased' }, REF_OPTIONS).tree
+    expect(frameOf(cased).values.jambType).toBe('cased')
+  })
+})
+
+// ── Step AU FIXES — is_replacement_sashes_range is the drawing's profile ────
+
+describe('Step AU fixes — is_replacement_sashes_range', () => {
+  const varsWith = (profileCode) => computeVariables(
+    BENCHMARK_SA.tree, computeDerived(BENCHMARK_SA.tree), {}, { profileCode })
+
+  it('is true for the sashes_only PROFILE, which IS Integrate’s range', () => {
+    // default_profiles holds Integrate's ranges: sash, casement, sashes_only,
+    // open_out_doors, open_in_doors.
+    expect(varsWith('sashes_only').is_replacement_sashes_range).toBe(true)
+  })
+
+  it('is false for every other range', () => {
+    for (const code of ['sash', 'casement', 'open_out_doors', 'open_in_doors']) {
+      expect(varsWith(code).is_replacement_sashes_range, code).toBe(false)
+    }
+  })
+
+  it('is false when no caller supplies the profile — which is today', () => {
+    // Every caller omits it, deliberately: rule 12 is an ERROR that blocks
+    // publishing, and wiring only some callers would make the board refuse
+    // what a publish allows.
+    const vars = computeVariables(BENCHMARK_SA.tree, computeDerived(BENCHMARK_SA.tree), {})
+    expect(vars.is_replacement_sashes_range).toBe(false)
+  })
+
+  it('does NOT come from typeOfWork', () => {
+    // My Step AU guess. A sash replacement is what WORK is being done, not
+    // which product range was sold.
+    const tree = JSON.parse(JSON.stringify(BENCHMARK_SA.tree))
+    tree.values.typeOfWork = 'sash_replacement'
+    const vars = computeVariables(tree, computeDerived(tree), {})
+    expect(vars.is_replacement_sashes_range).toBe(false)
   })
 })

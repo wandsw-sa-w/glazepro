@@ -2181,7 +2181,7 @@ function DrawingBoard() {
   // rather than converting the window to a frame of nulls.
   const handleSetStormproof = useCallback((on) => {
     if (!tree) return
-    const { tree: next, changed, missing } = setStormproof(tree, on, profileValues)
+    const { tree: next, changed, missing } = setStormproof(tree, on, profileValues, refOptions)
     if (missing.length > 0) {
       setStormproofError(
         'The drawing’s profile has no stormproof sections yet, so nothing was changed. ' +
@@ -2190,7 +2190,7 @@ function DrawingBoard() {
     }
     setStormproofError(null)
     if (changed.length > 0) commit(next)
-  }, [tree, profileValues])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tree, profileValues, refOptions])  // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSetCasementOperation = useCallback((operation) => {
     if (!tree || !selectedKey) return

@@ -20,6 +20,7 @@
 // them all, imported from Integrate.
 
 import { makeKey } from './gridActions.js'
+import { resolveJambTypeCode } from './applyOperationDefaults.js'
 
 // ── Profile value helpers ────────────────────────────────────────────────────
 
@@ -126,34 +127,85 @@ const CANDIDATES = {
 }
 
 /**
- * The STORMPROOF sections (Step AU), by the same candidate-list method.
+ * The STORMPROOF sections, by the same candidate-list method.
  *
- * NOT VERIFIED: the live key spellings. The casement profile already carries
- * `casementSashPart.stormProofOverlap` and `.stormProofLipThickness` (Step
- * AQ's sql/step-aq3 reclassified both as profile settings), so the frame and
- * cill stormproof keys are written in the same `stormProof…` style by
- * sql/step-au1. If Integrate's import used other spellings, put them at the
- * front of these lists and nothing else changes.
+ * Step AU FIXES: these are the keys Integrate's import ALREADY created, read
+ * live on 13 Oct. Every one is on the casementSashPart prefix and follows
+ * Integrate's own `default<Variant><Thing>` convention — the same shape as
+ * the box sash profile's sashPairPart.defaultCordFrameJamb /
+ * defaultSpiralFrameHead that applyOperationDefaults reads:
  *
- * Integrate's own values (every drawing the reviewer read): frame jambs and
- * head 41, bottom 56, depth 69, stops 15; cill 56 × 69; sash bottom rail 76
- * with a 7 mm overlap. The transom, the mullion and a direct glazed unit are
- * UNCHANGED.
+ *   casementSashPart.defaultStormProofFrameJamb          41
+ *   casementSashPart.defaultStormProofFrameHead          41
+ *   casementSashPart.defaultStormProofFrameDepth         69
+ *   casementSashPart.defaultStormProofFrameJambType      'Solid Profiled'
+ *   casementSashPart.defaultStormProofCillHeight         56
+ *   casementSashPart.defaultStormProofCillDepth          69
+ *   casementSashPart.defaultStormProofFrameHeadStopSize  15
+ *   casementSashPart.defaultStormProofFrameStileStopSize 15
+ *   casementSashPart.defaultStormProofCillStopSize       15
+ *   casementSashPart.stormProofOverlap                    7
+ *
+ * My Step AU guesses (assemblyFramePart.stormProof*, cillPart.stormProof*)
+ * are DROPPED rather than kept as fallbacks: nothing in the live database
+ * uses them, and leaving them in would let a stray key resolve a section the
+ * live profile does not actually hold — which is the failure mode this fix
+ * exists to remove. A test asserts the board resolves nothing from them.
+ *
+ * TWO things Integrate has no key for:
+ *  - the FRAME's bottomHeight. The flush build reads its own
+ *    assemblyFramePart.bottomHeight (47 on the casement profile, which
+ *    happens to equal cillPart.height). Stormproof has no equivalent, and
+ *    Integrate's own drawings store frame bottomHeight 56 = the stormproof
+ *    CILL HEIGHT on every one, so it is taken from there and a
+ *    defaultStormProofFrameBottomHeight key is preferred if one ever
+ *    appears. Reported in docs/reports/step-au-fixes.md.
+ *  - the sash BOTTOM RAIL. Nathan's 76 is added by the reviewer's rewrite of
+ *    sql/step-au1 section 2 as defaultStormProofBottomHeight, which was
+ *    already first in this list.
  */
 const STORMPROOF_CANDIDATES = {
-  frameJambLeft:  ['assemblyFramePart.stormProofLeftWidth',  'assemblyFramePart.defaultStormProofLeftWidth'],
-  frameJambRight: ['assemblyFramePart.stormProofRightWidth', 'assemblyFramePart.defaultStormProofRightWidth',
-                   'assemblyFramePart.stormProofLeftWidth'],
-  frameHead:      ['assemblyFramePart.stormProofTopHeight',  'assemblyFramePart.defaultStormProofTopHeight'],
-  frameBottom:    ['assemblyFramePart.stormProofBottomHeight', 'assemblyFramePart.defaultStormProofBottomHeight'],
-  frameDepth:     ['assemblyFramePart.stormProofFrameDepth', 'assemblyFramePart.defaultStormProofFrameDepth'],
-  headStop:       ['assemblyFramePart.stormProofHeadStopSize',  'assemblyFramePart.defaultStormProofHeadStopSize'],
-  stileStop:      ['assemblyFramePart.stormProofStileStopSize', 'assemblyFramePart.defaultStormProofStileStopSize'],
-  cillStop:       ['assemblyFramePart.stormProofCillStopSize',  'assemblyFramePart.defaultStormProofCillStopSize'],
-  cillHeight:     ['cillPart.stormProofHeight', 'cillPart.defaultStormProofHeight'],
-  cillDepth:      ['cillPart.stormProofDepth',  'cillPart.defaultStormProofDepth'],
-  sashBottom:     ['casementSashPart.stormProofBottomHeight', 'casementSashPart.defaultStormProofBottomHeight'],
+  frameJambLeft:  ['casementSashPart.defaultStormProofFrameJamb'],
+  // Integrate stores ONE jamb value for both sides
+  frameJambRight: ['casementSashPart.defaultStormProofFrameJamb'],
+  frameHead:      ['casementSashPart.defaultStormProofFrameHead'],
+  // No stormproof frame-bottom key: Integrate's drawings have it equal to
+  // the cill height (56) on every stormproof window.
+  frameBottom:    ['casementSashPart.defaultStormProofFrameBottomHeight',
+                   'casementSashPart.defaultStormProofCillHeight'],
+  frameDepth:     ['casementSashPart.defaultStormProofFrameDepth'],
+  headStop:       ['casementSashPart.defaultStormProofFrameHeadStopSize'],
+  stileStop:      ['casementSashPart.defaultStormProofFrameStileStopSize'],
+  cillStop:       ['casementSashPart.defaultStormProofCillStopSize'],
+  cillHeight:     ['casementSashPart.defaultStormProofCillHeight'],
+  cillDepth:      ['casementSashPart.defaultStormProofCillDepth'],
+  sashBottom:     ['casementSashPart.defaultStormProofBottomHeight'],
   sashOverlap:    ['casementSashPart.stormProofOverlap'],
+  // The LABEL Integrate stores ('Solid Profiled'); resolved to a jamb_type
+  // code by the caller, which has the reference options.
+  jambTypeRaw:    ['casementSashPart.defaultStormProofFrameJambType'],
+}
+
+/**
+ * The jamb-type code for a stormproof frame.
+ *
+ * Integrate stores the LABEL, so it goes through the same
+ * resolveJambTypeCode applyOperationDefaults uses for
+ * sashPairPart.defaultCordFrameJambType. 'solid_profiled' is the FALLBACK
+ * only — for a caller with no reference options, and for a profile with no
+ * jamb-type key at all.
+ */
+export function stormproofJambType(profileValues, refOptions = {}) {
+  const raw = profileValue(profileValues, 'casementSashPart.defaultStormProofFrameJambType')
+  const options = refOptions?.jamb_type ?? []
+  if (raw == null || raw === '') return 'solid_profiled'
+  const code = resolveJambTypeCode(String(raw), options)
+  // With no options to match, resolveJambTypeCode hands the raw label back.
+  // A label is not a code, so fall back rather than store 'Solid Profiled'.
+  if (!code || code === String(raw)) {
+    return options.length === 0 ? 'solid_profiled' : code
+  }
+  return code
 }
 
 /**
@@ -172,7 +224,11 @@ export function stormproofProfileDefaults(profileValues) {
     const { value, key } = firstOf(profileValues, candidates)
     values[name] = value
     if (key) keysUsed[name] = key
-    if (value == null) missing.push(`${name} (tried ${candidates.join(', ')})`)
+    // jambTypeRaw has a fallback ('solid_profiled'), so its absence must not
+    // block a conversion the way a missing SIZE would.
+    if (value == null && name !== 'jambTypeRaw') {
+      missing.push(`${name} (tried ${candidates.join(', ')})`)
+    }
   }
   return { values, missing, keysUsed }
 }
@@ -648,6 +704,11 @@ export function buildCasementFrame(profileValues, {
   // stormproof sections and every casement sash is a stormproof sash. This
   // is what the "Single Stormproof Casement" template is generated with.
   stormproof = false,
+  // Step AU fixes: the reference options, so a stormproof frame's jamb type
+  // resolves from the LABEL Integrate stores ('Solid Profiled') the same way
+  // applyOperationDefaults resolves a box sash's. Without them the fallback
+  // 'solid_profiled' applies, which is what Integrate's own value means.
+  refOptions = {},
 } = {}) {
   const resolved = casementProfileDefaults(profileValues)
   const flush = resolved.values
@@ -675,7 +736,7 @@ export function buildCasementFrame(profileValues, {
       cillStop: storm.cillStop,
       cillHeight: storm.cillHeight,
       cillDepth: storm.cillDepth,
-      jambType: 'solid_profiled',
+      jambType: stormproofJambType(profileValues, refOptions),
     }
     : flush
 

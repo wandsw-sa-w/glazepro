@@ -31,7 +31,7 @@
 // warning therefore fires on a stormproof fanlight, on its drawings and on
 // ours, and that is correct.
 
-import {
+import { stormproofJambType,
   casementProfileDefaults, stormproofProfileDefaults, stormproofSectionsFor,
   isStormproofSash, isStormproofWindow,
   SASH_TYPE_STORMPROOF, SASH_TYPE_FLUSH,
@@ -78,7 +78,7 @@ function findFirst(node, partType) {
  *
  * @returns {{tree: Object, changed: string[], missing: string[]}}
  */
-export function setStormproof(tree, on, profileValues) {
+export function setStormproof(tree, on, profileValues, refOptions = {}) {
   const frame = findFirst(tree, 'assemblyFramePart')
   if (!frame) return { tree, changed: [], missing: [] }
 
@@ -105,7 +105,9 @@ export function setStormproof(tree, on, profileValues) {
       frameHeadStopSize:  s.headStop,
       frameStileStopSize: s.stileStop,
       cillStopSize:       s.cillStop,
-      jambType: 'solid_profiled',
+      // Step AU fixes: from the LABEL Integrate stores, resolved the same
+      // way applyOperationDefaults resolves a box sash's jamb type.
+      jambType: stormproofJambType(profileValues, refOptions),
     }
     : {
       ...frame.values,

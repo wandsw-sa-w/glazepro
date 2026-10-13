@@ -58,7 +58,15 @@ function findParent(node, childKey, parent = null) {
  * @param {Object}  pfVariables  - Price-file variable values (scalars)
  * @returns {Object|null}
  */
-export function computeVariables(tree, derived = {}, pfVariables = {}) {
+/**
+ * Step AU fixes: `opts.profileCode` is the DRAWING'S profile code, which is
+ * Integrate's product RANGE — default_profiles holds 'sash', 'casement',
+ * 'sashes_only', 'open_out_doors', 'open_in_doors', which are its ranges.
+ * It is optional, and every caller currently omits it, so
+ * is_replacement_sashes_range stays false everywhere until they are wired.
+ * See docs/reports/step-au-fixes.md for which caller needs what.
+ */
+export function computeVariables(tree, derived = {}, pfVariables = {}, opts = {}) {
   try {
     if (!tree) return null
 
@@ -623,22 +631,22 @@ export function computeVariables(tree, derived = {}, pfVariables = {}) {
     const is_heritage_range = false
 
     // is_replacement_sashes_range: Integrate's "Sashes Only" product range.
-    // Folded in from the Step AT report, where validation rule 12 ("No
-    // Curved Head Sash Replacements": `new_sash_with_curved_head_qty > 0 and
-    // is_replacement_sashes_range`) came out UNEVALUABLE on a live drawing
-    // because nothing computed this.
     //
-    // FALSE, deliberately, the same way is_heritage_range is: GlazePro does
-    // not store Integrate's product range at all (Step AG). The nearest
-    // thing is typeOfWork 'sash_replacement', but that is a different field
-    // with a different meaning — what WORK is being done, not which product
-    // range was sold — and rule 12 is an ERROR, so inferring the range
-    // wrongly would block a quote with a false error. False makes the rule
-    // EVALUABLE and silent instead of unevaluable.
+    // Step AU FIXES — the reviewer read default_profiles and it DOES hold
+    // Integrate's ranges: 'sash', 'casement', 'sashes_only',
+    // 'open_out_doors', 'open_in_doors'. So the range is the DRAWING'S
+    // PROFILE, and "Product range is set to Sashes Only" is profile code
+    // 'sashes_only'. My Step AU guess at typeOfWork was wrong and is gone.
     //
-    // To switch it on once the reviewer confirms the equivalence, this is the
-    // whole change: `const is_replacement_sashes_range = is_sash_replacement`.
-    const is_replacement_sashes_range = false
+    // It is computed from `opts.profileCode` when a caller supplies it. No
+    // caller does yet, so this is false in practice — deliberately, not by
+    // oversight. Rule 12 is an ERROR that blocks publishing, and switching it
+    // on means it starts firing on real drawings whose data I cannot inspect;
+    // wiring only SOME callers would be worse still, since the board would
+    // refuse what a publish allowed. docs/reports/step-au-fixes.md lists what
+    // each caller has to pass.
+    const is_replacement_sashes_range =
+      String(opts?.profileCode ?? '') === 'sashes_only'
 
     // ── GROUP 12 — Frame geometry (mm) ────────────────────────────────────────
     // assemblyFramePart.width/height ARE the overall frame (Step V decision,
