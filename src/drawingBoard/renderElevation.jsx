@@ -991,6 +991,12 @@ export function CasementElevation({
       }
     }
 
+    // Step AU: a STORMPROOF sash laps over the frame — 7 mm each side, as
+    // Integrate draws it. DRAWING ONLY: the sash's own size, its glass and
+    // every priced quantity are unchanged (the lap is outside its sections),
+    // which is why only the drawn rectangle grows.
+    const lap = n(v.stormProofOverlap, 0)
+
     // Casement sash: stiles and rails as timber, glass in the middle
     const stileL = n(v.leftWidth,    0)
     const stileR = n(v.rightWidth,   0)
@@ -1011,8 +1017,10 @@ export function CasementElevation({
           <g style={{ cursor: 'pointer' }} onClick={() => onSelectKey?.(node.key)}>
             {/* The sash as one timber rect with the glass cut out of it —
                 stiles and rails read as a frame without four separate
-                shapes meeting at the corners. */}
-            <rect x={x} y={y} width={w} height={h}
+                shapes meeting at the corners. A stormproof sash is drawn
+                `lap` mm wider and taller on every side, over the frame. */}
+            <rect x={x - lap} y={y - lap}
+              width={w + 2 * lap} height={h + 2 * lap}
               fill={C.timber} {...ss(node.key)} />
             <rect x={gx} y={gy} width={gW} height={gH}
               fill={C.glass} {...sg(glass?.key)}

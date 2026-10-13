@@ -28,8 +28,9 @@ import {
 import { applyDividers } from '../drawingBoard/gridActions.js'
 import { resolveIronmongeryLines } from '../pricing/loadPricingContext.js'
 import {
-  BENCHMARK_J, BENCHMARK_K, BENCHMARK_L, BENCHMARK_M, BENCHMARK_N,
+  BENCHMARK_A, BENCHMARK_J, BENCHMARK_K, BENCHMARK_L, BENCHMARK_M, BENCHMARK_N,
   BENCHMARK_P, BENCHMARK_Q, BENCHMARK_R, BENCHMARK_S,
+  BENCHMARK_SA, BENCHMARK_SB, BENCHMARK_SC, BENCHMARK_SD, BENCHMARK_SE, BENCHMARK_SF,
 } from '../pricing/benchmarks/index.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -435,5 +436,88 @@ describe.skipIf(!SNAPSHOT)('Step AS — default ironmongery is unchanged', () =>
       'trickle:Wht x1',
       'trickle_vent_xr16:Wht x1',
     ])
+  })
+})
+
+// ── Step AU — stormproof validation ─────────────────────────────────────────
+// Integrate shows "ADD QUOTE NOTE: Storm proof casement windows (not flush)"
+// on EVERY stormproof sash (rule 43), and its fanlight bottom rail warning on
+// a stormproof fanlight too (SB and SC keep the 76 rail, which is over 62).
+describe.skipIf(!SNAPSHOT)('Step AU — stormproof validation', () => {
+  const CASES = [
+    ['SA', BENCHMARK_SA, 1], ['SB', BENCHMARK_SB, 2], ['SC', BENCHMARK_SC, 2],
+    ['SD', BENCHMARK_SD, 2], ['SE', BENCHMARK_SE, 2], ['SF', BENCHMARK_SF, 1],
+  ]
+
+  it('rule 43 fires once per stormproof sash on every window', () => {
+    for (const [label, bm, sashCount] of CASES) {
+      const fired = firedOn(bm.tree)
+        .filter(r => r.message === 'Storm proof casement windows (not flush)')
+      expect(fired.length, label).toBe(sashCount)
+    }
+  })
+
+  it('rules 42 and 44-46 evaluate and stay silent', () => {
+    // 42 needs "not is_complete_new" (these are complete new), 44 a bottom-hung
+    // sash, 45 a tilt and turn operation, 46 a top hung under 310 mm wide.
+    for (const [label, bm] of CASES.map(c => [c[0], c[1]])) {
+      const messages = firedOn(bm.tree).map(r => r.message)
+      expect(messages, label).not.toContain('Storm proof sash replacement')
+      expect(messages, label).not.toContain('Bottom hung stormproof casements')
+      expect(messages, label).not.toContain('Tilt and turn windows')
+      expect(messages, label).not.toContain('Top hung casement width')
+    }
+  })
+
+  it('nothing is unevaluable on any stormproof window', () => {
+    for (const [label, bm] of CASES.map(c => [c[0], c[1]])) {
+      expect(unevaluableOn(bm.tree), label).toEqual([])
+    }
+  })
+
+  it('the fanlight warning fires on a stormproof fanlight, as Integrate’s does', () => {
+    // SB and SC keep the 76 rail (Nathan's decision), which is over 62, so
+    // Integrate's own warning fires on their fanlights — correct, not a fault.
+    for (const [label, bm] of [['SB', BENCHMARK_SB], ['SC', BENCHMARK_SC]]) {
+      const fired = firedOn(bm.tree)
+        .filter(r => r.message === 'Fanlight bottom rail should be reduced to 62mm externally')
+      expect(fired.length, label).toBe(1)
+      expect(fired[0].part_label, label).toBe('Fanlight A1')
+    }
+    // SA, SD, SE and SF have no fanlight at all
+    for (const [label, bm] of [['SA', BENCHMARK_SA], ['SD', BENCHMARK_SD],
+      ['SE', BENCHMARK_SE], ['SF', BENCHMARK_SF]]) {
+      expect(firedOn(bm.tree).map(r => r.message), label)
+        .not.toContain('Fanlight bottom rail should be reduced to 62mm externally')
+    }
+  })
+
+  it('is_storm_proof comes from the sash TYPE, not a flag nothing sets', () => {
+    for (const [label, bm] of CASES.map(c => [c[0], c[1]])) {
+      for (const sash of sashVars(bm.tree)) {
+        expect(sash.is_storm_proof, `${label} ${sash.label}`).toBe(true)
+      }
+    }
+    // and a flush window's sashes are not stormproof
+    for (const sash of sashVars(BENCHMARK_Q.tree)) {
+      expect(sash.is_storm_proof).toBe(false)
+    }
+  })
+
+  it('rule 12 is EVALUABLE now, and silent', () => {
+    // Folded in from Step AT: is_replacement_sashes_range is false rather
+    // than missing, so the rule evaluates instead of coming out unevaluable.
+    const RULE_12 = [{
+      id: 'as-12', sort_order: 12, level: 'item', severity: 'error',
+      name: 'No Curved Head Sash Replacements', loop_target: null,
+      condition: 'new_sash_with_curved_head_qty > 0 and is_replacement_sashes_range',
+      message: 'We do not offer sash replacements if the sashes have a curved top rail',
+      is_active: true,
+    }]
+    for (const [label, bm] of [['SA', BENCHMARK_SA], ['Q', BENCHMARK_Q], ['A', BENCHMARK_A]]) {
+      const results = validate(bm.tree, { rules: RULE_12 })
+      expect(results.filter(r => r.status === 'unevaluable'), label).toEqual([])
+      expect(results.filter(r => r.status === 'fired'), label).toEqual([])
+    }
   })
 })

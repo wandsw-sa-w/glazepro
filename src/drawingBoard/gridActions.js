@@ -18,6 +18,12 @@ export function cloneWithNewKeys(node) {
   return {
     ...node,
     key: makeKey(prefix),
+    // Step AU: `values` is COPIED, not shared. The spread above is shallow,
+    // so a cloned opening used to point at the ORIGINAL's values object —
+    // editing A1's bottom rail in place silently edited B1's too. The board's
+    // own field handler replaces values immutably, so the app never hit it,
+    // but it is a trap for anything that does mutate (a test did).
+    values: { ...(node.values ?? {}) },
     children: (node.children ?? []).map(cloneWithNewKeys),
   }
 }

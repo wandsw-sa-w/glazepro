@@ -26,11 +26,13 @@ import {
 import {
   cillRepairApplies, showsFullCillReplacement, applyCillRules,
 } from '../drawingBoard/cillReplacement.js'
-import { applyFanlightBottomRails, openingLabel, columnCount, resizeCasementFrame,
+import { applyFanlightBottomRails, isStormproofWindow,
+  openingLabel, columnCount, resizeCasementFrame,
   OPENING_KINDS, OPENING_KIND_LABELS, CASEMENT_OPERATIONS, openingKindOf,
   openingNodes, matrixIndexOf, isCasementFrameTree, changeOpening,
   setCasementOperation, casementProfileDefaults,
 } from '../drawingBoard/casementOpenings.js'
+import { setStormproof } from '../drawingBoard/stormproof.js'
 import { computeSashWeight } from '../pricing/sashWeight.js'
 import { loadDrawingRunPrices } from '../quotes/drawingRunPrice.js'
 import { SashElevation } from '../drawingBoard/renderElevation.jsx'
@@ -1597,6 +1599,8 @@ function DrawingBoard() {
   // The drawing's OWN profile (its range), for the Summary and anything else
   // that must not assume Box Sash — Step AQ item 6
   const [profile, setProfile] = useState(null)
+  // Step AU: shown when a stormproof conversion cannot be made
+  const [stormproofError, setStormproofError] = useState(null)
   const [containment, setContainment]   = useState([])
   const [visibilityMap, setVisibilityMap] = useState({})  // { fieldKey: 'shown'|'hidden_sales'|... }
   const [boardMode, setBoardMode] = useState(() => {
@@ -2170,6 +2174,24 @@ function DrawingBoard() {
     if (replacement) setSelectedKey(replacement.key)
   }, [tree, selectedKey, profileValues])  // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Step AU: stormproof is a WHOLE-WINDOW choice (Nathan, 13 Oct — a
+  // stormproof window is stormproof throughout), which is also Integrate's
+  // "Sash Type -> Storm Proof -> Set for all casement sashes". A conversion
+  // the profile cannot supply changes nothing and says what is missing,
+  // rather than converting the window to a frame of nulls.
+  const handleSetStormproof = useCallback((on) => {
+    if (!tree) return
+    const { tree: next, changed, missing } = setStormproof(tree, on, profileValues)
+    if (missing.length > 0) {
+      setStormproofError(
+        'The drawing’s profile has no stormproof sections yet, so nothing was changed. ' +
+        'Run sql/step-au1-stormproof.sql. Missing: ' + missing.join('; '))
+      return
+    }
+    setStormproofError(null)
+    if (changed.length > 0) commit(next)
+  }, [tree, profileValues])  // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleSetCasementOperation = useCallback((operation) => {
     if (!tree || !selectedKey) return
     const { tree: next, changed } = setCasementOperation(tree, selectedKey, operation)
@@ -2718,6 +2740,36 @@ function DrawingBoard() {
                       })}
                     </>
                   )}
+                  <div style={{ width: 1, height: 20, background: '#e8e6e0', flexShrink: 0, margin: '0 2px' }} />
+                </>
+              )}
+
+              {/* Step AU: stormproof, for the WHOLE window. Not beside the
+                  per-opening buttons above, because it is not a per-opening
+                  choice: a stormproof window is stormproof throughout. */}
+              {isCasementDrawing && (
+                <>
+                  <span style={{ fontSize: 11, color: '#888', flexShrink: 0 }}>sash type:</span>
+                  {[['Flush', false], ['Stormproof', true]].map(([label, on]) => {
+                    const active = isStormproofWindow(tree) === on
+                    return (
+                      <button
+                        key={label}
+                        onClick={() => handleSetStormproof(on)}
+                        disabled={active}
+                        title={on
+                          ? 'Set the whole window stormproof (frame, cill and every casement sash)'
+                          : 'Set the whole window back to flush'}
+                        style={{
+                          fontSize: 11, padding: '3px 10px', borderRadius: 6, flexShrink: 0,
+                          cursor: active ? 'default' : 'pointer',
+                          border: `1px solid ${active ? '#3d35a8' : '#d8d5cf'}`,
+                          background: active ? '#f0eefc' : '#fff',
+                          color: active ? '#3d35a8' : '#555',
+                        }}
+                      >{label}</button>
+                    )
+                  })}
                   <div style={{ width: 1, height: 20, background: '#e8e6e0', flexShrink: 0, margin: '0 2px' }} />
                 </>
               )}
