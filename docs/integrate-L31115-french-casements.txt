@@ -1,0 +1,80 @@
+# Integrate facts — French casements (read 13 Oct 2026, wandsworth.work, L31115 item 9 "TEST French casements",
+# First Floor, created with Nathan's approval from Integrate's own templates). PF30, Solid Redwood, utile cill,
+# complete new. Priced through the temporary Quote 2 test quote; lines are the PF30 price-file test view (cost; price x 2).
+# Nathan (13 Oct): sold as French casement, French casement with a fanlight over, and stormproof French.
+
+## Integrate's templates (CW group "3. Combination Flush Casements")
+# 10 "French Casement"              1199 x 1313 -> FR1 = drawing 9/1 (drawingId 310561), unchanged
+# 11 "French Casement With Fanlight" 899 x 1499 -> FR2 = drawing 9/2 (drawingId 310562), unchanged
+# FR3 = drawing 9/3 (310563): template 10, then French Casement > Sash Type > Storm Proof > "Set for all casement sashes", saved.
+
+## How Integrate stores a French casement
+# No mullion. The frame holds ONE FrenchCasementPart (the pair) holding a LeftFrenchCasementSashPart (A1) and a
+# RightFrenchCasementSashPart (B1); in FR2 the pair sits under a transom as A2/B2 with the fanlight A1 above.
+# FrenchCasementPart{thickness 57, typeId 7 (open out), clearance 4 all round, midRail 130 ("Overall Meeting Stile"),
+#   gapBetweenMeetingStiles 4, meetingStileSplitId 12, sashSplitId 12}
+# Left sash{op 17 LH, topHeight 62, leftWidth 62, rightWidth 63 (its meeting stile), bottom 83}
+# Right sash{op 18 RH, topHeight 62, leftWidth 63 (meeting stile), rightWidth 62, bottom 83, isMasterLeaf true}
+#   (meeting stile 63 each = (midRail 130 - gap 4) / 2). French sashes are 57 THICK, not 54. Live GlazePro profile 2
+#   already holds frenchCasementPart.thickness 57, midRail 130, gapBetweenMeetingStiles 4, clearances 4.
+# Sash size: height = opening - 8; width = (opening width - 8 - gap 4) / 2 each.
+#   FR1: internal 1125 x 1219 -> each sash 556.5 x 1211 (Integrate draws 556.5).
+#   FR2: frame 899 x 1499, transom 27 at offset 304 / offset2 1074, internal 825 x 1405; fanlight A1 (CasementSashPart,
+#        54 thick, top hung, 62/62/62/83) 825 x 304 -> 817 x 296; pair below 825 x 1074 -> each 406.5 x 1066.
+# Cill: ONE CillPart, width = internal width (1125 / 825); volume full frame width as other casements.
+# Stored ironmongery (templates):
+#   FR1: handle LH PB 1; handle RH PB 1; defender_friction_hinge_-_side_hung_310mm PC 2; kenrick_extension_950mm PC 4;
+#        kenrick_extension_gear_box PC 2; trickle_vent_xr16 Wht 1
+#   FR2: handle LH PB 2; handle RH PB 1; defender_209mm PC 1; defender side hung 310 PC 2; kenrick_extension_690mm PC 2;
+#        kenrick_extension_950mm PC 4; gear box PC 3; trickle_vent_xr16 Wht 1
+# Stored surround (templates): FR1 Nosing in Solid Redwood 1350, Ogee Architrave 2 x 1410, 1 x 1300;
+#   FR2 Nosing 1050, Architrave 2 x 1600, 1 x 1000.
+
+## IMPORTANT — Integrate drops the template nosing on the first save
+# Templates 1, 2, 7, 10, 11, 12, 13 carry "Nosing in Solid Redwood"; every SAVED drawing read (J 1/12, Q 2/21, SA 5/1,
+# FR3 9/3) has architrave only — autoCalcSurroundComponents 'architrave_and_bullnose' recalculates the surround on save
+# and does not produce the nosing. FR3 lost its nosing (and rule 251's 30 min) when it was saved.
+# Nathan (13 Oct): GlazePro leaves the nosing OFF (match what Integrate actually quotes; the surveyor adds one when needed).
+# FR1/FR2 and TC1-TC3 were never saved, so their recorded prices INCLUDE the nosing — keep the fixtures as recorded.
+
+## Stormproof French in Integrate (FR3) — a relabel only
+# The conversion set typeId 9 and stormProofOverlap 7 on the pair and both sashes, and nothing else: the frame stayed
+# flush (37/47, depth 96, cill 47 x 128, stops 20), the sashes stayed 57 thick with 83 rails. Its price lines equal FR1's
+# except the nosing (dropped on save): cost 998.49 / price 1,996.95. Validation shows "ADD QUOTE NOTE: Storm proof
+# casement windows (not flush)".
+# Nathan (13 Oct): GlazePro makes a stormproof French FULLY stormproof — stormproof frame and cill as Step AU, 76 mm
+# rails, French sashes stay 57 thick. So FR3 is recorded as a fact, NOT a benchmark.
+
+## Price-file lines (cost)              FR1 (9/1)                         FR2 (9/2)
+Square Glass (58.50/m2)                 0.50 ; 0.50                       0.30 ; 0.30 ; 0.30 (all at the 0.30 minimum)
+Energy surcharge                        10.00 ; 10.00                     6.00 x 3
+Ironmongery                             59.85                             82.95
+  FR1: LH 8.40, RH 8.40, Defender 310 side x2 16.80, centre strike x2 4.20, ext 950-1210 x4 8.40, gearbox x2 8.40,
+       LH strike 1.05, RH strike 1.05, vent 3.15
+  FR2: LH x2 15.75, RH 8.40, Defender 208 top 4.20, Defender 310 side x2 16.80, centre x3 6.30, ext 690-950 x2 3.15,
+       ext 950-1210 x4 8.40, gearbox x3 12.60, LH strike 2.10, RH strike 2.10, vent 3.15
+Components                              Nosing 1.40 = 3.86 ; Arch 2.80 = 7.98 ; 1.30 = 3.71    Nosing 1.10 = 3.04 ; Arch 3.20 = 9.12 ; 1.00 = 2.85
+Installation Consumables                30.00                             30.00
+Production (24.66/h)                    13.17 h = 324.77                  21.50 h = 530.19
+Labour (40.21/h)                        11.50 h = 462.42                  13.00 h = 522.73
+Softwood Casement Frame & Sashes        26.31 -> 14.47                    33.24 -> 18.28
+Softwood Casement Sashes                13.23 ; 13.23                     8.38 (fanlight) ; 10.95 ; 10.95
+Hardwood Casement Cill                  12.85 -> 13.94                    9.64 -> 10.46
+LTW                                     25.00                             25.00
+Groups (cost / price): glass            61.90 / 123.80                    55.71 / 111.42
+  installation materials                105.40 / 210.80                   127.96 / 255.91
+  manufacture                           324.77 / 649.54                   530.19 / 1,060.38
+  labour                                462.42 / 924.83                   522.73 / 1,045.46
+  manufacture materials                 67.97 / 135.92                    70.39 / 140.79
+TOTAL                                   1,022.46 / 2,044.89               1,306.98 / 2,613.96
+
+## Reconciliations (all exact)
+# Production: frame 180 + 180 per sash + 20 glazing per sash + 60 sash finish per sash + 90 frame finish
+#   (+ transom 180 + 60): FR1 790 = 13.17 h; FR2 1290 = 21.50 h. The French pair adds nothing of its own.
+# Labour: 480 + 90 per opener + 30 windowboard (the template nosing): FR1 690 = 11.50 h; FR2 780 = 13.00 h.
+# Sash timber per French sash = (H x (stile + meeting stile) + W x (top + bottom)) x 57:
+#   FR1 (1211 x (62 + 63) + 556.5 x 145) x 57 = 13.23 ; FR2 (1066 x 125 + 406.5 x 145) x 57 = 10.95.
+#   Fanlight (54 thick) 817 x 296 -> (2 x 296 x 62 + 817 x 145) x 54 = 8.38.
+# Glass (sash W - stile - meeting stile + 28) x (sash H - 145 + 28): FR1 459.5 x 1094 = 0.50; FR2 309.5 x 949 = 0.29 -> 0.30.
+# Frame timber as other casements: FR1 7.712448 + 13.340736 = 21.05 -> 26.31; FR2 5.782368 + 15.37632 + transom 845 x 6432
+#   = 26.59 -> 33.24. Cill full width x 128 x 67: 10.28 -> 12.85; 7.71 -> 9.64.

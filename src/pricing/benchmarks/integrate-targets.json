@@ -1040,5 +1040,67 @@
       "production": 25.5,
       "labour": 12.5
     }
+  },
+  "benchmarkFR1_french_casement": {
+    "source": "L31115 Item 9 Drawing 1 (first floor, TEST French casements, Integrate template 10 French Casement unchanged and never saved, so the template nosing is priced). Read 13 Oct 2026 via the temporary Quote 2 test quote. Facts: docs/integrate-L31115-french-casements.txt — 1199 x 1313 French pair, master leaf right",
+    "total_cost": 1022.46,
+    "total_price": 2044.89,
+    "groups": {
+      "glass_done": {
+        "cost": 61.9,
+        "price": 123.8
+      },
+      "installation_materials": {
+        "cost": 105.4,
+        "price": 210.8
+      },
+      "manufacture": {
+        "cost": 324.77,
+        "price": 649.54
+      },
+      "labour": {
+        "cost": 462.42,
+        "price": 924.83
+      },
+      "manufacture_materials": {
+        "cost": 67.97,
+        "price": 135.92
+      }
+    },
+    "hours": {
+      "production": 13.17,
+      "labour": 11.5
+    }
+  },
+  "benchmarkFR2_french_casement_with_fanlight": {
+    "source": "L31115 Item 9 Drawing 2 (first floor, TEST French casements, Integrate template 11 French Casement With Fanlight unchanged and never saved, so the template nosing is priced). Read 13 Oct 2026 via the temporary Quote 2 test quote. Facts: docs/integrate-L31115-french-casements.txt — 899 x 1499, top-hung fanlight over a French pair",
+    "total_cost": 1306.98,
+    "total_price": 2613.96,
+    "groups": {
+      "glass_done": {
+        "cost": 55.71,
+        "price": 111.42
+      },
+      "installation_materials": {
+        "cost": 127.96,
+        "price": 255.91
+      },
+      "manufacture": {
+        "cost": 530.19,
+        "price": 1060.38
+      },
+      "labour": {
+        "cost": 522.73,
+        "price": 1045.46
+      },
+      "manufacture_materials": {
+        "cost": 70.39,
+        "price": 140.79
+      }
+    },
+    "hours": {
+      "production": 21.5,
+      "labour": 13.0
+    }
   }
 }
