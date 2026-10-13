@@ -811,13 +811,20 @@ function shortDivider(key, partType, offset, stopKey, { startDivider = '0', endD
 
 /** The Ogee architrave GlazePro would allocate, plus Integrate's nosing. */
 function surroundLines({ width, height, nosing }) {
+  // Integrate stores each surround's length to the next 10 mm: the nosing at
+  // frame width + 150 (TC1 1105 + 150 = 1255 -> 1260) and the architrave at
+  // frame size + 100 (1405 + 100 = 1505 -> 1510, 1105 + 100 = 1205 -> 1210).
+  // The three recorded lists come out exactly
+  // (docs/integrate-L31115-two-column-fanlights.txt): 1260 / 2 x 1510 /
+  // 1210, 1450 / 2 x 1600 / 1400, 1360 / 2 x 1400 / 1310.
+  const to10 = mm => Math.ceil(mm / 10) * 10
   return [
-    // Nosing in Solid Redwood — frame width + 150, ceil to 10 mm. The deep
-    // window board: it is what makes has_deep_window_board true.
+    // Nosing in Solid Redwood — the deep window board: it is what makes
+    // has_deep_window_board true.
     { part_code: 'TP61', qty: 1, length_mm: nosing, label: 'Nosing in Solid Redwood' },
     // Ogee Architrave in MDF — the same lengths rule 4000 / 4001 give
-    { part_code: 'TP68', qty: 2, length_mm: height + 100, label: 'Ogee Architrave – height' },
-    { part_code: 'TP68', qty: 1, length_mm: width + 100,  label: 'Ogee Architrave – width' },
+    { part_code: 'TP68', qty: 2, length_mm: to10(height + 100), label: 'Ogee Architrave – height' },
+    { part_code: 'TP68', qty: 1, length_mm: to10(width + 100),  label: 'Ogee Architrave – width' },
   ]
 }
 
