@@ -51,6 +51,16 @@ export const ALLOWED_PAIRS = new Set([
   'assemblyFramePart->casementSashPart',
   'casementSashPart->glassPart',
   'assemblyFramePart->glassPart',
+
+  // Step AX: a FRENCH casement is one opening holding a pair — the frame
+  // holds the frenchCasementPart, which holds a left and a right sash, each
+  // with its own glass. There is no mullion between them.
+  // sql/step-ax1-french-containment.sql adds these pairs live.
+  'assemblyFramePart->frenchCasementPart',
+  'frenchCasementPart->leftFrenchCasementSashPart',
+  'frenchCasementPart->rightFrenchCasementSashPart',
+  'leftFrenchCasementSashPart->glassPart',
+  'rightFrenchCasementSashPart->glassPart',
 ])
 
 /** Every parent->child edge in a tree, as "parentType->childType" strings. */

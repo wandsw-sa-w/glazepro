@@ -9,6 +9,7 @@
  */
 
 import { Parser } from 'expr-eval'
+import { CASEMENT_SASH_TYPES } from '../pricing/casementGeometry.js'
 import { glassSpacerMm } from '../pricing/optionVocabulary.js'
 import { casementSashVariables } from '../pricing/casementSashVariables.js'
 import { openingLabel } from '../drawingBoard/casementOpenings.js'
@@ -191,7 +192,11 @@ const LOOP_TARGET_PART_TYPES = {
   frame:               'assemblyFramePart',
   sash:                null,                 // matches topSashPart + bottomSashPart
   sliding_sash:        null,                 // matches topSashPart + bottomSashPart
-  casement_sash:       'casementSashPart',
+  // Step AX: a French pair's two leaves are casement sashes to validation
+  // too. They were not, so NO casement rule saw a French leaf at all — rule
+  // 43's stormproof quote note could not fire on a stormproof French
+  // window, and nor could the weight and bottom-rail rules.
+  casement_sash:       CASEMENT_SASH_TYPES,
   door_leaf:           'doorLeafPart',
   direct_glazed_unit:  'directGlazedUnitPart',
   panel:               'panelPart',
@@ -231,6 +236,9 @@ function findMatchingParts(tree, loopTarget) {
 
   const partType = LOOP_TARGET_PART_TYPES[loopTarget]
   if (!partType) return []
+  if (Array.isArray(partType)) {
+    return partType.flatMap(t => findAllParts(tree, t))
+  }
   return findAllParts(tree, partType)
 }
 

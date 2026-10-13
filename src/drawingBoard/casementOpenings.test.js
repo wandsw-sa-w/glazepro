@@ -17,6 +17,14 @@ import { BENCHMARK_K, BENCHMARK_L, BENCHMARK_N } from '../pricing/benchmarks/ind
 // The casement profile's values, as the reviewer read them in the live
 // database (step-ap brief). Passed as the board's short map.
 const PV = {
+  // Step AX: profile 2 holds the French pair's own keys too
+  'frenchCasementPart.thickness': 57,
+  'frenchCasementPart.midRail': 130,
+  'frenchCasementPart.gapBetweenMeetingStiles': 4,
+  'frenchCasementPart.mechanicalClearanceLeft': 4,
+  'frenchCasementPart.mechanicalClearanceRight': 4,
+  'frenchCasementPart.mechanicalClearanceTop': 4,
+  'frenchCasementPart.mechanicalClearanceBottom': 4,
   'assemblyFramePart.leftWidth': 37, 'assemblyFramePart.rightWidth': 37,
   'assemblyFramePart.topHeight': 47, 'assemblyFramePart.bottomHeight': 47,
   'assemblyFramePart.frameDepth': 96, 'assemblyFramePart.frameHeadStopSize': 20,

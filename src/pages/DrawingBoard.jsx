@@ -30,6 +30,7 @@ import { applyFanlightBottomRails, isStormproofWindow,
   openingLabel, columnCount, resizeCasementFrame,
   OPENING_KINDS, OPENING_KIND_LABELS, CASEMENT_OPERATIONS, openingKindOf,
   openingNodes, openingMatrixIndex, isCasementFrameTree, changeOpening,
+  setFrenchMasterLeaf, FRENCH_MASTER_LEAVES, DEFAULT_FRENCH_MASTER_LEAF,
   setCasementOperation, casementProfileDefaults,
 } from '../drawingBoard/casementOpenings.js'
 import { setStormproof } from '../drawingBoard/stormproof.js'
@@ -39,6 +40,7 @@ import { SashElevation } from '../drawingBoard/renderElevation.jsx'
 import {
   applyDividers, applyBars, frameGrid, splitOpening, removeDivider, makeDividersEqual,
 } from '../drawingBoard/gridActions.js'
+import { FRENCH_PAIR_PART } from '../pricing/casementGeometry.js'
 import { isDirectGlazedUnit } from '../pricing/casementGeometry.js'
 import { findRequiredEmpty } from '../drawingBoard/requiredFields.js'
 import { loadGlassCatalogue } from '../pricing/loadPricingContext.js'
@@ -70,6 +72,9 @@ const PART_LABELS = {
   containerPart:           'Container',
   visionPanelGlassPart:    'Vision Panel Glazing',
   casementSashPart:        'Casement Sash',
+  frenchCasementPart:          'French Casement',
+  leftFrenchCasementSashPart:  'French Casement Sash Left',
+  rightFrenchCasementSashPart: 'French Casement Sash Right',
   mullionPart:             'Mullion',
   transomPart:             'Transom',
   verticalGlazingBarPart:  'Vertical GB',
@@ -668,7 +673,7 @@ function IronmongeryPanel({ node, tree, derived, refOptions, onChangeField, onAu
 
 // ── PropertyEditor ────────────────────────────────────────────────────────────
 
-function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, onAutoApplyDefaults, onPrev, onNext, prevDisabled, nextDisabled, prevLabel, nextLabel, visibilityMap, boardMode, showHidden, tree, ironmongeryRules, ironmongeryProducts, onShowPriceBreakdown, profileValueMap, onSetCompleteNewThickness, onSetSashesReplaced, onChangeInternalSize, onMakeDividersEqual }) {
+function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, onAutoApplyDefaults, onPrev, onNext, prevDisabled, nextDisabled, prevLabel, nextLabel, visibilityMap, boardMode, showHidden, tree, ironmongeryRules, ironmongeryProducts, onShowPriceBreakdown, profileValueMap, onSetCompleteNewThickness, onSetSashesReplaced, onChangeInternalSize, onMakeDividersEqual, onSetFrenchMasterLeaf }) {
   if (!node) {
     return (
       <div style={{ padding: 16, color: '#aaa', fontSize: 12, textAlign: 'center', paddingTop: 48 }}>
@@ -750,6 +755,12 @@ function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, o
   // Equal" on an opening's panel. GlazePro had no equivalent: the picker
   // spaces dividers equally when it lays a grid out, and a resize re-spaces
   // the columns proportionally, but nothing could even them up afterwards.
+  // Step AX: which leaf of a French pair carries the lock. Integrate has
+  // this on the pair and defaults to the RIGHT leaf.
+  const frenchMaster = node?.part_type === FRENCH_PAIR_PART && onSetFrenchMasterLeaf
+    ? (node.values?.masterLeaf ?? DEFAULT_FRENCH_MASTER_LEAF)
+    : null
+
   const dividerSpacing = (() => {
     if (!tree || !onMakeDividersEqual || !isCasementFrameTree(tree)) return null
     if (!openingNodes(tree).some(n => n.key === node.key)) return null
@@ -786,6 +797,27 @@ function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, o
           >
             {'£'} Price breakdown
           </button>
+        )}
+        {/* Step AX: Master leaf, on a French pair */}
+        {frenchMaster && (
+          <div style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #e8e6e0' }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#555', marginBottom: 6 }}>Master leaf</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {FRENCH_MASTER_LEAVES.map(side => (
+                <button
+                  key={side}
+                  onClick={() => onSetFrenchMasterLeaf(node.key, side)}
+                  disabled={frenchMaster === side}
+                  title={side === 'right' ? 'The right leaf carries the lock (Integrate’s default)' : 'The left leaf carries the lock'}
+                  style={{ flex: 1, fontSize: 11, padding: '5px 0', borderRadius: 6, fontFamily: 'inherit', textTransform: 'capitalize',
+                    cursor: frenchMaster === side ? 'default' : 'pointer',
+                    border: `1px solid ${frenchMaster === side ? '#3d35a8' : '#d8d5cf'}`,
+                    background: frenchMaster === side ? '#f0eefc' : '#fff',
+                    color: frenchMaster === side ? '#3d35a8' : '#555' }}
+                >{side}</button>
+              ))}
+            </div>
+          </div>
         )}
         {/* Step AW: Divider Spacing, on an opening of a casement frame */}
         {dividerSpacing && (dividerSpacing.canWidths || dividerSpacing.canHeights) && (
@@ -2375,6 +2407,13 @@ function DrawingBoard() {
     }
   }
 
+  // Step AX: which leaf of a French pair carries the lock.
+  function handleSetFrenchMasterLeaf(pairKey, side) {
+    if (!tree) return
+    const next = setFrenchMasterLeaf(tree, pairKey, side)
+    if (next.changed) commit(next.tree)
+  }
+
   // Step AW: Integrate's "Divider Spacing" on an opening's panel.
   function handleMakeDividersEqual(axis) {
     if (!tree) return
@@ -2780,6 +2819,7 @@ function DrawingBoard() {
               onSetSashesReplaced={handleSetSashesReplaced}
               onChangeInternalSize={handleChangeInternalSize}
               onMakeDividersEqual={handleMakeDividersEqual}
+              onSetFrenchMasterLeaf={handleSetFrenchMasterLeaf}
             />
           </div>
 

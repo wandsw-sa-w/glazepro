@@ -14,7 +14,10 @@
 import React from 'react'
 import { computeOpeningLayout, computeGlassWidth, mullionThicknessMm } from './sashGeometry.js'
 import { resolveTopSashArch } from '../pricing/optionVocabulary.js'
-import { frameOpenings, openingNodes as casementOpeningNodes } from '../pricing/casementGeometry.js'
+import {
+  frameOpenings, openingNodes as casementOpeningNodes,
+  FRENCH_PAIR_PART, FRENCH_SASH_TYPES,
+} from '../pricing/casementGeometry.js'
 import { columnCount, isCasementFrameTree, matrixIndexOf, matrixLabel } from './casementOpenings.js'
 
 // ── Tree helpers ──────────────────────────────────────────────────────────────
@@ -919,9 +922,8 @@ export function CasementElevation({
     (refOptions?.[list] ?? []).find(o => o.code === code)?.label ?? ''
 
   // "Open Out A1" / "Fix B1" — the sash type's label, or Fix when it is fixed.
-  function sashLabel(sashNode, idx) {
+  function sashLabel(sashNode, matrix) {
     const op = String(sashNode.values?.operation ?? '').toLowerCase()
-    const matrix = cellLabel(idx)
     if (op === 'fix' || op.startsWith('fix')) {
       return `${refLabel('sash_operation', 'fix') || 'Fix'} ${matrix}`
     }
@@ -998,6 +1000,68 @@ export function CasementElevation({
       }
     }
 
+    // Step AX: a FRENCH pair — two leaves meeting in the middle, no mullion
+    // between them. Each leaf is drawn like a casement sash, half the
+    // opening wide less the meeting-stile gap, and the MASTER leaf (the one
+    // carrying the lock) is marked, as Integrate marks it.
+    if (node.part_type === FRENCH_PAIR_PART) {
+      const gap = n(v.gapBetweenMeetingStiles, 0)
+      const leafW = Math.max((w - gap) / 2, 0)
+      const leaves = (node.children ?? [])
+        .filter(c => FRENCH_SASH_TYPES.includes(c.part_type))
+      return {
+        idx, slot, size: { width: w, height: h }, label: cellLabel(idx),
+        selected: node.key === selectedKey ||
+          leaves.some(l => l.key === selectedKey ||
+            (l.children ?? []).some(c => c.key === selectedKey)),
+        svg: (
+          <g key={node.key}>
+            {leaves.map((leaf, li) => {
+              const lv = leaf.values ?? {}
+              const lx = x + li * (leafW + gap)
+              const lStileL = n(lv.leftWidth,    0)
+              const lStileR = n(lv.rightWidth,   0)
+              const lRailT  = n(lv.topHeight,    0)
+              const lRailB  = n(lv.bottomHeight, 0)
+              const lLap    = n(lv.stormProofOverlap, 0)
+              const lGlass  = (leaf.children ?? []).find(c => c.part_type === 'glassPart')
+              const lgx = lx + lStileL
+              const lgy = y + lRailT
+              const lgW = Math.max(leafW - lStileL - lStileR, 0)
+              const lgH = Math.max(h - lRailT - lRailB, 0)
+              const matrix = matrixLabel(
+                (cells[idx]?.col ?? 0) + (leaf.part_type === 'rightFrenchCasementSashPart' ? 1 : 0),
+                cells[idx]?.row ?? 0)
+              const text = sashLabel(leaf, matrix)
+              return (
+                <g key={leaf.key}>
+                  <g style={{ cursor: 'pointer' }} onClick={() => onSelectKey?.(leaf.key)}>
+                    <rect x={lx - lLap} y={y - lLap}
+                      width={leafW + 2 * lLap} height={h + 2 * lLap}
+                      fill={C.timber} {...ss(leaf.key)} />
+                    <rect x={lgx} y={lgy} width={lgW} height={lgH}
+                      fill={C.glass} {...sg(lGlass?.key)}
+                      style={{ cursor: 'pointer' }}
+                      onClick={e => { e.stopPropagation(); onSelectKey?.(lGlass?.key) }}
+                    />
+                  </g>
+                  {openingLines(leaf, lgx, lgy, lgW, lgH)}
+                  {showGlassLabels && (
+                    <CasementLabel text={text} cx={mx(lgx + lgW / 2)} cy={lgy + lgH / 2}
+                      maxWidth={lgW * 0.92} lfs={lfs} mir={mir} />
+                  )}
+                  {showGlassLabels && lv.isMasterLeaf === true && (
+                    <CasementLabel text="MASTER" cx={mx(lgx + lgW / 2)} cy={lgy + lgH / 2 + lfs * 1.4}
+                      maxWidth={lgW * 0.92} lfs={lfs} mir={mir} />
+                  )}
+                </g>
+              )
+            })}
+          </g>
+        ),
+      }
+    }
+
     // Step AU: a STORMPROOF sash laps over the frame — 7 mm each side, as
     // Integrate draws it. DRAWING ONLY: the sash's own size, its glass and
     // every priced quantity are unchanged (the lap is outside its sections),
@@ -1014,7 +1078,7 @@ export function CasementElevation({
     const gy = y + railT
     const gW = Math.max(w - stileL - stileR, 0)
     const gH = Math.max(h - railT - railB,   0)
-    const label = sashLabel(node, idx)
+    const label = sashLabel(node, matrix)
 
     return {
       idx, slot, size: { width: w, height: h }, label,

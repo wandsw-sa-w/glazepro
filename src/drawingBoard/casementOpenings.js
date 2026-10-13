@@ -21,7 +21,9 @@
 
 import { makeKey } from './gridActions.js'
 import { resolveJambTypeCode } from './applyOperationDefaults.js'
-import { frameCells, OPENING_TYPES } from '../pricing/casementGeometry.js'
+import {
+  frameCells, OPENING_TYPES, FRENCH_PAIR_PART, FRENCH_SASH_TYPES, CASEMENT_SASH_TYPES,
+} from '../pricing/casementGeometry.js'
 
 // ── Profile value helpers ────────────────────────────────────────────────────
 
@@ -287,12 +289,13 @@ function num(profileValues, fieldKey, fallbackKey = null) {
 
 // ── Opening kinds ────────────────────────────────────────────────────────────
 
-export const OPENING_KINDS = ['opening_casement', 'fixed_casement', 'direct_glazed']
+export const OPENING_KINDS = ['opening_casement', 'fixed_casement', 'direct_glazed', 'french_casement']
 
 export const OPENING_KIND_LABELS = {
   opening_casement: 'Opening casement',
   fixed_casement:   'Fixed casement',
   direct_glazed:    'Direct glazed unit',
+  french_casement:  'French casement',
 }
 
 /** The sash operations Integrate offers on a casement, in its own order. */
@@ -306,6 +309,7 @@ export const DEFAULT_CASEMENT_OPERATION = 'left_hand_hung'
 export function openingKindOf(node) {
   if (!node) return null
   if (node.part_type === 'glassPart') return 'direct_glazed'
+  if (node.part_type === FRENCH_PAIR_PART) return 'french_casement'
   if (node.part_type !== 'casementSashPart') return null
   return node.values?.operation === 'fix' ? 'fixed_casement' : 'opening_casement'
 }
@@ -451,6 +455,193 @@ export function buildOpening(kind, profileValues, { glass = null, sashType = 'op
   })
 }
 
+
+// ── The French pair (Step AX) ────────────────────────────────────────────────
+
+/**
+ * The profile values a French pair needs, on top of the casement set.
+ *
+ * Integrate's live profile 2 already holds every one of these, so nothing is
+ * hard-coded: the thickness (57, NOT a casement's 54), the "Overall Meeting
+ * Stile" and the gap between the two meeting stiles. The clearances and the
+ * sash sections fall back to the casement ones, which is what Integrate's
+ * stored FR1 tree shows them to be (clearance 4, head 62, outer stile 62,
+ * bottom rail 83).
+ */
+const FRENCH_CANDIDATES = {
+  frenchThickness: ['frenchCasementPart.thickness'],
+  frenchMidRail:   ['frenchCasementPart.midRail', 'frenchCasementPart.overallMeetingStile'],
+  frenchGap:       ['frenchCasementPart.gapBetweenMeetingStiles'],
+  frenchClearanceLeft:   ['frenchCasementPart.mechanicalClearanceLeft',   'frenchCasementPart.mechanicalClearance',
+                          'casementSashPart.mechanicalClearanceLeft'],
+  frenchClearanceRight:  ['frenchCasementPart.mechanicalClearanceRight',  'frenchCasementPart.mechanicalClearance',
+                          'casementSashPart.mechanicalClearanceRight', 'casementSashPart.mechanicalClearanceLeft'],
+  frenchClearanceTop:    ['frenchCasementPart.mechanicalClearanceTop',    'frenchCasementPart.mechanicalClearance',
+                          'casementSashPart.mechanicalClearanceTop', 'casementSashPart.mechanicalClearanceLeft'],
+  frenchClearanceBottom: ['frenchCasementPart.mechanicalClearanceBottom', 'frenchCasementPart.mechanicalClearance',
+                          'casementSashPart.mechanicalClearanceBottom', 'casementSashPart.mechanicalClearanceLeft'],
+}
+
+/**
+ * Resolve the French values, reporting any key the profile does not hold.
+ * Every one is required: a pair with a guessed thickness or a guessed meeting
+ * stile would price wrongly and look as if it had worked.
+ */
+export function frenchProfileDefaults(profileValues) {
+  const values = {}
+  const keysUsed = {}
+  const missing = []
+  for (const [name, candidates] of Object.entries(FRENCH_CANDIDATES)) {
+    const { value, key } = firstOf(profileValues, candidates)
+    values[name] = value
+    if (key) keysUsed[name] = key
+    if (value == null) missing.push(`${name} (tried ${candidates.join(', ')})`)
+  }
+  return { values, missing, keysUsed }
+}
+
+/** Which leaf carries the lock. Integrate's default is the RIGHT one. */
+export const FRENCH_MASTER_LEAVES = ['right', 'left']
+export const DEFAULT_FRENCH_MASTER_LEAF = 'right'
+
+/**
+ * The meeting stile each leaf carries, in mm.
+ *
+ * DERIVED, not read: Integrate's profile holds the "Overall Meeting Stile"
+ * (midRail 130) and the gap between the two leaves (4), and stores the
+ * resulting 63 on each sash — left rightWidth 63, right leftWidth 63. So the
+ * profile is the source and 63 is the arithmetic, which is why this is a
+ * function and not a candidate key.
+ */
+export function frenchMeetingStileMm(midRail, gap) {
+  const m = Number(midRail)
+  const g = Number(gap) || 0
+  if (!isFinite(m) || m <= 0) return null
+  return (m - g) / 2
+}
+
+/**
+ * Build a French pair: ONE opening holding a left and a right sash, no
+ * mullion. Each leaf has an OUTER stile (the casement stile) and a MEETING
+ * stile on its inner edge, so its two stiles differ.
+ *
+ * A pair built into a STORMPROOF window is stormproof throughout — the
+ * stormproof sash type, the 76 mm bottom rail and the 7 mm overlap — but it
+ * keeps the French THICKNESS of 57 (Nathan, 13 Oct): the stormproof sections
+ * are the rails, not the pair's own thickness.
+ *
+ * @returns {{node: Object|null, missing: string[]}}
+ */
+export function buildFrenchPair(profileValues, {
+  glass = null,
+  sashType = 'open_out',
+  defaults = null,
+  masterLeaf = DEFAULT_FRENCH_MASTER_LEAF,
+  stormproof = null,
+} = {}) {
+  const casement = (defaults ?? casementProfileDefaults(profileValues))
+  const french = frenchProfileDefaults(profileValues)
+  if (french.missing.length > 0) return { node: null, missing: french.missing }
+
+  const d = casement.values
+  const f = french.values
+  const meeting = frenchMeetingStileMm(f.frenchMidRail, f.frenchGap)
+  if (meeting == null) {
+    return { node: null, missing: ['frenchCasementPart.midRail (not a usable number)'] }
+  }
+
+  const key = makeKey('french')
+  const outer = d.sashStileLeft ?? 0
+  const sash = side => {
+    const sashKey = `${key}_${side}`
+    return {
+      key: sashKey,
+      part_type: side === 'left' ? 'leftFrenchCasementSashPart' : 'rightFrenchCasementSashPart',
+      values: {
+        // Integrate hangs the left leaf LH and the right leaf RH
+        operation: side === 'left' ? 'left_hand_hung' : 'right_hand_hung',
+        casementTypeId: stormproof ? SASH_TYPE_STORMPROOF : sashType,
+        // The PAIR's thickness, which stays 57 even stormproof
+        thickness:  f.frenchThickness,
+        topHeight:  d.sashHead,
+        leftWidth:  side === 'left' ? outer : meeting,
+        rightWidth: side === 'left' ? meeting : outer,
+        bottomHeight: stormproof ? stormproof.sashBottom : d.sashBottom,
+        ...(stormproof ? { stormProofOverlap: stormproof.sashOverlap } : {}),
+        isMasterLeaf: masterLeaf === side,
+        toBeReplaced: true,
+      },
+      children: [{
+        key: `${sashKey}_glass`,
+        part_type: 'glassPart',
+        values: {
+          ...DEFAULT_GLASS,
+          ...(glass ?? {}),
+          glazingRebateWidth: d.sashRebate,
+          glazingTolerance:   d.sashTolerance,
+        },
+        children: [],
+      }],
+    }
+  }
+
+  return {
+    node: {
+      key,
+      part_type: 'frenchCasementPart',
+      values: {
+        casementTypeId: stormproof ? SASH_TYPE_STORMPROOF : sashType,
+        thickness: f.frenchThickness,
+        midRail:   f.frenchMidRail,
+        gapBetweenMeetingStiles: f.frenchGap,
+        // The clearances live on the PAIR, as Integrate stores them
+        mechanicalClearanceLeft:   f.frenchClearanceLeft,
+        mechanicalClearanceRight:  f.frenchClearanceRight,
+        mechanicalClearanceTop:    f.frenchClearanceTop,
+        mechanicalClearanceBottom: f.frenchClearanceBottom,
+        ...(stormproof ? { stormProofOverlap: stormproof.sashOverlap } : {}),
+        masterLeaf,
+      },
+      children: [sash('left'), sash('right')],
+    },
+    missing: [],
+  }
+}
+
+/**
+ * Set which leaf of a French pair carries the lock.
+ *
+ * @returns {{tree: Object, changed: boolean}}
+ */
+export function setFrenchMasterLeaf(tree, pairKey, masterLeaf) {
+  if (!FRENCH_MASTER_LEAVES.includes(masterLeaf)) return { tree, changed: false }
+  const pair = findNodeByKeyIn(tree, pairKey)
+  if (!pair || pair.part_type !== FRENCH_PAIR_PART) return { tree, changed: false }
+  if (pair.values?.masterLeaf === masterLeaf) return { tree, changed: false }
+  return {
+    tree: replaceNode(tree, pairKey, {
+      ...pair,
+      values: { ...pair.values, masterLeaf },
+      children: (pair.children ?? []).map(c => ({
+        ...c,
+        values: {
+          ...c.values,
+          isMasterLeaf: masterLeaf === (c.part_type === 'leftFrenchCasementSashPart' ? 'left' : 'right'),
+        },
+      })),
+    }),
+    changed: true,
+  }
+}
+
+
+function findNodeByKeyIn(node, key) {
+  if (!node) return null
+  if (node.key === key) return node
+  for (const c of (node.children ?? [])) { const f = findNodeByKeyIn(c, key); if (f) return f }
+  return null
+}
+
 // ── Tree helpers ─────────────────────────────────────────────────────────────
 
 // Step AX: OPENING_TYPES now comes from casementGeometry.js. There were two
@@ -525,11 +716,17 @@ export function matrixLabel(col, row) {
  */
 export function openingMatrixIndex(tree, node) {
   const nodes = openingNodes(tree)
-  const idx = nodes.findIndex(n => n.key === node?.key)
+  // Step AX: a French SASH is not an opening — the PAIR is. Integrate still
+  // gives each leaf its own label, taking the pair's cell and the column
+  // after it: FR1's leaves are A1 and B1 although there is no mullion, and
+  // FR2's are A2 and B2 under the fanlight at A1.
+  const idx = nodes.findIndex(n => n.key === node?.key ||
+    (n.part_type === FRENCH_PAIR_PART && (n.children ?? []).some(c => c.key === node?.key)))
   if (idx < 0) return null
   const cell = frameCells(tree)[idx]
   if (!cell) return matrixIndexOf(idx, columnCount(tree))
-  return matrixLabel(cell.col, cell.row)
+  const isRightLeaf = node?.part_type === 'rightFrenchCasementSashPart'
+  return matrixLabel(cell.col + (isRightLeaf ? 1 : 0), cell.row)
 }
 
 /**
@@ -546,6 +743,8 @@ export function openingTypeLabel(tree, node) {
     const isUnit = !!frame && (frame.children ?? []).some(c => c.key === node.key)
     return isUnit ? 'Direct Glazed Unit' : null
   }
+  if (node?.part_type === FRENCH_PAIR_PART) return 'French Casement'
+  if (FRENCH_SASH_TYPES.includes(node?.part_type)) return 'French Casement Sash'
   if (node?.part_type !== 'casementSashPart') return null
   const nodes = openingNodes(tree)
   const idx = nodes.findIndex(n => n.key === node.key)
@@ -586,7 +785,10 @@ export const SASH_TYPE_FLUSH      = 'open_out'
 
 /** Is THIS casement sash stormproof? Its stored sash type says so. */
 export function isStormproofSash(sashNode) {
-  if (sashNode?.part_type !== 'casementSashPart') return false
+  // Step AX: a French leaf is a casement sash here too, so a window whose
+  // only openers are a French pair reads as stormproof and rule 43's quote
+  // note fires per leaf.
+  if (!CASEMENT_SASH_TYPES.includes(sashNode?.part_type)) return false
   return String(sashNode.values?.casementTypeId ?? '') === SASH_TYPE_STORMPROOF
 }
 
@@ -599,7 +801,7 @@ export function isStormproofSash(sashNode) {
  * count as stormproof rather than quietly counting as flush.
  */
 export function isStormproofWindow(tree) {
-  return findAll(tree, 'casementSashPart').some(isStormproofSash)
+  return CASEMENT_SASH_TYPES.flatMap(t => findAll(tree, t)).some(isStormproofSash)
 }
 
 /** Is this a casement/direct-glazed frame (as opposed to a box sash one)? */
@@ -655,20 +857,46 @@ export function changeOpening(tree, openingKey, kind, profileValues) {
 
   // Carry the glass codes over: on a casement sash they live on its glass
   // child, on a direct glazed unit on the unit itself.
+  // Step AX: a PAIR keeps its glass codes on each leaf, so a pair being
+  // changed to something else carries the LEFT leaf's codes over.
   const glassSource = current.part_type === 'casementSashPart'
     ? (current.children ?? []).find(c => c.part_type === 'glassPart')
-    : current
+    : current.part_type === FRENCH_PAIR_PART
+      ? (current.children?.[0]?.children ?? []).find(c => c.part_type === 'glassPart')
+      : current
   // Step AS: building INTO a fanlight position (the top row of a frame with
   // more than one row) starts the sash at the fanlight bottom rail.
+  // Step AX: from the CELL, like openingTypeLabel and
+  // applyFanlightBottomRails since Step AV. The index test left here would
+  // call TC1's A2 a fanlight and TC3's full-height opener one.
   const openingIdx = openingNodes(tree).findIndex(n => n.key === openingKey)
-  const intoFanlight = rowCount(tree) > 1 &&
-    openingIdx >= 0 && openingIdx < columnCount(tree)
+  const cell = openingIdx >= 0 ? frameCells(tree)[openingIdx] : null
+  const intoFanlight = rowCount(tree) > 1 && cell != null &&
+    cell.row === 0 && cell.rowSpan < rowCount(tree)
   // Step AU: any opening added to a STORMPROOF window is stormproof — the
   // window is stormproof throughout, so a direct glazed unit changed into a
   // casement must come out stormproof, not flush.
   const stormproofSections = isStormproofWindow(tree)
     ? stormproofSectionsFor(profileValues)
     : null
+  // Step AX: a FRENCH pair fills the opening — two leaves, no mullion. It
+  // reports the profile keys it could not resolve rather than building a
+  // pair with a guessed thickness or meeting stile.
+  if (kind === 'french_casement') {
+    const { node, missing } = buildFrenchPair(profileValues, {
+      glass: glassCodesOf(glassSource),
+      sashType: current.values?.casementTypeId ?? 'open_out',
+      stormproof: stormproofSections,
+    })
+    if (!node) return { tree, changed: false, missing }
+    const next = [...frame.children]
+    next[idx] = node
+    return {
+      tree: replaceNode(tree, frame.key, { ...frame, children: next }),
+      changed: true,
+    }
+  }
+
   const replacement = buildOpening(kind, profileValues, {
     glass: glassCodesOf(glassSource),
     sashType: current.values?.casementTypeId ?? 'open_out',

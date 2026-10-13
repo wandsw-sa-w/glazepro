@@ -16,6 +16,7 @@ import { casementSashVariables } from './casementSashVariables.js'
 import { evaluateCondition, evaluateNumber, getExpressionVariables } from './evaluator.js'
 import { computeDerived } from '../drawingBoard/computeDerived.js'
 import { operationKind, casementIsFixed } from './optionVocabulary.js'
+import { CASEMENT_SASH_TYPES } from './casementGeometry.js'
 
 // ── Tree helpers ──────────────────────────────────────────────────────────────
 
@@ -42,7 +43,12 @@ const LOOP_PART_TYPES = {
   sliding_sash:  ['topSashPart', 'bottomSashPart'],
   frame:         ['assemblyFramePart'],
   glass_unit:    ['glassPart'],
-  casement_sash: ['casementSashPart'],
+  // Step AX: a French pair's two leaves are casement sashes here too. They
+  // were not, and a French drawing came out with NO handles, NO hinges and
+  // NO gear boxes at all — FR1's default list was two trickle vents. Each
+  // leaf is an opener and Integrate's own stored list has a handle per leaf
+  // and a gear box per leaf, so the loop has to visit them.
+  casement_sash: CASEMENT_SASH_TYPES,
   door_leaf:     ['doorLeafPart'],
   panel:         ['panelPart'],
 }
@@ -110,7 +116,7 @@ function computePartVars(partNode, tree, derived, baseVars, glassCatalogue, prof
     }
   }
 
-  if (pt === 'casementSashPart') {
+  if (CASEMENT_SASH_TYPES.includes(pt)) {
     // Step AP: Integrate's own casement default_ironmongery rules pick
     // hinges, handles, gearboxes and extensions by the sash's OPERATION,
     // its overall size and its weight, so all three have to be real here.
