@@ -7,6 +7,10 @@
 // this fixes was a grid handler that never actually produced the tree shape
 // its own render tests were hand-built against.
 
+import {
+  frameCells, frameInterior, sortedDividers,
+} from '../pricing/casementGeometry.js'
+
 export function makeKey(prefix) {
   return prefix + '_' + Math.random().toString(36).slice(2, 9)
 }
@@ -329,9 +333,92 @@ export function addDividerInCell(tree, frameKey, {
   // crossing[index]: startDivider is the one BEFORE it, endDivider the one
   // after, and '0' wherever that is the frame.
   const slot = Math.max(0, Math.min(index, crossing.length))
-  const startDivider = slot > 0 ? crossing[slot - 1].key : '0'
-  const endDivider   = slot < crossing.length ? crossing[slot].key : '0'
+  return insertBoundedDivider(tree, frame, {
+    axis,
+    offset,
+    thickness,
+    stop,
+    startDivider: slot > 0 ? crossing[slot - 1].key : '0',
+    endDivider:   slot < crossing.length ? crossing[slot].key : '0',
+  })
+}
 
+/**
+ * Split ONE opening with a transom or a mullion — Integrate's "1x2" and "2x1"
+ * tiles when an opening's glazing is selected (Step AW).
+ *
+ * The new divider stops at whatever bounds that opening, which may be the
+ * frame or another divider, so splitting the lower opening of a fanlight
+ * window with a mullion gives TC1 and splitting column B of a two-column
+ * frame with a transom gives TC3. It goes in the MIDDLE of the opening; the
+ * surveyor types the exact offset afterwards.
+ *
+ * A SPANNING opening can be split too: TC1's fanlight runs across both
+ * columns, and a mullion through it stops at the transom below.
+ *
+ * @returns {Object} the new tree, or the tree unchanged if the opening is not
+ *   an opening of that frame
+ */
+export function splitOpening(tree, frameKey, openingKey, axis, profileValues = null) {
+  const frame = findFrame(tree, frameKey)
+  if (!frame) return tree
+
+  const openings = (frame.children ?? []).filter(c => OPENING_TYPES.includes(c.part_type))
+  const idx = openings.findIndex(c => c.key === openingKey)
+  if (idx < 0) return tree
+
+  const cells = frameCells(tree)
+  const cell = cells[idx]
+  if (!cell) return tree
+
+  const isTransom = axis === 'transom'
+  const thickness = Number(profileValues?.thicknessInFrameSolid)
+  if (!isFinite(thickness) || thickness <= 0) {
+    throw new Error(
+      'Missing profile value thicknessInFrameSolid — a casement divider is solid and takes its ' +
+      'thickness from the profile. Nothing was added; check the drawing’s profile values.')
+  }
+  const stop = Number(profileValues?.mullionStopSize) ||
+    Number(profileValues?.frameStileStopSize) || 0
+
+  // What bounds the opening on the axis the new divider CROSSES. A mullion is
+  // bounded above and below by transoms; a transom left and right by
+  // mullions. '0' wherever that bound is the frame itself.
+  const crossing = sortedDividers(frame, isTransom ? 'mullionPart' : 'transomPart')
+  const first = isTransom ? cell.col : cell.row
+  const span  = isTransom ? cell.colSpan : cell.rowSpan
+  const last  = first + span - 1
+  const startDivider = first > 0 ? (crossing[first - 1]?.key ?? '0') : '0'
+  const endDivider   = last < crossing.length ? (crossing[last]?.key ?? '0') : '0'
+
+  // The middle of the opening, so the two halves are equal
+  const from = isTransom ? cell.y : cell.x
+  const size = isTransom ? cell.height : cell.width
+  const offset = from + (size - thickness) / 2
+
+  return insertBoundedDivider(tree, frame, {
+    axis, offset, thickness, stop, startDivider, endDivider,
+    sourceIndex: idx,
+  })
+}
+
+const OPENING_TYPES = ['casementSashPart', 'glassPart']
+
+/**
+ * Write one divider into the frame and give the cell it splits a second
+ * opening, keeping the openings in the row-major order frameCells uses.
+ *
+ * The order matters: openingNodes and frameCells are matched by POSITION
+ * everywhere (labels, sash sizes, the drawing), so an opening list that no
+ * longer lines up with the cells would silently mislabel and mis-size the
+ * window. Rather than reason about where the copy belongs, this computes the
+ * cells AFTER the divider goes in and places each opening in the cell that
+ * contains it.
+ */
+function insertBoundedDivider(tree, frame, {
+  axis, offset, thickness, stop, startDivider, endDivider, sourceIndex = null,
+}) {
+  const isTransom = axis === 'transom'
   const divider = {
     key: makeKey(isTransom ? 'trans' : 'mull'),
     part_type: isTransom ? 'transomPart' : 'mullionPart',
@@ -346,28 +433,89 @@ export function addDividerInCell(tree, frameKey, {
     children: [],
   }
 
-  // The opening being split is the one in that slot; its copy becomes the
-  // second of the pair, so both keep the sections it had.
-  const OPENING_TYPES = ['casementSashPart', 'glassPart']
   const openings = (frame.children ?? []).filter(c => OPENING_TYPES.includes(c.part_type))
-  const source = openings[Math.min(slot, Math.max(0, openings.length - 1))] ?? openings[0]
-  const extra = source ? cloneWithNewKeys(source) : null
+  const oldCells = frameCells(tree)
 
+  // The divider alone, openings untouched, so the new cells can be read
+  const withDivider = replaceFrameChildren(tree, frame.key, node => {
+    const others = (node.children ?? []).filter(c => !OPENING_TYPES.includes(c.part_type))
+    return [...others.filter(c => c.part_type !== 'cillPart'), divider,
+      ...openings,
+      ...others.filter(c => c.part_type === 'cillPart')]
+  })
+  const newCells = frameCells(withDivider)
+
+  // Each new cell takes the opening of the old cell its top-left corner sits
+  // in. The split cell is hit twice: the second time takes a copy, so both
+  // halves keep the sections the surveyor had set.
+  const used = new Set()
+  const placed = newCells.map(c => {
+    let oldIdx = oldCells.findIndex(o =>
+      c.x >= o.x && c.x < o.x + o.width && c.y >= o.y && c.y < o.y + o.height)
+    if (oldIdx < 0) oldIdx = sourceIndex ?? 0
+    const source = openings[oldIdx] ?? openings[sourceIndex ?? 0] ?? openings[0]
+    if (!source) return null
+    if (used.has(oldIdx)) return cloneWithNewKeys(source)
+    used.add(oldIdx)
+    return source
+  }).filter(Boolean)
+
+  return replaceFrameChildren(tree, frame.key, node => {
+    const others = (node.children ?? []).filter(c => !OPENING_TYPES.includes(c.part_type))
+    return [...others.filter(c => c.part_type !== 'cillPart'), divider,
+      ...placed,
+      ...others.filter(c => c.part_type === 'cillPart')]
+  })
+}
+
+/** Rebuild one frame's children, leaving the rest of the tree alone. */
+function replaceFrameChildren(tree, frameKey, childrenOf) {
   function process(node) {
-    if (node.key !== frame.key) {
+    if (node.key !== frameKey) {
       return { ...node, children: (node.children ?? []).map(process) }
     }
-    const others = (node.children ?? []).filter(c => !OPENING_TYPES.includes(c.part_type))
-    // The new divider joins the existing ones; the openings keep their order
-    // and gain the copy. frameCells works out the rest from the offsets.
-    return {
-      ...node,
-      children: [...others.filter(c => c.part_type !== 'cillPart'), divider,
-        ...openings, ...(extra ? [extra] : []),
-        ...others.filter(c => c.part_type === 'cillPart')],
-    }
+    return { ...node, children: childrenOf(node) }
   }
   return process(tree)
+}
+
+/**
+ * Re-space the frame's mullions (or transoms) so every column (or row) slot
+ * is the same size — Integrate's "Divider Spacing: Make Widths Equal" and
+ * "Make Heights Equal" (Step AW).
+ *
+ * Only the OFFSETS move: no divider is added or removed, no divider stops
+ * anywhere different, and the openings keep their cells. A short divider is
+ * re-spaced with the rest, because a column slot is a column slot whether the
+ * mullion that makes it reaches the cill or not.
+ */
+export function makeDividersEqual(tree, frameKey, axis) {
+  const frame = findFrame(tree, frameKey)
+  if (!frame) return tree
+  const isWidths = axis === 'widths'
+  const dividers = sortedDividers(frame, isWidths ? 'mullionPart' : 'transomPart')
+  if (dividers.length === 0) return tree
+
+  const interior = frameInterior(tree)
+  const total = (isWidths ? interior.width : interior.height) ?? 0
+  const thick = dividers.reduce((s, d) => s + (Number(d.values?.thicknessInFrame) || 0), 0)
+  const slots = dividers.length + 1
+  const each = (total - thick) / slots
+  if (!(each > 0)) return tree
+
+  // The near face of divider i sits after i+1 slots and i dividers
+  const offsets = new Map()
+  let at = 0
+  for (const d of dividers) {
+    at += each
+    offsets.set(d.key, Math.round(at * 10) / 10)
+    at += Number(d.values?.thicknessInFrame) || 0
+  }
+
+  return replaceFrameChildren(tree, frame.key, node =>
+    (node.children ?? []).map(c => offsets.has(c.key)
+      ? { ...c, values: { ...c.values, offset: offsets.get(c.key) } }
+      : c))
 }
 
 /**
@@ -382,7 +530,6 @@ export function removeDivider(tree, frameKey, dividerKey) {
   if (!frame) return tree
   if (!(frame.children ?? []).some(c => c.key === dividerKey)) return tree
 
-  const OPENING_TYPES = ['casementSashPart', 'glassPart']
   const openings = (frame.children ?? []).filter(c => OPENING_TYPES.includes(c.part_type))
   // One divider fewer means one opening fewer along its axis. Dropping the
   // LAST opening keeps A1 and the lower-numbered slots, which is what a

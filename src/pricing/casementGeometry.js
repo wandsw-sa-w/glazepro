@@ -207,7 +207,7 @@ export function frameCells(tree) {
 }
 
 /** A frame's dividers of one type, in the order they appear across the frame. */
-function sortedDividers(frame, partType) {
+export function sortedDividers(frame, partType) {
   return (frame?.children ?? [])
     .filter(c => c.part_type === partType)
     .sort((a, b) => (num(a.values?.offset) ?? 0) - (num(b.values?.offset) ?? 0))
