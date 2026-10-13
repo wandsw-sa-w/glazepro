@@ -10,7 +10,7 @@ where it was.
 **No SQL was needed.** One existing SQL file's *comment* was corrected (see the
 end).
 
-Commits: `1d41204` the brief, `c684e60` the work, and this report.
+Commits: `1d41204` the brief, `e03d3cf` the work, and this report.
 
 ---
 
@@ -147,7 +147,7 @@ frames keep theirs.
 **Offline: 1,678 passing, 8 failing — the standing eight, unchanged.**
 `npx vitest run`, 74 files, **15 new tests**. No benchmark moved.
 
-**Live: 5 of 5 passed (20.7s)**, against the deploy of `c684e60` —
+**Live: 5 of 5 passed (20.7s)**, against the deploy of `e03d3cf` —
 `/version.json` reads `mv7632z1`, built 2026-10-13 22:02:27 BST:
 
 ```
