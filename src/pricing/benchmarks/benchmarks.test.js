@@ -13,8 +13,8 @@ import { runPricingOnTree, shapedGlassCutAreaM2 } from '../pricingEngine.js'
 import { applySashesReplaced } from '../../drawingBoard/sashesReplaced.js'
 import { computeDerived } from '../../drawingBoard/computeDerived.js'
 import { computeVariables } from '../computeVariables.js'
-import { frameGridSize, frameOpenings, casementSashSize, casementSashWeightKg, casementFrameTimberVolumeDm3, frameMuntinLengthM } from '../casementGeometry.js'
-import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_B_UNCORRECTED, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F, BENCHMARK_G, BENCHMARK_H, BENCHMARK_I, BENCHMARK_J, BENCHMARK_K, BENCHMARK_L, BENCHMARK_M, BENCHMARK_N, BENCHMARK_P, BENCHMARK_Q, BENCHMARK_R, BENCHMARK_S, BENCHMARK_SA, BENCHMARK_SB, BENCHMARK_SC, BENCHMARK_SD, BENCHMARK_SE, BENCHMARK_SF } from './index.js'
+import { shortDividerSpanMm, isShortDivider, frameCells, frameGridSize, frameOpenings, casementSashSize, casementSashWeightKg, casementFrameTimberVolumeDm3, frameMuntinLengthM } from '../casementGeometry.js'
+import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_B_UNCORRECTED, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F, BENCHMARK_G, BENCHMARK_H, BENCHMARK_I, BENCHMARK_J, BENCHMARK_K, BENCHMARK_L, BENCHMARK_M, BENCHMARK_N, BENCHMARK_P, BENCHMARK_Q, BENCHMARK_R, BENCHMARK_S, BENCHMARK_SA, BENCHMARK_SB, BENCHMARK_SC, BENCHMARK_SD, BENCHMARK_SE, BENCHMARK_SF, BENCHMARK_TC1, BENCHMARK_TC2, BENCHMARK_TC3 } from './index.js'
 import { resolveIronmongeryLines } from '../loadPricingContext.js'
 // The LIVE price-file snapshot (reviewer-checked, 8 Oct 2026) — the honest
 // benchmarks and the real-tree case price from this, never from the
@@ -24,7 +24,7 @@ import SNAPSHOT from './pf30-snapshot.json'
 // Never edited to match GlazePro output — a failing test that tells the
 // truth is the right outcome when GlazePro disagrees with Integrate.
 import INTEGRATE from './integrate-targets.json'
-import { isStormproofSash, isStormproofWindow, openingNodes } from '../../drawingBoard/casementOpenings.js'
+import { matrixIndexOf, isStormproofSash, isStormproofWindow, openingNodes } from '../../drawingBoard/casementOpenings.js'
 
 // ── Minimal price-file variables (PF30 scalars) ────────────────────────────
 // Sash profile rebate/tolerance (14 / 2) — the measured sash-weight model
@@ -1646,5 +1646,175 @@ describe('Step AU — stormproof benchmarks', () => {
         }
       }
     }
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step AV — two-column fanlight casements: TC1, TC2, TC3
+// ══════════════════════════════════════════════════════════════════════════════
+// docs/integrate-L31115-two-column-fanlights.txt, read 13 Oct 2026.
+//
+// What is new is the frame's divider geometry: a mullion or transom can STOP
+// AT ANOTHER DIVIDER, so an opening spans two columns (TC1) or two rows
+// (TC3). Everything else comes out of the existing casement rules — TC2
+// proved that before any change was made
+// (docs/reports/step-av-tc2-proof.md).
+//
+// The only gap is the Kenrick gearbox set, whose four parts carry unit_cost 0
+// in the captured snapshot: three sets on TC1, two on TC2 and TC3. Already
+// fixed in the live data.
+describe('Step AV — two-column fanlight benchmarks', () => {
+  const GAP = { TC1: 23.10, TC2: 14.70, TC3: 14.70 }
+
+  const CASES = [
+    ['TC1', BENCHMARK_TC1, INTEGRATE.benchmarkTC1_wide_fanlight_over_double,  25.50, 13.00],
+    ['TC2', BENCHMARK_TC2, INTEGRATE.benchmarkTC2_fanlight_over_each,         29.83, 13.50],
+    ['TC3', BENCHMARK_TC3, INTEGRATE.benchmarkTC3_fanlight_over_one_side,     25.50, 12.50],
+  ]
+
+  /** These carry their own part costs (the nosing, TP61). */
+  function runTC(bm) {
+    return runPricingOnTree(bm.tree, SNAPSHOT.rules, SNAPSHOT.pfVariables, {
+      glassCatalogue: SNAPSHOT.glassCatalogue,
+      partAllocationRules: SNAPSHOT.partAllocationRules,
+      partCostMap: bm.partCostMap,
+      ironmongeryLines: bm.ironmongeryLines,
+      ironmongeryCatalogue: SNAPSHOT.ironmongeryCatalogue,
+      profileValues: SNAPSHOT.profileValues,
+    })
+  }
+
+  for (const [label, bm, target, production, labour] of CASES) {
+    it(`${label}: production ${production} h and labour ${labour} h, exactly`, () => {
+      const r = runTC(bm)
+      expect(r.manufacture_labour.total_minutes / 60, label).toBeCloseTo(production, 2)
+      expect(r.install_labour.total_minutes / 60, label).toBeCloseTo(labour, 2)
+    })
+
+    it(`${label}: every line matches Integrate but the gear box`, () => {
+      const r = runTC(bm)
+      expect(r.price.total_cost, label).toBeCloseTo(target.total_cost - GAP[label], 2)
+      expect(r.price.total, label).toBeCloseTo(target.total_price - GAP[label] * 2, 2)
+    })
+  }
+
+  it('TC1’s fanlight is ONE opening spanning both columns', () => {
+    // The mullion starts at the transom, so it exists in the bottom row only
+    // and the top row is a single cell: 493 + 27 + 511 = 1031, the divider
+    // INCLUDED.
+    const cells = frameCells(BENCHMARK_TC1.tree)
+    expect(cells.map(c => [c.col, c.row, c.colSpan, c.rowSpan]))
+      .toEqual([[0, 0, 2, 1], [0, 1, 1, 1], [1, 1, 1, 1]])
+    expect(cells.map(c => [c.width, c.height]))
+      .toEqual([[1031, 301], [493, 983], [511, 983]])
+    // and the matrix labels skip the empty slot: A1, A2, B2
+    expect(cells.map(c => matrixIndexOf(c.col + c.row * 2, 2))).toEqual(['A1', 'A2', 'B2'])
+  })
+
+  it('TC3’s opener is ONE opening spanning both rows', () => {
+    // The transom starts at the mullion, so it exists in column B only.
+    const cells = frameCells(BENCHMARK_TC3.tree)
+    expect(cells.map(c => [c.col, c.row, c.colSpan, c.rowSpan]))
+      .toEqual([[0, 0, 1, 2], [1, 0, 1, 1], [1, 1, 1, 1]])
+    expect(cells.map(c => [c.width, c.height]))
+      .toEqual([[543, 1201], [561, 354], [561, 820]])
+    // A1, B1, B2 — the empty slot is A2
+    expect(cells.map(c => matrixIndexOf(c.col + c.row * 2, 2))).toEqual(['A1', 'B1', 'B2'])
+  })
+
+  it('TC2 is a plain 2 x 2 grid — both dividers run frame to frame', () => {
+    const cells = frameCells(BENCHMARK_TC2.tree)
+    expect(cells.every(c => c.colSpan === 1 && c.rowSpan === 1)).toBe(true)
+    expect(cells.map(c => [c.width, c.height]))
+      .toEqual([[590, 356], [608, 356], [590, 1022], [608, 1022]])
+  })
+
+  it('the sashes are the openings less 4 mm clearance all round', () => {
+    const sizes = bm => openingNodes(bm.tree)
+      .map(n => { const z = casementSashSize(bm.tree, n); return [z.width, z.height] })
+    expect(sizes(BENCHMARK_TC1)).toEqual([[1023, 293], [485, 975], [503, 975]])
+    expect(sizes(BENCHMARK_TC2)).toEqual([[582, 348], [600, 348], [582, 1014], [600, 1014]])
+    expect(sizes(BENCHMARK_TC3)).toEqual([[535, 1193], [553, 346], [553, 812]])
+  })
+
+  it('a short divider is measured by its own span, a full one by the frame', () => {
+    // TC1's short mullion lies in the bottom row: 983 + 2. TC3's short
+    // transom lies in column B: 561 + 3. The full ones stay internal + 20.
+    expect(casementFrameTimberVolumeDm3(BENCHMARK_TC1.tree)).toBeCloseTo(34.55, 2)
+    expect(casementFrameTimberVolumeDm3(BENCHMARK_TC2.tree)).toBeCloseTo(40.90, 2)
+    expect(casementFrameTimberVolumeDm3(BENCHMARK_TC3.tree)).toBeCloseTo(32.38, 2)
+
+    const frameOf = bm => bm.tree.children.find(c => c.part_type === 'assemblyFramePart')
+    const byKey = (bm, key) => frameOf(bm).children.find(c => c.key === key)
+    expect(isShortDivider(BENCHMARK_TC1.tree, byKey(BENCHMARK_TC1, 'mull1'))).toBe(true)
+    expect(isShortDivider(BENCHMARK_TC1.tree, byKey(BENCHMARK_TC1, 'trans1'))).toBe(false)
+    expect(shortDividerSpanMm(BENCHMARK_TC1.tree, byKey(BENCHMARK_TC1, 'mull1'))).toBe(983)
+    expect(isShortDivider(BENCHMARK_TC3.tree, byKey(BENCHMARK_TC3, 'trans1'))).toBe(true)
+    expect(shortDividerSpanMm(BENCHMARK_TC3.tree, byKey(BENCHMARK_TC3, 'trans1'))).toBe(561)
+    // TC2's are both full
+    for (const key of ['mull1', 'trans1']) {
+      expect(isShortDivider(BENCHMARK_TC2.tree, byKey(BENCHMARK_TC2, key)), key).toBe(false)
+    }
+  })
+
+  it('a short divider still counts once for production', () => {
+    // Rules 1105 and 211 count every divider, short or full: TC1 and TC3
+    // both have two dividers and three sashes, so both are 1530 minutes.
+    for (const [label, bm] of CASES.map(c => [c[0], c[1]])) {
+      const v = computeVariables(bm.tree, computeDerived(bm.tree), PF_VARIABLES)
+      expect(v.frame_mullion_qty + v.frame_transom_qty, label).toBe(2)
+    }
+    expect(runTC(BENCHMARK_TC1).manufacture_labour.total_minutes).toBe(1530)
+    expect(runTC(BENCHMARK_TC3).manufacture_labour.total_minutes).toBe(1530)
+    expect(runTC(BENCHMARK_TC2).manufacture_labour.total_minutes).toBe(1790)
+  })
+
+  it('the nosing prices, and fires the 30-minute Windowboard rule', () => {
+    // Integrate charges rule 251 on all three, from the template's "Nosing in
+    // Solid Redwood" surround. The nosing is frame width + 150, ceil to
+    // 10 mm, then the nearest 0.1 m: 1260 -> 1.3, 1450 -> 1.5, 1360 -> 1.4.
+    const nosing = bm => runTC(bm).price.lines
+      .filter(l => l.fires && l.name === 'Component Cost' && l.alloc_part_code === 'TP61')
+      .map(l => [l.value, Number(l.line_cost.toFixed(2))])
+    expect(nosing(BENCHMARK_TC1)).toEqual([[1.3, 3.59]])
+    expect(nosing(BENCHMARK_TC2)).toEqual([[1.5, 4.14]])
+    expect(nosing(BENCHMARK_TC3)).toEqual([[1.4, 3.86]])
+
+    for (const [label, bm] of CASES.map(c => [c[0], c[1]])) {
+      const v = computeVariables(bm.tree, computeDerived(bm.tree), PF_VARIABLES)
+      expect(v.has_deep_window_board, label).toBe(true)
+    }
+    // Take the nosing away and the 30 minutes go with it
+    const noNosing = JSON.parse(JSON.stringify(BENCHMARK_TC1.tree))
+    noNosing.values.surroundLines = noNosing.values.surroundLines
+      .filter(l => l.part_code !== 'TP61')
+    expect(computeVariables(noNosing, computeDerived(noNosing), PF_VARIABLES)
+      .has_deep_window_board).toBe(false)
+    expect(runTC({ ...BENCHMARK_TC1, tree: noNosing }).install_labour.total_minutes)
+      .toBe(runTC(BENCHMARK_TC1).install_labour.total_minutes - 30)
+  })
+
+  it('a drawing with NO stored surround list is priced by the rules, as before', () => {
+    // Which is why no existing benchmark moved: only a stored list replaces
+    // the allocator's surrounds.
+    const stripped = JSON.parse(JSON.stringify(BENCHMARK_TC2.tree))
+    delete stripped.values.surroundLines
+    const r = runTC({ ...BENCHMARK_TC2, tree: stripped })
+    const comps = r.price.lines.filter(l => l.fires && l.name === 'Component Cost')
+    // the architrave the rules allocate, and no nosing (rule 4010 is inactive)
+    expect(comps.map(l => l.alloc_part_code)).toEqual(['TP68', 'TP68'])
+    expect(computeVariables(stripped, computeDerived(stripped), PF_VARIABLES)
+      .has_deep_window_board).toBe(false)
+  })
+
+  it('the architrave lengths are the ones the rules would have given', () => {
+    // The stored list carries the architrave too, and at the same lengths
+    // rules 4000 / 4001 produce — so storing it changes nothing about it.
+    const arch = bm => runTC(bm).price.lines
+      .filter(l => l.fires && l.name === 'Component Cost' && l.alloc_part_code === 'TP68')
+      .map(l => l.value)
+    expect(arch(BENCHMARK_TC1)).toEqual([3, 1.2])     // 2 x 1510 -> 1.5, 1210 -> 1.2
+    expect(arch(BENCHMARK_TC2)).toEqual([3.2, 1.4])
+    expect(arch(BENCHMARK_TC3)).toEqual([2.8, 1.3])
   })
 })

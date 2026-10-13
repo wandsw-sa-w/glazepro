@@ -20,6 +20,13 @@ import {
 } from './casementGeometry.js'
 import { isStormproofSash } from '../drawingBoard/casementOpenings.js'
 
+/**
+ * Surround parts that ARE a deep window board — a window board, not a
+ * bullnose (Integrate's own wording). TP61 is the "Nosing in Solid Redwood"
+ * the TC templates carry; AA01, the bullnose, is deliberately not here.
+ */
+const DEEP_WINDOW_BOARD_PART_CODES = ['TP61']
+
 // ── Tree helpers (mirrored from computeDerived.js) ───────────────────────────
 
 function findFirst(node, partType) {
@@ -519,6 +526,31 @@ export function computeVariables(tree, derived = {}, pfVariables = {}, opts = {}
 
     // ── GROUP 10h — Stubs for features not yet built ──────────────────────────
     const surround_row_qty = 0                      // surround allocation not built
+
+    // Step AV: has_deep_window_board drives install rule 251 "Windowboard"
+    // (30 minutes), which Integrate charges on all three TC drawings.
+    //
+    // Integrate's definition: "item has at least one component where this is
+    // true; a deep window board is a window board but NOT bullnose". So it is
+    // a property of the item's SURROUND COMPONENTS, and GlazePro reads it
+    // from the drawing's stored surround list — the TC templates each carry a
+    // "Nosing in Solid Redwood", which is the deep window board.
+    //
+    // WHY NOTHING ELSE FIRES IT, and why L34046 was exact without it: the
+    // nosing component is GlazePro's TP61, allocated by part_allocation_rules
+    // 4010 "Surround head board" — and that rule is INACTIVE live. So no
+    // drawing had a nosing at all, no drawing could have a deep window board,
+    // and L34046's labour was exact because rule 251 never fired on it.
+    // Reported in docs/reports/step-av.md.
+    //
+    // ASSUMPTION, reported: that TP61 is the window board. The facts call the
+    // component "Nosing in Solid Redwood" and the brief says the nosing is
+    // what fires the rule; TP61's cost (2.76/m) is the nosing's. A bullnose is
+    // a different part (AA01), so "not bullnose" is satisfied by part code.
+    const surroundLines = Array.isArray(item?.values?.surroundLines)
+      ? item.values.surroundLines : []
+    const has_deep_window_board = surroundLines.some(
+      l => DEEP_WINDOW_BOARD_PART_CODES.includes(String(l?.part_code ?? '')))
     const encapsulated_leaded_light_qty = 0          // leaded lights not built
     const sliding_sash_with_restricted_travel_qty = 0 // travel calculation not built
     const has_unmodified_default_measurement = false  // default measurement tracking not built
@@ -955,7 +987,7 @@ export function computeVariables(tree, derived = {}, pfVariables = {}, opts = {}
       internal_finish, external_finish,
 
       // Group 10h — Stubs for unbuilt features
-      surround_row_qty, encapsulated_leaded_light_qty,
+      surround_row_qty, has_deep_window_board, encapsulated_leaded_light_qty,
       sliding_sash_with_restricted_travel_qty,
       has_unmodified_default_measurement, unmodified_default_measurement_text,
       eq_glazing_is_out, is_survey_drawing, is_surveyor_specified,

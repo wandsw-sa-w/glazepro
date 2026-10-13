@@ -758,3 +758,252 @@ export const BENCHMARK_SE = {
     'PRICE ONLY: Integrate gave the drawing-card PF30 price. SD - SE = 40.21 = 30 install minutes x 2, an opener against a fixed sash',
   ],
 }
+
+// ── Step AV — two-column fanlight casements: TC1, TC2, TC3 ──────────────────
+//
+// Integrate's own combination templates, drawn as L31115 item 8 and read on
+// 13 Oct (docs/integrate-L31115-two-column-fanlights.txt):
+//   TC1  8/1 — template 7  "Double Casement With Fanlight": ONE wide
+//              top-hung fanlight over an LH + RH pair
+//   TC2  8/2 — template 12 "Configuration 1": a fanlight over EACH casement
+//   TC3  8/3 — template 13 "Configuration 2": a full-height LH opener beside
+//              a top-hung fanlight over a FIXED sash
+//
+// WHAT IS NEW HERE is only the frame's divider geometry: a mullion or transom
+// can STOP AT ANOTHER DIVIDER, so an opening spans two columns (TC1) or two
+// rows (TC3). Everything else — labour, production, sash timber, glass, cill,
+// surrounds — comes out of the existing casement rules, which TC2 proved
+// before any change was made (docs/reports/step-av-tc2-proof.md).
+//
+// Each tree also carries a STORED SURROUND LIST, as Integrate's templates do:
+// the Ogee architrave it would have allocated anyway, plus a "Nosing in Solid
+// Redwood" (TP61) that no GlazePro rule allocates, and which is what fires
+// install rule 251 "Windowboard".
+
+/** A divider that runs frame to frame, as every pre-Step-AV one does. */
+function fullDivider(key, partType, offset, stopKey) {
+  return {
+    key,
+    part_type: partType,
+    values: {
+      offset, thicknessInFrame: 27, [stopKey]: 20,
+      // '0' is Integrate's "runs to the frame"; stored explicitly so a tree
+      // says what it means rather than relying on the field being absent.
+      startDivider: '0', endDivider: '0',
+    },
+    children: [],
+  }
+}
+
+/**
+ * A divider that STOPS AT ANOTHER DIVIDER. `startDivider` / `endDivider`
+ * hold the other divider's KEY — a stable reference, not an array index,
+ * which would point at a different divider as soon as one was added.
+ */
+function shortDivider(key, partType, offset, stopKey, { startDivider = '0', endDivider = '0' } = {}) {
+  return {
+    key,
+    part_type: partType,
+    values: { offset, thicknessInFrame: 27, [stopKey]: 20, startDivider, endDivider },
+    children: [],
+  }
+}
+
+/** The Ogee architrave GlazePro would allocate, plus Integrate's nosing. */
+function surroundLines({ width, height, nosing }) {
+  return [
+    // Nosing in Solid Redwood — frame width + 150, ceil to 10 mm. The deep
+    // window board: it is what makes has_deep_window_board true.
+    { part_code: 'TP61', qty: 1, length_mm: nosing, label: 'Nosing in Solid Redwood' },
+    // Ogee Architrave in MDF — the same lengths rule 4000 / 4001 give
+    { part_code: 'TP68', qty: 2, length_mm: height + 100, label: 'Ogee Architrave – height' },
+    { part_code: 'TP68', qty: 1, length_mm: width + 100,  label: 'Ogee Architrave – width' },
+  ]
+}
+
+/** TC's part costs: the architrave, and the nosing at 2.76/m. */
+const TC_PART_COST_MAP = {
+  TP68: 2.85,   // Ogee Architrave 20x70 MDF
+  TP61: 2.76,   // Nosing 25x50 Redwood — the same part L34046's rule 4010 names
+}
+
+function tcTree({ width, height, dividers, openings, ironmongeryLines, nosing }) {
+  return {
+    key: 'item1',
+    part_type: 'drawingItemPart',
+    values: {
+      typeOfWork:      'complete_new',
+      frameMaterialId: 'softwood',       // Solid Redwood
+      sashMaterialId:  'softwood',
+      cillMaterialId:  'utile',
+      floorLevel:      'first_floor',
+      surroundLines:   surroundLines({ width, height, nosing }),
+    },
+    children: [
+      {
+        key: 'paint1',
+        part_type: 'paintAndIronmongeryPart',
+        values: {
+          internalFinish: 'clean_white', externalFinish: 'clean_white',
+          cillFinish: 'clean_white', cutOutBrickReveal: false,
+          ironmongeryFinish: 'PB',
+          ironmongeryLines: ironmongeryLines.map(l => ({ ...l })),
+        },
+        children: [],
+      },
+      {
+        key: 'notes1',
+        part_type: 'notesPart',
+        values: { installationMethod: 'internally' },
+        children: [],
+      },
+      {
+        key: 'frame1',
+        part_type: 'assemblyFramePart',
+        values: {
+          width, height,
+          leftWidth: 37, rightWidth: 37, topHeight: 47, bottomHeight: 47,
+          frameDepth: 96, jambType: 'solid_profiled',
+          frameHeadStopSize: 20, frameStileStopSize: 20, cillStopSize: 20,
+          rakeFrame: false, archHead: false,
+        },
+        children: [
+          ...dividers,
+          ...openings,
+          {
+            key: 'cill1',
+            part_type: 'cillPart',
+            // Integrate stores one cill per BOTTOM-ROW opening (TC1 493 +
+            // 511); its cill VOLUME is the full frame width, so one GlazePro
+            // cill is the faithful model, as J–N.
+            values: { height: 47, depth: 128 },
+            children: [],
+          },
+        ],
+      },
+    ],
+  }
+}
+
+const TC_ASSUMPTIONS = [
+  'Frame, dividers, openings, cill, glass and the STORED ironmongery and surround lists: Integrate’s own drawings (docs/integrate-L31115-two-column-fanlights.txt, read 13 Oct 2026)',
+  'A divider that stops at another names it by KEY in startDivider / endDivider (Integrate uses its id, and ‘0’ for the frame) — a stable reference, not an array index',
+  'The short-divider frame-timber allowances are ONE READING EACH and no single constant fits both: +2 on TC1’s short mullion (exact — 984 gives 43.18, 986 gives 43.20) and +3 or +4 on TC3’s short transom (both give 40.48). UNVERIFIED; worth under 1p either way',
+  'The stored surround list carries the Ogee architrave AND the "Nosing in Solid Redwood" (TP61); TP61 is taken to be the deep window board that fires install rule 251, which is an ASSUMPTION reported in docs/reports/step-av.md',
+  'One cillPart per frame (Integrate stores one per bottom-row opening and prices the full frame width — step-ao §3)',
+  'installationMethod internally: ASSUMPTION, as the other fixtures; the engine does not read it',
+]
+
+// ── TC1: one wide fanlight over a double, 1105 x 1405 ──────────────────────
+// internal 1031 x 1311 = 493 + 27 + 511 and 301 + 27 + 983.
+// The transom runs jamb to jamb; the MULLION starts at the transom and runs
+// down to the cill, so it exists in the bottom row only and the fanlight
+// spans both columns: 493 + 27 + 511 = 1031 wide.
+const TC1_TRANSOM = fullDivider('trans1', 'transomPart', 301, 'transomStopSize')
+const TC1_MULLION = shortDivider('mull1', 'mullionPart', 493, 'mullionStopSize',
+  { startDivider: 'trans1' })
+
+const TC1_IRONMONGERY = [
+  { product_short_name: 'connoisseur_handle_lh', finish_code: 'PB', qty: 2, source: 'survey' },
+  { product_short_name: 'connoisseur_handle_rh', finish_code: 'PB', qty: 1, source: 'survey' },
+  { product_short_name: 'defender_209mm', finish_code: 'PC', qty: 1, source: 'survey' },
+  { product_short_name: 'defender_friction_hinge_-_side_hung_310mm', finish_code: 'PC', qty: 2, source: 'survey' },
+  { product_short_name: 'kenrick_extension_950mm', finish_code: 'PC', qty: 6, source: 'survey' },
+  { product_short_name: 'kenrick_extension_gear_box', finish_code: 'PC', qty: 3, source: 'survey' },
+  { product_short_name: 'trickle_vent_xr16', finish_code: 'Wht', qty: 1, source: 'survey' },
+]
+
+export const BENCHMARK_TC1 = {
+  name: 'Benchmark TC1 — Wide fanlight over a double casement (L31115 Item 8 Drawing 1)',
+  tree: tcTree({
+    width: 1105, height: 1405, nosing: 1260,
+    dividers: [TC1_TRANSOM, TC1_MULLION],
+    openings: [
+      casementSash('cas_a1', 'top_hung'),         // spans both columns
+      casementSash('cas_a2', 'left_hand_hung'),
+      casementSash('cas_b2', 'right_hand_hung'),
+    ],
+    ironmongeryLines: TC1_IRONMONGERY,
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkTC1_wide_fanlight_over_double },
+  partCostMap: TC_PART_COST_MAP,
+  profileValues: PROFILE_VALUES,
+  glassCatalogue: {},
+  ironmongeryLines: TC1_IRONMONGERY,
+  assumptions: TC_ASSUMPTIONS,
+}
+
+// ── TC2: a fanlight over each casement, 1299 x 1499 ───────────────────────
+// Both dividers run frame to frame, so this is the plain 2 x 2 grid that
+// needed no new model — the proof run before any change was made.
+const TC2_IRONMONGERY = [
+  { product_short_name: 'connoisseur_handle_lh', finish_code: 'PB', qty: 1, source: 'survey' },
+  { product_short_name: 'connoisseur_handle_rh', finish_code: 'PB', qty: 1, source: 'survey' },
+  { product_short_name: 'defender_310mm', finish_code: 'PC', qty: 1, source: 'survey' },
+  { product_short_name: 'defender_friction_hinge_-_side_hung_310mm', finish_code: 'PC', qty: 1, source: 'survey' },
+  { product_short_name: 'kenrick_extension_490mm', finish_code: 'PC', qty: 2, source: 'survey' },
+  { product_short_name: 'kenrick_extension_950mm', finish_code: 'PC', qty: 2, source: 'survey' },
+  { product_short_name: 'kenrick_extension_gear_box', finish_code: 'PC', qty: 2, source: 'survey' },
+  { product_short_name: 'trickle_vent_xr16', finish_code: 'Wht', qty: 1, source: 'survey' },
+]
+
+export const BENCHMARK_TC2 = {
+  name: 'Benchmark TC2 — A fanlight over each of two casements (L31115 Item 8 Drawing 2)',
+  tree: tcTree({
+    width: 1299, height: 1499, nosing: 1450,
+    dividers: [
+      fullDivider('mull1', 'mullionPart', 590, 'mullionStopSize'),
+      fullDivider('trans1', 'transomPart', 356, 'transomStopSize'),
+    ],
+    openings: [
+      casementSash('cas_a1', 'top_hung'), casementSash('cas_b1', 'fix'),
+      casementSash('cas_a2', 'fix'),      casementSash('cas_b2', 'right_hand_hung'),
+    ],
+    ironmongeryLines: TC2_IRONMONGERY,
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkTC2_fanlight_over_each },
+  partCostMap: TC_PART_COST_MAP,
+  profileValues: PROFILE_VALUES,
+  glassCatalogue: {},
+  ironmongeryLines: TC2_IRONMONGERY,
+  assumptions: TC_ASSUMPTIONS,
+}
+
+// ── TC3: a full-height opener beside a fanlight over a fixed sash ─────────
+// internal 1131 x 1201 = 543 + 27 + 561 and 354 + 27 + 820.
+// The mullion runs head to cill; the TRANSOM starts at the mullion and runs
+// to the right jamb, so it exists in column B only and the left opener spans
+// both rows: 1201 tall.
+const TC3_MULLION = fullDivider('mull1', 'mullionPart', 543, 'mullionStopSize')
+const TC3_TRANSOM = shortDivider('trans1', 'transomPart', 354, 'transomStopSize',
+  { startDivider: 'mull1' })
+
+const TC3_IRONMONGERY = [
+  { product_short_name: 'connoisseur_handle_lh', finish_code: 'PB', qty: 2, source: 'survey' },
+  { product_short_name: 'defender_310mm', finish_code: 'PC', qty: 1, source: 'survey' },
+  { product_short_name: 'defender_friction_hinge_-_side_hung_310mm', finish_code: 'PC', qty: 1, source: 'survey' },
+  { product_short_name: 'kenrick_extension_490mm', finish_code: 'PC', qty: 2, source: 'survey' },
+  { product_short_name: 'kenrick_extension_950mm', finish_code: 'PC', qty: 2, source: 'survey' },
+  { product_short_name: 'kenrick_extension_gear_box', finish_code: 'PC', qty: 2, source: 'survey' },
+  { product_short_name: 'trickle_vent_xr16', finish_code: 'Wht', qty: 1, source: 'survey' },
+]
+
+export const BENCHMARK_TC3 = {
+  name: 'Benchmark TC3 — Full-height opener beside a fanlight over a fixed sash (L31115 Item 8 Drawing 3)',
+  tree: tcTree({
+    width: 1205, height: 1295, nosing: 1360,
+    dividers: [TC3_MULLION, TC3_TRANSOM],
+    openings: [
+      casementSash('cas_a1', 'left_hand_hung'),   // spans both rows
+      casementSash('cas_b1', 'top_hung'),
+      casementSash('cas_b2', 'fix'),
+    ],
+    ironmongeryLines: TC3_IRONMONGERY,
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkTC3_fanlight_over_one_side },
+  partCostMap: TC_PART_COST_MAP,
+  profileValues: PROFILE_VALUES,
+  glassCatalogue: {},
+  ironmongeryLines: TC3_IRONMONGERY,
+  assumptions: TC_ASSUMPTIONS,
+}

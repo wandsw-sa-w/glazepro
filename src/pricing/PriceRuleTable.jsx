@@ -35,11 +35,18 @@ export function fmt(n, decimals = 2) {
 }
 
 export function costPriceMatch(actualCost, actualPrice, targets) {
-  const costDiff  = actualCost  - targets.total_cost
-  const priceDiff = actualPrice - targets.total_price
-  const costOk    = Math.abs(costDiff)  < 0.02
-  const priceOk   = Math.abs(priceDiff) < 0.02
-  return { costOk, priceOk, costDiff, priceDiff }
+  // Step AV: some benchmarks are recorded from Integrate's DRAWING CARD,
+  // which shows a price and no cost breakdown (SB, SD, SE). A target with no
+  // total_cost is not a failure — there is nothing to compare — so the cost
+  // side counts as OK and reports no difference, instead of showing
+  // "cost diff £NaN" and painting the row red.
+  const hasCost  = targets?.total_cost  != null
+  const hasPrice = targets?.total_price != null
+  const costDiff  = hasCost  ? actualCost  - targets.total_cost  : null
+  const priceDiff = hasPrice ? actualPrice - targets.total_price : null
+  const costOk    = !hasCost  || Math.abs(costDiff)  < 0.02
+  const priceOk   = !hasPrice || Math.abs(priceDiff) < 0.02
+  return { costOk, priceOk, costDiff, priceDiff, hasCost, hasPrice }
 }
 
 // ── Price rules table ─────────────────────────────────────────────────────────
@@ -146,7 +153,9 @@ export function PriceTable({ lines, targets }) {
                   return (
                     <>
                       <span style={m.costOk ? TS.hit : TS.miss}>
-                        Cost: {m.costOk ? 'ok' : `diff £${fmt(m.costDiff)}`} (target {'£'}{fmt(targets.total_cost)})
+                        Cost: {!m.hasCost
+                          ? 'not recorded (Integrate gave a price only)'
+                          : `${m.costOk ? 'ok' : `diff £${fmt(m.costDiff)}`} (target £${fmt(targets.total_cost)})`}
                       </span>
                       {' | '}
                       <span style={m.priceOk ? TS.hit : TS.miss}>

@@ -122,22 +122,184 @@ export function frameGridSize(tree) {
  * The frame's openings as a flat list in Integrate's matrix order:
  * A1, B1, …, then A2, B2, … — across the top row first, then down.
  *
- * Opening nodes take these slots in tree order, so the tree's order of
+ * Step AV: a cell may SPAN columns or rows, because a mullion or transom can
+ * stop at ANOTHER DIVIDER instead of running to the frame (Integrate's
+ * startDivider / endDivider). TC1's fanlight is one opening across both
+ * columns of the top row, because its mullion starts at the transom and only
+ * exists below it; TC3's opener is one opening down both rows of the left
+ * column, because its transom starts at the mullion and only exists to the
+ * right of it.
+ *
+ * A spanning opening takes its TOP-LEFT slot and the slots it covers hold no
+ * part, so the list reads A1, A2, B2 on TC1 and A1, B1, B2 on TC3 — the
+ * empty slot is simply skipped, as Integrate skips it.
+ *
+ * Opening nodes take these cells in tree order, so the tree's order of
  * openings IS this order (see openingNodes).
  */
 export function frameOpenings(tree) {
+  return frameCells(tree).map(c => ({
+    width: c.width, height: c.height, x: c.x, y: c.y,
+    col: c.col, row: c.row, colSpan: c.colSpan, rowSpan: c.rowSpan,
+  }))
+}
+
+/**
+ * The frame's cells, merged where a divider does not separate them.
+ *
+ * Returns, in row-major order, only the OCCUPIED cells:
+ *   { col, row, colSpan, rowSpan, x, y, width, height }
+ * `x` / `y` are measured from the frame's interior top-left, and a spanning
+ * cell's width or height INCLUDES the divider it crosses (TC1's fanlight is
+ * 493 + 27 + 511 = 1031 wide).
+ */
+export function frameCells(tree) {
   const cols = frameColumns(tree)
   const rows = frameRows(tree)
   if (cols.length === 0 || rows.length === 0) return []
+
+  const frame = findFirst(tree, 'assemblyFramePart')
+  const mullions = sortedDividers(frame, 'mullionPart')
+  const transoms = sortedDividers(frame, 'transomPart')
+
+  // Does the mullion BETWEEN column i and i+1 actually separate row r?
+  // It does when that mullion exists in row r — i.e. when r is inside the
+  // span the mullion's startDivider / endDivider give it.
+  const mullionSeparates = (i, r) =>
+    dividerCoversIndex(mullions[i], transoms, r)
+  // ...and the transom between row j and j+1 separating column c.
+  const transomSeparates = (j, c) =>
+    dividerCoversIndex(transoms[j], mullions, c)
+
+  const taken = new Set()
+  const key = (c, r) => `${c},${r}`
   const out = []
-  for (const row of rows) {
-    for (const col of cols) {
-      // computeOpeningLayout returns { x, width } along whichever axis it was
-      // given, so a ROW's `width` is its height and its `x` is its top edge.
-      out.push({ width: col.width, height: row.width, x: col.x, y: row.x })
+
+  for (let r = 0; r < rows.length; r++) {
+    for (let c = 0; c < cols.length; c++) {
+      if (taken.has(key(c, r))) continue
+
+      // Extend right while the mullion between c+span-1 and c+span does not
+      // separate this row.
+      let colSpan = 1
+      while (c + colSpan < cols.length && !mullionSeparates(c + colSpan - 1, r)) colSpan++
+      // Extend down while the transom below does not separate this column.
+      let rowSpan = 1
+      while (r + rowSpan < rows.length && !transomSeparates(r + rowSpan - 1, c)) rowSpan++
+
+      for (let dc = 0; dc < colSpan; dc++) {
+        for (let dr = 0; dr < rowSpan; dr++) taken.add(key(c + dc, r + dr))
+      }
+
+      const lastCol = cols[c + colSpan - 1]
+      const lastRow = rows[r + rowSpan - 1]
+      out.push({
+        col: c, row: r, colSpan, rowSpan,
+        x: cols[c].x, y: rows[r].x,
+        // The span includes the dividers crossed, which is why this is the
+        // far edge minus the near edge rather than a sum of the slots.
+        width:  lastCol.x + lastCol.width - cols[c].x,
+        height: lastRow.x + lastRow.width - rows[r].x,
+      })
     }
   }
   return out
+}
+
+/** A frame's dividers of one type, in the order they appear across the frame. */
+function sortedDividers(frame, partType) {
+  return (frame?.children ?? [])
+    .filter(c => c.part_type === partType)
+    .sort((a, b) => (num(a.values?.offset) ?? 0) - (num(b.values?.offset) ?? 0))
+}
+
+/**
+ * Does `divider` exist at index `i` along the axis the CROSSING dividers
+ * divide?
+ *
+ * A divider names what it starts and ends at (Integrate's startDivider /
+ * endDivider; the frame when absent), so its extent is a range of the slots
+ * the crossing dividers make. `crossing` is the sorted list of those — for a
+ * mullion, the transoms; for a transom, the mullions — and index `i` counts
+ * the slots between them, so crossing[k] separates slot k from slot k+1.
+ *
+ * A divider that runs frame to frame covers every slot, which is every
+ * divider before Step AV and still the common case.
+ */
+function dividerCoversIndex(divider, crossing, i) {
+  if (!divider) return false
+  const startAt = dividerRefIndex(divider.values?.startDivider, crossing)
+  const endAt   = dividerRefIndex(divider.values?.endDivider,   crossing)
+  // startDivider names the crossing divider this one BEGINS at, so it covers
+  // the slots AFTER it; endDivider names where it stops, so it covers the
+  // slots BEFORE it.
+  const from = startAt == null ? 0 : startAt + 1
+  const to   = endAt   == null ? crossing.length : endAt
+  return i >= from && i <= to
+}
+
+/**
+ * The index of the crossing divider a reference names, or null for "the
+ * frame".
+ *
+ * The reference is a divider's stable `key`, not an array index: an index
+ * would silently point at a different divider as soon as one is added,
+ * removed or re-spaced. Integrate's own '0' means the frame, and null,
+ * undefined and '0' are all treated that way.
+ */
+function dividerRefIndex(ref, crossing) {
+  if (ref == null || ref === '' || ref === '0' || ref === 0) return null
+  const idx = crossing.findIndex(d => d.key === ref)
+  return idx < 0 ? null : idx
+}
+
+/**
+ * Is this divider SHORT — does it stop at another divider rather than run
+ * frame to frame?
+ *
+ * The frame timber reads this: a full divider is measured as the internal
+ * dimension + 20, a short one as its own opening span plus a small
+ * allowance (casementFrameTimberVolumeDm3).
+ */
+export function isShortDivider(tree, divider) {
+  const frame = findFirst(tree, 'assemblyFramePart')
+  if (!frame || !divider) return false
+  const crossing = divider.part_type === 'mullionPart'
+    ? sortedDividers(frame, 'transomPart')
+    : sortedDividers(frame, 'mullionPart')
+  return dividerRefIndex(divider.values?.startDivider, crossing) != null ||
+         dividerRefIndex(divider.values?.endDivider,   crossing) != null
+}
+
+/**
+ * A SHORT divider's own length — the span of the opening it divides, which
+ * is the extent of the slots it covers along its own axis.
+ *
+ * TC1's short mullion lies in the bottom row only, so its length comes from
+ * that row's 983; TC3's short transom lies in column B only, so from that
+ * column's 561.
+ */
+export function shortDividerSpanMm(tree, divider) {
+  const frame = findFirst(tree, 'assemblyFramePart')
+  if (!frame || !divider) return null
+  const isMullion = divider.part_type === 'mullionPart'
+  // A mullion runs vertically, so its length is measured down the ROWS; a
+  // transom runs horizontally, so across the COLUMNS.
+  const along = isMullion ? frameRows(tree) : frameColumns(tree)
+  const crossing = isMullion
+    ? sortedDividers(frame, 'transomPart')
+    : sortedDividers(frame, 'mullionPart')
+  if (along.length === 0) return null
+
+  const startAt = dividerRefIndex(divider.values?.startDivider, crossing)
+  const endAt   = dividerRefIndex(divider.values?.endDivider,   crossing)
+  const from = startAt == null ? 0 : startAt + 1
+  const to   = endAt   == null ? along.length - 1 : endAt
+  if (from > to) return null
+  const first = along[from]
+  const last  = along[to]
+  if (!first || !last) return null
+  return last.x + last.width - first.x
 }
 
 /** The frame's opening NODES, in tree order (Integrate's matrixIndex order). */
@@ -311,6 +473,16 @@ function round2dp(dm3) {
  * (1225 on the 1299-high frame), comes from a single reading (K/N). Every
  * other term is confirmed by the four readings above.
  */
+/**
+ * The allowance on a SHORT divider's length — its opening span plus this.
+ *
+ * NOT VERIFIED beyond one reading each (Step AV). They differ because
+ * Integrate's own figures differ: no single constant reproduces both TC1 and
+ * TC3. See casementFrameTimberVolumeDm3 for the arithmetic.
+ */
+export const SHORT_MULLION_ALLOWANCE_MM = 2
+export const SHORT_TRANSOM_ALLOWANCE_MM = 3
+
 export function casementFrameTimberVolumeDm3(tree) {
   const frame = findFirst(tree, 'assemblyFramePart')
   if (!frame) return 0
@@ -331,11 +503,30 @@ export function casementFrameTimberVolumeDm3(tree) {
     const thickness = num(child.values?.thicknessInFrame) ?? 0
     const stop = num(child.values?.mullionStopSize) ?? num(child.values?.transomStopSize) ?? 0
     const overall = thickness + 2 * stop
-    // Mullion length = internal height + 20; transom length = internal
-    // width + 20, by the same reading (one frame only).
-    const length = child.part_type === 'mullionPart'
-      ? (interior.height ?? 0) + 20
-      : (interior.width  ?? 0) + 20
+    // A divider that runs FRAME TO FRAME is the internal dimension + 20 (as
+    // benchmarks J, Q and TC2, all exact).
+    //
+    // Step AV: a divider that STOPS AT ANOTHER DIVIDER is its own opening
+    // span plus a small allowance. ONE READING EACH and no single constant
+    // fits both, so they are two named constants, listed as unverified:
+    //   TC1's short MULLION  983 -> 985 (+2) is exact: 984 gives 43.18 and
+    //                        986 gives 43.20, against Integrate's 43.19.
+    //   TC3's short TRANSOM  561 -> 564 or 565 (+3 or +4) — both give
+    //                        Integrate's 40.48, so the reading does not
+    //                        choose between them. +3 is used.
+    // Worth well under 1p either way: 1 mm is 0.0064 dm3.
+    const isMullion = child.part_type === 'mullionPart'
+    let length
+    if (isShortDivider(tree, child)) {
+      const span = shortDividerSpanMm(tree, child) ?? 0
+      length = span + (isMullion
+        ? SHORT_MULLION_ALLOWANCE_MM
+        : SHORT_TRANSOM_ALLOWANCE_MM)
+    } else {
+      length = isMullion
+        ? (interior.height ?? 0) + 20
+        : (interior.width  ?? 0) + 20
+    }
     mm3 += length * depth * overall
   }
 

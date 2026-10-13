@@ -153,7 +153,7 @@ function BenchmarkSection({ benchmark, results, ironmongeryLines, ironWarnings }
             <td style={S.td}><strong>{'\u00A3'}{fmt(totalCost)}</strong></td>
             <td style={S.td}>
               <span style={m.costOk ? S.hit : S.miss}>
-                target {'\u00A3'}{fmt(targets.total_cost)} {m.costOk ? '-- ok' : `-- diff \u00A3${fmt(m.costDiff)}`}
+                target {m.hasCost ? `\u00A3${fmt(targets.total_cost)}` : 'price only'} {m.costOk ? '-- ok' : `-- diff \u00A3${fmt(m.costDiff)}`}
               </span>
             </td>
           </tr>
@@ -394,7 +394,7 @@ export default function PricingBenchmark() {
                 data-testid="benchmark-row"
                 data-benchmark={benchmark.key ?? ''}
                 data-status={allOk ? 'PASS' : 'FAIL'}
-                data-cost-diff={fmt(m.costDiff)}
+                data-cost-diff={m.hasCost ? fmt(m.costDiff) : ''}
                 data-price-diff={fmt(m.priceDiff)}
                 style={allOk ? { background: '#f0fff0' } : { background: '#fff0f0' }}>
                 <td style={S.td}><strong>{benchmark.name}</strong></td>
@@ -404,7 +404,9 @@ export default function PricingBenchmark() {
                 <td style={S.td}>{'\u00A3'}{fmt(benchmark.targets.total_price)}</td>
                 <td style={S.td}>
                   <span style={allOk ? S.hit : S.miss}>
-                    {allOk ? 'PASS' : `FAIL (cost diff \u00A3${fmt(m.costDiff)}, price diff \u00A3${fmt(m.priceDiff)})`}
+                    {allOk ? 'PASS' : (m.hasCost
+                      ? `FAIL (cost diff £${fmt(m.costDiff)}, price diff £${fmt(m.priceDiff)})`
+                      : `FAIL (price only, diff £${fmt(m.priceDiff)})`)}
                   </span>
                 </td>
               </tr>

@@ -79,6 +79,36 @@ const FINISH_SOURCE_LABELS = {
  * Worked in whole millimetres so no float error can land a value on the
  * wrong side of a 50 mm boundary.
  */
+/**
+ * A drawing's STORED surround list, as allocated-part rows.
+ *
+ * Shape on the tree (drawingItemPart.values.surroundLines), mirroring
+ * Integrate's own `surround` array and GlazePro's ironmongeryLines:
+ *   [{ part_code, qty, length_mm, label? }]
+ *
+ * `group: 'surrounds'` so these go through the same length rounding as the
+ * allocator's — ceil to 10 mm then the nearest 0.1 m
+ * (docs/step-ar-addendum-surround-rounding.md).
+ */
+export function storedSurroundParts(tree) {
+  const item = findFirst(tree, 'drawingItemPart')
+  const lines = item?.values?.surroundLines
+  if (!Array.isArray(lines) || lines.length === 0) return []
+  return lines
+    .filter(l => l && l.part_code)
+    .map((l, i) => ({
+      rule_id: null,
+      group: 'surrounds',
+      label: l.label ?? `Surround ${i + 1}`,
+      part_code: l.part_code,
+      qty: Number(l.qty) || 1,
+      measure: Number(l.length_mm) || 0,
+      scope_part_id: null,
+      scope_part_type: null,
+      defaulted_vars: [],
+    }))
+}
+
 export function componentLengthMetres(measure, group = null) {
   const mm = Number(measure) || 0
   if (group === 'surrounds') {
@@ -823,7 +853,21 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
   //
   // Integrate merges identical lines before costing so one longer length
   // is costed once (avoids per-line rounding differences).
-  const rawComponentParts = allocatedParts.filter(a => a.group !== 'sash_weights')
+  // Step AV: a drawing may carry a STORED SURROUND LIST, exactly as it may
+  // carry a stored ironmongery list (Step Z). Integrate keeps one on every
+  // drawing item — its templates fill it, and its price lines use the stored
+  // lengths — so a combination casement template brings a "Nosing in Solid
+  // Redwood" with it that no rule would have allocated.
+  //
+  // A stored list REPLACES the allocator's own surrounds, the same way a
+  // stored ironmongery list replaces the default lines; everything else the
+  // allocator produced is kept. A drawing with no stored list is priced
+  // exactly as before, which is why no existing benchmark moves.
+  const storedSurrounds = storedSurroundParts(tree)
+  const rawComponentParts = (storedSurrounds.length > 0
+    ? allocatedParts.filter(a => a.group !== 'surrounds')
+    : allocatedParts
+  ).filter(a => a.group !== 'sash_weights').concat(storedSurrounds)
   const mergedMap = new Map()
   for (const p of rawComponentParts) {
     const key = `${p.part_code}\x00${p.label}`
