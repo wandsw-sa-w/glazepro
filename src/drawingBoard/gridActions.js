@@ -132,6 +132,11 @@ export function applyDividers(tree, frameKey, cols, rows, iW, iH, profileValues 
         offset: Math.round(((idx + 1) * openingW + idx * mullionT) * 10) / 10,
         thicknessInFrame: mullionT,
         ...(solid ? { mullionStopSize: mullionStop } : {}),
+        // Step AV: a grid divider runs frame to frame, which Integrate
+        // stores as startDivider / endDivider '0'. Stored on every one so
+        // the two picker modes write the same shape of data.
+        startDivider: '0',
+        endDivider: '0',
       },
       children:  [],
     }))
@@ -153,6 +158,8 @@ export function applyDividers(tree, frameKey, cols, rows, iW, iH, profileValues 
           offset: Math.round(above * 10) / 10,
           thicknessInFrame: transomT,
           transomStopSize:  transomStop,
+          startDivider: '0',
+          endDivider: '0',
         },
         children: [],
       }

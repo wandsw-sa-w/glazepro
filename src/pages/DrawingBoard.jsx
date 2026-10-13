@@ -29,14 +29,14 @@ import {
 import { applyFanlightBottomRails, isStormproofWindow,
   openingLabel, columnCount, resizeCasementFrame,
   OPENING_KINDS, OPENING_KIND_LABELS, CASEMENT_OPERATIONS, openingKindOf,
-  openingNodes, matrixIndexOf, isCasementFrameTree, changeOpening,
+  openingNodes, openingMatrixIndex, isCasementFrameTree, changeOpening,
   setCasementOperation, casementProfileDefaults,
 } from '../drawingBoard/casementOpenings.js'
 import { setStormproof } from '../drawingBoard/stormproof.js'
 import { computeSashWeight } from '../pricing/sashWeight.js'
 import { loadDrawingRunPrices } from '../quotes/drawingRunPrice.js'
 import { SashElevation } from '../drawingBoard/renderElevation.jsx'
-import { applyDividers, applyBars, frameGrid } from '../drawingBoard/gridActions.js'
+import { applyDividers, applyBars, frameGrid, addDividerInCell } from '../drawingBoard/gridActions.js'
 import { isDirectGlazedUnit } from '../pricing/casementGeometry.js'
 import { findRequiredEmpty } from '../drawingBoard/requiredFields.js'
 import { loadGlassCatalogue } from '../pricing/loadPricingContext.js'
@@ -1255,7 +1255,7 @@ function HistoryPanel({ entries, loading: historyLoading, error: historyError })
 // For mullion/transom: N cols × M rows → (N-1) vertical dividers + (M-1) horizontal dividers.
 // For glazing bars: the same, but children of a glassPart.
 
-function GridPickerDialog({ title, applyLabel = 'Apply', onApply, onClose, maxCols = 15, maxRows = 15, initialCols = 1, initialRows = 1, error = null, note = null }) {
+function GridPickerDialog({ title, applyLabel = 'Apply', onApply, onClose, maxCols = 15, maxRows = 15, initialCols = 1, initialRows = 1, error = null, note = null, oneOnly = null }) {
   // Step AQ item 7: the CHOICE and the hover PREVIEW are separate.
   //
   // There used to be one `hover` state doing both jobs, so Apply applied
@@ -1267,6 +1267,22 @@ function GridPickerDialog({ title, applyLabel = 'Apply', onApply, onClose, maxCo
   const [selected, setSelected] = useState({ cols: initialCols, rows: initialRows })
   const [hover, setHover]       = useState(null)
   const shown = hover ?? selected
+
+  // Step AV: the picker's two modes. "whole" is the grid above — dividers
+  // that run frame to frame. "one" adds a single divider that stops at a
+  // crossing one, so an opening spans two columns or two rows (TC1, TC3).
+  const [mode, setMode]   = useState('whole')
+  const [axis, setAxis]   = useState('transom')
+  const [slot, setSlot]   = useState(0)
+  const slotCount = oneOnly
+    ? (axis === 'transom' ? oneOnly.columns : oneOnly.rows)
+    : 1
+  // Pointing at a slot that is no longer there would add the divider
+  // somewhere the surveyor did not choose.
+  const slotIdx = Math.min(slot, Math.max(0, slotCount - 1))
+  const slotLabel = i => axis === 'transom'
+    ? `column ${String.fromCharCode(65 + i)}`
+    : `row ${i + 1}`
 
   const cellSize = 22
   const gap      = 2
@@ -1286,7 +1302,50 @@ function GridPickerDialog({ title, applyLabel = 'Apply', onApply, onClose, maxCo
           </div>
         )}
 
+        {/* Step AV: which mode — only offered where a divider can stop at one */}
+        {oneOnly && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 12 }}>
+            {[['whole', 'Across the whole frame'], ['one', 'In one column / one row only']].map(([v, label]) => (
+              <label key={v} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#333', cursor: 'pointer' }}>
+                <input type="radio" name="divider-mode" value={v} checked={mode === v} onChange={() => setMode(v)} />
+                {label}
+              </label>
+            ))}
+          </div>
+        )}
+
+        {oneOnly && mode === 'one' && (
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+              <select
+                value={axis}
+                onChange={e => { setAxis(e.target.value); setSlot(0) }}
+                style={{ ...SI, flex: 1 }}
+              >
+                <option value="transom">Transom in one column</option>
+                <option value="mullion">Mullion in one row</option>
+              </select>
+              <select
+                value={slotIdx}
+                onChange={e => setSlot(Number(e.target.value))}
+                style={{ ...SI, flex: 1 }}
+              >
+                {Array.from({ length: slotCount }, (_, i) => (
+                  <option key={i} value={i}>{slotLabel(i)}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ fontSize: 11, color: '#888' }}>
+              {axis === 'transom'
+                ? `A transom across ${slotLabel(slotIdx)} only — it stops at the mullion, so the other column spans both rows.`
+                : `A mullion down ${slotLabel(slotIdx)} only — it stops at the transom, so the other row spans both columns.`}
+              {' '}It is added halfway; set the exact Offset on the part afterwards.
+            </div>
+          </div>
+        )}
+
         {/* Grid */}
+        {(!oneOnly || mode === 'whole') && (
         <div style={{ display: 'inline-grid', gap, gridTemplateColumns: `repeat(${maxCols}, ${cellSize}px)`, cursor: 'pointer', userSelect: 'none', marginBottom: 10 }}
           onMouseLeave={() => setHover(null)}>
           {Array.from({ length: maxRows }, (_, r) =>
@@ -1304,14 +1363,19 @@ function GridPickerDialog({ title, applyLabel = 'Apply', onApply, onClose, maxCo
             })
           )}
         </div>
+        )}
 
+        {(!oneOnly || mode === 'whole') && (
         <div style={{ fontSize: 12, color: '#555', marginBottom: 12 }}>
           {shown.cols} × {shown.rows} — {shown.cols - 1} mullion{shown.cols - 1 !== 1 ? 's' : ''} + {shown.rows - 1} transom{shown.rows - 1 !== 1 ? 's' : ''}
         </div>
+        )}
 
         <div style={{ display: 'flex', gap: 8 }}>
           <button
-            onClick={() => onApply(selected.cols, selected.rows)}
+            onClick={() => (oneOnly && mode === 'one')
+              ? oneOnly.onApply(axis, slotIdx)
+              : onApply(selected.cols, selected.rows)}
             style={{ flex: 1, fontSize: 12, padding: '6px 0', border: 'none', borderRadius: 7, background: '#3d35a8', color: '#fff', cursor: 'pointer', fontWeight: 600, fontFamily: 'inherit' }}
           >{applyLabel}</button>
           <button
@@ -2292,6 +2356,35 @@ function DrawingBoard() {
     }
   }
 
+  // Step AV: the picker's second mode — one divider that stops at a crossing
+  // one. It goes in halfway, the way the grid picker spaces its dividers
+  // equally; the surveyor then types the exact Offset on the part.
+  function handleAddDividerInCell(axis, index) {
+    if (!tree) return
+    const frame = findFirst(tree, 'assemblyFramePart')
+    if (!frame) return
+    const fv = frame.values ?? {}
+    const cillH = findFirst(tree, 'cillPart')?.values?.height ?? 0
+    const iW = (fv.width  ?? 0) - (fv.leftWidth ?? 0) - (fv.rightWidth ?? 0)
+    const iH = (fv.height ?? 0) - (fv.topHeight ?? 0) - cillH
+    try {
+      let newTree = addDividerInCell(tree, frame.key, {
+        axis,
+        index,
+        offset: Math.round(((axis === 'transom' ? iH : iW) / 2) * 10) / 10,
+        profileValues: profileValueMap,
+      })
+      // A new top-row opening is a fanlight and takes the 62 mm bottom rail,
+      // as the grid picker's does. The raw profile rows — see Step AR item 3.
+      newTree = applyFanlightBottomRails(newTree, profileValues).tree
+      setDividerError(null)
+      commit(newTree)
+      setDividerDialog(false)
+    } catch (e) {
+      setDividerError(e?.message ?? String(e))
+    }
+  }
+
   function handleDividerConfirm() {
     if (dividerConfirmPending) {
       applyDividersNow(dividerConfirmPending.cols, dividerConfirmPending.rows)
@@ -2374,9 +2467,11 @@ function DrawingBoard() {
   const selectedOpeningKind = isCasementDrawing && selectedNode
     ? (openingNodes(tree).some(n => n.key === selectedNode.key) ? openingKindOf(selectedNode) : null)
     : null
-  const selectedOpeningIndex = selectedOpeningKind
-    ? openingNodes(tree).findIndex(n => n.key === selectedNode.key)
-    : -1
+  // Step AV: the label is the opening's CELL — with a spanning opening its
+  // place in the list is not its cell (TC1's are A1, A2, B2).
+  const selectedOpeningLabel = selectedOpeningKind
+    ? openingMatrixIndex(tree, selectedNode)
+    : null
 
   // ── Render ────────────────────────────────────────────────────────────────────
   if (loadError) {
@@ -2698,7 +2793,7 @@ function DrawingBoard() {
                 <>
                   <div style={{ width: 1, height: 20, background: '#e8e6e0', flexShrink: 0, margin: '0 2px' }} />
                   <span style={{ fontSize: 11, color: '#888', flexShrink: 0 }}>
-                    {matrixIndexOf(selectedOpeningIndex)} change to:
+                    {selectedOpeningLabel} change to:
                   </span>
                   {OPENING_KINDS.map(kind => (
                     <button
@@ -2908,6 +3003,12 @@ function DrawingBoard() {
           note={isCasementDrawing
             ? 'A second row adds a transom: the top row is the fanlight'
             : null}
+          // Step AV: only a casement frame's dividers can stop at each other
+          oneOnly={isCasementDrawing ? {
+            columns: currentFrameGrid.cols,
+            rows: currentFrameGrid.rows,
+            onApply: handleAddDividerInCell,
+          } : null}
         />
       )}
 

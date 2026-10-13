@@ -14,7 +14,7 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { applyDividers, applyBars, cloneWithNewKeys, makeKey , frameGrid } from './gridActions.js'
 import { addDividerInCell, removeDivider } from './gridActions.js'
-import { buildCasementFrame, resizeCasementFrame } from './casementOpenings.js'
+import { buildCasementFrame, resizeCasementFrame, applyFanlightBottomRails } from './casementOpenings.js'
 import { frameCells, frameInterior, isShortDivider, shortDividerSpanMm } from '../pricing/casementGeometry.js'
 import { BENCHMARK_TC1, BENCHMARK_TC3 } from '../pricing/benchmarks/fixtureCasement.js'
 import { buildNewBoxSash } from './buildTree.js'
@@ -553,6 +553,64 @@ describe('Step AV — a divider in one column or one row', () => {
   it('removing a divider that is not there changes nothing', () => {
     const tree = newFrame(1200, 1300)
     expect(removeDivider(tree, frameOf(tree).key, 'nosuchkey')).toBe(tree)
+  })
+
+
+  // ── Step AV — which sash is the fanlight, once an opening spans ───────────
+  // applyFanlightBottomRails used to call the first `cols` openings in the
+  // list the top row. With a spanning opening that is wrong in both
+  // directions: on TC1 it made A2 a fanlight, and on TC3 the full-height
+  // opener. The rail must follow the CELL.
+  //
+  // A profile where the two rails differ — Integrate's own
+  // casementSashPart.bottomHeight (the ordinary rail) against
+  // defaultFanlightBottomHeight (the fanlight's).
+  const RAIL_ROWS = [
+    ...ROWS.filter(r => r.field_key !== 'casementSashPart.defaultFanlightBottomHeight'),
+    { profile_id: 2, field_key: 'casementSashPart.bottomHeight',               default_value: '83' },
+    { profile_id: 2, field_key: 'casementSashPart.defaultFanlightBottomHeight', default_value: '62' },
+  ]
+  const railsOf = t => openingsOf(t).map(n => n.values?.bottomHeight)
+
+  function tc1Shape() {
+    let tree = newFrame(1105, 1405)
+    const interior = frameInterior(tree)
+    tree = applyDividers(tree, frameOf(tree).key, 1, 2, interior.width, interior.height, PV, 'solid')
+    tree = setValues(tree, 'transomPart', { offset: 301 })
+    return addDividerInCell(tree, frameOf(tree).key,
+      { axis: 'mullion', index: 1, offset: 493, profileValues: PV })
+  }
+  function tc3Shape() {
+    let tree = newFrame(1205, 1295)
+    const interior = frameInterior(tree)
+    tree = applyDividers(tree, frameOf(tree).key, 2, 1, interior.width, interior.height, PV, 'solid')
+    tree = setValues(tree, 'mullionPart', { offset: 543 })
+    return addDividerInCell(tree, frameOf(tree).key,
+      { axis: 'transom', index: 1, offset: 354, profileValues: PV })
+  }
+
+  it('TC1: only the spanning top opening takes the fanlight rail', () => {
+    const before = tc1Shape()
+    expect(railsOf(before)).toEqual([83, 83, 83])
+    const { tree, changed } = applyFanlightBottomRails(before, RAIL_ROWS)
+    // A1 spans both columns and is the fanlight; A2 and B2 are not
+    expect(railsOf(tree)).toEqual([62, 83, 83])
+    expect(changed.length).toBe(1)
+  })
+
+  it('TC3: the full-height opener is NOT a fanlight, the one over the fixed sash is', () => {
+    const { tree, changed } = applyFanlightBottomRails(tc3Shape(), RAIL_ROWS)
+    // [A1 spanning both rows, B1, B2]
+    expect(railsOf(tree)).toEqual([83, 62, 83])
+    expect(changed.length).toBe(1)
+  })
+
+  it('a plain 2 x 2 grid still gives both top-row sashes the fanlight rail', () => {
+    let tree = newFrame(1299, 1499)
+    const interior = frameInterior(tree)
+    tree = applyDividers(tree, frameOf(tree).key, 2, 2, interior.width, interior.height, PV, 'solid')
+    const after = applyFanlightBottomRails(tree, RAIL_ROWS).tree
+    expect(railsOf(after)).toEqual([62, 62, 83, 83])
   })
 
   it('resizing carries the spanning openings with their cells', () => {

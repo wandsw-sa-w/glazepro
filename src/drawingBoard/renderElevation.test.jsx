@@ -9,7 +9,7 @@ import { SashElevation } from './renderElevation.jsx'
 import { computeDerived } from './computeDerived.js'
 import { computeSashGeometry } from './sashGeometry.js'
 import { buildCasementFrame, changeOpening, setCasementOperation, openingNodes } from './casementOpenings.js'
-import { applyDividers } from './gridActions.js'
+import { applyDividers, addDividerInCell } from './gridActions.js'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -953,6 +953,49 @@ describe('casement and direct glazed elevation', () => {
   }
   const draw = (tree, extra = {}) => render({
     tree, geometry: null, refOptions: REF, ...extra,
+  })
+
+  // ── Step AV — spanning openings ────────────────────────────────────────────
+  // TC1's fanlight spans both columns, because its mullion starts at the
+  // transom and so exists in the bottom row only. The drawing has to show one
+  // wide opening across the top, labelled A1, with no B1 slot at all.
+  function tc1Tree() {
+    const tree = sized(['opening_casement'], 1105, 1405)
+    const frame = tree.children.find(c => c.part_type === 'assemblyFramePart')
+    const cill  = frame.children.find(c => c.part_type === 'cillPart')
+    const iW = frame.values.width  - frame.values.leftWidth - frame.values.rightWidth
+    const iH = frame.values.height - frame.values.topHeight - cill.values.height
+    const pv = { thicknessInFrameSolid: 27, mullionStopSize: 20 }
+    let next = applyDividers(tree, frame.key, 1, 2, iW, iH, pv, 'solid')
+    // the transom at 301, as the fanlight is drawn
+    next = {
+      ...next,
+      children: next.children.map(c => c.part_type !== 'assemblyFramePart' ? c : ({
+        ...c,
+        children: c.children.map(g => g.part_type !== 'transomPart' ? g
+          : ({ ...g, values: { ...g.values, offset: 301 } })),
+      })),
+    }
+    return addDividerInCell(next, frame.key,
+      { axis: 'mullion', index: 1, offset: 493, profileValues: pv })
+  }
+
+  it('draws a spanning fanlight as ONE opening across both columns', () => {
+    const svg = draw(tc1Tree())
+    // interior 1031 wide less 4 mm clearance each side, at x = 37 + 4
+    expect(svg).toContain('x="41"')
+    expect(svg).toContain('width="1023"')
+    // the two sashes below it are 485 and 503 wide (493 - 8, 511 - 8)
+    expect(svg).toContain('width="485"')
+    expect(svg).toContain('width="503"')
+  })
+
+  it('labels the spanning layout A1, A2, B2 — there is no B1', () => {
+    const svg = draw(tc1Tree())
+    expect(svg).toContain('Open Out A1')
+    expect(svg).toContain('Open Out A2')
+    expect(svg).toContain('Open Out B2')
+    expect(svg).not.toContain('B1')
   })
 
   it('a casement drawing renders without the box-sash geometry', () => {

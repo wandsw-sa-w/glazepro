@@ -980,15 +980,22 @@ export function applyFanlightBottomRails(tree, profileValues) {
   }
 
   const nodes = openingNodes(tree)
-  const cols = columnCount(tree)
-  const multiRow = rowCount(tree) > 1
+  // Step AV: which sashes are fanlights comes from the CELLS, not from the
+  // first few places in the list. Where an opening SPANS, the two differ:
+  // TC1's list is [A1 spanning, A2, B2] and TC3's is [A1 full height, B1,
+  // B2], so an index test made A2 a fanlight on TC1 and the full-height
+  // opener one on TC3. A fanlight is a top-row opening that does NOT run the
+  // full height — the same test openingTypeLabel uses.
+  const cells = frameCells(tree)
+  const rows = rowCount(tree)
   const changed = []
   let next = tree
 
   for (let i = 0; i < nodes.length; i++) {
     const node = nodes[i]
     if (node.part_type !== 'casementSashPart') continue
-    const wantFanlight = multiRow && i < cols
+    const cell = cells[i]
+    const wantFanlight = rows > 1 && cell != null && cell.row === 0 && cell.rowSpan < rows
     const want = wantFanlight ? fanlight : ordinary
     const has = Number(node.values?.bottomHeight)
     if (has === want) continue

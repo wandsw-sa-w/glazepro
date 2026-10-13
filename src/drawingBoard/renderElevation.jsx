@@ -15,7 +15,7 @@ import React from 'react'
 import { computeOpeningLayout, computeGlassWidth, mullionThicknessMm } from './sashGeometry.js'
 import { resolveTopSashArch } from '../pricing/optionVocabulary.js'
 import { frameOpenings, openingNodes as casementOpeningNodes } from '../pricing/casementGeometry.js'
-import { columnCount, isCasementFrameTree, matrixIndexOf } from './casementOpenings.js'
+import { columnCount, isCasementFrameTree, matrixIndexOf, matrixLabel } from './casementOpenings.js'
 
 // ── Tree helpers ──────────────────────────────────────────────────────────────
 
@@ -907,13 +907,21 @@ export function CasementElevation({
   // relative to the frame interior).
   const cells = frameOpenings(tree)
 
+  // Step AV: the label is the CELL the opening sits in, not its place in the
+  // list — with a spanning opening the two differ. TC1's openings are A1,
+  // A2, B2: the fanlight spans both columns and the slot B1 does not exist.
+  const cellLabel = idx => {
+    const c = cells[idx]
+    return c ? matrixLabel(c.col, c.row) : matrixIndexOf(idx, nCols)
+  }
+
   const refLabel = (list, code) =>
     (refOptions?.[list] ?? []).find(o => o.code === code)?.label ?? ''
 
   // "Open Out A1" / "Fix B1" — the sash type's label, or Fix when it is fixed.
   function sashLabel(sashNode, idx) {
     const op = String(sashNode.values?.operation ?? '').toLowerCase()
-    const matrix = matrixIndexOf(idx, nCols)
+    const matrix = cellLabel(idx)
     if (op === 'fix' || op.startsWith('fix')) {
       return `${refLabel('sash_operation', 'fix') || 'Fix'} ${matrix}`
     }
@@ -966,14 +974,13 @@ export function CasementElevation({
     const y = OY + (slot.y ?? 0) + clearT
     const w = slot.width - clearL - clearR
     const h = (slot.height ?? iH) - clearT - clearB
-    const matrix = matrixIndexOf(idx, nCols)
+    const matrix = cellLabel(idx)
 
     if (node.part_type === 'glassPart') {
       // Direct glazed: the glass is glazed into the frame, no sash
       const label = matrix
       return {
         idx, slot, size: { width: w, height: h }, label,
-      selected: node.key === selectedKey || (node.children ?? []).some(c => c.key === selectedKey),
         selected: node.key === selectedKey || (node.children ?? []).some(c => c.key === selectedKey),
         svg: (
           <g key={node.key}>
