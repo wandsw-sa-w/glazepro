@@ -8,7 +8,7 @@
 // its own render tests were hand-built against.
 
 import {
-  frameCells, frameInterior, sortedDividers,
+  frameCells, frameInterior, sortedDividers, OPENING_TYPES,
 } from '../pricing/casementGeometry.js'
 
 export function makeKey(prefix) {
@@ -402,7 +402,6 @@ export function splitOpening(tree, frameKey, openingKey, axis, profileValues = n
   })
 }
 
-const OPENING_TYPES = ['casementSashPart', 'glassPart']
 
 /**
  * Write one divider into the frame and give the cell it splits a second

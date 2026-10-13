@@ -21,7 +21,7 @@
 
 import { makeKey } from './gridActions.js'
 import { resolveJambTypeCode } from './applyOperationDefaults.js'
-import { frameCells } from '../pricing/casementGeometry.js'
+import { frameCells, OPENING_TYPES } from '../pricing/casementGeometry.js'
 
 // ── Profile value helpers ────────────────────────────────────────────────────
 
@@ -453,7 +453,10 @@ export function buildOpening(kind, profileValues, { glass = null, sashType = 'op
 
 // ── Tree helpers ─────────────────────────────────────────────────────────────
 
-const OPENING_TYPES = ['casementSashPart', 'glassPart']
+// Step AX: OPENING_TYPES now comes from casementGeometry.js. There were two
+// copies of this list and they drifted the moment a French pair became an
+// opening — the board's copy still said two types while the geometry's said
+// three, so the board could not see a pair at all.
 
 function findFirst(node, partType) {
   if (!node) return null

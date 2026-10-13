@@ -13,8 +13,8 @@ import { runPricingOnTree, shapedGlassCutAreaM2 } from '../pricingEngine.js'
 import { applySashesReplaced } from '../../drawingBoard/sashesReplaced.js'
 import { computeDerived } from '../../drawingBoard/computeDerived.js'
 import { computeVariables } from '../computeVariables.js'
-import { shortDividerSpanMm, isShortDivider, frameCells, frameGridSize, frameOpenings, casementSashSize, casementSashWeightKg, casementFrameTimberVolumeDm3, frameMuntinLengthM } from '../casementGeometry.js'
-import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_B_UNCORRECTED, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F, BENCHMARK_G, BENCHMARK_H, BENCHMARK_I, BENCHMARK_J, BENCHMARK_K, BENCHMARK_L, BENCHMARK_M, BENCHMARK_N, BENCHMARK_P, BENCHMARK_Q, BENCHMARK_R, BENCHMARK_S, BENCHMARK_SA, BENCHMARK_SB, BENCHMARK_SC, BENCHMARK_SD, BENCHMARK_SE, BENCHMARK_SF, BENCHMARK_TC1, BENCHMARK_TC2, BENCHMARK_TC3 } from './index.js'
+import { shortDividerSpanMm, isShortDivider, frameCells, frameGridSize, frameOpenings, casementSashSize, casementSashWeightKg, casementFrameTimberVolumeDm3, casementSashTimberVolumeDm3, casementGlassSightline, frameMuntinLengthM, CASEMENT_SASH_TYPES, FRENCH_SASH_TYPES } from '../casementGeometry.js'
+import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_B_UNCORRECTED, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F, BENCHMARK_G, BENCHMARK_H, BENCHMARK_I, BENCHMARK_J, BENCHMARK_K, BENCHMARK_L, BENCHMARK_M, BENCHMARK_N, BENCHMARK_P, BENCHMARK_Q, BENCHMARK_R, BENCHMARK_S, BENCHMARK_SA, BENCHMARK_SB, BENCHMARK_SC, BENCHMARK_SD, BENCHMARK_SE, BENCHMARK_SF, BENCHMARK_TC1, BENCHMARK_TC2, BENCHMARK_TC3, BENCHMARK_FR1, BENCHMARK_FR2 } from './index.js'
 import { resolveIronmongeryLines } from '../loadPricingContext.js'
 // The LIVE price-file snapshot (reviewer-checked, 8 Oct 2026) — the honest
 // benchmarks and the real-tree case price from this, never from the
@@ -1816,5 +1816,166 @@ describe('Step AV — two-column fanlight benchmarks', () => {
     expect(arch(BENCHMARK_TC1)).toEqual([3, 1.2])     // 2 x 1510 -> 1.5, 1210 -> 1.2
     expect(arch(BENCHMARK_TC2)).toEqual([3.2, 1.4])
     expect(arch(BENCHMARK_TC3)).toEqual([2.8, 1.3])
+  })
+})
+
+/** Every node of a part type, for the Step AX French assertions. */
+function findAllOfType(node, partType, acc = []) {
+  if (!node) return acc
+  if (node.part_type === partType) acc.push(node)
+  for (const c of (node.children ?? [])) findAllOfType(c, partType, acc)
+  return acc
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step AX — French casements: FR1, FR2
+// ══════════════════════════════════════════════════════════════════════════════
+// docs/integrate-L31115-french-casements.txt, read 13 Oct 2026.
+//
+// A French casement is ONE opening holding a PAIR — no mullion. The pair adds
+// nothing of its own to the price: each of its two sashes is a casement sash
+// for production, timber, glass and weight, and the only things that are new
+// are the sash SIZE (half the opening, less the meeting-stile gap), the two
+// DIFFERENT stiles (an outer 62 and a meeting 63) and the thickness (57, not
+// a casement's 54).
+//
+// Both drawings are Integrate's templates unchanged and never saved, so the
+// template nosing is priced and rule 251's 30 minutes with it.
+//
+// The only gap is the Kenrick gearbox SET — gear box, centre strike, LH
+// strike and RH strike, the four parts carrying unit_cost 0 in the captured
+// snapshot: two sets on FR1 (-14.70) and three on FR2 (-23.10). Already fixed
+// in the live data by sql/step-ap0.
+describe('Step AX — French casement benchmarks', () => {
+  const GAP = { FR1: 14.70, FR2: 23.10 }
+
+  const CASES = [
+    ['FR1', BENCHMARK_FR1, INTEGRATE.benchmarkFR1_french_casement,               13.17, 11.50],
+    ['FR2', BENCHMARK_FR2, INTEGRATE.benchmarkFR2_french_casement_with_fanlight,  21.50, 13.00],
+  ]
+
+  /** These carry their own part costs (the nosing, TP61). */
+  function runFR(bm) {
+    return runPricingOnTree(bm.tree, SNAPSHOT.rules, SNAPSHOT.pfVariables, {
+      glassCatalogue: SNAPSHOT.glassCatalogue,
+      partAllocationRules: SNAPSHOT.partAllocationRules,
+      partCostMap: bm.partCostMap,
+      ironmongeryLines: bm.ironmongeryLines,
+      ironmongeryCatalogue: SNAPSHOT.ironmongeryCatalogue,
+      profileValues: SNAPSHOT.profileValues,
+    })
+  }
+
+  for (const [label, bm, target, production, labour] of CASES) {
+    it(`${label}: production ${production} h and labour ${labour} h, exactly`, () => {
+      const r = runFR(bm)
+      expect(r.manufacture_labour.total_minutes / 60, label).toBeCloseTo(production, 2)
+      expect(r.install_labour.total_minutes / 60, label).toBeCloseTo(labour, 2)
+    })
+
+    it(`${label}: every line matches Integrate but the gear box`, () => {
+      const r = runFR(bm)
+      expect(r.price.total_cost, label).toBeCloseTo(target.total_cost - GAP[label], 2)
+      expect(r.price.total, label).toBeCloseTo(target.total_price - GAP[label] * 2, 2)
+    })
+
+    it(`${label}: every GROUP matches but installation materials`, () => {
+      // The gearbox set is ironmongery, so only that one group is short.
+      const r = runFR(bm)
+      const got = {}
+      for (const l of r.price.lines) {
+        if (!l.fires || l.error) continue
+        got[l.group_name] = (got[l.group_name] ?? 0) + l.line_cost
+      }
+      for (const [group, t] of Object.entries(target.groups)) {
+        const expected = group === 'installation_materials' ? t.cost - GAP[label] : t.cost
+        expect(got[group] ?? 0, `${label} ${group}`).toBeCloseTo(expected, 2)
+      }
+    })
+  }
+
+  it('the pair is ONE opening, and its sashes are half of it', () => {
+    // FR1: internal 1125 x 1219, so each sash is (1125 - 8 - 4) / 2 = 556.5
+    // by 1219 - 8 = 1211 — which is what Integrate draws.
+    const cells = frameCells(BENCHMARK_FR1.tree)
+    expect(cells.length).toBe(1)
+    expect([cells[0].width, cells[0].height]).toEqual([1125, 1219])
+    expect(openingNodes(BENCHMARK_FR1.tree).map(n => n.part_type))
+      .toEqual(['frenchCasementPart'])
+
+    const sashes = CASEMENT_SASH_TYPES.flatMap(t => findAllOfType(BENCHMARK_FR1.tree, t))
+    expect(sashes.map(s => {
+      const z = casementSashSize(BENCHMARK_FR1.tree, s)
+      return [z.width, z.height]
+    })).toEqual([[556.5, 1211], [556.5, 1211]])
+
+    // FR2's pair sits under the transom: 825 x 1074 -> 406.5 x 1066 each
+    const fr2 = frameCells(BENCHMARK_FR2.tree)
+    expect(fr2.map(c => [c.width, c.height])).toEqual([[825, 304], [825, 1074]])
+  })
+
+  it('the meeting stile is (midRail - gap) / 2, stored on each sash', () => {
+    const pair = openingNodes(BENCHMARK_FR1.tree)[0]
+    expect(pair.values.midRail).toBe(130)
+    expect(pair.values.gapBetweenMeetingStiles).toBe(4)
+    const [left, right] = pair.children
+    // the outer stile is 62 and the meeting stile 63, on the inner edge of
+    // each leaf — so left and right are NOT the same width
+    expect([left.values.leftWidth, left.values.rightWidth]).toEqual([62, 63])
+    expect([right.values.leftWidth, right.values.rightWidth]).toEqual([63, 62])
+    expect((pair.values.midRail - pair.values.gapBetweenMeetingStiles) / 2).toBe(63)
+  })
+
+  it('a French sash is 57 thick and its timber uses both stiles', () => {
+    // (H x (outer + meeting) + W x (top + bottom)) x 57:
+    // FR1 (1211 x 125 + 556.5 x 145) x 57 = 13.23
+    // FR2 (1066 x 125 + 406.5 x 145) x 57 = 10.95, and the FANLIGHT, an
+    // ordinary casement sash at 54 thick, (2 x 296 x 62 + 817 x 145) x 54 = 8.38
+    const timber = (bm, partTypes) => partTypes
+      .flatMap(t => findAllOfType(bm.tree, t))
+      .map(s => casementSashTimberVolumeDm3(bm.tree, s))
+    expect(timber(BENCHMARK_FR1, CASEMENT_SASH_TYPES)).toEqual([13.23, 13.23])
+    expect(timber(BENCHMARK_FR2, ['casementSashPart'])).toEqual([8.38])
+    expect(timber(BENCHMARK_FR2, FRENCH_SASH_TYPES)).toEqual([10.95, 10.95])
+
+    for (const s of FRENCH_SASH_TYPES.flatMap(t => findAllOfType(BENCHMARK_FR1.tree, t))) {
+      expect(s.values.thickness, 'French sashes are 57 thick').toBe(57)
+    }
+  })
+
+  it('the glass is the sash less its own two stiles, at the cut size', () => {
+    // (W - outer - meeting + 28) x (H - 145 + 28): FR1 459.5 x 1094 = 0.50;
+    // FR2 309.5 x 949 = 0.29, which the 0.30 minimum lifts.
+    const glass = bm => FRENCH_SASH_TYPES
+      .flatMap(t => findAllOfType(bm.tree, t))
+      .map(s => {
+        const sl = casementGlassSightline(bm.tree, s)
+        return [sl.width, sl.height]
+      })
+    expect(glass(BENCHMARK_FR1)).toEqual([[431.5, 1066], [431.5, 1066]])
+    expect(glass(BENCHMARK_FR2)).toEqual([[281.5, 921], [281.5, 921]])
+  })
+
+  it('the pair itself adds no production time — only its sashes do', () => {
+    // FR1 790 = frame 180 + 2 x (180 machining + 20 glazing + 60 finish)
+    //   + 90 frame finish. FR2 1290 adds the transom's 180 + 60 and a third
+    //   sash. Two sashes, not three parts: the pair is not machined.
+    const v = bm => computeVariables(bm.tree, computeDerived(bm.tree), PF_VARIABLES)
+    expect(v(BENCHMARK_FR1).casement_sash_qty).toBe(2)
+    expect(v(BENCHMARK_FR2).casement_sash_qty).toBe(3)
+    expect(runFR(BENCHMARK_FR1).manufacture_labour.total_minutes).toBe(790)
+    expect(runFR(BENCHMARK_FR2).manufacture_labour.total_minutes).toBe(1290)
+    // Labour: 480 + 90 per opener + 30 windowboard (the template nosing)
+    expect(runFR(BENCHMARK_FR1).install_labour.total_minutes).toBe(690)
+    expect(runFR(BENCHMARK_FR2).install_labour.total_minutes).toBe(780)
+  })
+
+  it('the right leaf is the master, as Integrate has it', () => {
+    for (const bm of [BENCHMARK_FR1, BENCHMARK_FR2]) {
+      const pair = openingNodes(bm.tree).find(n => n.part_type === 'frenchCasementPart')
+      const [left, right] = pair.children
+      expect(left.values.isMasterLeaf, 'left').toBe(false)
+      expect(right.values.isMasterLeaf, 'right').toBe(true)
+    }
   })
 })

@@ -49,7 +49,16 @@ function num(v) {
   return isFinite(n) ? n : null
 }
 
-const OPENING_TYPES = ['casementSashPart', 'glassPart']
+// Step AX: a FRENCH casement is one opening holding a PAIR — a
+// frenchCasementPart with a left and a right sash and no mullion — which is
+// how Integrate stores it (docs/integrate-L31115-french-casements.txt). So
+// the pair is an opening, and its two sashes are casement sashes for every
+// purpose that counts sashes: production, timber, glass, weight.
+export const FRENCH_PAIR_PART = 'frenchCasementPart'
+export const FRENCH_SASH_TYPES = ['leftFrenchCasementSashPart', 'rightFrenchCasementSashPart']
+export const CASEMENT_SASH_TYPES = ['casementSashPart', ...FRENCH_SASH_TYPES]
+
+export const OPENING_TYPES = ['casementSashPart', 'glassPart', FRENCH_PAIR_PART]
 
 /** Is this glassPart a direct glazed unit — a direct child of the frame? */
 export function isDirectGlazedUnit(tree, glassNode) {
@@ -312,9 +321,19 @@ export function openingNodes(tree) {
 export function openingFor(tree, node) {
   if (!node) return null
   const nodes = openingNodes(tree)
-  const idx = nodes.findIndex(n => n.key === node.key)
+  // A French sash is not itself an opening — the PAIR it belongs to is, so
+  // the sash takes its parent's cell.
+  const idx = nodes.findIndex(n => n.key === node.key ||
+    (n.children ?? []).some(c => c.key === node.key))
   if (idx < 0) return null
   return frameOpenings(tree)[idx] ?? null
+}
+
+/** The French pair a French sash belongs to, or null. */
+export function frenchPairFor(tree, sashNode) {
+  if (!sashNode || !FRENCH_SASH_TYPES.includes(sashNode.part_type)) return null
+  return openingNodes(tree).find(n => n.part_type === FRENCH_PAIR_PART &&
+    (n.children ?? []).some(c => c.key === sashNode.key)) ?? null
 }
 
 /** A casement sash's own size: its opening minus its clearances. */
@@ -324,10 +343,23 @@ export function casementSashSize(tree, sashNode) {
     return { width: null, height: null }
   }
   const v = sashNode.values ?? {}
-  return {
-    width:  opening.width  - (num(v.mechanicalClearanceLeft) ?? 0) - (num(v.mechanicalClearanceRight)  ?? 0),
-    height: opening.height - (num(v.mechanicalClearanceTop)  ?? 0) - (num(v.mechanicalClearanceBottom) ?? 0),
+  // Step AX: a FRENCH sash is half the opening. Integrate stores the
+  // clearances and the meeting-stile gap on the PAIR, not on the sashes, so
+  // they are read from there first and from the sash only as a fallback:
+  //   height = opening - 2 x clearance
+  //   width  = (opening width - 2 x clearance - gap) / 2
+  // FR1's 1125 x 1219 opening gives 556.5 x 1211 each, which is what
+  // Integrate draws.
+  const pair = frenchPairFor(tree, sashNode)
+  const src = pair?.values ?? v
+  const clear = edge => num(src[edge]) ?? num(v[edge]) ?? 0
+  const width = opening.width - clear('mechanicalClearanceLeft') - clear('mechanicalClearanceRight')
+  const height = opening.height - clear('mechanicalClearanceTop') - clear('mechanicalClearanceBottom')
+  if (pair) {
+    const gap = num(pair.values?.gapBetweenMeetingStiles) ?? 0
+    return { width: (width - gap) / 2, height }
   }
+  return { width, height }
 }
 
 /**
@@ -431,10 +463,16 @@ export function casementSashTimberVolumeDm3(tree, sashNode) {
   const v = sashNode?.values ?? {}
   const thickness = casementSashThicknessMm(sashNode)
   if (sash.width == null || sash.height == null || !thickness) return 0
+  // Step AX: the two stiles are read separately, because a FRENCH sash has
+  // an outer stile and a MEETING stile of different widths (62 and 63 on
+  // FR1). An ordinary casement sash has the same width both sides, so
+  // height x (left + right) is the 2 x height x stile it was before; a sash
+  // with no rightWidth stored falls back to the left, unchanged.
   const stile  = num(v.leftWidth)    ?? 0
+  const other  = num(v.rightWidth)   ?? stile
   const head   = num(v.topHeight)    ?? 0
   const bottom = num(v.bottomHeight) ?? 0
-  const mm3 = (2 * sash.height * stile + sash.width * head + sash.width * bottom) * thickness
+  const mm3 = (sash.height * (stile + other) + sash.width * head + sash.width * bottom) * thickness
   // 2 dp before the rule, as Integrate does (12.25 / 16.76 / 21.90 readings)
   return round2dp(mm3 / 1e6)
 }
@@ -611,10 +649,11 @@ export function casementSashWeightKg(tree, sashNode, glassCatalogue = {}) {
   const thickness = casementSashThicknessMm(sashNode)
   if (sash.width == null || sash.height == null || !thickness) return 0
   const stile  = num(v.leftWidth)    ?? 0
+  const other  = num(v.rightWidth)   ?? stile
   const head   = num(v.topHeight)    ?? 0
   const bottom = num(v.bottomHeight) ?? 0
   const timberMm3 =
-    (2 * sash.height * stile + sash.width * head + sash.width * bottom) * thickness
+    (sash.height * (stile + other) + sash.width * head + sash.width * bottom) * thickness
   const family  = timberFamily(item?.values?.sashMaterialId)
   const density = TIMBER_FAMILY_DENSITIES[family] ?? TIMBER_FAMILY_DENSITIES.redwood
   const timberKg = (timberMm3 / 1e9) * density

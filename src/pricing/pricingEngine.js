@@ -138,6 +138,7 @@ import {
   isDirectGlazedUnit, directGlazedVisibleSize, directGlazedGlassSize,
   casementGlassSightline, casementSashSize, casementSashTimberVolumeDm3,
   casementSashWeightKg, directGlazedWarnings,
+  CASEMENT_SASH_TYPES,
 } from './casementGeometry.js'
 
 // ── Tree helpers (local copies, same logic as computeDerived.js) ──────────────
@@ -178,7 +179,10 @@ const LOOP_PART_TYPES = {
   sliding_sash:  ['topSashPart', 'bottomSashPart'],
   frame:         ['assemblyFramePart'],
   glass_unit:    ['glassPart'],
-  casement_sash: ['casementSashPart'],
+  // Step AX: a French pair's two sashes are casement sashes in this loop —
+  // each is machined, glazed, finished and (if it opens) hung exactly as a
+  // single casement sash is, and the pair itself adds nothing of its own.
+  casement_sash: CASEMENT_SASH_TYPES,
   door_leaf:     ['doorLeafPart'],
   panel:         ['panelPart'],
 }
@@ -426,7 +430,7 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
   // Casement Sash" keys on to_be_replaced, rule 165 "Softwood Casement
   // Sashes" on solid_redwood_volume (dm³, per sash) and rule 95 "Any Sash
   // Overweight (Casement)" on weight_in_kg.
-  if (pt === 'casementSashPart') {
+  if (CASEMENT_SASH_TYPES.includes(pt)) {
     const is_complete_new = baseVars.is_complete_new ?? false
     const size = casementSashSize(tree, partNode)
     const sightline = casementGlassSightline(tree, partNode)
@@ -480,7 +484,7 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
     //  - a CASEMENT sash's glass: the sash minus its stiles and rails;
     //  - a sliding sash's glass: the drawn sash sizes, as before.
     const isDirectGlazed = isDirectGlazedUnit(tree, partNode)
-    const isCasementGlass = parentSash?.part_type === 'casementSashPart'
+    const isCasementGlass = CASEMENT_SASH_TYPES.includes(parentSash?.part_type)
 
     let sightlineWidth = 0
     let sightlineHeight = 0

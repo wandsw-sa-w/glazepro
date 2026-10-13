@@ -17,6 +17,7 @@ import {
 } from './optionVocabulary.js'
 import {
   casementCillVolumeDm3, frameMuntinLengthM, casementFrameTimberVolumeDm3,
+  CASEMENT_SASH_TYPES,
 } from './casementGeometry.js'
 import { isStormproofSash } from '../drawingBoard/casementOpenings.js'
 
@@ -94,11 +95,14 @@ export function computeVariables(tree, derived = {}, pfVariables = {}, opts = {}
     const allGlassParts    = findAll(tree, 'glassPart')
     const allMullions      = findAll(tree, 'mullionPart')
     const allTransoms      = findAll(tree, 'transomPart')
-    const allCasementSashes = findAll(tree, 'casementSashPart')
+    // Step AX: a French pair's left and right sashes count as casement
+    // sashes everywhere a sash is counted — production per sash, the
+    // opener counts, the stormproof test and rule 43's quote note.
+    const allCasementSashes = CASEMENT_SASH_TYPES.flatMap(t => findAll(tree, t))
 
     // ── GROUP 1 — Item type detection ─────────────────────────────────────────
     const hasSashPair      = !!pair
-    const hasCasementSash  = !!findFirst(tree, 'casementSashPart')
+    const hasCasementSash  = allCasementSashes.length > 0
     const hasDoorLeaf      = !!findFirst(tree, 'doorLeafPart')
     const hasSpiral        = !!findFirst(tree, 'spiralSashPairPart')
 

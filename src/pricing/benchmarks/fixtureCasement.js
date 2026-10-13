@@ -811,13 +811,15 @@ function shortDivider(key, partType, offset, stopKey, { startDivider = '0', endD
 
 /** The Ogee architrave GlazePro would allocate, plus Integrate's nosing. */
 function surroundLines({ width, height, nosing }) {
-  // Integrate stores each surround's length to the next 10 mm: the nosing at
-  // frame width + 150 (TC1 1105 + 150 = 1255 -> 1260) and the architrave at
-  // frame size + 100 (1405 + 100 = 1505 -> 1510, 1105 + 100 = 1205 -> 1210).
-  // The three recorded lists come out exactly
-  // (docs/integrate-L31115-two-column-fanlights.txt): 1260 / 2 x 1510 /
-  // 1210, 1450 / 2 x 1600 / 1400, 1360 / 2 x 1400 / 1310.
-  const to10 = mm => Math.ceil(mm / 10) * 10
+  // Integrate rounds each surround's length to the NEAREST 10 mm, half up:
+  // the nosing at frame width + 150 and the architrave at frame size + 100.
+  //
+  // Step AV read this as a ceiling, because all three TC values happened to
+  // end in 5 or 9. FR1 settles it: 1313 + 100 = 1413, and Integrate stores
+  // 1410, which a ceiling would make 1420. All five recorded lists come out
+  // exactly — TC 1260 / 2 x 1510 / 1210, 1450 / 2 x 1600 / 1400, 1360 /
+  // 2 x 1400 / 1310 and FR 1350 / 2 x 1410 / 1300, 1050 / 2 x 1600 / 1000.
+  const to10 = mm => Math.round(mm / 10) * 10
   return [
     // Nosing in Solid Redwood — the deep window board: it is what makes
     // has_deep_window_board true.
@@ -1013,4 +1015,145 @@ export const BENCHMARK_TC3 = {
   glassCatalogue: {},
   ironmongeryLines: TC3_IRONMONGERY,
   assumptions: TC_ASSUMPTIONS,
+}
+
+// ── FR1 / FR2: French casements (L31115 Item 9) ────────────────────────────
+// docs/integrate-L31115-french-casements.txt, read 13 Oct 2026.
+//
+// Integrate stores a French casement as ONE opening holding a
+// FrenchCasementPart (the pair) with a Left and a Right French sash and NO
+// mullion. The pair carries the thickness (57, not 54), the clearances and
+// the meeting-stile gap; each sash carries its own two stiles, which DIFFER
+// — an outer stile of 62 and a meeting stile of 63, where
+// 63 = (midRail 130 - gap 4) / 2.
+//
+// The meeting stile is DERIVED here and stored on the sash, which is what
+// Integrate's stored tree shows (left rightWidth 63, right leftWidth 63).
+//
+// Both drawings are Integrate's own templates, UNCHANGED and never saved, so
+// their recorded prices include the template nosing and rule 251's 30
+// minutes. Integrate drops that nosing the first time a drawing is saved
+// (see the facts file), which is why new GlazePro drawings carry no stored
+// surround list from Step AX on — but these fixtures are the drawings as
+// read, so they keep it.
+
+const FRENCH_MID_RAIL_MM = 130       // frenchCasementPart.midRail, "Overall Meeting Stile"
+const FRENCH_GAP_MM      = 4         // frenchCasementPart.gapBetweenMeetingStiles
+const FRENCH_MEETING_STILE_MM = (FRENCH_MID_RAIL_MM - FRENCH_GAP_MM) / 2   // 63
+
+/**
+ * A French pair: one opening, two sashes, no mullion.
+ *
+ * `masterLeaf` is the leaf that carries the lock — Integrate's default is
+ * the RIGHT one (isMasterLeaf true on the right sash).
+ */
+function frenchPair(key, { masterLeaf = 'right' } = {}) {
+  const sash = (side, operation) => ({
+    key: `${key}_${side}`,
+    part_type: side === 'left' ? 'leftFrenchCasementSashPart' : 'rightFrenchCasementSashPart',
+    values: {
+      operation,
+      casementTypeId: 'open_out',         // Integrate typeId 7
+      thickness:     57,                  // the PAIR's thickness, not a casement's 54
+      topHeight:     62,
+      // The outer stile is 62 and the MEETING stile 63, so left and right
+      // differ: the meeting stile is the inner edge of each leaf.
+      leftWidth:  side === 'left' ? 62 : FRENCH_MEETING_STILE_MM,
+      rightWidth: side === 'left' ? FRENCH_MEETING_STILE_MM : 62,
+      bottomHeight:  83,
+      isMasterLeaf:  masterLeaf === side,
+      toBeReplaced:  true,
+    },
+    children: [
+      {
+        key: `${key}_${side}_glass`,
+        part_type: 'glassPart',
+        values: { ...GLASS_CODES, glazingRebateWidth: 16, glazingTolerance: 2 },
+        children: [],
+      },
+    ],
+  })
+  return {
+    key,
+    part_type: 'frenchCasementPart',
+    values: {
+      casementTypeId: 'open_out',
+      thickness: 57,
+      midRail: FRENCH_MID_RAIL_MM,
+      gapBetweenMeetingStiles: FRENCH_GAP_MM,
+      mechanicalClearanceLeft:   4,
+      mechanicalClearanceRight:  4,
+      mechanicalClearanceTop:    4,
+      mechanicalClearanceBottom: 4,
+      masterLeaf,
+    },
+    children: [sash('left', 'left_hand_hung'), sash('right', 'right_hand_hung')],
+  }
+}
+
+const FR_ASSUMPTIONS = [
+  ...TC_ASSUMPTIONS,
+  'The meeting stile 63 is DERIVED as (midRail 130 - gap 4) / 2 and stored on each sash, which is what Integrate’s stored tree holds',
+  'Integrate’s template nosing is priced here because neither drawing was ever saved; a NEW GlazePro drawing carries no stored surround list (Step AX item 4)',
+]
+
+// FR1 — a plain French casement, 1199 x 1313.
+// internal 1125 x 1219; each sash (1125 - 8 - 4) / 2 = 556.5 wide and
+// 1219 - 8 = 1211 high, which is what Integrate draws.
+const FR1_IRONMONGERY = [
+  { product_short_name: 'connoisseur_handle_lh', finish_code: 'PB', qty: 1, source: 'survey' },
+  { product_short_name: 'connoisseur_handle_rh', finish_code: 'PB', qty: 1, source: 'survey' },
+  { product_short_name: 'defender_friction_hinge_-_side_hung_310mm', finish_code: 'PC', qty: 2, source: 'survey' },
+  { product_short_name: 'kenrick_extension_950mm', finish_code: 'PC', qty: 4, source: 'survey' },
+  { product_short_name: 'kenrick_extension_gear_box', finish_code: 'PC', qty: 2, source: 'survey' },
+  { product_short_name: 'trickle_vent_xr16', finish_code: 'Wht', qty: 1, source: 'survey' },
+]
+
+export const BENCHMARK_FR1 = {
+  name: 'Benchmark FR1 — French casement (L31115 Item 9 Drawing 1)',
+  tree: tcTree({
+    width: 1199, height: 1313, nosing: 1350,
+    dividers: [],
+    openings: [frenchPair('fr1')],
+    ironmongeryLines: FR1_IRONMONGERY,
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkFR1_french_casement },
+  partCostMap: TC_PART_COST_MAP,
+  profileValues: PROFILE_VALUES,
+  glassCatalogue: {},
+  ironmongeryLines: FR1_IRONMONGERY,
+  assumptions: FR_ASSUMPTIONS,
+}
+
+// FR2 — a top-hung fanlight over a French pair, 899 x 1499.
+// internal 825 x 1405 = 304 + 27 + 1074. The fanlight is an ordinary
+// casement sash (54 thick) and the pair sits below it.
+const FR2_IRONMONGERY = [
+  { product_short_name: 'connoisseur_handle_lh', finish_code: 'PB', qty: 2, source: 'survey' },
+  { product_short_name: 'connoisseur_handle_rh', finish_code: 'PB', qty: 1, source: 'survey' },
+  { product_short_name: 'defender_209mm', finish_code: 'PC', qty: 1, source: 'survey' },
+  { product_short_name: 'defender_friction_hinge_-_side_hung_310mm', finish_code: 'PC', qty: 2, source: 'survey' },
+  { product_short_name: 'kenrick_extension_690mm', finish_code: 'PC', qty: 2, source: 'survey' },
+  { product_short_name: 'kenrick_extension_950mm', finish_code: 'PC', qty: 4, source: 'survey' },
+  { product_short_name: 'kenrick_extension_gear_box', finish_code: 'PC', qty: 3, source: 'survey' },
+  { product_short_name: 'trickle_vent_xr16', finish_code: 'Wht', qty: 1, source: 'survey' },
+]
+
+export const BENCHMARK_FR2 = {
+  name: 'Benchmark FR2 — French casement with a fanlight over (L31115 Item 9 Drawing 2)',
+  tree: tcTree({
+    width: 899, height: 1499, nosing: 1050,
+    dividers: [fullDivider('trans1', 'transomPart', 304, 'transomStopSize')],
+    openings: [
+      casementSash('cas_a1', 'top_hung'),     // the fanlight, 54 thick
+      frenchPair('fr2'),                       // the pair, A2 / B2
+    ],
+    ironmongeryLines: FR2_IRONMONGERY,
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkFR2_french_casement_with_fanlight },
+  partCostMap: TC_PART_COST_MAP,
+  profileValues: PROFILE_VALUES,
+  glassCatalogue: {},
+  ironmongeryLines: FR2_IRONMONGERY,
+  assumptions: FR_ASSUMPTIONS,
 }
