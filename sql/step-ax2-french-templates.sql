@@ -46,6 +46,8 @@
 -- codes are not in the repository — and the script fails loudly rather than
 -- writing a code that would look set and still fail the check.
 
+-- REVIEWER EDIT (13 Oct): Product = the live 'French Casement' option (code french_casement), not
+-- 'Casement' — a French window should say so on the item; no price rule reads Product.
 BEGIN;
 
 DO $$
@@ -63,10 +65,10 @@ BEGIN
   END IF;
 
   SELECT code INTO _casement_code FROM public.reference_options
-  WHERE category = 'product' AND lower(label) = 'casement' AND is_active
+  WHERE category = 'product' AND lower(label) = 'french casement' AND is_active
   ORDER BY sort_order LIMIT 1;
   IF _casement_code IS NULL THEN
-    RAISE EXCEPTION 'No active reference_options row with category ''product'' and label ''Casement'' — run: SELECT code, label FROM reference_options WHERE category = ''product'' ORDER BY sort_order;';
+    RAISE EXCEPTION 'No active reference_options row with category ''product'' and label ''French Casement'' — run: SELECT code, label FROM reference_options WHERE category = ''product'' ORDER BY sort_order;';
   END IF;
 
   -- A French template that cannot be saved is worse than no template, so
@@ -131,8 +133,8 @@ SELECT t.name,
        (SELECT jsonb_agg(v) FROM jsonb_path_query(t.tree, '$.**.values.bottomHeight') v)                         AS bottom_rails
 FROM   public.drawing_templates t
 WHERE  t.name IN (
---     'French Casement',
---     'French Casement With Fanlight'
+       'French Casement',
+       'French Casement With Fanlight'
 )
 ORDER  BY t.sort_order;
 
@@ -143,8 +145,8 @@ SELECT t.name,
        t.tree #> '{children}' -> 0 #> '{values,ironmongeryLines}' AS ironmongery_first_child
 FROM   public.drawing_templates t
 WHERE  t.name IN (
---     'French Casement',
---     'French Casement With Fanlight'
+       'French Casement',
+       'French Casement With Fanlight'
 )
 ORDER  BY t.sort_order;
 
