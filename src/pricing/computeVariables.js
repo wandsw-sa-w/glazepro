@@ -19,6 +19,10 @@ import {
   casementCillVolumeDm3, frameMuntinLengthM, casementFrameTimberVolumeDm3,
   CASEMENT_SASH_TYPES,
 } from './casementGeometry.js'
+import {
+  DOOR_LEAF_TYPES, FRENCH_DOOR_PART, FRENCH_DOOR_LEAF_TYPES,
+  doorLeaves, doorLeafSize,
+} from './doorGeometry.js'
 import { isStormproofSash } from '../drawingBoard/casementOpenings.js'
 
 /**
@@ -103,11 +107,21 @@ export function computeVariables(tree, derived = {}, pfVariables = {}, opts = {}
     // ── GROUP 1 — Item type detection ─────────────────────────────────────────
     const hasSashPair      = !!pair
     const hasCasementSash  = allCasementSashes.length > 0
-    const hasDoorLeaf      = !!findFirst(tree, 'doorLeafPart')
+    // Step AZ: a French door's leaves are leftFrenchDoorLeafPart and
+    // rightFrenchDoorLeafPart. Only 'doorLeafPart' was looked for, so a
+    // French door was not a door at all: is_door false, door_leaf_qty 0,
+    // and every one of Integrate's door rules silent.
+    const allDoorLeaves   = doorLeaves(tree)
+    const hasDoorLeaf      = allDoorLeaves.length > 0
     const hasSpiral        = !!findFirst(tree, 'spiralSashPairPart')
 
     const is_box_sash              = hasSashPair && !hasCasementSash && !hasDoorLeaf
-    const is_casement_window       = hasCasementSash
+    // Step AZ: a DOORSET with a fanlight has a casement sash, but it is a
+    // door. Without this, FD3's fanlight made is_casement_window true and
+    // fired "Softwood Casement Frame & Sashes" and "Hardwood Casement Cill"
+    // — Integrate prices NO timber volume on a door, only its allocated
+    // utile sections.
+    const is_casement_window       = hasCasementSash && !hasDoorLeaf
     const is_door                  = hasDoorLeaf
     const is_sash_window           = is_box_sash || hasSpiral
     const is_spiral_sash           = hasSpiral && !hasCasementSash && !hasDoorLeaf
@@ -122,8 +136,12 @@ export function computeVariables(tree, derived = {}, pfVariables = {}, opts = {}
     const is_stormproof_casement   = allCasementSashes.some(isStormproofSash)
     const is_flush_casement        = hasCasementSash && !is_stormproof_casement
     const is_front_door            = false  // NEEDS-DATA
-    const is_single_door           = hasDoorLeaf
-    const is_french_door           = false  // NEEDS-DATA
+    // Step AZ: a FRENCH door is a frame holding a frenchDoorPart (the pair).
+    // Integrate's own rules distinguish them by door_leaf_qty, so a single
+    // door is literally one leaf, not 'has a leaf'.
+    const frenchDoorPairs          = findAll(tree, FRENCH_DOOR_PART)
+    const is_french_door           = frenchDoorPairs.length > 0
+    const is_single_door           = allDoorLeaves.length === 1
     const is_bifolding_door        = false  // NEEDS-DATA
 
     // Integrate alias
@@ -632,8 +650,35 @@ export function computeVariables(tree, derived = {}, pfVariables = {}, opts = {}
     const direct_glazed_unit_qty = allGlassParts.filter(
       g => findParent(tree, g.key)?.part_type === 'assemblyFramePart').length
 
-    const new_door_leaf_qty     = 0
-    const door_leaf_qty         = 0
+    // ── Step AZ — door leaves ─────────────────────────────────────────────
+    // These were hard 0, so every live door rule evaluated to nothing:
+    // "French Doors" (780 min a pair), "Machining & Joining a Door Frame"
+    // (855), "Door Leaf" (1035 each), "Door Leaf - Single Finish" (90 each)
+    // and "LTW General Consumables".
+    const door_leaf_qty         = allDoorLeaves.length
+    const new_door_leaf_qty     = allDoorLeaves.filter(
+      l => is_complete_new || l.values?.toBeReplaced === true).length
+
+    // A PAIR is one frenchDoorPart. Integrate's "French Doors" rule charges
+    // 780 minutes per new pair, which is why the pair is counted and not
+    // the leaves halved: a three-leaf set is not one and a half pairs.
+    const new_french_door_pair_qty = frenchDoorPairs.filter(
+      p => is_complete_new ||
+        (p.children ?? []).some(c => c.values?.toBeReplaced === true)).length
+    // NEEDS-DATA: GlazePro has no stable door part yet (Nathan sells them,
+    // a later step). Integrate's "Stable Door" rule reads this.
+    const new_stable_door_pair_qty = 0
+
+    // A door leaf's operation and type use the SAME codes a casement sash
+    // does ('fix', 'left_hand_hung', typeId 7 = open out), so the operation
+    // vocabulary is shared rather than copied — one definition of what
+    // 'fixed' and 'opens out' mean.
+    const fixed_door_leaf_qty   = allDoorLeaves.filter(casementIsFixed).length
+    const opening_out_door_leaf_qty = allDoorLeaves.filter(
+      l => !casementIsFixed(l) && casementOpensOut(l)).length
+    const opening_in_door_leaf_qty  = allDoorLeaves.filter(
+      l => !casementIsFixed(l) && casementOpensIn(l)).length
+
     const panel_qty             = 0
 
     // new_sash_qty: "all sashes inc. door leaves" (variable dictionary) —
@@ -685,6 +730,13 @@ export function computeVariables(tree, derived = {}, pfVariables = {}, opts = {}
     // user can rename, and 'Sashes Only' is not 'sashes_only'.
     const is_replacement_sashes_range =
       String(opts?.profileCode ?? '') === 'sashes_only'
+
+    // Step AZ: the other two ranges the live rules name. "Utile Section
+    // Part" fires on either, so a door prices no timber at all without
+    // them. The CODE, as above — not a label.
+    const _range = String(opts?.profileCode ?? '')
+    const is_single_and_french_doors_range = _range === 'open_out_doors'
+    const is_open_in_doors_range           = _range === 'open_in_doors'
 
     // ── GROUP 12 — Frame geometry (mm) ────────────────────────────────────────
     // assemblyFramePart.width/height ARE the overall frame (Step V decision,
@@ -882,6 +934,11 @@ export function computeVariables(tree, derived = {}, pfVariables = {}, opts = {}
       is_box_sash, is_spiral_sash, is_flush_casement, is_stormproof_casement,
       is_front_door, is_single_door, is_french_door, is_bifolding_door,
       is_sash_window, is_casement_window, is_door,
+      // Step AZ — doors
+      is_french_door, is_single_door,
+      new_french_door_pair_qty, new_stable_door_pair_qty,
+      fixed_door_leaf_qty, opening_out_door_leaf_qty, opening_in_door_leaf_qty,
+      is_single_and_french_doors_range, is_open_in_doors_range,
       hasSashPair, hasCasementSash, hasDoorLeaf,
       is_sw,  // Integrate alias
 

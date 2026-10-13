@@ -130,7 +130,7 @@ export function ironmongeryLineLabel(ironLine) {
 import {
   glazingType, hornLengthMm, operationKind, glassSpacerMm,
   isWarmEdgeSpacerColour, collectVocabularyWarnings, resolveTopSashArch,
-  casementIsFixed, timberFamily,
+  casementIsFixed, casementOpensOut, timberFamily,
 } from './optionVocabulary.js'
 import { fetchAllRows } from '../lib/fetchAllRows.js'
 import { sashSizes, owningSashPair } from './derivedGeometry.js'
@@ -140,6 +140,11 @@ import {
   casementSashWeightKg, directGlazedWarnings,
   CASEMENT_SASH_TYPES,
 } from './casementGeometry.js'
+import {
+  DOOR_LEAF_TYPES, FRENCH_DOOR_LEAF_TYPES, doorLeafSize, doorGlassSightline,
+  frenchDoorPairFor, doorLeafWeightKg, allocatedSectionParts,
+} from './doorGeometry.js'
+import { isFanlightSash } from './casementSashVariables.js'
 
 // ── Tree helpers (local copies, same logic as computeDerived.js) ──────────────
 
@@ -183,7 +188,11 @@ const LOOP_PART_TYPES = {
   // each is machined, glazed, finished and (if it opens) hung exactly as a
   // single casement sash is, and the pair itself adds nothing of its own.
   casement_sash: CASEMENT_SASH_TYPES,
-  door_leaf:     ['doorLeafPart'],
+  // Step AZ: a French door's two leaves are left/rightFrenchDoorLeafPart.
+  // Only 'doorLeafPart' was listed, so no live door rule could see a French
+  // door leaf — "Door Leaf" (1035 min each) and "Any Door Overweight" both
+  // loop door_leaf.
+  door_leaf:     DOOR_LEAF_TYPES,
   panel:         ['panelPart'],
 }
 
@@ -449,6 +458,11 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
       is_raked:        v.rakeFrame === true,
       is_fixed_casement_sash: casementIsFixed(partNode),
       is_opening:      !casementIsFixed(partNode),
+      // Step AZ: "Fanlights in Doorsets" (300 min) reads is_item_a_door AND
+      // is_fanlight on this loop. is_fanlight was only ever computed in
+      // casementSashVariables, for validation and ironmongery, so the PRICE
+      // loop could not see it and the rule never fired.
+      is_fanlight:     isFanlightSash(tree, partNode),
       gross_sash_width_in_mm:  size.width  ?? 0,
       gross_sash_height_in_mm: size.height ?? 0,
       sash_sightline_width_in_mm:  sightline.width  ?? 0,
@@ -461,6 +475,44 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
       // matching what Integrate charges on each.
       weight_in_kg: casementWeight,
       weight_in_lb: casementWeight * 2.20462,
+    }
+  }
+
+  // Step AZ: a DOOR LEAF. Its drawn size is not half the opening — the two
+  // leaves lap at the meeting stile — and its weight decides "Any Door
+  // Overweight" (45 min a leaf over 50 kg), which is 90 of FD1's 870
+  // install minutes.
+  if (DOOR_LEAF_TYPES.includes(pt)) {
+    const is_complete_new = baseVars.is_complete_new ?? false
+    const size = doorLeafSize(tree, partNode)
+    const sightline = doorGlassSightline(tree, partNode)
+    const pair = frenchDoorPairFor(tree, partNode)
+    const weight = doorLeafWeightKg(tree, partNode, glassCatalogue)
+    const isMaster = v.isMasterLeaf === true
+    return {
+      to_be_replaced:  is_complete_new || v.toBeReplaced === true,
+      is_item_a_door:  true,
+      is_raked:        v.rakeFrame === true,
+      is_fixed_casement_sash: casementIsFixed(partNode),
+      is_opening:      !casementIsFixed(partNode),
+      is_opening_out:  casementOpensOut(partNode),
+      gross_sash_width_in_mm:  size.width  ?? 0,
+      gross_sash_height_in_mm: size.height ?? 0,
+      sash_sightline_width_in_mm:  sightline.width  ?? 0,
+      sash_sightline_height_in_mm: sightline.height ?? 0,
+      // A door carries NO timber volume: Integrate prices its sections per
+      // metre instead (the allocated_section_part loop below). Reporting 0
+      // here is what keeps "Hardwood Sashes" and the two inactive door
+      // volume rules from charging a door twice.
+      solid_redwood_volume: 0,
+      weight_in_kg: weight,
+      weight_in_lb: weight * 2.20462,
+      is_french_door_leaf: FRENCH_DOOR_LEAF_TYPES.includes(pt),
+      is_master_leaf_in_french_pair: pair != null && isMaster,
+      is_slave_leaf_in_french_pair:  pair != null && !isMaster,
+      hand: pt === 'leftFrenchDoorLeafPart' ? 'left'
+        : pt === 'rightFrenchDoorLeafPart' ? 'right'
+          : (String(v.operation ?? '').includes('left') ? 'left' : 'right'),
     }
   }
 
@@ -485,10 +537,19 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
     //  - a sliding sash's glass: the drawn sash sizes, as before.
     const isDirectGlazed = isDirectGlazedUnit(tree, partNode)
     const isCasementGlass = CASEMENT_SASH_TYPES.includes(parentSash?.part_type)
+    // Step AZ: a DOOR LEAF's glass. Without this the glass fell through to
+    // the sliding-sash branch, which found no sash pair and gave 0 — so
+    // FD1's two 1.33 m2 units priced at the 0.30 m2 minimum, £17.55 each
+    // instead of £38.90.
+    const isDoorGlass = DOOR_LEAF_TYPES.includes(parentSash?.part_type)
 
     let sightlineWidth = 0
     let sightlineHeight = 0
-    if (isDirectGlazed) {
+    if (isDoorGlass) {
+      const sl = doorGlassSightline(tree, parentSash)
+      sightlineWidth  = sl.width  ?? 0
+      sightlineHeight = sl.height ?? 0
+    } else if (isDirectGlazed) {
       const vis = directGlazedVisibleSize(tree, partNode)
       sightlineWidth  = vis.width  ?? 0
       sightlineHeight = vis.height ?? 0
@@ -786,6 +847,10 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
   glassCatalogue = {},
   partAllocationRules = [],
   partCostMap = {},
+  // Step AZ: the drawing's PROFILE CODE. "Utile Section Part" fires only on
+  // is_single_and_french_doors_range or is_open_in_doors_range, so without
+  // it a door prices no timber at all.
+  profileCode = null,
   ironmongeryLines = [],
   ironmongeryCatalogue = {},
   profileValues = {},
@@ -793,7 +858,7 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
   // profileValues feed the opening layout: a multi-pair frame's mullion
   // thickness is the profile value thicknessInFrameHollow (Step AD).
   const derived  = computeDerived(tree, profileValues)
-  const itemVars = computeVariables(tree, derived, pfVariables)
+  const itemVars = computeVariables(tree, derived, pfVariables, { profileCode })
   if (!itemVars) return { error: 'computeVariables returned null', lines: [] }
 
   // ── Pre-compute item-level sash weight aggregates ─────────────────────────
@@ -847,6 +912,30 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
     allocatedParts = allocateParts(tree, baseVars, partAllocationRules, glassCatalogue, false, profileValues)
   }
 
+  // Step AZ: the stock sections a DOOR needs, for the allocated_section_part
+  // loop. The material comes from the drawing — doors are utile or Accoya,
+  // and Nathan prices Accoya on the utile sections until he supplies Accoya
+  // ones. Empty for anything that is not a door.
+  // Step AZ: allocated MULTIPOINT-LOCK parts are priced as IRONMONGERY, not
+  // as components. Integrate's own lines show it: each is whole pounds x 1.05,
+  // which is the "Ironmongery Cost" rule's formula, and a component line
+  // would price cost x length x qty with no length at all (a silent zero).
+  const ALLOCATED_IRONMONGERY_GROUPS = ['mpls_doors']
+  const allocatedIronLines = allocatedParts
+    .filter(a => ALLOCATED_IRONMONGERY_GROUPS.includes(a.group))
+    .map(a => ({
+      product_short_name: a.part_code,
+      finish_code: 'n/a',          // a lock part has no finish choice
+      qty: a.qty ?? 1,
+      source: 'allocated',
+      label: a.label ?? a.part_code,
+      _allocatedPartCode: a.part_code,
+    }))
+
+  const sectionParts = allocatedSectionParts(tree, {
+    material: findFirst(tree, 'drawingItemPart')?.values?.sashMaterialId ?? 'utile',
+  })
+
   // Component parts (non-weight groups) for the pricing component loop.
   // Weights are priced via the steel/lead sliding_sash price rules, not the component loop.
   //
@@ -871,7 +960,11 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
   const rawComponentParts = (storedSurrounds.length > 0
     ? allocatedParts.filter(a => a.group !== 'surrounds')
     : allocatedParts
-  ).filter(a => a.group !== 'sash_weights').concat(storedSurrounds)
+  ).filter(a => a.group !== 'sash_weights')
+    // Step AZ: the multipoint-lock parts are priced as ironmongery below, so
+    // they must not also price as components.
+    .filter(a => !ALLOCATED_IRONMONGERY_GROUPS.includes(a.group))
+    .concat(storedSurrounds)
   const mergedMap = new Map()
   for (const p of rawComponentParts) {
     const key = `${p.part_code}\x00${p.label}`
@@ -986,11 +1079,31 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
     // If the variant has no kit lines (unknown cost), use the kit cost directly (qty=1).
     // loop_target may be stored as 'ironmongery_part' or 'ironmongery part' (rules export uses spaces).
     if (rule.loop_target === 'ironmongery_part' || rule.loop_target === 'ironmongery part') {
-      for (const ironLine of ironmongeryLines) {
+      for (const ironLine of [...ironmongeryLines, ...allocatedIronLines]) {
         // Step Z: a line whose finish could not be resolved (no line finish,
         // no item finish, no profile default) is NEVER priced as a £0 line —
         // it is skipped here and warned about by name in the warnings pass.
         if (ironLine.finish_code == null || ironLine.finish_code === '') continue
+        // An ALLOCATED part is a single part with a single cost — it has no
+        // finish variant and no kit, so its cost comes from the part cost
+        // map the way a component's does.
+        if (ironLine._allocatedPartCode) {
+          const cost = partCostMap[ironLine._allocatedPartCode] ?? 0
+          const ironVars = {
+            ...priceVars,
+            cost,
+            qty:       ironLine.qty,
+            part_name: ironLine.label,
+            part_no:   ironLine._allocatedPartCode,
+          }
+          const line = evalPriceRuleLine(rule, ironVars, null)
+          line.alloc_iron_part_code  = ironLine._allocatedPartCode
+          line.alloc_iron_short_name = ironLine._allocatedPartCode
+          line.alloc_label           = ironLine.label
+          if (!line.error && line.fires) { totalCost += line.line_cost; totalPrice += line.line_total }
+          results.price.lines.push(line)
+          continue
+        }
         const variantKey  = `${ironLine.product_short_name}:${ironLine.finish_code}`
         const variant     = ironmongeryCatalogue[variantKey] ?? null
         const kitParts    = variant?.parts ?? []
@@ -1034,6 +1147,43 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
             results.price.lines.push(line)
           }
         }
+      }
+      continue
+    }
+
+    // Step AZ: the ALLOCATED SECTION loop. A door carries no timber volume;
+    // Integrate allocates lengths of utile stock section and prices them per
+    // metre through the live rule "Utile Section Part" (qty length_in_m,
+    // value purchase_cost). Nothing fed this loop before, so a door priced
+    // no timber at all.
+    //
+    // length_in_m is mm / 1000 UNROUNDED — the line itself rounds to 2 dp,
+    // which is what makes FD1's 6.297 m of 67x96 come to 85.64 and not
+    // 85.68 (6.30 x 13.60).
+    if (rule.loop_target === 'allocated_section_part' ||
+        rule.loop_target === 'allocated section part') {
+      for (const section of sectionParts) {
+        const sectionVars = {
+          ...priceVars,
+          part_name:     section.part_name,
+          part_no:       section.part_code,
+          length_in_m:   section.length_in_m,
+          length_in_mm:  section.length_mm,
+          purchase_cost: partCostMap[section.part_code] ?? 0,
+          // Integrate writes the MATERIAL as a bare token in the rule's
+          // condition — contains(part_name, utile) — which expr-eval reads
+          // as a variable, so each material word is supplied as a string
+          // holding itself. Doors are utile or Accoya only.
+          utile:   'utile',
+          accoya:  'accoya',
+          cost:          partCostMap[section.part_code] ?? 0,
+          qty:           1,
+        }
+        const line = evalPriceRuleLine(rule, sectionVars, null)
+        line.alloc_part_code = section.part_code
+        line.alloc_label     = `${section.part_name} — ${section.label}`
+        if (!line.error && line.fires) { totalCost += line.line_cost; totalPrice += line.line_total }
+        results.price.lines.push(line)
       }
       continue
     }

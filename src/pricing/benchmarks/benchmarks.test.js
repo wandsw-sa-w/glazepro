@@ -14,8 +14,9 @@ import { applySashesReplaced } from '../../drawingBoard/sashesReplaced.js'
 import { computeDerived } from '../../drawingBoard/computeDerived.js'
 import { computeVariables } from '../computeVariables.js'
 import { shortDividerSpanMm, isShortDivider, frameCells, frameGridSize, frameOpenings, casementSashSize, casementSashWeightKg, casementFrameTimberVolumeDm3, casementSashTimberVolumeDm3, casementGlassSightline, frameMuntinLengthM, CASEMENT_SASH_TYPES, FRENCH_SASH_TYPES } from '../casementGeometry.js'
-import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_B_UNCORRECTED, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F, BENCHMARK_G, BENCHMARK_H, BENCHMARK_I, BENCHMARK_J, BENCHMARK_K, BENCHMARK_L, BENCHMARK_M, BENCHMARK_N, BENCHMARK_P, BENCHMARK_Q, BENCHMARK_R, BENCHMARK_S, BENCHMARK_SA, BENCHMARK_SB, BENCHMARK_SC, BENCHMARK_SD, BENCHMARK_SE, BENCHMARK_SF, BENCHMARK_TC1, BENCHMARK_TC2, BENCHMARK_TC3, BENCHMARK_FR1, BENCHMARK_FR2 } from './index.js'
+import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_B_UNCORRECTED, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F, BENCHMARK_G, BENCHMARK_H, BENCHMARK_I, BENCHMARK_J, BENCHMARK_K, BENCHMARK_L, BENCHMARK_M, BENCHMARK_N, BENCHMARK_P, BENCHMARK_Q, BENCHMARK_R, BENCHMARK_S, BENCHMARK_SA, BENCHMARK_SB, BENCHMARK_SC, BENCHMARK_SD, BENCHMARK_SE, BENCHMARK_SF, BENCHMARK_TC1, BENCHMARK_TC2, BENCHMARK_TC3, BENCHMARK_FR1, BENCHMARK_FR2, BENCHMARK_FD1, BENCHMARK_FD2, BENCHMARK_FD3, BENCHMARK_FD3b } from './index.js'
 import { resolveIronmongeryLines } from '../loadPricingContext.js'
+import { allocatedSectionParts, doorLeaves, doorLeafSize, doorLeafWeightKg } from '../doorGeometry.js'
 // The LIVE price-file snapshot (reviewer-checked, 8 Oct 2026) — the honest
 // benchmarks and the real-tree case price from this, never from the
 // hand-typed pf30Rules.js (whose rules are all is_active: false).
@@ -2013,6 +2014,215 @@ describe('Step AX — French casement benchmarks', () => {
       const [left, right] = pair.children
       expect(left.values.isMasterLeaf, 'left').toBe(false)
       expect(right.values.isMasterLeaf, 'right').toBe(true)
+    }
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step AZ — French doors: FD1, FD2, FD3, FD3b
+// ══════════════════════════════════════════════════════════════════════════════
+// docs/integrate-L31115-french-doors.txt, read 13 Oct 2026.
+//
+// A door is priced differently from a window in one big way: there are NO
+// timber volume lines. Integrate allocates lengths of five utile stock
+// sections and prices them per metre through the live rule "Utile Section
+// Part". Everything else — glass, ironmongery, components, production,
+// labour, LTW — comes out of rules GlazePro already had, once the door
+// variables exist.
+//
+// All four are SAVED drawings, which matters: a door recomputes its allocated
+// parts on save, and that is what adds the four multipoint-lock parts. An
+// unsaved FD1 priced 5,258.91; saved, 5,639.01.
+describe('Step AZ — French door benchmarks', () => {
+  const CASES = [
+    ['FD1',  BENCHMARK_FD1,  INTEGRATE.benchmarkFD1_french_doors,                55.42, 14.50],
+    ['FD2',  BENCHMARK_FD2,  INTEGRATE.benchmarkFD2_french_doors_resized,        55.42, 13.00],
+    ['FD3',  BENCHMARK_FD3,  INTEGRATE.benchmarkFD3_french_doors_with_fanlight,  66.17, 14.50],
+    ['FD3b', BENCHMARK_FD3b, INTEGRATE.benchmarkFD3b_french_doors_fanlight_rail_62, 66.17, 14.50],
+  ]
+
+  // The two charges GlazePro makes and Integrate does not (Nathan, 13 Oct —
+  // deliberate difference 7). Both land in manufacture_materials and nowhere
+  // else, which is what these tests pin down.
+  const TRANSOM_SECTION = 1.256 * 13.60      // 17.08 — the transom, FD3 and FD3b
+  const RAIL_62_SECTION = 1.254 * 8.60       // 10.78 — the 62 mm fanlight rail, FD3b
+  const EXTRA = {
+    FD1: 0,
+    FD2: 0,
+    FD3:  Math.round(TRANSOM_SECTION * 100) / 100,
+    FD3b: Math.round(TRANSOM_SECTION * 100) / 100 + Math.round(RAIL_62_SECTION * 100) / 100,
+  }
+
+  function runFD(bm) {
+    return runPricingOnTree(bm.tree, SNAPSHOT.rules, SNAPSHOT.pfVariables, {
+      glassCatalogue: SNAPSHOT.glassCatalogue,
+      partAllocationRules: SNAPSHOT.partAllocationRules,
+      partCostMap: bm.partCostMap,
+      ironmongeryLines: bm.ironmongeryLines,
+      ironmongeryCatalogue: SNAPSHOT.ironmongeryCatalogue,
+      profileValues: SNAPSHOT.profileValues,
+      profileCode: bm.profileCode,
+    })
+  }
+
+  for (const [label, bm, target, production, labour] of CASES) {
+    it(`${label}: production ${production} h and labour ${labour} h, exactly`, () => {
+      const r = runFD(bm)
+      expect(r.manufacture_labour.total_minutes / 60, label).toBeCloseTo(production, 2)
+      expect(r.install_labour.total_minutes / 60, label).toBeCloseTo(labour, 2)
+    })
+
+    it(`${label}: every group matches Integrate${EXTRA[label] ? ', bar the charges Integrate does not make' : ', exactly'}`, () => {
+      const r = runFD(bm)
+      const got = {}
+      for (const l of r.price.lines) {
+        if (!l.fires || l.error) continue
+        got[l.group_name] = (got[l.group_name] ?? 0) + l.line_cost
+      }
+      for (const [group, t] of Object.entries(target.groups)) {
+        const expected = group === 'manufacture_materials' ? t.cost + EXTRA[label] : t.cost
+        expect(got[group] ?? 0, `${label} ${group}`).toBeCloseTo(expected, 2)
+      }
+      expect(r.price.total_cost, `${label} total`).toBeCloseTo(target.total_cost + EXTRA[label], 2)
+    })
+  }
+
+  it('FD1 and FD2 match Integrate on EVERY line, with nothing added', () => {
+    // These two have no fanlight and no transom, so there is nothing for
+    // GlazePro to charge that Integrate does not. They are exact.
+    for (const [label, bm, target] of CASES.slice(0, 2)) {
+      const r = runFD(bm)
+      expect(r.price.total_cost, label).toBeCloseTo(target.total_cost, 2)
+      expect(r.price.total, label).toBeCloseTo(target.total_price, 2)
+    }
+  })
+
+  it('the two extra charges are exactly the transom and the 62 rail', () => {
+    // FD3 is over by the transom alone; FD3b by the transom AND the rail.
+    // Stated as the arithmetic, not as a number: 1.256 m of Utile67x96 at
+    // 13.60, and 1.254 m of Utile63x63 at 8.60.
+    expect(EXTRA.FD3).toBeCloseTo(17.08, 2)
+    expect(EXTRA.FD3b - EXTRA.FD3).toBeCloseTo(10.78, 2)
+
+    const sections = bm => allocatedSectionParts(bm.tree, { material: 'utile' })
+    const byCode = bm => Object.fromEntries(sections(bm).map(s => [s.part_code, s.length_mm]))
+
+    // FD3's 67x96 is Integrate's 6548 PLUS the 1256 transom
+    expect(byCode(BENCHMARK_FD3).Utile67x96).toBe(6548 + 1256)
+    // FD3b's 63x63 is Integrate's 2060 PLUS the 1254 rail, and its 63x96
+    // has gone entirely, exactly as Integrate's did
+    expect(byCode(BENCHMARK_FD3b).Utile63x63).toBe(2060 + 1254)
+    expect(byCode(BENCHMARK_FD3b).Utile63x96).toBeUndefined()
+    // FD3 keeps the 86 rail on 63x96, as Integrate charges it
+    expect(byCode(BENCHMARK_FD3).Utile63x96).toBe(1254)
+  })
+
+  it('FD1 and FD2 allocate Integrate’s own section lengths, to the mm', () => {
+    const byCode = bm => Object.fromEntries(
+      allocatedSectionParts(bm.tree, { material: 'utile' }).map(s => [s.part_code, s.length_mm]))
+    expect(byCode(BENCHMARK_FD1)).toEqual({
+      Utile67x96: 6297, Utile63x200: 3724, Utile63x120: 10249,
+    })
+    expect(byCode(BENCHMARK_FD2)).toEqual({
+      Utile67x96: 5797, Utile63x200: 3124, Utile63x120: 9549,
+    })
+  })
+
+  it('a section is priced on its UNROUNDED metres', () => {
+    // 6.297 m of Utile67x96 at 13.60 is 85.64, which is what Integrate
+    // charges. Rounding the metres first (6.30) would give 85.68.
+    const line = runFD(BENCHMARK_FD1).price.lines.find(
+      l => l.fires && l.alloc_part_code === 'Utile67x96')
+    expect(line).toBeTruthy()
+    expect(line.quantity).toBeCloseTo(6.297, 4)
+    expect(line.line_cost).toBeCloseTo(85.64, 2)
+  })
+
+  it('a door prices NO timber volume at all', () => {
+    // Integrate shows no "Softwood Casement Frame & Sashes", no sash volume
+    // and no cill volume on a utile door — even FD3, which HAS a casement
+    // sash in it. The fanlight is why is_casement_window has to exclude a
+    // door: without that, FD3 charged a frame and a cill it has not got.
+    for (const [label, bm] of CASES) {
+      const fired = runFD(bm).price.lines
+        .filter(l => l.fires && !l.error && l.line_cost > 0).map(l => l.name)
+      for (const name of ['Softwood Casement Frame & Sashes', 'Hardwood Casement Cill',
+        'Softwood Casement Sashes', 'Door Stiles & Top Rail', 'Door Bottom Rail']) {
+        expect(fired, `${label} / ${name}`).not.toContain(name)
+      }
+      // and the only manufacture_materials lines that PRICE are the
+      // sections and LTW. Three more fire at 0.00 (Frame Plant On head and
+      // jambs, Glazing Bar), which Integrate does not display either — it
+      // hides every 0.00 line (Step AE item 3).
+      const mm = runFD(bm).price.lines
+        .filter(l => l.fires && !l.error && l.line_cost > 0 &&
+          l.group_name === 'manufacture_materials')
+        .map(l => l.name)
+      expect([...new Set(mm)].sort(), label)
+        .toEqual(['LTW General Consumables', 'Utile Section Part'])
+    }
+  })
+
+  it('the leaves are the opening plus half the meeting-stile overlap', () => {
+    // The thing that makes a door not a French casement: the leaves LAP, so
+    // each is wider than half the opening. FD1 (1805 - 1 - 1 - 5 + 27) / 2.
+    const sizes = bm => doorLeaves(bm.tree).map(l => {
+      const z = doorLeafSize(bm.tree, l)
+      return [z.width, z.height]
+    })
+    expect(sizes(BENCHMARK_FD1)).toEqual([[912.5, 2109], [912.5, 2109]])
+    expect(sizes(BENCHMARK_FD2)).toEqual([[762.5, 2009], [762.5, 2009]])
+    expect(sizes(BENCHMARK_FD3)).toEqual([[638, 2069], [638, 2069]])
+  })
+
+  it('the leaf weights put FD1 over 50 kg and the others under', () => {
+    // "Any Door Overweight" is 45 install minutes a leaf over 50 kg, and is
+    // the whole difference between FD1's 14.50 h and FD2's 13.00 h.
+    const kg = bm => doorLeaves(bm.tree)
+      .map(l => Math.round(doorLeafWeightKg(bm.tree, l, {}) * 10) / 10)
+    expect(kg(BENCHMARK_FD1)).toEqual([54.2, 54.2])   // facts: 54
+    expect(kg(BENCHMARK_FD2)).toEqual([44.8, 44.8])   // facts: 45
+    expect(kg(BENCHMARK_FD3)).toEqual([40.1, 40.1])   // facts: 40
+    expect(kg(BENCHMARK_FD1).every(w => w > 50)).toBe(true)
+    expect(kg(BENCHMARK_FD2).every(w => w < 50)).toBe(true)
+    expect(kg(BENCHMARK_FD3).every(w => w < 50)).toBe(true)
+  })
+
+  it('the door variables the minutes prove', () => {
+    const v = bm => computeVariables(bm.tree, computeDerived(bm.tree), PF_VARIABLES,
+      { profileCode: bm.profileCode })
+    for (const [label, bm] of CASES) {
+      const x = v(bm)
+      expect(x.is_door, label).toBe(true)
+      expect(x.is_french_door, label).toBe(true)
+      expect(x.is_front_door, label).toBe(false)
+      expect(x.door_leaf_qty, label).toBe(2)
+      expect(x.new_door_leaf_qty, label).toBe(2)
+      expect(x.new_french_door_pair_qty, label).toBe(1)
+      expect(x.opening_out_door_leaf_qty, label).toBe(2)
+      expect(x.opening_in_door_leaf_qty, label).toBe(0)
+      expect(x.fixed_door_leaf_qty, label).toBe(0)
+      expect(x.is_single_and_french_doors_range, label).toBe(true)
+      expect(x.is_open_in_doors_range, label).toBe(false)
+      // a door is NOT a casement window, even with a fanlight in it
+      expect(x.is_casement_window, label).toBe(false)
+    }
+    // the fanlight drawings have one casement sash and one transom
+    expect(v(BENCHMARK_FD3).casement_sash_qty).toBe(1)
+    expect(v(BENCHMARK_FD3).frame_transom_qty).toBe(1)
+    expect(v(BENCHMARK_FD1).casement_sash_qty).toBe(0)
+  })
+
+  it('the four multipoint-lock parts are allocated, and priced as ironmongery', () => {
+    // Integrate adds them on SAVE and prices each as whole pounds x 1.05,
+    // which is the Ironmongery Cost rule — not a component line.
+    for (const [label, bm] of CASES) {
+      const lines = runFD(bm).price.lines.filter(
+        l => l.fires && ['RJZ2382', 'RHZ1648', 'RHZ1653', 'RHZ1667'].includes(l.alloc_iron_part_code))
+      expect(lines.map(l => l.alloc_iron_part_code).sort(), label)
+        .toEqual(['RHZ1648', 'RHZ1653', 'RHZ1667', 'RJZ2382'])
+      // 51 + 35 + 6 + 89 = 181, x 1.05 = 190.05
+      expect(lines.reduce((t, l) => t + l.line_cost, 0), label).toBeCloseTo(190.05, 2)
     }
   })
 })

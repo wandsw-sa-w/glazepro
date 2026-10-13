@@ -13,7 +13,10 @@
 
 import { computeSashWeight } from './sashWeight.js'
 import { evaluateCondition, evaluateNumber, getExpressionVariables } from './evaluator.js'
-import { operationKind } from './optionVocabulary.js'
+import { operationKind, casementOpensOut } from './optionVocabulary.js'
+import {
+  DOOR_LEAF_TYPES, FRENCH_DOOR_LEAF_TYPES, doorLeafSize, frenchDoorPairFor,
+} from './doorGeometry.js'
 import { computeDerived } from '../drawingBoard/computeDerived.js'
 
 // ── Tree helpers ──────────────────────────────────────────────────────────────
@@ -42,7 +45,10 @@ const LOOP_PART_TYPES = {
   frame:         ['assemblyFramePart'],
   glass_unit:    ['glassPart'],
   casement_sash: ['casementSashPart'],
-  door_leaf:     ['doorLeafPart'],
+  // Step AZ: a French door's leaves. The mpls_doors rules (2000-2120) all
+  // loop door_leaf, so without these no multipoint-lock part was allocated
+  // to a French door — £209 of FD1's ironmongery.
+  door_leaf:     DOOR_LEAF_TYPES,
   panel:         ['panelPart'],
 }
 
@@ -143,22 +149,40 @@ function computePartVarsForAllocator(partNode, tree, derived, baseVars, glassCat
     }
   }
 
-  if (pt === 'doorLeafPart') {
+  if (DOOR_LEAF_TYPES.includes(pt)) {
     const is_complete_new = baseVars.is_complete_new ?? false
     const to_be_replaced  = is_complete_new || v.toBeReplaced === true
+    // Step AZ: these were placeholder keys (v.grossHeight, v.isFrenchDoor,
+    // v.handedness, v.openingDirection) that no real drawing has ever
+    // stored, written before a door existed. They now come from the part
+    // type and the GEOMETRY, so the height the lock rules band on is the
+    // leaf's drawn height — 2109 on FD1, which is what picks RJZ2382 and
+    // RHZ1648 over the taller and shorter variants.
+    const isFrench = FRENCH_DOOR_LEAF_TYPES.includes(pt)
+    const pair = frenchDoorPairFor(tree, partNode)
+    const isMaster = v.isMasterLeaf === true
+    const leafHeight = doorLeafSize(tree, partNode).height ?? 0
+    // Hand: the LEFT leaf of the pair is the left-hand one viewed
+    // internally. Integrate's slave rules band on it.
+    const isLeft = pt === 'leftFrenchDoorLeafPart' ||
+      String(v.operation ?? '').includes('left')
+    // Nathan sells French doors multipoint-locked, and Integrate allocated
+    // the lock set on all three FD drawings. A drawing can turn it off.
+    const item = findFirst(tree, 'paintAndIronmongeryPart')
+    const mpls = item?.values?.isDoorMpls ?? v.isDoorMpls ?? isFrench
     return {
       to_be_replaced,
-      gross_sash_height_in_mm: v.grossHeight ?? v.height ?? 0,
-      height:                  (v.grossHeight ?? v.height ?? 0) / 1000,
-      is_door_mpls:            v.isDoorMpls    ?? false,
-      is_front_door:           v.isFrontDoor   ?? false,
-      is_french_door_leaf:     v.isFrenchDoor  ?? false,
-      is_slave_leaf_in_french_pair:  v.isSlaveFrenchLeaf  ?? false,
-      is_master_leaf_in_french_pair: v.isMasterFrenchLeaf ?? false,
-      is_left_hand_hung_viewed_internally:  v.handedness === 'left',
-      is_right_hand_hung_viewed_internally: v.handedness === 'right',
-      is_opening_in:   v.openingDirection === 'in',
-      is_opening_out:  v.openingDirection === 'out',
+      gross_sash_height_in_mm: leafHeight,
+      height:                  leafHeight / 1000,
+      is_door_mpls:            mpls === true,
+      is_front_door:           baseVars.is_front_door ?? false,
+      is_french_door_leaf:     isFrench,
+      is_slave_leaf_in_french_pair:  pair != null && !isMaster,
+      is_master_leaf_in_french_pair: pair != null && isMaster,
+      is_left_hand_hung_viewed_internally:  isLeft,
+      is_right_hand_hung_viewed_internally: !isLeft,
+      is_opening_in:   !casementOpensOut(partNode),
+      is_opening_out:  casementOpensOut(partNode),
       is_folding_leaf: v.isFolding   ?? false,
       is_stable_door_leaf: v.isStable ?? false,
     }

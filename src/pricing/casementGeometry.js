@@ -58,7 +58,11 @@ export const FRENCH_PAIR_PART = 'frenchCasementPart'
 export const FRENCH_SASH_TYPES = ['leftFrenchCasementSashPart', 'rightFrenchCasementSashPart']
 export const CASEMENT_SASH_TYPES = ['casementSashPart', ...FRENCH_SASH_TYPES]
 
-export const OPENING_TYPES = ['casementSashPart', 'glassPart', FRENCH_PAIR_PART]
+// Step AZ: a FRENCH DOOR pair is an opening too — one frenchDoorPart in the
+// frame holding a left and a right leaf, and no mullion, exactly as a French
+// casement does.
+export const FRENCH_DOOR_PAIR_PART = 'frenchDoorPart'
+export const OPENING_TYPES = ['casementSashPart', 'glassPart', FRENCH_PAIR_PART, FRENCH_DOOR_PAIR_PART]
 
 /** Is this glassPart a direct glazed unit — a direct child of the frame? */
 export function isDirectGlazedUnit(tree, glassNode) {

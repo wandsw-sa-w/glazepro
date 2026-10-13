@@ -21,6 +21,25 @@ parser.functions.round_up_to_nearest = function(x, n) {
 //   round_to(35.30, 0.1) → floor(0.1)=0 dp → Math.round(35.30) = 35
 //   round_to(3.25,  0.1) → 0 dp → 3
 //   round_to(x, 2)       → 2 dp → Math.round(x * 100) / 100
+/**
+ * contains(haystack, needle) — a case-insensitive substring test.
+ *
+ * Step AZ: the LIVE price rule "Utile Section Part" is conditioned on
+ * `(is_single_and_french_doors_range or is_open_in_doors_range) and
+ * contains(part_name, utile)`, and GlazePro had no contains() at all, so the
+ * condition could not evaluate and a door priced no timber. The function is
+ * Integrate's, not new: the rule already calls it.
+ *
+ * Note the validation engine has its own contains(), which asks a different
+ * question — whether a comma-separated variable overlaps a NAMED LIST. They
+ * are deliberately separate: this one is a plain substring test, which is
+ * what a part NAME needs.
+ */
+parser.functions.contains = function (haystack, needle) {
+  if (haystack == null || needle == null) return false
+  return String(haystack).toLowerCase().includes(String(needle).toLowerCase())
+}
+
 parser.functions.round_to = function(x, n) {
   const dp = Math.floor(n ?? 0)
   const factor = Math.pow(10, dp)

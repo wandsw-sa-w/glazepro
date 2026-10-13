@@ -288,6 +288,10 @@ export default function PricingBenchmark() {
             ironmongeryLines,
             ironmongeryCatalogue,
             profileValues: benchmark.profileValues ?? profileValuesMap,
+            // Step AZ: a DOOR benchmark is priced on its own profile range —
+            // "Utile Section Part" fires only on the door ranges, so a door
+            // would show no timber at all without it.
+            profileCode: benchmark.profileCode ?? null,
           })
 
           return { benchmark, results, ironmongeryLines, ironWarnings }
