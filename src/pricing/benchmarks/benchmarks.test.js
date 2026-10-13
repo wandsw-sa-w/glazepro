@@ -2734,11 +2734,16 @@ describe('Step BB — single garden door benchmarks', () => {
 // No new pricing rule: GlazePro's own rule 140 is REWRITTEN by
 // sql/step-bc1 (Nathan's decision c), which the reviewer runs.
 describe('Step BC — coupled flag-frame benchmarks', () => {
+  // production = Integrate + decision d (180 min a flag frame)
+  // labour     = Integrate + decision c (240 min a flag frame), LIVE since
+  //              sql/step-bc1 and in the captured snapshot since the
+  //              reviewer refreshed it
+  //        fitting is the decision-c amount, for the splits below
   const CASES = [
-    ['CD1', BENCHMARK_CD1, INTEGRATE.benchmarkCD1_single_door_two_flag_frames,     77.00, 15.75],
-    ['CD2', BENCHMARK_CD2, INTEGRATE.benchmarkCD2_single_door_flag_right,          56.67, 13.75],
-    ['CD3', BENCHMARK_CD3, INTEGRATE.benchmarkCD3_single_door_flag_left,           56.67, 13.75],
-    ['CD4', BENCHMARK_CD4, INTEGRATE.benchmarkCD4_single_door_flag_and_fan_lights, 109.25, 20.75],
+    ['CD1', BENCHMARK_CD1, INTEGRATE.benchmarkCD1_single_door_two_flag_frames,     77.00, 23.75, 321.68],
+    ['CD2', BENCHMARK_CD2, INTEGRATE.benchmarkCD2_single_door_flag_right,          56.67, 17.75, 160.84],
+    ['CD3', BENCHMARK_CD3, INTEGRATE.benchmarkCD3_single_door_flag_left,           56.67, 17.75, 160.84],
+    ['CD4', BENCHMARK_CD4, INTEGRATE.benchmarkCD4_single_door_flag_and_fan_lights, 109.25, 28.75, 321.68],
   ]
 
   function runCD(bm) {
@@ -2756,15 +2761,19 @@ describe('Step BC — coupled flag-frame benchmarks', () => {
     .filter(l => l.fires && !l.error && l.group_name === group)
     .reduce((t, l) => t + l.line_cost, 0)
 
-  for (const [label, bm, target, production, labour] of CASES) {
+  for (const [label, bm, target, production, labour, fitting] of CASES) {
     it(`${label}: production ${production} h and labour ${labour} h`, () => {
       const r = runCD(bm)
       // Production is Integrate's PLUS decision d (+180 min a flag frame).
       expect(r.manufacture_labour.total_minutes / 60, label).toBeCloseTo(production, 2)
-      // Labour is Integrate's exactly until sql/step-bc1 lands decision c.
+      // Labour is Integrate's PLUS decision c (+240 min a flag frame), which
+      // is live rule 140 since sql/step-bc1 and is in the snapshot since the
+      // reviewer refreshed it. The four hours a flag frame are the whole
+      // difference from Integrate's own labour.
       expect(r.install_labour.total_minutes / 60, label).toBeCloseTo(labour, 2)
-      expect(labour, `${label} labour matches Integrate`)
-        .toBeCloseTo(target.hours.labour, 2)
+      const flags = label === 'CD2' || label === 'CD3' ? 1 : 2
+      expect(labour - target.hours.labour, `${label} is Integrate + 4 h a flag`)
+        .toBeCloseTo(flags * 4, 2)
     })
 
     it(`${label}: every group matches Integrate plus the decided differences`, () => {
@@ -2774,11 +2783,13 @@ describe('Step BC — coupled flag-frame benchmarks', () => {
         if (!l.fires || l.error) continue
         got[l.group_name] = (got[l.group_name] ?? 0) + l.line_cost
       }
-      // glass and labour are Integrate's EXACTLY; the decisions land in
-      // manufacture (d), manufacture_materials (a) and
-      // installation_materials (b).
+      // GLASS is Integrate's exactly; the four decisions land in
+      // manufacture_materials (a), installation_materials (b), labour (c)
+      // and manufacture (d) — one group each, which is what makes them
+      // checkable line by line.
       expect(got.glass_done ?? 0, `${label} glass`).toBeCloseTo(target.groups.glass_done.cost, 2)
-      expect(got.labour ?? 0, `${label} labour`).toBeCloseTo(target.groups.labour.cost, 2)
+      expect(got.labour ?? 0, `${label} labour`)
+        .toBeCloseTo(target.groups.labour.cost + fitting, 2)
       expect(r.price.total_cost, `${label} total`)
         .toBeCloseTo(target.total_cost + bm.deliberateDifference.cost, 2)
     })
@@ -2797,7 +2808,7 @@ describe('Step BC — coupled flag-frame benchmarks', () => {
       CD3: { materials: 51.08,  architrave: 17.67, production: 73.98 },
       CD4: { materials: 155.04, architrave: 21.66, production: 147.96 },
     }
-    for (const [label, bm, target] of CASES) {
+    for (const [label, bm, target, , , fitting] of CASES) {
       const r = runCD(bm)
       const s = SPLIT[label]
       // (a) every frame's own timber and cill
@@ -2809,29 +2820,39 @@ describe('Step BC — coupled flag-frame benchmarks', () => {
       // (d) +180 min of workshop a flag frame
       expect(groupCost(r, 'manufacture') - target.groups.manufacture.cost,
         `${label} workshop`).toBeCloseTo(s.production, 2)
-      // and the three add up to what the fixture declares
-      expect(s.materials + s.architrave + s.production, `${label} declared`)
+      // (c) +4 h of fitting a flag frame, in the labour group
+      expect(groupCost(r, 'labour') - target.groups.labour.cost,
+        `${label} fitting`).toBeCloseTo(fitting, 2)
+      // and the four add up to what the fixture declares
+      expect(s.materials + s.architrave + s.production + fitting, `${label} declared`)
         .toBeCloseTo(bm.deliberateDifference.cost, 2)
     }
   })
 
-  it('decision c is PENDING its SQL, and is declared as such', () => {
-    // sql/step-bc1 rewrites rule 140 from a 1-minute placeholder to 240
-    // minutes per extra frame. Until it runs and a fresh snapshot is
-    // captured, the engine charges nothing for it — so the fixtures declare
-    // it separately and the page accepts either figure.
+  it('decision c has LANDED: rule 140 is the flag-frame fitting charge', () => {
+    // sql/step-bc1 rewrote rule 140 from a 1-minute placeholder to 240
+    // minutes per EXTRA frame, and the reviewer ran it and refreshed the
+    // snapshot. The test still reads the rule rather than assuming it, so
+    // that reverting the data fails here and says so rather than moving a
+    // benchmark quietly.
     const rule = SNAPSHOT.rules.find(r => r.sort_order === 140 &&
       r.rule_family === 'install_labour')
     expect(rule, 'rule 140 is in the snapshot').toBeTruthy()
-    const landed = rule.value === '240'
-    expect(BENCHMARK_CD1.pendingDecision.cost).toBeCloseTo(321.68, 2)
-    expect(BENCHMARK_CD2.pendingDecision.cost).toBeCloseTo(160.84, 2)
-    for (const [label, bm, target] of CASES) {
-      const r = runCD(bm)
-      const expected = target.total_cost + bm.deliberateDifference.cost +
-        (landed ? bm.pendingDecision.cost : 0)
-      expect(r.price.total_cost, `${label} (rule 140 ${landed ? 'landed' : 'pending'})`)
-        .toBeCloseTo(expected, 2)
+    expect(rule.name, 'rewritten by sql/step-bc1').toBe('Single Door (Flag Frame)')
+    expect(rule.value).toBe('240')
+    expect(rule.quantity).toBe('new_frame_qty - 1')
+    expect(rule.condition).toContain('door_leaf_qty == 1')
+    // and it is the ONLY source of the labour difference
+    for (const [label, bm, target, , , fitting] of CASES) {
+      const fired = runCD(bm).install_labour.lines
+        .filter(l => l.fires && !l.error && l.name === 'Single Door (Flag Frame)')
+      expect(fired.length, `${label} fires once`).toBe(1)
+      const flags = label === 'CD2' || label === 'CD3' ? 1 : 2
+      expect(fired[0].minutes, `${label} 240 a flag frame`).toBe(flags * 240)
+      expect(runCD(bm).price.total_cost, `${label} total`)
+        .toBeCloseTo(target.total_cost + bm.deliberateDifference.cost, 2)
+      expect(bm.pendingDecision, `${label} no longer pending`).toBeUndefined()
+      expect(fitting, `${label} fitting amount`).toBeGreaterThan(0)
     }
   })
 

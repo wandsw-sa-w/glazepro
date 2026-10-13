@@ -1015,18 +1015,8 @@ export const BENCHMARK_CD1 = {
   }),
   targets: { ...INTEGRATE_TARGETS.benchmarkCD1_single_door_two_flag_frames },
   deliberateDifference: {
-    cost: 269.35,
+    cost: 591.03,
     reason: 'Nathan’s decisions a-d: each flag frame’s own timber (+61.82) and cill (+40.19), one architrave round the set (+19.38), +180 min workshop a flag frame (+147.96) and +4 h fitting a flag frame (+321.68)',
-  },
-  // Nathan's decision (c) — +4 h FITTING per flag frame — is live rule 140
-  // rewritten, which the reviewer runs (sql/step-bc1). Until that lands and
-  // a fresh snapshot is captured the engine charges a, b and d only, so
-  // BOTH amounts are declared: the benchmark page and the live smoke test
-  // accept either, and the row says which is still to come. Pinning one
-  // alone would mean a red row today or a silent one after the SQL.
-  pendingDecision: {
-    cost: 321.68,
-    reason: 'decision c, +4 h fitting on two flag frames (240 min a frame) — sql/step-bc1 rewrites rule 140',
   },
   partCostMap: DOOR_PART_COST_MAP,
   profileValues: DOOR_PROFILE_VALUES,
@@ -1049,18 +1039,8 @@ export const BENCHMARK_CD2 = {
   }),
   targets: { ...INTEGRATE_TARGETS.benchmarkCD2_single_door_flag_right },
   deliberateDifference: {
-    cost: 142.65,
+    cost: 303.49,
     reason: 'Nathan’s decisions a-d on one flag frame: its timber (+30.90) and cill (+20.10), the architrave (+17.67), +180 min workshop (+73.98) and +4 h fitting (+160.84)',
-  },
-  // Nathan's decision (c) — +4 h FITTING per flag frame — is live rule 140
-  // rewritten, which the reviewer runs (sql/step-bc1). Until that lands and
-  // a fresh snapshot is captured the engine charges a, b and d only, so
-  // BOTH amounts are declared: the benchmark page and the live smoke test
-  // accept either, and the row says which is still to come. Pinning one
-  // alone would mean a red row today or a silent one after the SQL.
-  pendingDecision: {
-    cost: 160.84,
-    reason: 'decision c, +4 h fitting on one flag frame (240 min a frame) — sql/step-bc1 rewrites rule 140',
   },
   partCostMap: DOOR_PART_COST_MAP,
   profileValues: DOOR_PROFILE_VALUES,
@@ -1083,18 +1063,8 @@ export const BENCHMARK_CD3 = {
   }),
   targets: { ...INTEGRATE_TARGETS.benchmarkCD3_single_door_flag_left },
   deliberateDifference: {
-    cost: 142.73,
+    cost: 303.57,
     reason: 'Nathan’s decisions a-d on one flag frame: its timber (+30.90) and cill (+20.18), the architrave (+17.67), +180 min workshop (+73.98) and +4 h fitting (+160.84)',
-  },
-  // Nathan's decision (c) — +4 h FITTING per flag frame — is live rule 140
-  // rewritten, which the reviewer runs (sql/step-bc1). Until that lands and
-  // a fresh snapshot is captured the engine charges a, b and d only, so
-  // BOTH amounts are declared: the benchmark page and the live smoke test
-  // accept either, and the row says which is still to come. Pinning one
-  // alone would mean a red row today or a silent one after the SQL.
-  pendingDecision: {
-    cost: 160.84,
-    reason: 'decision c, +4 h fitting on one flag frame (240 min a frame) — sql/step-bc1 rewrites rule 140',
   },
   partCostMap: DOOR_PART_COST_MAP,
   profileValues: DOOR_PROFILE_VALUES,
@@ -1124,18 +1094,8 @@ export const BENCHMARK_CD4 = {
   }),
   targets: { ...INTEGRATE_TARGETS.benchmarkCD4_single_door_flag_and_fan_lights },
   deliberateDifference: {
-    cost: 324.66,
+    cost: 646.34,
     reason: 'Nathan’s decisions a-d: each flag frame’s own timber and transom (+117.34) and cill (+37.70), one architrave round the set (+21.66), +180 min workshop a flag frame (+147.96) and +4 h fitting a flag frame (+321.68)',
-  },
-  // Nathan's decision (c) — +4 h FITTING per flag frame — is live rule 140
-  // rewritten, which the reviewer runs (sql/step-bc1). Until that lands and
-  // a fresh snapshot is captured the engine charges a, b and d only, so
-  // BOTH amounts are declared: the benchmark page and the live smoke test
-  // accept either, and the row says which is still to come. Pinning one
-  // alone would mean a red row today or a silent one after the SQL.
-  pendingDecision: {
-    cost: 321.68,
-    reason: 'decision c, +4 h fitting on two flag frames (240 min a frame) — sql/step-bc1 rewrites rule 140',
   },
   partCostMap: DOOR_PART_COST_MAP,
   profileValues: DOOR_PROFILE_VALUES,

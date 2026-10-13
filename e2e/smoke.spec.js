@@ -50,14 +50,13 @@ const DELIBERATE = {
   SD3:  { cost: '28.76', price: '57.53' },
   SD4:  { cost: '97.72', price: '195.43' },
   FD7:  { cost: '58.15', price: '116.29' },
-  // Step BC: the coupled FLAG FRAME doors. Nathan’s decisions a, b and d
-  // are live now; decision c (+4 h fitting a flag frame) arrives when the
-  // reviewer runs sql/step-bc1, and the page accepts either figure — so the
-  // SECOND number in each pair is what the row reads once it has.
-  CD1:  { cost: ['269.35', '591.03'], price: ['538.72', '1182.06'] },
-  CD2:  { cost: ['142.65', '303.49'], price: ['285.29', '606.98'] },
-  CD3:  { cost: ['142.73', '303.57'], price: ['285.46', '607.14'] },
-  CD4:  { cost: ['324.66', '646.34'], price: ['649.32', '1292.68'] },
+  // Step BC: the coupled FLAG FRAME doors — all four of Nathan’s decisions,
+  // a to d. Decision c (+4 h fitting a flag frame) is live rule 140 since
+  // sql/step-bc1, so each row has ONE figure again.
+  CD1:  { cost: '591.03', price: '1182.08' },
+  CD2:  { cost: '303.49', price: '606.97' },
+  CD3:  { cost: '303.57', price: '607.14' },
+  CD4:  { cost: '646.34', price: '1292.68' },
 }
 
 // NOTE on the Kenrick gearbox gap (J–P £14.70, Q/R/S £8.40): that is a gap in

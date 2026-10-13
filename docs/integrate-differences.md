@@ -608,8 +608,11 @@ explained — never by editing a target.
 Not parked, and still reported every step because each is over £1.00 or has a known fix
 pending rather than an open question:
 
-- **J–P −£14.70, Q/R/S −£8.40** — the four Kenrick gearbox parts carry `unit_cost 0` in
-  `pf30-snapshot.json`. The reviewer's `sql/step-ap0-gearbox-part-costs.sql` is the data fix;
-  the snapshot is a captured file, so the gap shows until a fresh one is taken.
+- ~~**J–P −£14.70, Q/R/S −£8.40** — the four Kenrick gearbox parts carry `unit_cost 0` in
+  `pf30-snapshot.json`.~~ **CLOSED 13 Oct 2026** (Step BC follow-up). The reviewer's
+  `sql/step-ap0-gearbox-part-costs.sql` had already been run live; the snapshot refreshed
+  after `sql/step-bc1` carries the costed parts (kenrick_extension_gear_box PC: RJZ1710 0.72,
+  RJZ1709 0.72, RJZ1708 2.02, RJZ1700 3.89), and **J, P, Q, R and S are now exact to the penny**
+  offline. Nothing was tuned — the captured data caught up with the live data.
 - **B_UNCORRECTED −£25.46** — deliberate difference 1, not a residual at all: the fixture
   exists to record what Integrate charges before the correction.

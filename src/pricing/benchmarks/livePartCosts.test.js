@@ -61,13 +61,12 @@ describe('mergeBenchmarkPartCosts — the live catalogue wins', () => {
 
 describe('no benchmark depends on an override that DIFFERS from the live cost', () => {
   it('every fixture cost either matches the captured catalogue or is absent from it', () => {
-    // The brief's check. The captured snapshot pre-dates sql/step-az1, so the
-    // nine door codes are absent from it and the fixture fills them — at the
-    // same figures az1 inserted live (the five Utile sections 8.60 / 12.20 /
-    // 17.30 / 29.00 / 13.60 and the four locks 50.83 / 89.47 / 34.92 / 5.61).
-    // What must NOT exist is a fixture cost that silently disagrees with a
-    // cost the catalogue already holds: that would be a benchmark passing on
-    // a number the live site does not use.
+    // Step BC follow-up: the snapshot the reviewer refreshed after sql/step-bc1
+    // CONTAINS the nineteen door parts az1 inserted — the five Utile sections
+    // and the fourteen mpls_doors locks — so there is nothing left for a
+    // fixture to fill, and every fixture cost must now MATCH the catalogue.
+    // That is the Step AZ follow-up's open point closed in the captured file:
+    // the fixture maps are no longer propping the door benchmarks up.
     const live = SNAPSHOT.partCostMap ?? {}
     const disagreements = []
     const filled = []
@@ -81,11 +80,9 @@ describe('no benchmark depends on an override that DIFFERS from the live cost', 
       }
     }
     expect(disagreements, disagreements.join('\n')).toEqual([])
-    // and the only gaps filled are the nine door codes
-    expect([...new Set(filled)].sort()).toEqual([
-      'RHZ1648', 'RHZ1653', 'RHZ1667', 'RJZ2382',
-      'Utile63x120', 'Utile63x200', 'Utile63x63', 'Utile63x96', 'Utile67x96',
-    ])
+    // and NO gap is filled any more: every code a fixture names is in the
+    // catalogue, at the same cost
+    expect([...new Set(filled)].sort()).toEqual([])
   })
 })
 
