@@ -56,31 +56,19 @@ WHERE  category = 'sash_type' AND code = 'stormproof'
   AND  cardinality(applies_to) > 0
   AND  NOT ('casementSashPart' = ANY (applies_to));
 
--- ── 2. The stormproof sections on the casement profile ─────────────────────
--- Integrate's own values, from every drawing the reviewer read. ON CONFLICT
--- DO NOTHING so a key Integrate's import already created keeps ITS value —
--- these are Integrate's figures, not mine to overwrite.
---
--- The sash THICKNESS (54), head and stiles (62) and clearances (4) are the
--- same stormproof as flush, so they are not duplicated here: the code reads
--- them from the existing casementSashPart keys.
+-- ── 2. The stormproof sash bottom rail on the casement profile ──────────────
+-- REVIEWER FIX (13 Oct, read live with /dev/sql): Integrate's import ALREADY
+-- holds the stormproof frame and cill sections on the casement profile, under
+-- casementSashPart.defaultStormProof* — FrameJamb 41, FrameHead 41,
+-- FrameDepth 69, FrameJambType 'Solid Profiled', CillHeight 56, CillDepth 69,
+-- FrameHeadStopSize / FrameStileStopSize / CillStopSize 15 — plus
+-- stormProofOverlap 7 and stormProofLipThickness 15. The code reads those
+-- (STORMPROOF_CANDIDATES), so they are NOT duplicated under new spellings.
+-- The only missing value is Nathan's 76 mm bottom rail, named in the same
+-- convention as casementSashPart.defaultFanlightBottomHeight.
 INSERT INTO public.default_profile_values (profile_id, field_key, default_value)
-SELECT p.id, v.field_key, v.default_value
+SELECT p.id, 'casementSashPart.defaultStormProofBottomHeight', '76'
 FROM   public.default_profiles p
-CROSS  JOIN (VALUES
-  ('assemblyFramePart.stormProofLeftWidth',      '41'),   -- jambs 41 (+15 stop = 56 overall)
-  ('assemblyFramePart.stormProofRightWidth',     '41'),
-  ('assemblyFramePart.stormProofTopHeight',      '41'),   -- head
-  ('assemblyFramePart.stormProofBottomHeight',   '56'),
-  ('assemblyFramePart.stormProofFrameDepth',     '69'),
-  ('assemblyFramePart.stormProofHeadStopSize',   '15'),
-  ('assemblyFramePart.stormProofStileStopSize',  '15'),
-  ('assemblyFramePart.stormProofCillStopSize',   '15'),
-  ('cillPart.stormProofHeight',                  '56'),   -- 71 finished with its stop
-  ('cillPart.stormProofDepth',                   '69'),
-  ('casementSashPart.stormProofBottomHeight',    '76'),   -- Nathan, 13 Oct: 76 everywhere
-  ('casementSashPart.stormProofOverlap',          '7')    -- DRAWN only; nothing prices it
-) AS v(field_key, default_value)
 WHERE  p.code = 'casement'
 ON CONFLICT (profile_id, field_key) DO NOTHING;
 
@@ -135,10 +123,8 @@ COMMIT;
 SELECT code, label, sort_order, is_active, applies_to
 FROM   public.reference_options WHERE category = 'sash_type' ORDER BY sort_order;
 
--- 4b. Expect the twelve stormproof keys with the values above. If a row shows
---     a DIFFERENT value, Integrate's import already had that key — say so and
---     its spelling goes to the front of STORMPROOF_CANDIDATES in
---     src/drawingBoard/casementOpenings.js, which is the only change needed.
+-- 4b. Expect Integrate's eleven casementSashPart / French stormProof keys (read
+--     live 13 Oct) plus casementSashPart.defaultStormProofBottomHeight = 76.
 SELECT v.field_key, v.default_value
 FROM   public.default_profile_values v
 JOIN   public.default_profiles p ON p.id = v.profile_id
@@ -170,19 +156,11 @@ WHERE  t.name = 'Single Stormproof Casement';
 -- DELETE FROM public.drawing_templates WHERE name = 'Single Stormproof Casement';
 --
 -- DELETE FROM public.default_profile_values
--- WHERE  field_key IN (
---   'assemblyFramePart.stormProofLeftWidth','assemblyFramePart.stormProofRightWidth',
---   'assemblyFramePart.stormProofTopHeight','assemblyFramePart.stormProofBottomHeight',
---   'assemblyFramePart.stormProofFrameDepth','assemblyFramePart.stormProofHeadStopSize',
---   'assemblyFramePart.stormProofStileStopSize','assemblyFramePart.stormProofCillStopSize',
---   'cillPart.stormProofHeight','cillPart.stormProofDepth',
---   'casementSashPart.stormProofBottomHeight')
---   AND profile_id = (SELECT id FROM public.default_profiles WHERE code = 'casement');
+-- WHERE  field_key = 'casementSashPart.defaultStormProofBottomHeight'
+--   AND  profile_id = (SELECT id FROM public.default_profiles WHERE code = 'casement');
 --
--- NOTE: casementSashPart.stormProofOverlap is deliberately NOT in that list —
--- it predates this step (sql/step-aq3 treats it as a profile setting), so
--- deleting it would undo earlier work. If section 2 created it, it was missing
--- before and can be removed by hand.
+-- NOTE: the other stormproof keys came from Integrate's import, not this step —
+-- leave them.
 --
 -- The 'stormproof' sash_type row is NOT deleted either: a saved drawing may
 -- reference it, and a stored code with no option row renders blank. To retire
