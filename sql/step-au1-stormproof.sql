@@ -66,6 +66,18 @@ WHERE  category = 'sash_type' AND code = 'stormproof'
 -- (STORMPROOF_CANDIDATES), so they are NOT duplicated under new spellings.
 -- The only missing value is Nathan's 76 mm bottom rail, named in the same
 -- convention as casementSashPart.defaultFanlightBottomHeight.
+-- The key must exist in default_field_definitions first (foreign key) — shaped
+-- exactly like Integrate's casementSashPart.defaultFanlightBottomHeight (id 125).
+INSERT INTO public.default_field_definitions
+  (part_type, field_key, property_name, label, data_type, visibility,
+   sort_order, is_active, group_name, unit, role, reference_category,
+   part_category, is_required)
+VALUES
+  ('casementSashPart', 'casementSashPart.defaultStormProofBottomHeight',
+   'defaultStormProofBottomHeight', 'Default storm proof bottom height', 'number', 'visible',
+   1255, TRUE, 'casementSashPart', NULL, 'config', NULL, NULL, FALSE)
+ON CONFLICT (field_key) DO NOTHING;
+
 INSERT INTO public.default_profile_values (profile_id, field_key, default_value)
 SELECT p.id, 'casementSashPart.defaultStormProofBottomHeight', '76'
 FROM   public.default_profiles p
@@ -158,6 +170,8 @@ WHERE  t.name = 'Single Stormproof Casement';
 -- DELETE FROM public.default_profile_values
 -- WHERE  field_key = 'casementSashPart.defaultStormProofBottomHeight'
 --   AND  profile_id = (SELECT id FROM public.default_profiles WHERE code = 'casement');
+-- DELETE FROM public.default_field_definitions
+-- WHERE  field_key = 'casementSashPart.defaultStormProofBottomHeight';
 --
 -- NOTE: the other stormproof keys came from Integrate's import, not this step —
 -- leave them.

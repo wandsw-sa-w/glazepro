@@ -947,5 +947,98 @@
   "benchmarkSE_stormproof_opener_plus_fixed": {
     "source": "L31115 Item 7 Drawing 1 (first floor, TEST stormproof, created 13 Oct 2026 with Nathan's approval). Read 13 Oct 2026 via a temporary Quote 2 test quote. Facts: docs/integrate-L31115-stormproof.txt — as SF with B1 a FIXED casement sash. Drawing-card PF30 price only.",
     "total_price": 2144.97
+  },
+  "benchmarkTC1_wide_fanlight_over_double": {
+    "source": "L31115 Item 8 Drawing 1 (first floor, TEST two-column fanlights, Integrate template 7 Double Casement With Fanlight unchanged, created 13 Oct 2026 with Nathan's approval). Read 13 Oct 2026 via the temporary Quote 2 test quote. Facts: docs/integrate-L31115-two-column-fanlights.txt — 1105 x 1405, one top-hung fanlight across both columns over LH + RH",
+    "total_cost": 1420.32,
+    "total_price": 2840.63,
+    "groups": {
+      "glass_done": {
+        "cost": 60.67,
+        "price": 121.32
+      },
+      "installation_materials": {
+        "cost": 129.56,
+        "price": 259.12
+      },
+      "manufacture": {
+        "cost": 628.83,
+        "price": 1257.66
+      },
+      "labour": {
+        "cost": 522.73,
+        "price": 1045.46
+      },
+      "manufacture_materials": {
+        "cost": 78.53,
+        "price": 157.07
+      }
+    },
+    "hours": {
+      "production": 25.5,
+      "labour": 13.0
+    }
+  },
+  "benchmarkTC2_fanlight_over_each": {
+    "source": "L31115 Item 8 Drawing 2 (first floor, TEST two-column fanlights, Integrate template 12 Configuration 1 unchanged, created 13 Oct 2026 with Nathan's approval). Read 13 Oct 2026 via the temporary Quote 2 test quote. Facts: docs/integrate-L31115-two-column-fanlights.txt — 1299 x 1499, top-hung fanlight A1 + fixed fanlight B1 over fixed A2 + RH B2, mullion and transom crossing",
+    "total_cost": 1560.99,
+    "total_price": 3121.95,
+    "groups": {
+      "glass_done": {
+        "cost": 92.24,
+        "price": 184.46
+      },
+      "installation_materials": {
+        "cost": 101.85,
+        "price": 203.7
+      },
+      "manufacture": {
+        "cost": 735.61,
+        "price": 1471.22
+      },
+      "labour": {
+        "cost": 542.84,
+        "price": 1085.67
+      },
+      "manufacture_materials": {
+        "cost": 88.45,
+        "price": 176.9
+      }
+    },
+    "hours": {
+      "production": 29.83,
+      "labour": 13.5
+    }
+  },
+  "benchmarkTC3_fanlight_over_one_side": {
+    "source": "L31115 Item 8 Drawing 3 (first floor, TEST two-column fanlights, Integrate template 13 Configuration 2 unchanged, created 13 Oct 2026 with Nathan's approval). Read 13 Oct 2026 via the temporary Quote 2 test quote. Facts: docs/integrate-L31115-two-column-fanlights.txt — 1205 x 1295, full-height LH A1 beside a top-hung fanlight B1 over a fixed B2",
+    "total_cost": 1375.04,
+    "total_price": 2750.07,
+    "groups": {
+      "glass_done": {
+        "cost": 67.48,
+        "price": 134.95
+      },
+      "installation_materials": {
+        "cost": 99.1,
+        "price": 198.2
+      },
+      "manufacture": {
+        "cost": 628.83,
+        "price": 1257.66
+      },
+      "labour": {
+        "cost": 502.63,
+        "price": 1005.25
+      },
+      "manufacture_materials": {
+        "cost": 77.0,
+        "price": 154.01
+      }
+    },
+    "hours": {
+      "production": 25.5,
+      "labour": 12.5
+    }
   }
 }

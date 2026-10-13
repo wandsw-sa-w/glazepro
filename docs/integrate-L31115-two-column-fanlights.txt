@@ -1,0 +1,102 @@
+# Integrate facts — two-column fanlight casements (read 13 Oct 2026, wandsworth.work, L31115 item 8 "TEST two-column
+# fanlights", First Floor, created with Nathan's approval from Integrate's own templates, unchanged). PF30, flush
+# casement, Solid Redwood frame/sashes, utile cill, complete new. Priced through the temporary Quote 2 test quote
+# (one drawing at a time in item 8's slot); every line below is the PF30 price-file test view (cost; price = x 2.00).
+# Nathan (13 Oct): all three layouts are sold, and more often than French casements.
+
+## Integrate's templates (DrawingBoard Config, CW family, group "3. Combination Flush Casements")
+# 7  "Double Casement With Fanlight" 1105 x 1405 — ONE wide fanlight over two casements      -> TC1 = drawing 8/1
+# 12 "Configuration 1"               1299 x 1499 — a fanlight over EACH of two casements       -> TC2 = drawing 8/2
+# 13 "Configuration 2"               1205 x 1295 — full-height opener + fanlight over a fixed  -> TC3 = drawing 8/3
+# 14 "Configuration 3"               1205 x 1295 — the mirror of 13 (fanlight column on the LEFT): not drawn
+# (Configurations 4-7 are three/four-column layouts — out of scope here.)
+
+## How Integrate stores a divider that stops at another divider
+# Mullions and transoms are in the frame's `dividers` array, each with an id and startDivider / endDivider:
+#   '0' = runs to the frame; otherwise the id of the divider it starts / ends at.
+# TC1: Mullion{startDivider = the transom's id} — the mullion runs from the transom DOWN to the cill (bottom row only);
+#      the transom runs jamb to jamb. TC1's transom also carries outerThickness '32' (TC2/TC3 transoms do not).
+# TC2: both '0' — the mullion runs head to cill and the transom jamb to jamb (they cross).
+# TC3: Transom{startDivider = the mullion's id} — the transom runs from the mullion to the RIGHT jamb (column B only);
+#      the mullion runs head to cill.
+# Openings keep Integrate's matrix labels: a spanning opening takes its top-left slot (TC1 fanlight = A1 across both
+# columns; TC3 full-height opener = A1 down both rows) and the empty slot simply has no part.
+# One CillPart per bottom-row opening (TC1 493 + 511, TC2 590 + 608, TC3 543 + 561); cill VOLUME = full frame width.
+
+## Trees (frame 37/37/47/47, depth 96, cill 47 x 128, stops 20; dividers 27 with 20 stops; every sash 54 thick,
+## 62/62/62/83, clearance 4; glass GL100010 / GL100080, rebate 16, tolerance 2, as Q/R/S)
+--- 8/1 TC1 (drawingId 310554): 1105 x 1405, ONE wide top-hung fanlight over LH + RH
+Mullion{27, offset 493, offset2 511, stop 20, startDivider = transom}   Transom{27, offset 301, offset2 983, stops 20/20, outerThickness 32}
+internal 1031 x 1311 = 493 + 27 + 511 and 301 + 27 + 983
+A1 op 15 (top hung) spanning both columns: opening 1031 x 301, sash 1023 x 293, shoulderHeight 148
+A2 op 17 (LH) 493 x 983 -> 485 x 975 (shoulder 830); B2 op 18 (RH) 511 x 983 -> 503 x 975 (shoulder 830)
+Stored ironmongery (template): connoisseur_handle_lh PB 2; connoisseur_handle_rh PB 1; defender_209mm PC 1;
+  defender_friction_hinge_-_side_hung_310mm PC 2; kenrick_extension_950mm PC 6; kenrick_extension_gear_box PC 3; trickle_vent_xr16 Wht 1
+Surround (template): Nosing in Solid Redwood 1 x 1260 (width 25); Ogee Architrave in MDF 2 x 1510, 1 x 1210
+--- 8/2 TC2 (drawingId 310555): 1299 x 1499, a fanlight over EACH casement
+Mullion{27, offset 590, offset2 608, stop 20, full}   Transom{27, offset 356, offset2 1022, stops 20/20, full}
+internal 1225 x 1405 = 590 + 27 + 608 and 356 + 27 + 1022
+A1 op 15 top hung 590 x 356 -> 582 x 348; B1 op 11 FIXED 608 x 356 -> 600 x 348;
+A2 op 11 FIXED 590 x 1022 -> 582 x 1014; B2 op 18 RH 608 x 1022 -> 600 x 1014
+Stored ironmongery: handle LH PB 1; handle RH PB 1; defender_310mm PC 1; defender_friction_hinge_-_side_hung_310mm PC 1;
+  kenrick_extension_490mm PC 2; kenrick_extension_950mm PC 2; kenrick_extension_gear_box PC 2; trickle_vent_xr16 Wht 1
+Surround: Nosing in Solid Redwood 1 x 1450; Ogee Architrave in MDF 2 x 1600, 1 x 1400
+--- 8/3 TC3 (drawingId 310556): 1205 x 1295, full-height LH opener + top-hung fanlight over a FIXED sash on the right
+Mullion{27, offset 543, offset2 561, stop 20, full}   Transom{27, offset 354, offset2 820, stops 20/20, startDivider = mullion}
+internal 1131 x 1201 = 543 + 27 + 561 and 354 + 27 + 820
+A1 op 17 LH spanning both rows: opening 543 x 1201 -> 535 x 1193 (shoulder 1048)
+B1 op 15 top hung 561 x 354 -> 553 x 346; B2 op 11 FIXED 561 x 820 -> 553 x 812
+Stored ironmongery: handle LH PB 2; defender_310mm PC 1; defender_friction_hinge_-_side_hung_310mm PC 1;
+  kenrick_extension_490mm PC 2; kenrick_extension_950mm PC 2; kenrick_extension_gear_box PC 2; trickle_vent_xr16 Wht 1
+Surround: Nosing in Solid Redwood 1 x 1360; Ogee Architrave in MDF 2 x 1400, 1 x 1310
+Validation on all three: "Fanlight bottom rail should be reduced to 62mm externally" (shown once per drawing) and
+  "Frame interior widths are similar but not the same" (rule 20, frame_interior_widths_are_slightly_off).
+
+## Price-file lines (cost)                TC1 (8/1)                      TC2 (8/2)                              TC3 (8/3)
+Square Glass (58.50/m2)                   0.30 ; 0.33 ; 0.35             0.30 ; 0.44 ; 0.30 ; 0.45              0.47 ; 0.30 ; 0.32
+Energy surcharge (0.17)                   6.00 ; 6.60 ; 7.00             6.00 ; 8.80 ; 6.00 ; 9.00              9.40 ; 6.00 ; 6.40
+Ironmongery                               84.00 (see lines)              54.60                                  53.55
+  TC1: handle LH x2 15.75, RH 8.40, Defender 208 top hung 4.20, Defender 310 side hung x2 16.80, centre strike x3 6.30,
+       ext 950-1210 x6 12.60, gearbox x3 12.60, LH strike x3 2.10, RH strike x3 2.10, vent 3.15
+  TC2: LH 8.40, RH 8.40, Defender 310 side 8.40, Defender 310 top 5.25, centre x2 4.20, ext 490-700 x2 2.10,
+       ext 950-1210 x2 4.20, gearbox x2 8.40, strikes 1.05 + 1.05, vent 3.15
+  TC3: LH x2 15.75, Defender 310 side 8.40, Defender 310 top 5.25, centre x2 4.20, ext 490 x2 2.10, ext 950 x2 4.20,
+       gearbox x2 8.40, strikes 1.05 + 1.05, vent 3.15
+Components                                Nosing 2.76 x 1.30 = 3.59 ;    Nosing 1.50 = 4.14 ; Arch 3.20 = 9.12 ;  Nosing 1.40 = 3.86 ; Arch 2.80 = 7.98 ;
+                                          Arch 2.85 x 3.00 = 8.55 ; 1.20 = 3.42   1.40 = 3.99                      1.30 = 3.71
+Installation Consumables                  30.00                          30.00                                  30.00
+Production (24.66/h)                      25.50 h = 628.83               29.83 h = 735.61                       25.50 h = 628.83
+Labour (40.21/h)                          13.00 h = 522.73               13.50 h = 542.84                       12.50 h = 502.63
+Softwood Casement Frame & Sashes          43.19 -> 23.75                 51.13 -> 28.12                         40.48 -> 22.26
+Softwood Casement Sashes                  9.97 ; 10.33 ; 10.47           6.89 ; 11.35 ; 7.03 ; 11.49            12.18 ; 6.65 ; 9.77
+Hardwood Casement Cill (1.085)            11.85 -> 12.86                 13.93 -> 15.11                         12.91 -> 14.01
+LTW General Consumables                   25.00                          25.00                                  25.00
+Groups (cost / price): glass              60.67 / 121.32                 92.24 / 184.46                         67.48 / 134.95
+  installation materials                  129.56 / 259.12                101.85 / 203.70                        99.10 / 198.20
+  manufacture                             628.83 / 1,257.66              735.61 / 1,471.22                      628.83 / 1,257.66
+  labour                                  522.73 / 1,045.46              542.84 / 1,085.67                      502.63 / 1,005.25
+  manufacture materials                   78.53 / 157.07                 88.45 / 176.90                         77.00 / 154.01
+TOTAL                                     1,420.32 / 2,840.63            1,560.99 / 3,121.95                    1,375.04 / 2,750.07
+
+## Reconciliations
+# Labour (Installation Labour Time test view, item 8): base casement frame 480 + opener 90 each + fixed 60 each
+#   + rule 251 "Windowboard" 30 (has_deep_window_board — the template's Nosing in Solid Redwood surround):
+#   TC1 480 + 3 x 90 + 30 = 780 (13.00 h) ; TC2 480 + 2 x 90 + 2 x 60 + 30 = 810 (13.50) ; TC3 480 + 2 x 90 + 60 + 30 = 750 (12.50)
+# Production: frame 180 + 180 per divider (rule 1105) + 180 per sash + 20 glazing per sash + 60 sash finish per sash
+#   + 90 frame finish + 60 per divider (rule 211): TC1 / TC3 (3 sashes, 2 dividers) 1530 = 25.50 h ; TC2 (4 sashes) 1790 = 29.83 h
+#   — a divider that stops at another divider still counts as one.
+# Sash timber (2H x 62 + W x 145) x 54 at sash = opening - 8, as before — every sash above matches.
+# Glass (sash - 124 + 28) x (sash H - 145 + 28), 0.30 minimum — every pane matches (TC1 fanlight 927 x 176 -> 0.30;
+#   TC2 fanlights 486 x 231 / 504 x 231 -> 0.30 each).
+# Cill: FULL frame width x 128 x 67, to 2 dp, x 1.25: 9.48 -> 11.85 ; 11.14 -> 13.93 ; 10.33 -> 12.91.
+# Surround lengths: architrave as before (H + 100 and W + 100, ceil to 10 mm); NOSING = frame width + 150, ceil to 10 mm
+#   (1260 / 1450 / 1360), priced to the nearest 0.1 m (1.3 / 1.5 / 1.4).
+# Frame timber (dm3 = sum of pieces, to 2 dp, then x 1.25): head W x 96 x 67 + jambs 2 x internal H x 96 x 57 + each divider
+#   length x 96 x 67, where a divider that runs frame to frame is internal dimension + 20 (as Q and J), and a divider that
+#   STOPS AT ANOTHER DIVIDER is its own opening span + a small allowance:
+#   TC2 (both full): 8.355168 + 15.37632 + transom 1245 x 6432 + mullion 1425 x 6432 = 40.904928 -> 40.90 -> 51.13 (exact)
+#   TC1: 7.10736 + 14.347584 + transom 1051 (full) + mullion 985 = 983 + 2 -> 34.550496 -> 34.55 -> 43.19
+#        (984 gives 43.18, 986 gives 43.20 — so 985 exactly)
+#   TC3: 7.75056 + 13.143744 + mullion 1221 (full) + transom 564 or 565 = 561 + 3 or 4 -> 32.38 -> 40.48
+#   ONE reading each: the short MULLION gets +2, the short TRANSOM +3 or +4; no single constant fits both. Worth well
+#   under 1p either way (1 mm = 0.0064 dm3).
