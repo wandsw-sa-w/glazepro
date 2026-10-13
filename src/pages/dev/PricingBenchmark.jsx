@@ -392,26 +392,43 @@ export default function PricingBenchmark() {
             const cost  = results.price.total_cost ?? 0
             const price = results.price.total ?? 0
             const m = costPriceMatch(cost, price, benchmark.targets)
-            const allOk = m.costOk && m.priceOk
+            // Step AZ: a benchmark GlazePro is DELIBERATELY dearer on. The
+            // target stays Integrate's own figure — it is never edited to
+            // agree with GlazePro — so the row shows the difference with its
+            // REASON rather than a bare FAIL that invites someone to "fix"
+            // a decision Nathan made.
+            const deliberate = benchmark.deliberateDifference ?? null
+            const asExpected = deliberate != null &&
+              Math.abs((m.costDiff ?? 0) - deliberate.cost) < 0.02
+            const allOk = (m.costOk && m.priceOk) || asExpected
             return (
               <tr key={i}
                 data-testid="benchmark-row"
                 data-benchmark={benchmark.key ?? ''}
-                data-status={allOk ? 'PASS' : 'FAIL'}
+                data-status={allOk && !asExpected ? 'PASS' : (asExpected ? 'BY DESIGN' : 'FAIL')}
                 data-cost-diff={m.hasCost ? fmt(m.costDiff) : ''}
                 data-price-diff={fmt(m.priceDiff)}
-                style={allOk ? { background: '#f0fff0' } : { background: '#fff0f0' }}>
+                style={asExpected
+                  ? { background: '#fffdf0' }
+                  : (allOk ? { background: '#f0fff0' } : { background: '#fff0f0' })}>
                 <td style={S.td}><strong>{benchmark.name}</strong></td>
                 <td style={S.td}>{'\u00A3'}{fmt(cost)}</td>
                 <td style={S.td}>{'\u00A3'}{fmt(benchmark.targets.total_cost)}</td>
                 <td style={S.td}>{'\u00A3'}{fmt(price)}</td>
                 <td style={S.td}>{'\u00A3'}{fmt(benchmark.targets.total_price)}</td>
                 <td style={S.td}>
-                  <span style={allOk ? S.hit : S.miss}>
-                    {allOk ? 'PASS' : (m.hasCost
-                      ? `FAIL (cost diff £${fmt(m.costDiff)}, price diff £${fmt(m.priceDiff)})`
-                      : `FAIL (price only, diff £${fmt(m.priceDiff)})`)}
-                  </span>
+                  {asExpected ? (
+                    <span style={{ color: '#8a6d00' }}>
+                      {'BY DESIGN'} {'\u2014'} GlazePro is {'\u00A3'}{fmt(m.costDiff)} dearer
+                      on purpose: {deliberate.reason}
+                    </span>
+                  ) : (
+                    <span style={allOk ? S.hit : S.miss}>
+                      {allOk ? 'PASS' : (m.hasCost
+                        ? `FAIL (cost diff £${fmt(m.costDiff)}, price diff £${fmt(m.priceDiff)})`
+                        : `FAIL (price only, diff £${fmt(m.priceDiff)})`)}
+                    </span>
+                  )}
                 </td>
               </tr>
             )

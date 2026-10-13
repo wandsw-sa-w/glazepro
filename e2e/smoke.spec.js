@@ -22,6 +22,19 @@ const PARKED = {
   D:   { cost: '0.54', price: '0.80' },
 }
 
+// Step AZ: two benchmarks GlazePro is DELIBERATELY dearer than Integrate on,
+// and by exactly how much. These are not residuals to be chased — Nathan
+// decided them on 13 Oct (difference 7 in docs/integrate-differences.md) —
+// but the amount is pinned here for the same reason the parked ones are: if
+// it moves, something has changed that nobody decided.
+//
+//   FD3   +17.08  the transom, which Integrate allocates nothing for
+//   FD3b  +27.86  the transom and the 62 mm fanlight bottom rail
+const DELIBERATE = {
+  FD3:  { cost: '17.08', price: '34.16' },
+  FD3b: { cost: '27.86', price: '55.73' },
+}
+
 // NOTE on the Kenrick gearbox gap (J–P £14.70, Q/R/S £8.40): that is a gap in
 // the repository's CAPTURED pf30-snapshot.json, not in the live data. Nathan
 // has run sql/step-ap0-gearbox-part-costs.sql, and this page prices from the
@@ -87,6 +100,15 @@ test.describe('GlazePro live smoke (read only)', () => {
         if (PARKED[key]) {
           unexpected.push(`${key} now PASSES but is parked at £${PARKED[key].cost} — has something been tuned?`)
         }
+        if (DELIBERATE[key]) {
+        // The page marks these 'BY DESIGN' rather than FAIL.
+        if (status !== 'BY DESIGN') {
+          unexpected.push(`${key} should read BY DESIGN on the page, reads ${status}`)
+        }
+          unexpected.push(
+            `${key} now PASSES but GlazePro should be £${DELIBERATE[key].cost} dearer ` +
+            'on purpose — has the transom or the 62 mm rail stopped being charged?')
+        }
         continue
       }
 
@@ -100,12 +122,25 @@ test.describe('GlazePro live smoke (read only)', () => {
         continue
       }
 
+      if (DELIBERATE[key]) {
+        // GlazePro is dearer ON PURPOSE, by exactly this much.
+        if (costDiff !== DELIBERATE[key].cost || priceDiff !== DELIBERATE[key].price) {
+          unexpected.push(
+            `${key} is deliberately dearer by cost £${DELIBERATE[key].cost} / ` +
+            `price £${DELIBERATE[key].price}, now cost £${costDiff} / price £${priceDiff} ` +
+            '— see difference 7 in docs/integrate-differences.md')
+        }
+        continue
+      }
+
       unexpected.push(`${key} FAILED: cost diff £${costDiff}, price diff £${priceDiff}`)
     }
 
     expect(seen).toContain('A50')
     expect(seen).toContain('D')
     expect(seen).toContain('Q')
+    // Step AZ: the four door benchmarks are on the page
+    for (const fd of ['FD1', 'FD2', 'FD3', 'FD3b']) expect(seen).toContain(fd)
     expect(unexpected, unexpected.join('\n')).toEqual([])
   })
 

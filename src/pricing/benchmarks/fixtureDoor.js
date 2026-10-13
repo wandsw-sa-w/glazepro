@@ -337,6 +337,13 @@ export const BENCHMARK_FD3 = {
     ironmongeryLines: [...DOOR_IRONMONGERY, ...FANLIGHT_IRONMONGERY],
   }),
   targets: { ...INTEGRATE_TARGETS.benchmarkFD3_french_doors_with_fanlight },
+  // The target is INTEGRATE's figure and stays that way. GlazePro charges
+  // more on purpose, so the benchmark page labels the difference instead of
+  // calling it a failure (difference 7 in docs/integrate-differences.md).
+  deliberateDifference: {
+    cost: 17.08,
+    reason: 'the transom, charged at Utile67x96 for the internal frame width (PROVISIONAL — no listed section fits 77 x 96)',
+  },
   partCostMap: DOOR_PART_COST_MAP,
   profileValues: DOOR_PROFILE_VALUES,
   glassCatalogue: {},
@@ -359,6 +366,10 @@ export const BENCHMARK_FD3b = {
     ironmongeryLines: [...DOOR_IRONMONGERY, ...FANLIGHT_IRONMONGERY],
   }),
   targets: { ...INTEGRATE_TARGETS.benchmarkFD3b_french_doors_fanlight_rail_62 },
+  deliberateDifference: {
+    cost: 27.86,
+    reason: 'the transom (17.08) and the 62 mm fanlight bottom rail at Utile63x63 (10.78), neither of which Integrate charges',
+  },
   partCostMap: DOOR_PART_COST_MAP,
   profileValues: DOOR_PROFILE_VALUES,
   glassCatalogue: {},
