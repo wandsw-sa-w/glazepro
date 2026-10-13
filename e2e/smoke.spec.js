@@ -94,21 +94,27 @@ test.describe('GlazePro live smoke (read only)', () => {
   })
 
   test('every benchmark passes except the parked residuals', async ({ page }) => {
+    // Step BB: the page now prices FORTY-ODD benchmarks, twelve of them
+    // doors, and reading four attributes a row one call at a time was 160
+    // round trips against a busy page — it timed out at 120 s with nothing
+    // wrong. The rows are read in ONE evaluate, and the budget is raised
+    // for the page itself rather than for the reading.
+    test.setTimeout(240_000)
     await login(page)
     await page.goto('/dev/pricing-benchmark')
 
     const rows = page.locator('[data-testid="benchmark-row"]')
-    await expect.poll(() => rows.count(), { timeout: 90_000 }).toBeGreaterThan(20)
+    await expect.poll(() => rows.count(), { timeout: 180_000 }).toBeGreaterThan(20)
 
-    const n = await rows.count()
+    const read = await page.$$eval('[data-testid="benchmark-row"]', els => els.map(el => ({
+      key:       el.getAttribute('data-benchmark'),
+      status:    el.getAttribute('data-status'),
+      costDiff:  el.getAttribute('data-cost-diff'),
+      priceDiff: el.getAttribute('data-price-diff'),
+    })))
     const unexpected = []
     const seen = []
-    for (let i = 0; i < n; i++) {
-      const row = rows.nth(i)
-      const key = await row.getAttribute('data-benchmark')
-      const status = await row.getAttribute('data-status')
-      const costDiff = await row.getAttribute('data-cost-diff')
-      const priceDiff = await row.getAttribute('data-price-diff')
+    for (const { key, status, costDiff, priceDiff } of read) {
       seen.push(key)
 
       if (status === 'PASS') {
