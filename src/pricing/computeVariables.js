@@ -674,13 +674,15 @@ export function computeVariables(tree, derived = {}, pfVariables = {}, opts = {}
     // PROFILE, and "Product range is set to Sashes Only" is profile code
     // 'sashes_only'. My Step AU guess at typeOfWork was wrong and is gone.
     //
-    // It is computed from `opts.profileCode` when a caller supplies it. No
-    // caller does yet, so this is false in practice — deliberately, not by
-    // oversight. Rule 12 is an ERROR that blocks publishing, and switching it
-    // on means it starts firing on real drawings whose data I cannot inspect;
-    // wiring only SOME callers would be worse still, since the board would
-    // refuse what a publish allowed. docs/reports/step-au-fixes.md lists what
-    // each caller has to pass.
+    // Step AY item 4: it is computed from `opts.profileCode`, and EVERY
+    // caller now passes the drawing's code — the board, Quote Matrix, Quote
+    // Overview, the Validation Rules page and the publish snapshot (which
+    // carries profile_code per item). They were wired together on purpose:
+    // rule 12 is an ERROR that blocks publishing, so wiring only some of them
+    // would have the board refusing what a publish allowed.
+    //
+    // The CODE, never a label: default_profiles.display_name is something a
+    // user can rename, and 'Sashes Only' is not 'sashes_only'.
     const is_replacement_sashes_range =
       String(opts?.profileCode ?? '') === 'sashes_only'
 

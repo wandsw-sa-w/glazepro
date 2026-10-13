@@ -11,7 +11,7 @@ import { effectiveProfileId } from '../drawingBoard/defaultProfile.js'
 import { computeQuoteTotals } from '../quotes/quoteTotals.js'
 import { validatePublish, nextQuoteNumber } from '../quotes/publishValidation.js'
 import { computePopulatePatch } from '../quotes/populateQuote.js'
-import { loadDrawingParts, saveDrawingParts } from '../drawingBoard/api.js'
+import { loadDrawingParts, saveDrawingParts, loadDrawingProfileCode } from '../drawingBoard/api.js'
 import { computeDerived } from '../drawingBoard/computeDerived.js'
 import { computeSashGeometry } from '../drawingBoard/sashGeometry.js'
 import { SashElevation } from '../drawingBoard/renderElevation.jsx'
@@ -103,9 +103,12 @@ function ValidationMarker({ drawingId }) {
       // out unevaluable rather than passing on a weight of 0.
       let glassCatalogue = null
       try { glassCatalogue = await loadGlassCatalogue(supabase) } catch { /* unevaluable, not a pass */ }
+      // Step AY item 4: the drawing's profile code, for rule 12
+      const profileCode = await loadDrawingProfileCode(drawingId).catch(() => null)
+      if (cancelled) return
       try {
         const derived = computeDerived(tree)
-        const vars = computeVariables(tree, derived) || {}
+        const vars = computeVariables(tree, derived, {}, { profileCode }) || {}
         const results = validateDrawing(tree, vars, ruleData || [], listsMap, { glassCatalogue })
         const fired = results.filter(r => r.status === 'fired')
         if (!cancelled) setCounts(countBySeverity(fired))

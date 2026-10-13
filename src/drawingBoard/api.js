@@ -54,6 +54,36 @@ export async function loadProfileById(id) {
   return data  // null if not found
 }
 
+/**
+ * A DRAWING's profile CODE, or null.
+ *
+ * Step AY item 4: computeVariables needs it for is_replacement_sashes_range
+ * ('sashes_only'), and every page that validates a drawing has to pass the
+ * same thing. One helper rather than the same two-table lookup written out
+ * in five places — a page that got it wrong would evaluate rule 12 against
+ * the wrong range and nothing on screen would say so.
+ *
+ * It destructures the error as every Supabase call here does, and returns null
+ * rather than throwing: a page that cannot read the profile should validate
+ * with the variable unset, not fail to render.
+ */
+export async function loadDrawingProfileCode(drawingId) {
+  if (!drawingId) return null
+  const { data: dwg, error: dErr } = await supabase
+    .from('drawings')
+    .select('default_profile_id')
+    .eq('id', drawingId)
+    .maybeSingle()
+  if (dErr || !dwg?.default_profile_id) return null
+  const { data, error } = await supabase
+    .from('default_profiles')
+    .select('code')
+    .eq('id', dwg.default_profile_id)
+    .maybeSingle()
+  if (error) return null
+  return data?.code ?? null
+}
+
 export async function loadProfileValues(profileId) {
   const { data, error } = await supabase
     .from('default_profile_values')

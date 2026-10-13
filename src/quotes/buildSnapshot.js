@@ -48,7 +48,7 @@ export function assembleSnapshot(data) {
     trees, drawingRunPrices, quoteApportionment,
     ironmongeryByDrawing, allocatedPartsByDrawing,
     latestRunByDrawing, profilesByDrawing,
-    refLabels, refOptionsByCategory, profileLabelByDrawing,
+    refLabels, refOptionsByCategory, profileLabelByDrawing, profileCodeByDrawing,
     content,
   } = data
 
@@ -168,6 +168,10 @@ export function assembleSnapshot(data) {
       // ── v2 additions ──
       location_text: locationText,
       profile_label: (profileLabelByDrawing || {})[dwgId] || null,
+      // Step AY item 4: the profile CODE, which publishQuote passes to
+      // computeVariables so rule 12 (is_replacement_sashes_range) evaluates
+      // for real on a sashes-only drawing.
+      profile_code: (profileCodeByDrawing || {})[dwgId] || null,
       ironmongery,
       allocated_parts: allocatedParts,
       pricing_run_id: pricingRun?.id || null,
@@ -527,6 +531,7 @@ export async function buildQuoteSnapshot({ quoteId, leadId, userId, userName, su
   // 12. Profile defaults per drawing + profile labels (for range display name)
   const profilesByDrawing = {}
   const profileLabelByDrawing = {}
+  const profileCodeByDrawing = {}
   const profileIds = [...new Set(drawings.map(d => d.default_profile_id).filter(Boolean))]
   if (profileIds.length > 0) {
     // Try selecting display_name; if the column doesn't exist yet, fall back to label only
@@ -534,13 +539,13 @@ export async function buildQuoteSnapshot({ quoteId, leadId, userId, userName, su
     {
       const { data, error } = await supabase
         .from('default_profiles')
-        .select('id, label, display_name')
+        .select('id, label, display_name, code')
         .in('id', profileIds)
       if (error) {
         console.warn('buildQuoteSnapshot: display_name select failed, falling back to label only:', error.message)
         const { data: fallback } = await supabase
           .from('default_profiles')
-          .select('id, label')
+          .select('id, label, code')
           .in('id', profileIds)
         profileRows = fallback
       } else {
@@ -548,7 +553,15 @@ export async function buildQuoteSnapshot({ quoteId, leadId, userId, userName, su
       }
     }
     const labelMap = {}
-    for (const p of (profileRows || [])) labelMap[p.id] = p.display_name || p.label
+    const codeMap = {}
+    for (const p of (profileRows || [])) {
+      labelMap[p.id] = p.display_name || p.label
+      // Step AY item 4: the CODE, not the label. computeVariables tests it
+      // against 'sashes_only' for is_replacement_sashes_range, so a published
+      // quote has to carry the code the board uses, not a display name
+      // somebody may rename.
+      if (p.code) codeMap[p.id] = p.code
+    }
 
     // Paginated: ~263 values per profile — several profiles exceed the cap
     const pvRows = await fetchAllRows(
@@ -570,6 +583,9 @@ export async function buildQuoteSnapshot({ quoteId, leadId, userId, userName, su
       }
       if (dwg.default_profile_id && labelMap[dwg.default_profile_id]) {
         profileLabelByDrawing[dwg.id] = labelMap[dwg.default_profile_id]
+      }
+      if (dwg.default_profile_id && codeMap[dwg.default_profile_id]) {
+        profileCodeByDrawing[dwg.id] = codeMap[dwg.default_profile_id]
       }
     }
   }
@@ -605,6 +621,7 @@ export async function buildQuoteSnapshot({ quoteId, leadId, userId, userName, su
     refLabels,
     refOptionsByCategory,
     profileLabelByDrawing,
+    profileCodeByDrawing,
     drawingRunPrices: drawingRunPricesMap,
     quoteApportionment,
     ironmongeryByDrawing,

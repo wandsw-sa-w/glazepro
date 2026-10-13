@@ -59,7 +59,12 @@ export async function publishQuote({ quoteId, leadId, userId, userName, userEmai
       if (!tree) continue
       try {
         const derived = computeDerived(tree)
-        const vars = computeVariables(tree, derived) || {}
+        // Step AY item 4: the item's profile CODE, which buildSnapshot now
+        // carries, so rule 12 (is_replacement_sashes_range) evaluates for
+        // real on a sashes-only drawing. A publish must not pass a check it
+        // could not evaluate.
+        const vars = computeVariables(tree, derived, {},
+          { profileCode: item.profile_code ?? null }) || {}
         itemVarsList.push(vars)
         const results = validateDrawing(tree, vars, itemRules, listsMap, { glassCatalogue })
         for (const r of results) {

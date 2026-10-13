@@ -518,7 +518,10 @@ function IronmongeryPanel({ node, tree, derived, refOptions, onChangeField, onAu
 
   // Compute item variables for defaultIronmonger (no pf variables needed for boolean flags)
   function computeBaseVars() {
-    try { return computeVariables(tree, derived, {}) ?? {} }
+    // Step AY item 4: the drawing's profile CODE, so rule 12
+    // (is_replacement_sashes_range) evaluates for real on a sashes-only
+    // drawing instead of always being false.
+    try { return computeVariables(tree, derived, {}, { profileCode: profile?.code }) ?? {} }
     catch { return {} }
   }
 
@@ -763,7 +766,12 @@ function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, o
 
   const dividerSpacing = (() => {
     if (!tree || !onMakeDividersEqual || !isCasementFrameTree(tree)) return null
-    if (!openingNodes(tree).some(n => n.key === node.key)) return null
+    // Step AY item 3: Integrate shows Divider Spacing on a French LEAF's
+    // panel too, and a leaf is not itself an opening — the pair it belongs
+    // to is.
+    const isOpening = openingNodes(tree).some(n => n.key === node.key ||
+      (n.part_type === FRENCH_PAIR_PART && (n.children ?? []).some(c => c.key === node.key)))
+    if (!isOpening) return null
     return {
       canWidths:  findAll(tree, 'mullionPart').length > 0,
       canHeights: findAll(tree, 'transomPart').length > 0,
@@ -1133,7 +1141,9 @@ function ValidationPanel({ tree, derived, onSelectKey }) {
     return () => { cancelled = true }
   }, [])
 
-  const variables = tree ? (computeVariables(tree, derived || {}) || {}) : {}
+  const variables = tree
+    ? (computeVariables(tree, derived || {}, {}, { profileCode: profile?.code }) || {})
+    : {}
   const results = !loading && tree
     ? validateDrawing(tree, variables, rules, lists, { glassCatalogue })
     : []

@@ -3,7 +3,7 @@ import { loadGlassCatalogue } from '../pricing/loadPricingContext.js'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { useAuth } from '../context/AuthContext'
-import { loadDrawingParts, saveDrawingParts, loadReferenceOptions, loadFieldDefinitions, loadProfileValues } from '../drawingBoard/api.js'
+import { loadDrawingParts, saveDrawingParts, loadReferenceOptions, loadFieldDefinitions, loadProfileValues, loadDrawingProfileCode } from '../drawingBoard/api.js'
 import { treeHash } from '../pricing/treeHash.js'
 import { isRunStale, pricedWithOlderEngine } from '../pricing/runStaleness.js'
 import { fetchAllRows } from '../lib/fetchAllRows.js'
@@ -403,11 +403,17 @@ export default function QuoteOverview({ leadId, quoteId, lead: leadStub }) {
         if (dwgId) dwgItemMap[String(dwgId)] = item.item_number
       }
 
+      // Step AY item 4: each drawing's profile CODE, so rule 12
+      // (is_replacement_sashes_range) evaluates for real on a sashes-only
+      // drawing instead of always being false.
+      const profileCodes = Object.fromEntries(await Promise.all(
+        treeKeys.map(async id => [id, await loadDrawingProfileCode(id).catch(() => null)])))
+
       for (const dwgId of treeKeys) {
         const tree = trees[dwgId]
         if (!tree) continue
         const derived = computeDerived(tree)
-        const vars = computeVariables(tree, derived) || {}
+        const vars = computeVariables(tree, derived, {}, { profileCode: profileCodes[dwgId] }) || {}
         itemVarsList.push(vars)
         const results = validateDrawing(tree, vars, itemRules, listsMap, { glassCatalogue })
         const itemNum = dwgItemMap[String(dwgId)]

@@ -44,9 +44,12 @@ const PROFILE_VALUES = SNAPSHOT?.profileValues ?? {}
 const PF_VARIABLES = SNAPSHOT?.pfVariables ?? {}
 
 /** Validate a tree with the 11 casement rules and the glass catalogue. */
-function validate(tree, { glassCatalogue = GLASS, rules = CASEMENT_VALIDATION_RULES } = {}) {
+function validate(tree, { glassCatalogue = GLASS, rules = CASEMENT_VALIDATION_RULES, profileCode = null } = {}) {
   const derived = computeDerived(tree, PROFILE_VALUES)
-  const vars = computeVariables(tree, derived, PF_VARIABLES) ?? {}
+  // Step AY item 4: the DRAWING's profile code, which every caller now
+  // passes (the board, Quote Matrix, Quote Overview, the Validation Rules
+  // page and the publish snapshot).
+  const vars = computeVariables(tree, derived, PF_VARIABLES, { profileCode }) ?? {}
   return validateDrawing(tree, vars, rules, {}, { glassCatalogue })
 }
 const firedOn = (tree, opts) => validate(tree, opts).filter(r => r.status === 'fired')
@@ -504,20 +507,82 @@ describe.skipIf(!SNAPSHOT)('Step AU — stormproof validation', () => {
     }
   })
 
-  it('rule 12 is EVALUABLE now, and silent', () => {
+  const RULE_12 = [{
+    id: 'as-12', sort_order: 12, level: 'item', severity: 'error',
+    name: 'No Curved Head Sash Replacements', loop_target: null,
+    condition: 'new_sash_with_curved_head_qty > 0 and is_replacement_sashes_range',
+    message: 'We do not offer sash replacements if the sashes have a curved top rail',
+    is_active: true,
+  }]
+
+  it('rule 12 is evaluable on every casement benchmark, and silent', () => {
     // Folded in from Step AT: is_replacement_sashes_range is false rather
     // than missing, so the rule evaluates instead of coming out unevaluable.
-    const RULE_12 = [{
-      id: 'as-12', sort_order: 12, level: 'item', severity: 'error',
-      name: 'No Curved Head Sash Replacements', loop_target: null,
-      condition: 'new_sash_with_curved_head_qty > 0 and is_replacement_sashes_range',
-      message: 'We do not offer sash replacements if the sashes have a curved top rail',
-      is_active: true,
-    }]
     for (const [label, bm] of [['SA', BENCHMARK_SA], ['Q', BENCHMARK_Q], ['A', BENCHMARK_A]]) {
       const results = validate(bm.tree, { rules: RULE_12 })
       expect(results.filter(r => r.status === 'unevaluable'), label).toEqual([])
       expect(results.filter(r => r.status === 'fired'), label).toEqual([])
     }
+  })
+
+  // ── Step AY item 4: the range is WIRED ─────────────────────────────────────
+  // is_replacement_sashes_range is profile code 'sashes_only', and every
+  // caller now passes the drawing's code. Until Step AY nothing did, so this
+  // ERROR rule could never fire however the drawing was drawn.
+  describe('Step AY item 4 — is_replacement_sashes_range, wired', () => {
+    /** A box sash tree with a CURVED head on the top sash. */
+    function curvedHeadTree() {
+      const tree = JSON.parse(JSON.stringify(BENCHMARK_A.tree))
+      let found = 0
+      ;(function walk(n) {
+        if (n.part_type === 'topSashPart') {
+          n.values = { ...n.values, curvedSashHead: true, toBeReplaced: true }
+          found++
+        }
+        ;(n.children ?? []).forEach(walk)
+      })(tree)
+      expect(found, 'a top sash to curve').toBeGreaterThan(0)
+      return tree
+    }
+
+    it('a SASHES-ONLY drawing with a curved head fires rule 12', () => {
+      const fired = validate(curvedHeadTree(), { rules: RULE_12, profileCode: 'sashes_only' })
+        .filter(r => r.status === 'fired')
+      expect(fired).toHaveLength(1)
+      expect(fired[0].severity).toBe('error')
+      expect(fired[0].message).toMatch(/curved top rail/)
+    })
+
+    it('the same drawing on any other range does NOT fire it', () => {
+      // The curved head is still there; only the range differs.
+      for (const code of ['sash', 'casement', 'open_out_doors', null, '']) {
+        const fired = validate(curvedHeadTree(), { rules: RULE_12, profileCode: code })
+          .filter(r => r.status === 'fired')
+        expect(fired, `profileCode ${JSON.stringify(code)}`).toEqual([])
+      }
+    })
+
+    it('a CASEMENT does not fire it, whatever the range', () => {
+      // A casement has no sliding sashes at all, so the curved-head count is
+      // 0 and the rule stays silent even on the sashes-only range.
+      for (const code of ['sashes_only', 'casement']) {
+        const fired = validate(BENCHMARK_Q.tree, { rules: RULE_12, profileCode: code })
+          .filter(r => r.status === 'fired')
+        expect(fired, code).toEqual([])
+      }
+    })
+
+    it('and the variable itself is the profile CODE, not a label', () => {
+      const varsFor = code => computeVariables(
+        curvedHeadTree(), computeDerived(curvedHeadTree(), PROFILE_VALUES),
+        PF_VARIABLES, { profileCode: code },
+      )
+      expect(varsFor('sashes_only').is_replacement_sashes_range).toBe(true)
+      expect(varsFor('Sashes Only').is_replacement_sashes_range).toBe(false)
+      expect(varsFor('sash').is_replacement_sashes_range).toBe(false)
+      expect(varsFor(undefined).is_replacement_sashes_range).toBe(false)
+      // and the curved-head count is what makes the rule fire with it
+      expect(varsFor('sashes_only').new_sash_with_curved_head_qty).toBeGreaterThan(0)
+    })
   })
 })

@@ -8,7 +8,7 @@ import { useUnmatchedCount } from '../hooks/useUnmatchedCount'
 import { validateDrawing, validateQuote, countBySeverity } from '../validation/validate.js'
 import { computeDerived } from '../drawingBoard/computeDerived.js'
 import { computeVariables, computeQuoteVariables } from '../pricing/computeVariables.js'
-import { loadDrawingParts } from '../drawingBoard/api.js'
+import { loadDrawingParts, loadDrawingProfileCode } from '../drawingBoard/api.js'
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -301,8 +301,10 @@ export default function ValidationRules() {
         try { tree = await loadDrawingParts(dwgId) } catch { /* skip */ }
         if (!tree) continue
 
+        // Step AY item 4: the drawing's profile code, for rule 12
+        const profileCode = await loadDrawingProfileCode(dwgId).catch(() => null)
         const derived = computeDerived(tree)
-        const vars = computeVariables(tree, derived) || {}
+        const vars = computeVariables(tree, derived, {}, { profileCode }) || {}
         itemVarsList.push(vars)
         const results = validateDrawing(tree, vars, itemRules, listsMap, { glassCatalogue })
         // Tag each result with the item label
