@@ -28,22 +28,28 @@ const GLASS_CODES = {
  * The five utile stock sections at Integrate's per-metre purchase costs, and
  * the four multipoint-lock parts the allocator adds on save.
  *
- * THE FOUR LOCK COSTS ARE DERIVED FROM INTEGRATE'S OWN PRICED LINES, not read
- * from a part table: none of the four codes exists in pf30-snapshot.json, so
- * there is nothing offline to read. Integrate's lines are whole pounds x 1.05
- * (the "Ironmongery Cost" rule), so 36.75 / 93.45 / 6.30 / 53.55 are costs
- * of 35 / 89 / 6 / 51.
+ * THE FOUR LOCK COSTS ARE INTEGRATE'S OWN PART COSTS, from its part list read
+ * 13 Oct 2026 — and they are now in the live parts_catalogue too
+ * (sql/step-az1, run 13 Oct), so offline and live read the same figures.
  *
- * WHICH CODE IS WHICH IS A READING, from the allocator rules' own labels
- * against the facts' part names — NOT verified against live data:
- *   RJZ2382  rule 2010 "MPLS master ... shootbolt" -> Winkhaus Thunderbolt
- *            MASTER Multipoint Lock, 51
- *   RHZ1648  rule 2030 "Slave LH 1853-2565 opening out" -> Winkhaus FAB
- *            Shootbolt 399, 35
- *   RHZ1653  "slave hinge keep 1997-2139" -> Adj Single Shootbolt Keep, 6
- *   RHZ1667  "slave flush bolt" -> Winkhaus Flushbolt LH, 89
- * If two of them are the wrong way round the GROUP total is still right and
- * only the line labels are wrong. Flagged in docs/reports/step-az.md.
+ * They were first DERIVED BACKWARDS from Integrate's priced lines, because
+ * none of the four codes existed in pf30-snapshot.json. That gave the right
+ * four amounts attached to the WRONG THREE CODES: the allocator rules' own
+ * labels, which were all there was to go on, do not say what the part is.
+ * "Slave flush bolt" is the KEEP, and "Slave hinge keep 1997-2139" is a
+ * SHOOTBOLT. The group total was right either way, which is exactly why it
+ * went unnoticed.
+ *
+ * Code, Integrate's name, its cost, and the line it makes. "Ironmongery Cost"
+ * is round(cost x qty, 0.1) x 1.05 — round() takes DECIMAL PLACES, floored,
+ * so 0.1 means whole pounds:
+ *   RJZ2382  Winkhaus Thunderbolt Master Multipoint Lock  50.83 -> 51 -> 53.55
+ *   RHZ1648  Winkhaus Flushbolt LH                        89.47 -> 89 -> 93.45
+ *   RHZ1653  Winkhaus FAB Shootbolt 399                   34.92 -> 35 -> 36.75
+ *   RHZ1667  Adj Single Shootbolt Keep                     5.61 ->  6 ->  6.30
+ * Those four lines are Integrate's, by name and to the penny
+ * (docs/integrate-L31115-french-doors.txt), and benchmarks.test.js asserts
+ * each code against its own line so a reshuffle cannot hide in the total.
  */
 export const DOOR_PART_COST_MAP = {
   Utile63x63:  8.60,
@@ -54,10 +60,10 @@ export const DOOR_PART_COST_MAP = {
   // The Ogee Architrave in MDF the surround allocator adds on save (the
   // same part, at the same price, as every casement drawing uses).
   TP68: 2.85,
-  RJZ2382: 51,
-  RHZ1648: 35,
-  RHZ1653: 6,
-  RHZ1667: 89,
+  RJZ2382: 50.83,
+  RHZ1648: 89.47,
+  RHZ1653: 34.92,
+  RHZ1667: 5.61,
 }
 
 /**

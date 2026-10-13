@@ -8,10 +8,13 @@ target was changed. **No pricing engine version bump** — the engine is still 1
 Every door figure comes out of rules GlazePro already had; what was missing was
 the door **variables** and the **loops** to feed them.
 
-**No SQL was run.** The four files in `sql/` are for Nathan, each with a
-`DO NOT RUN` rollback section.
+**I ran no SQL.** The four files in `sql/` were written for Nathan, each with a
+`DO NOT RUN` rollback section. **All four have since been run on the live
+database — 13 Oct 2026, by the reviewer with Nathan's approval**, after the
+reviewer rewrote az1 and az4 (see the follow-up at the end of this report).
 
-Commits: `36e40fd`, `4ac6a69`, `c738df0`, `231e3bd` (pushed to `origin/main`).
+Commits: `36e40fd`, `4ac6a69`, `c738df0`, `231e3bd`, and the follow-up
+`a6c5423` onwards (pushed to `origin/main`).
 
 ---
 
@@ -283,13 +286,17 @@ volume, and switching it on would double-charge them.
 **Part allocation.** Of the 22 rules reading a door variable, **four allocate** on
 every FD drawing — the multipoint lock — and they price as ironmongery:
 
-| Part | Line |
-|---|---|
-| RJZ2382 | 53.55 |
-| RHZ1648 | 36.75 |
-| RHZ1653 | 6.30 |
-| RHZ1667 | 93.45 |
-| | **190.05** = (51 + 35 + 6 + 89) × 1.05 |
+| Part | Integrate's name | Cost | Line |
+|---|---|---|---|
+| RJZ2382 | Winkhaus Thunderbolt Master Multipoint Lock | 50.83 | 53.55 |
+| RHZ1648 | Winkhaus Flushbolt LH | 89.47 | 93.45 |
+| RHZ1653 | Winkhaus FAB Shootbolt 399 | 34.92 | 36.75 |
+| RHZ1667 | Adj Single Shootbolt Keep | 5.61 | 6.30 |
+| | | | **190.05** = (51 + 89 + 35 + 6) × 1.05 |
+
+(The names and costs are Integrate's part list, read 13 Oct. The first version
+of this report had the right four amounts on the wrong three codes — see the
+follow-up.)
 
 Nothing else allocates: the `WIN5002560` / `WIN5002439` master-leaf rules need
 `to_be_replaced`, and `RGE2105` needs an aluminium cill and an opening-**in** leaf.
@@ -327,11 +334,14 @@ variables they read were previously dead on a door.
 
 ## SQL files this step wrote, in run order
 
-**None has been run. Each has a `DO NOT RUN` rollback section**, and each leads
-with a SECTION 0 of inspection queries to run first.
+**I ran none of them. Each has a `DO NOT RUN` rollback section**, and each leads
+with a SECTION 0 of inspection queries to run first. **All four were run on the
+live database on 13 Oct 2026 by the reviewer, with Nathan's approval**, az1 and
+az4 in the reviewer's rewritten form (`a6c5423`).
 
 1. `sql/step-az1-utile-section-parts.sql` — the five Utile stock sections in
-   `parts_catalogue` and PF30's part prices. **Run first.**
+   `parts_catalogue` and PF30's part prices, **and (reviewer's rewrite) the
+   fourteen `mpls_doors` lock parts**. **Run first.**
 2. `sql/step-az2-door-containment.sql` — the door part types and the containment
    pairs. **After az1, before az3** — `save_drawing_parts` rejects a tree whose
    parent/child pairs it does not know, so a door template would fail to save.
@@ -381,17 +391,22 @@ commit `231e3bd` at 16:41:22. Nothing is pending.
 
 ## Not verified against the live database
 
-- **No SQL has been run**, so nothing in az1–az4 is verified live: the five
+*As written on 13 Oct, before the SQL was run. The first two items are now
+settled — see the follow-up — and are left here as the record of what was
+outstanding and why.*
+
+- ~~**No SQL has been run**, so nothing in az1–az4 is verified live: the five
   section parts, the part types and containment pairs, the two templates and the
   property panels all exist **only as files** until Nathan runs them. Until az1
   runs, PF30 has no Utile section costs, so the price of a door on the live site
-  is not the price in these tests.
-- **I could not read the live rows.** `claude_readonly_query` admits only Nathan's
-  login, and the e2e credentials are refused ("not allowed for this user"). The
-  column lists in the SQL are taken from SQL that **has** been run
+  is not the price in these tests.~~ **All four ran on 13 Oct.**
+- ~~**I could not read the live rows.** `claude_readonly_query` admits only
+  Nathan's login, and the e2e credentials are refused ("not allowed for this
+  user"). The column lists in the SQL are taken from SQL that **has** been run
   (`sql/step-g1-parts-catalogue.sql` for `parts_catalogue`,
   `sql/step-j2-containment.sql` for the containment tables), not guessed — but
-  they are not confirmed against the live schema.
+  they are not confirmed against the live schema.~~ **The reviewer read them, and
+  both files needed changing — which is the cost of writing SQL blind.**
 - **All offline figures come from `pf30-snapshot.json`**, a captured file. The
   four Kenrick gearbox parts still carry `unit_cost 0` in it
   (`sql/step-ap0-gearbox-part-costs.sql` is the pending data fix), which is why
@@ -417,3 +432,85 @@ commit `231e3bd` at 16:41:22. Nothing is pending.
   corrections the facts forced: a door leaf's rails run between its stiles, and a
   door's glass needs its own sightline (without which FD1's two 1.33 m² units
   priced at the 0.30 minimum).
+
+---
+
+# Follow-up — 13 Oct 2026
+
+## The SQL has been run, and two of the four files needed rewriting
+
+**All four `step-az` files ran on the live database on 13 Oct 2026, by the
+reviewer with Nathan's approval.** az2 and az3 ran as written. az1 and az4 are
+the reviewer's rewrites, committed unchanged and attributed (`a6c5423`).
+
+**az1 — the fourteen lock parts were missing from the live catalogue, and my
+file did not add them.** Every part code an active `mpls_doors` allocator rule
+names — RJZ2382, the RHZ16xx / RHZ22xx shootbolts and flushbolts, both
+`WIN500xxxx` TruLocks and the RGE2105 threshold — was **absent from
+`parts_catalogue`**. A French door priced on the live site would have lost its
+**£190.05 of lock ironmongery**, and nothing offline would have shown it: the
+fixture injects those costs through `partCostMap`, so the benchmarks passed. The
+rewrite inserts all fourteen with Integrate's own names and costs, adds a check
+query that returns no rows once every allocated part exists, and extends the
+rollback.
+
+This is the general lesson, and it is worth writing down: **a fixture that
+supplies its own part costs cannot tell you whether the live catalogue has the
+part.** The benchmark was green because the fixture was complete, not because
+the database was.
+
+**az4 — my panel SQL would have inserted definitions the panel could not use.**
+Four faults, all mine:
+
+- no `group_name` on the inserted fields, where every existing door and French
+  casement definition has `group_name = part_type`;
+- the two reference fields named **no option list**, so Door Type and Operation
+  would have had nothing to pick from (`sash_type` / `sash_operation`, exactly as
+  the reviewer's step-ay2 did for the French casement);
+- `archHead`, `specialJoineryDetails` and `specialGlassDetails` were inserted for
+  part types that **have no such properties** — nothing in GlazePro would have
+  read them; they belong to a later, all-products step;
+- the sort orders did not put the fields in Integrate's order, and the settings
+  Integrate does not show (`typeId`, the gap, the overlap, the mullion settings,
+  `defaultMuntinThickness`) were left visible rather than `role 'config'`.
+
+## The lock part codes: right amounts, wrong three codes
+
+`DOOR_PART_COST_MAP` in `src/pricing/benchmarks/fixtureDoor.js` **had three of
+the four lock costs on the wrong codes.** Integrate's part list (read 13 Oct)
+settles it:
+
+| Code | Integrate's name | Cost | → line | Was mapped |
+|---|---|---|---|---|
+| RJZ2382 | Winkhaus Thunderbolt Master Multipoint Lock | **50.83** | 53.55 | 51 ✓ |
+| RHZ1648 | Winkhaus Flushbolt LH | **89.47** | 93.45 | 35 ✗ |
+| RHZ1653 | Winkhaus FAB Shootbolt 399 | **34.92** | 36.75 | 6 ✗ |
+| RHZ1667 | Adj Single Shootbolt Keep | **5.61** | 6.30 | 89 ✗ |
+
+The costs were **derived backwards** from Integrate's priced lines, because none
+of the four codes was in `pf30-snapshot.json`, and then attached to codes by
+reading the allocator rules' own labels. **The labels do not say what the part
+is:** `RHZ1667` is labelled "Slave flush bolt" and is the **keep**; `RHZ1653` is
+labelled "Slave hinge keep 1997–2139" and is a **shootbolt**. The fixture's
+comment said in as many words that this was a reading and that two could be the
+wrong way round — and three were.
+
+**No total moved**, which is the point: 51 + 89 + 35 + 6 = 181 either way, so
+FD1–FD3b were and are exact. What was wrong was **which part each line was for**,
+and only Integrate's part list could settle it.
+
+`"Ironmongery Cost"` is `round(cost × qty, 0.1) × 1.05`, and Integrate's
+`round()` takes **decimal places, floored** — so `0.1` means whole pounds. The
+real costs round to the same whole pounds as the guessed ones, which is why the
+lines are unchanged to the penny.
+
+**The pairing is now asserted, not commented.** `benchmarks.test.js` checks each
+code against **its own** Integrate line, by name and to the penny, on all four
+FD benchmarks. The group total alone could never have caught this.
+
+## Tests, after the fix
+
+**Offline: 1,537 passing, 8 failing — the standing eight, unchanged.** No
+benchmark moved; all four FD benchmarks still match Integrate to the penny
+(FD3 / FD3b bar the two deliberate charges). The four new per-code assertions
+pass.

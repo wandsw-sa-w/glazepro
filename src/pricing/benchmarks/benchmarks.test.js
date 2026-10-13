@@ -2216,12 +2216,30 @@ describe('Step AZ — French door benchmarks', () => {
   it('the four multipoint-lock parts are allocated, and priced as ironmongery', () => {
     // Integrate adds them on SAVE and prices each as whole pounds x 1.05,
     // which is the Ironmongery Cost rule — not a component line.
+    //
+    // EACH CODE IS CHECKED AGAINST ITS OWN LINE, by name and to the penny
+    // (docs/integrate-L31115-french-doors.txt). The first reading of this
+    // fixture had the right four amounts on the wrong three codes — derived
+    // backwards from the lines, because the codes were not in the snapshot —
+    // and the TOTAL was right either way, so the total alone cannot hold it.
+    const INTEGRATE_LOCK_LINES = {
+      RJZ2382: [53.55, 'Winkhaus Thunderbolt Master Multipoint Lock'],
+      RHZ1648: [93.45, 'Winkhaus Flushbolt LH'],
+      RHZ1653: [36.75, 'Winkhaus FAB Shootbolt 399'],
+      RHZ1667: [6.30,  'Adj Single Shootbolt Keep'],
+    }
+    const CODES = Object.keys(INTEGRATE_LOCK_LINES)
     for (const [label, bm] of CASES) {
       const lines = runFD(bm).price.lines.filter(
-        l => l.fires && ['RJZ2382', 'RHZ1648', 'RHZ1653', 'RHZ1667'].includes(l.alloc_iron_part_code))
+        l => l.fires && CODES.includes(l.alloc_iron_part_code))
       expect(lines.map(l => l.alloc_iron_part_code).sort(), label)
-        .toEqual(['RHZ1648', 'RHZ1653', 'RHZ1667', 'RJZ2382'])
-      // 51 + 35 + 6 + 89 = 181, x 1.05 = 190.05
+        .toEqual([...CODES].sort())
+      for (const line of lines) {
+        const [cost, name] = INTEGRATE_LOCK_LINES[line.alloc_iron_part_code]
+        expect(line.line_cost, `${label} ${line.alloc_iron_part_code} (${name})`)
+          .toBeCloseTo(cost, 2)
+      }
+      // 51 + 89 + 35 + 6 = 181, x 1.05 = 190.05
       expect(lines.reduce((t, l) => t + l.line_cost, 0), label).toBeCloseTo(190.05, 2)
     }
   })
