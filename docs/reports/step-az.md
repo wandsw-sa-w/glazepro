@@ -514,3 +514,34 @@ FD benchmarks. The group total alone could never have caught this.
 benchmark moved; all four FD benchmarks still match Integrate to the penny
 (FD3 / FD3b bar the two deliberate charges). The four new per-code assertions
 pass.
+
+**Live: 5 of 5 passed (1.0m)**, against the deploy of `ee7d88c` —
+`/version.json` reads `mv6w5ykh`, built fourteen seconds after the commit:
+
+```
+ok 1 logs in (5.1s)
+ok 2 every benchmark passes except the parked residuals (45.4s)
+ok 3 the fanlight drawing shows Fanlight A1 and Casement Sash A2 (3.1s)
+ok 4 the validation panel loads without an error (2.7s)
+ok 5 every drawing card on the L507712 quote matrix shows a price (4.0s)
+```
+
+## One thing the live tests do NOT prove, and should
+
+`src/pages/dev/PricingBenchmark.jsx` builds its cost map as
+`{ ...partCostMap, ...(benchmark.partCostMap ?? {}) }` — **the fixture's costs
+override the live catalogue's.** So the four FD rows passing on the live
+benchmark page does **not** show that `parts_catalogue` holds the Utile sections
+or the fourteen lock parts: for those codes the page is reading the fixture, not
+the database. It is the same blind spot that hid the missing lock parts in the
+first place, one layer further out.
+
+What does prove it is **az1's own check queries**, which the reviewer ran: the
+`mpls_doors` query returns no rows when every allocated part exists, and the
+section query lists the five Utile costs.
+
+**For the reviewer to decide:** now that both sets of parts are live, that
+override could be dropped (or inverted, so live data wins and the fixture map is
+only a fallback) — at which point the benchmark page would fail loudly if a part
+went missing from the catalogue. It is a one-line change but it changes what
+every benchmark on that page means, so it is not mine to make here.
