@@ -28,9 +28,9 @@ import {
 } from '../drawingBoard/cillReplacement.js'
 import { applyFanlightBottomRails, isStormproofWindow,
   resizeCasementFrame,
-  OPENING_KINDS, OPENING_KIND_LABELS, CASEMENT_OPERATIONS, openingKindOf, openingKindsFor,
+  OPENING_KINDS, OPENING_KIND_LABELS, openingKindOf, openingKindsFor,
   openingMatrixIndex, isCasementFrameTree, changeOpening,
-  openingOf, dividerSpacingFor,
+  openingOf, dividerSpacingFor, operationsFor,
   setFrenchMasterLeaf, FRENCH_MASTER_LEAVES, DEFAULT_FRENCH_MASTER_LEAF,
   actionFrameKey,
   setCasementOperation, casementProfileDefaults,
@@ -2628,6 +2628,7 @@ function DrawingBoard() {
   // Step BC board 2: the opening in the selection's OWN frame. Asking the
   // first frame meant selecting Fanlight B1 — or anything outside frame A —
   // showed no "change to:" bar and no operation buttons at all.
+  const selectedOperations = selectedNode ? operationsFor(selectedNode) : []
   const selectedOpeningKind = isCasementDrawing && selectedNode
     ? (openingOf(tree, selectedNode)?.key === selectedNode.key
       ? openingKindOf(selectedNode) : null)
@@ -2995,10 +2996,15 @@ function DrawingBoard() {
                       {OPENING_KIND_LABELS[kind]}
                     </button>
                   ))}
-                  {selectedOpeningKind !== 'direct_glazed' && (
+                  {/* Step BC board 3: the operations THIS part can take. The
+                      bar drew Integrate's casement five on everything, so a
+                      single garden door was offered top hung and bottom hung
+                      — and because setCasementOperation did not know a door
+                      leaf, none of the five did anything at all. */}
+                  {selectedOperations.length > 0 && (
                     <>
                       <span style={{ fontSize: 11, color: '#888', flexShrink: 0 }}>operation:</span>
-                      {CASEMENT_OPERATIONS.map(op => {
+                      {selectedOperations.map(op => {
                         const active = selectedNode?.values?.operation === op
                         return (
                           <button

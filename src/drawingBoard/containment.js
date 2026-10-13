@@ -134,6 +134,32 @@ export function isSaveable(tree, allowed = ALLOWED_PAIRS) {
  * Throw the way save_drawing_parts fails, so a test reads like the live
  * error. A tree with no edges at all is a mistake in the caller, not a pass.
  */
+/**
+ * Every key that appears more than once in a tree, in tree order.
+ *
+ * Step BC board 3: a tree must never hold two nodes with one key, and the
+ * board put one together — splitting an opening in a frame other than the
+ * first placed the SAME NODE twice. The parts list showed it twice, clicking
+ * either selected the same node, React kept a stale list after Undo, and a
+ * save would have stored it. The cause is fixed in gridActions; this is the
+ * check that says so if it ever happens again.
+ */
+export function duplicateKeys(tree) {
+  const seen = new Set()
+  const dupes = []
+  const walk = node => {
+    if (!node) return
+    const key = node.key
+    if (key != null) {
+      if (seen.has(key) && !dupes.includes(key)) dupes.push(key)
+      seen.add(key)
+    }
+    for (const c of (node.children ?? [])) walk(c)
+  }
+  walk(tree)
+  return dupes
+}
+
 export function assertSaveable(tree, allowed = ALLOWED_PAIRS) {
   const edges = treeEdges(tree)
   if (edges.length === 0) {
@@ -142,6 +168,13 @@ export function assertSaveable(tree, allowed = ALLOWED_PAIRS) {
   const bad = forbiddenEdges(tree, allowed)
   if (bad.length > 0) {
     throw new Error(`save_drawing_parts: forbidden parent->child pair(s): ${bad.join(', ')}`)
+  }
+  // Step BC board 3: two nodes with one key. save_drawing_parts would store
+  // the second over the first, so the drawing would come back missing a part
+  // — and the board shows it twice until a reload, which is how it was found.
+  const dupes = duplicateKeys(tree)
+  if (dupes.length > 0) {
+    throw new Error(`save_drawing_parts: duplicate key(s) in the tree: ${dupes.join(', ')}`)
   }
   return true
 }

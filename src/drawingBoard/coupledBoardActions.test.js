@@ -14,15 +14,18 @@ import { describe, it, expect } from 'vitest'
 import {
   resizeCasementFrame, changeOpening, isCasementFrameTree, actionFrameKey,
   openingNodes, openingLabel, openingKindOf, openingOf, dividerSpacingFor,
+  applyFanlightBottomRails, operationsFor, setCasementOperation,
+  CASEMENT_OPERATIONS, DOOR_OPERATIONS,
 } from './casementOpenings.js'
 import { diffTrees } from './diffTrees.js'
-import { applyDividers, makeDividersEqual, removeDivider } from './gridActions.js'
+import { applyDividers, makeDividersEqual, removeDivider, splitOpening } from './gridActions.js'
 import {
   buildCoupledSingleDoorFrame, buildSingleDoorFrame, addFlagFrame, removeFrame, isDoorTree,
 } from './doorOpenings.js'
 import { itemFrames, frameSizeLabel, frameColumns, frameRows } from '../pricing/casementGeometry.js'
 import { internalSizeOf } from './internalSize.js'
-import { assertSaveable } from './containment.js'
+import { assertSaveable, duplicateKeys } from './containment.js'
+import { computeDerived } from './computeDerived.js'
 import { partLabel, PART_LABELS } from './partLabels.js'
 
 /** The open_out_doors profile, as frenchDoor.test.js holds it. */
@@ -403,5 +406,181 @@ describe('Step BC board 2 — the drawing history names the frames', () => {
     // the part path carries its ancestors, as it always has
     expect(changes[0].part).toBe('Item > Frame')
     expect(changes[0].field).toBe('Width')
+  })
+})
+
+// ── Part 3: the helpers below the board ─────────────────────────────────────
+
+/** Move a frame's only transom, for the equal-spacing test. */
+function updateOffset(tree, frameKey, offset) {
+  const walk = n => n.key !== frameKey
+    ? { ...n, children: (n.children ?? []).map(walk) }
+    : { ...n, children: (n.children ?? []).map(c => c.part_type !== 'transomPart'
+      ? c : { ...c, values: { ...c.values, offset } }) }
+  return walk(tree)
+}
+
+/** Drawing 40: door frame A with a fanlight, flag frame B. */
+/**
+ * The same profile with Nathan's two sash rails — 86 on an ordinary sash and
+ * 62 in a fanlight. PV itself has only defaultFanlightBottomHeight, so on it
+ * applyFanlightBottomRails is a deliberate no-op (ordinary === fanlight) and
+ * could not show the per-frame fix at all.
+ */
+const PV_RAILS = { ...PV, 'casementSashPart.bottomHeight': 86,
+  'casementSashPart.defaultFanlightBottomHeight': 62 }
+
+function twoFrame(pv = PV) {
+  const { tree, missing } = buildCoupledSingleDoorFrame(pv, {
+    doorWidth: 1082, doorHeight: 2450, flags: ['right'],
+    fanlights: null,
+  })
+  expect(missing).toEqual([])
+  return tree
+}
+
+describe('Step BC board 3 — splitting an opening in a frame other than the first', () => {
+  it('splits frame B’s own opening, from B’s own cell', () => {
+    // LIVE: picking 1 x 2 on Casement Sash B1 drew a 150.5-high top light —
+    // the offset came from FRAME A's fanlight row, not B's own 1052 interior.
+    const tree = twoFrame()
+    const [a, b] = itemFrames(tree)
+    const b1 = openingNodes(tree, b)[0]
+    const next = splitOpening(tree, b.key, b1.key, 'transom', PV)
+
+    // frame A is untouched
+    expect(openingNodes(next, itemFrames(next)[0]).length,
+      'A keeps its openings').toBe(openingNodes(tree, a).length)
+    expect((itemFrames(next)[0].children ?? []).filter(c => c.part_type === 'transomPart').length)
+      .toBe((a.children ?? []).filter(c => c.part_type === 'transomPart').length)
+
+    // frame B now has two openings and its own transom
+    const nb = itemFrames(next)[1]
+    expect(openingNodes(next, nb).length, 'B is split in two').toBe(2)
+    const transom = (nb.children ?? []).find(c => c.part_type === 'transomPart')
+    expect(transom, 'B has the new transom').toBeTruthy()
+    // B's interior is 1136 - 47 - 37 = 1052, so an even split puts the
+    // transom at (1052 - 41) / 2 = 505.5 — not frame A's 150.5.
+    expect(transom.values.offset).toBeCloseTo(505.5, 1)
+  })
+
+  it('never places the same opening twice — two DISTINCT keys', () => {
+    // LIVE: the parts list read "Fanlight B1 | Fanlight B1" and clicking
+    // either selected the same node, because the second placement returned
+    // the SAME object. Saved, the duplicate key would have been stored.
+    const tree = twoFrame()
+    const b = itemFrames(tree)[1]
+    const b1 = openingNodes(tree, b)[0]
+    const next = splitOpening(tree, b.key, b1.key, 'transom', PV)
+
+    const openings = openingNodes(next, itemFrames(next)[1])
+    expect(new Set(openings.map(o => o.key)).size, 'two different keys').toBe(2)
+    // and the whole tree has no duplicate key anywhere
+    expect(duplicateKeys(next)).toEqual([])
+    // the labels read B1 / B2, and the top one is a fanlight
+    expect(openings.map(o => openingLabel(next, o))).toEqual(['Fanlight B1', 'Casement Sash B2'])
+  })
+
+  it('a save refuses a tree with duplicate keys, and says which', () => {
+    const tree = twoFrame()
+    const b = itemFrames(tree)[1]
+    const b1 = openingNodes(tree, b)[0]
+    // the bug, by hand: the same node twice in one frame
+    const broken = {
+      ...tree,
+      children: tree.children.map(c => c.part_type !== 'containerPart' ? c : {
+        ...c,
+        children: c.children.map(f => f.key !== b.key ? f : {
+          ...f, children: [...f.children, b1],
+        }),
+      }),
+    }
+    // the sash's GLASS repeats with it — duplicateKeys reports every key of
+    // the repeated subtree, which is what a save would have stored twice
+    expect(duplicateKeys(broken)).toEqual([b1.key, b1.children[0].key])
+    expect(() => assertSaveable(broken)).toThrow(/duplicate key/i)
+    expect(() => assertSaveable(broken)).toThrow(b1.key)
+    // and the real split is saveable
+    expect(() => assertSaveable(splitOpening(tree, b.key, b1.key, 'transom', PV))).not.toThrow()
+  })
+
+  it('make-dividers-equal uses the selected frame’s own interior', () => {
+    const tree = twoFrame()
+    const b = itemFrames(tree)[1]
+    const b1 = openingNodes(tree, b)[0]
+    // give B two rows, unevenly, then even them up
+    const split = splitOpening(tree, b.key, b1.key, 'transom', PV)
+    const moved = updateOffset(split, b.key, 300)
+    const equal = makeDividersEqual(moved, b.key, 'heights')
+    const transom = (itemFrames(equal)[1].children ?? []).find(c => c.part_type === 'transomPart')
+    // B's own interior 1052, not frame A's 2366
+    expect(transom.values.offset).toBeCloseTo(505.5, 1)
+  })
+
+  it('a fanlight made in frame B takes Nathan’s 62 rail', () => {
+    // applyFanlightBottomRails runs after every split and picker pick, and
+    // read the FIRST frame — so a fanlight made in B kept the casement rail.
+    const tree = twoFrame(PV_RAILS)
+    const b = itemFrames(tree)[1]
+    const b1 = openingNodes(tree, b)[0]
+    const split = splitOpening(tree, b.key, b1.key, 'transom', PV_RAILS)
+    const { tree: railed } = applyFanlightBottomRails(split, PV_RAILS)
+    const openings = openingNodes(railed, itemFrames(railed)[1])
+    const fanlight = openings[0]
+    expect(openingLabel(railed, fanlight)).toBe('Fanlight B1')
+    expect(fanlight.values.bottomHeight, 'the fanlight rail').toBe(62)
+    // the one below it keeps the casement rail it had
+    expect(openings[1].values.bottomHeight).toBe(86)
+  })
+
+  it('a casement sash’s internal size comes from its own frame', () => {
+    const tree = twoFrame()
+    const [a, b] = itemFrames(tree)
+    const derived = computeDerived(tree, PV)
+    const bSash = openingNodes(tree, b)[0]
+    const aSash = openingNodes(tree, a).find(n => n.part_type === 'casementSashPart')
+    // the flag frame is 693 x 1136, so its interior is 599 x 1052 — frame A's
+    // is 988 wide, which is what the panel used to show on a B sash
+    expect(derived[bSash.key]?.internalWidth).toBe(599)
+    expect(derived[bSash.key]?.internalHeight).toBe(1052)
+    expect(derived[bSash.key]?.internalWidth).not.toBe(988)
+    if (aSash) {
+      expect(derived[aSash.key]?.internalWidth).toBe(988)
+    }
+  })
+})
+
+describe('Step BC board 3 — a single door leaf is not a casement', () => {
+  it('offers its two hands, not the casement operations', () => {
+    const tree = buildSingleDoorFrame(PV, { width: 1099, height: 2199 }).tree
+    const leaf = openingNodes(tree)[0]
+    expect(leaf.part_type).toBe('doorLeafPart')
+    // Integrate's three on a leaf: Fix (11), Left Hand Hung (17), Right (18)
+    expect(operationsFor(leaf)).toEqual(['fix', 'left_hand_hung', 'right_hand_hung'])
+    expect(operationsFor(leaf)).not.toContain('top_hung')
+    // a casement sash still gets Integrate's five
+    const coupledTree = twoFrame()
+    const sash = openingNodes(coupledTree, itemFrames(coupledTree)[1])[0]
+    expect(sash.part_type).toBe('casementSashPart')
+    expect(operationsFor(sash)).toEqual(CASEMENT_OPERATIONS)
+    // and a French door leaf has a hand too
+    expect(operationsFor({ part_type: 'leftFrenchDoorLeafPart', values: {} }))
+      .toEqual(DOOR_OPERATIONS)
+    // a French CASEMENT leaf is a casement sash and keeps the five
+    expect(operationsFor({ part_type: 'leftFrenchCasementSashPart', values: {} }))
+      .toEqual(CASEMENT_OPERATIONS)
+  })
+
+  it('the operation buttons set a door leaf’s hand, and nothing else', () => {
+    // The bar called setCasementOperation, which did not know a single door
+    // leaf at all: every one of the five buttons was a no-op on a door.
+    const tree = buildSingleDoorFrame(PV, { width: 1099, height: 2199 }).tree
+    const leaf = openingNodes(tree)[0]
+    // the template leaf is left hand, so right hand is the change to make
+    const { tree: swung, changed } = setCasementOperation(tree, leaf.key, 'right_hand_hung')
+    expect(changed).toBe(true)
+    expect(openingNodes(swung)[0].values.operation).toBe('right_hand_hung')
+    // and a casement operation is refused on it
+    expect(setCasementOperation(swung, leaf.key, 'top_hung').changed).toBe(false)
   })
 })

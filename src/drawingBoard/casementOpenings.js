@@ -24,6 +24,7 @@ import { resolveJambTypeCode } from './applyOperationDefaults.js'
 import {
   frameCells, OPENING_TYPES, FRENCH_PAIR_PART, FRENCH_SASH_TYPES, CASEMENT_SASH_TYPES,
   FRENCH_DOOR_PAIR_PART, SINGLE_DOOR_LEAF_PART, PAIR_PART_TYPES, PAIR_LEAF_TYPES, isPairPart, isLeftLeaf,
+  DOOR_LEAF_LIKE,
   frameOwning, itemFrames,
 } from '../pricing/casementGeometry.js'
 
@@ -969,10 +970,14 @@ export function changeOpening(tree, openingKey, kind, profileValues) {
   // Step AX: from the CELL, like openingTypeLabel and
   // applyFanlightBottomRails since Step AV. The index test left here would
   // call TC1's A2 a fanlight and TC3's full-height opener one.
-  const openingIdx = openingNodes(tree).findIndex(n => n.key === openingKey)
-  const cell = openingIdx >= 0 ? frameCells(tree)[openingIdx] : null
-  const intoFanlight = rowCount(tree) > 1 && cell != null &&
-    cell.row === 0 && cell.rowSpan < rowCount(tree)
+  // Step BC board 3: in THIS frame. Asking the first frame meant an
+  // opening built into the top row of frame B or C did not start at the
+  // fanlight bottom rail.
+  const openingIdx = openingNodes(tree, frame).findIndex(n => n.key === openingKey)
+  const cell = openingIdx >= 0 ? frameCells(tree, frame)[openingIdx] : null
+  const rows = rowCount(tree, frame)
+  const intoFanlight = rows > 1 && cell != null &&
+    cell.row === 0 && cell.rowSpan < rows
   // Step AU: any opening added to a STORMPROOF window is stormproof — the
   // window is stormproof throughout, so a direct glazed unit changed into a
   // casement must come out stormproof, not flush.
@@ -1014,14 +1019,18 @@ export function changeOpening(tree, openingKey, kind, profileValues) {
 
 /** Set a casement sash's operation (Integrate's operation buttons). */
 export function setCasementOperation(tree, sashKey, operation) {
-  if (!CASEMENT_OPERATIONS.includes(operation)) return { tree, changed: false }
   const sash = findByKey(tree, sashKey)
   // Step AZ: the operation buttons work on a casement sash AND on a leaf
   // of either pair — a French casement sash or a French door leaf. Integrate
   // offers Fix / Right Hand Hung on a door leaf's own panel.
-  const canSetOperation = sash != null &&
-    (sash.part_type === 'casementSashPart' || PAIR_LEAF_TYPES.includes(sash.part_type))
-  if (!canSetOperation) return { tree, changed: false }
+  //
+  // Step BC board 3: and on a SINGLE door leaf, which was in neither list —
+  // so on a single garden door every one of the five buttons the bar drew
+  // did nothing at all. What each part may be set to is operationsFor, the
+  // one list the bar now draws, so a door can only ever take a hand and a
+  // casement keeps Integrate’s five.
+  const allowed = operationsFor(sash)
+  if (!allowed.includes(operation)) return { tree, changed: false }
   if (sash.values?.operation === operation) return { tree, changed: false }
   return {
     tree: replaceNode(tree, sashKey, { ...sash, values: { ...sash.values, operation } }),
@@ -1324,22 +1333,30 @@ export function applyFanlightBottomRails(tree, profileValues) {
     return { tree, changed: [] }
   }
 
-  const nodes = openingNodes(tree)
+  // Step BC board 3: EVERY FRAME, each judged against its own rows. This
+  // read the first frame alone, and it runs after every split and every
+  // picker pick — so a fanlight made in frame B or C kept the ordinary
+  // casement rail instead of Nathan's 62.
+  const nodes = itemFrames(tree).flatMap(f => openingNodes(tree, f))
   // Step AV: which sashes are fanlights comes from the CELLS, not from the
   // first few places in the list. Where an opening SPANS, the two differ:
   // TC1's list is [A1 spanning, A2, B2] and TC3's is [A1 full height, B1,
   // B2], so an index test made A2 a fanlight on TC1 and the full-height
   // opener one on TC3. A fanlight is a top-row opening that does NOT run the
   // full height — the same test openingTypeLabel uses.
-  const cells = frameCells(tree)
-  const rows = rowCount(tree)
+  // The cells and the row count of the frame each opening is in.
+  const cellOf = node => {
+    const frame = frameOwning(tree, node)
+    const idx = openingNodes(tree, frame).findIndex(n => n.key === node.key)
+    return { cell: idx >= 0 ? frameCells(tree, frame)[idx] : null, rows: rowCount(tree, frame) }
+  }
   const changed = []
   let next = tree
 
   for (let i = 0; i < nodes.length; i++) {
     const node = nodes[i]
     if (node.part_type !== 'casementSashPart') continue
-    const cell = cells[i]
+    const { cell, rows } = cellOf(node)
     const wantFanlight = rows > 1 && cell != null && cell.row === 0 && cell.rowSpan < rows
     const want = wantFanlight ? fanlight : ordinary
     const has = Number(node.values?.bottomHeight)
@@ -1402,4 +1419,29 @@ export function dividerSpacingFor(tree, node) {
     canWidths:  own('mullionPart') > 0,
     canHeights: own('transomPart') > 0,
   }
+}
+
+/**
+ * The operations a part can be set to, for the board's operation buttons.
+ *
+ * Step BC board 3: a SINGLE DOOR leaf was offered the casement five — fix,
+ * top hung, bottom hung, left and right hand hung. A door leaf has a HAND,
+ * not a casement operation: Integrate offers Left Hand Hung (17), Right Hand
+ * Hung (18) and Fix (11) on one, and "top hung" on a door is meaningless.
+ *
+ * A fixed door leaf is a real thing — a leaf that does not open, which is how
+ * FD5's and FD6's doorsets are made — so Fix stays. What goes is top hung and
+ * bottom hung, which only a casement sash can be.
+ *
+ * A FRENCH CASEMENT leaf keeps the casement five: it is a casement sash, and
+ * this step is about doors.
+ */
+export const DOOR_OPERATIONS = ['fix', 'left_hand_hung', 'right_hand_hung']
+
+export function operationsFor(node) {
+  const pt = node?.part_type
+  if (!pt) return []
+  if (DOOR_LEAF_LIKE.includes(pt)) return DOOR_OPERATIONS
+  if (pt === 'casementSashPart' || PAIR_LEAF_TYPES.includes(pt)) return CASEMENT_OPERATIONS
+  return []
 }

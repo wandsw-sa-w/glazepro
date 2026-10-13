@@ -113,7 +113,9 @@ export function coupledSetSize(tree) {
 
 // The leaf types coupledSetSize looks for. Spelled out here rather than
 // imported from doorGeometry, which imports this module.
-const DOOR_LEAF_LIKE = ['doorLeafPart', 'leftFrenchDoorLeafPart', 'rightFrenchDoorLeafPart']
+// Step BC board 3: exported, because the board asks the same question of
+// the operation buttons — a DOOR leaf has a hand, not a casement operation.
+export const DOOR_LEAF_LIKE = ['doorLeafPart', 'leftFrenchDoorLeafPart', 'rightFrenchDoorLeafPart']
 
 /**
  * What the board's summary shows against "Frame:".
@@ -143,8 +145,16 @@ export function frameOwning(tree, node) {
  * what every one-frame drawing means by "the frame".
  */
 function theFrame(tree, frameOrNode = null) {
-  if (frameOrNode) return frameOwning(tree, frameOrNode)
-  return itemFrames(tree)[0] ?? null
+  if (!frameOrNode) return itemFrames(tree)[0] ?? null
+  // Step BC board 3: a KEY is as good as a node. gridActions asks for the
+  // cells of a frame in a tree it has just rebuilt, where the old frame
+  // object no longer exists — it has only the key. Passing it a string
+  // silently resolved to NO frame, so frameCells came back empty and a split
+  // placed one opening where it should have placed two.
+  if (typeof frameOrNode === 'string') {
+    return itemFrames(tree).find(f => f.key === frameOrNode) ?? null
+  }
+  return frameOwning(tree, frameOrNode)
 }
 
 function num(v) {
@@ -439,7 +449,9 @@ export function shortDividerSpanMm(tree, divider) {
   const isMullion = divider.part_type === 'mullionPart'
   // A mullion runs vertically, so its length is measured down the ROWS; a
   // transom runs horizontally, so across the COLUMNS.
-  const along = isMullion ? frameRows(tree) : frameColumns(tree)
+  // Step BC board 3: the divider's own frame, which this function already
+  // resolved for its crossing dividers.
+  const along = isMullion ? frameRows(tree, frame) : frameColumns(tree, frame)
   const crossing = isMullion
     ? sortedDividers(frame, 'transomPart')
     : sortedDividers(frame, 'mullionPart')
@@ -481,7 +493,10 @@ export function openingFor(tree, node) {
 /** The French pair a French sash belongs to, or null. */
 export function frenchPairFor(tree, sashNode) {
   if (!sashNode || !FRENCH_SASH_TYPES.includes(sashNode.part_type)) return null
-  return openingNodes(tree).find(n => n.part_type === FRENCH_PAIR_PART &&
+  // Step BC board 3: the sash's own frame — a French pair outside the
+  // first frame had no pair at all.
+  return openingNodes(tree, frameOwning(tree, sashNode)).find(
+    n => n.part_type === FRENCH_PAIR_PART &&
     (n.children ?? []).some(c => c.key === sashNode.key)) ?? null
 }
 

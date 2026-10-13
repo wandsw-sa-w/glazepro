@@ -21,7 +21,7 @@
 
 import { computeSashGeometry, computeOpeningLayout, computeGlassWidth, mullionThicknessMm } from './sashGeometry.js'
 import { resolveTopSashArch } from '../pricing/optionVocabulary.js'
-import { frameOpenings, casementSashSize, directGlazedVisibleSize } from '../pricing/casementGeometry.js'
+import { frameOpenings, casementSashSize, directGlazedVisibleSize, itemFrames, openingNodes } from '../pricing/casementGeometry.js'
 
 // Safely convert to number; null/undefined/NaN → null
 function num(v) {
@@ -170,13 +170,25 @@ export function computeDerived(tree, profileValues = null) {
   // panel), plus the part's own size. Step AQ item 4: these come from
   // casementGeometry.js, the module that PRICES them, so the panel cannot
   // disagree with the quote.
-  const casementOpenings = frameOpenings(tree)
-  const casementNodes = (frame?.children ?? []).filter(
-    c => c.part_type === 'casementSashPart' || c.part_type === 'glassPart'
-  )
-  for (let i = 0; i < casementNodes.length; i++) {
-    const node = casementNodes[i]
-    const opening = casementOpenings[i] ?? null
+  // Step BC board 3: EVERY frame, each against ITS OWN openings. Both the
+  // node list and the openings came from the first frame, so a casement sash
+  // in frame B or C had no derived entry at all — its panel's read-only
+  // Internal Frame Width / Height were blank, and before that they showed
+  // frame A's.
+  //
+  // The opening is found by the node's place in its own frame's opening list,
+  // which is the cell order frameOpenings returns — the pairing the labels,
+  // the sash sizes and the drawing all use.
+  const casementPairs = []
+  for (const f of itemFrames(tree)) {
+    const openings = openingNodes(tree, f)
+    const cells = frameOpenings(tree, f)
+    openings.forEach((node, i) => {
+      if (node.part_type !== 'casementSashPart' && node.part_type !== 'glassPart') return
+      casementPairs.push({ node, opening: cells[i] ?? null })
+    })
+  }
+  for (const { node, opening } of casementPairs) {
     entry(node.key).internalWidth  = opening?.width  ?? null
     entry(node.key).internalHeight = opening?.height ?? null
     if (node.part_type === 'casementSashPart') {

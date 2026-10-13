@@ -367,7 +367,11 @@ export function splitOpening(tree, frameKey, openingKey, axis, profileValues = n
   const idx = openings.findIndex(c => c.key === openingKey)
   if (idx < 0) return tree
 
-  const cells = frameCells(tree)
+  // Step BC board 3: THAT FRAME's cells. frameCells(tree) is the first
+  // frame's, so splitting an opening in frame B measured frame A: the
+  // reviewer picked 1 x 2 on B1 and got a 150.5-high top light, which is
+  // A's fanlight row.
+  const cells = frameCells(tree, frame)
   const cell = cells[idx]
   if (!cell) return tree
 
@@ -433,7 +437,8 @@ function insertBoundedDivider(tree, frame, {
   }
 
   const openings = (frame.children ?? []).filter(c => OPENING_TYPES.includes(c.part_type))
-  const oldCells = frameCells(tree)
+  // Step BC board 3: this frame's cells, before and after the divider.
+  const oldCells = frameCells(tree, frame)
 
   // The divider alone, openings untouched, so the new cells can be read
   const withDivider = replaceFrameChildren(tree, frame.key, node => {
@@ -442,11 +447,22 @@ function insertBoundedDivider(tree, frame, {
       ...openings,
       ...others.filter(c => c.part_type === 'cillPart')]
   })
-  const newCells = frameCells(withDivider)
+  const newCells = frameCells(withDivider, frame.key)
 
   // Each new cell takes the opening of the old cell its top-left corner sits
   // in. The split cell is hit twice: the second time takes a copy, so both
   // halves keep the sections the surveyor had set.
+  // Each new cell takes the opening of the old cell its top-left corner
+  // sits in, and a source that has ALREADY been placed is copied.
+  //
+  // Step BC board 3: the used set holds the SOURCE, not the index it came
+  // from. With mismatched cells the second placement could resolve to a
+  // different index and hand back the SAME NODE, so one frame ended up
+  // with two children of one key — the parts list read "Fanlight B1"
+  // twice, clicking either selected the same node, React kept a stale
+  // list after Undo, and a save would have stored the duplicate.
+  //
+  // Keying on the node makes that impossible however the cells line up.
   const used = new Set()
   const placed = newCells.map(c => {
     let oldIdx = oldCells.findIndex(o =>
@@ -454,8 +470,8 @@ function insertBoundedDivider(tree, frame, {
     if (oldIdx < 0) oldIdx = sourceIndex ?? 0
     const source = openings[oldIdx] ?? openings[sourceIndex ?? 0] ?? openings[0]
     if (!source) return null
-    if (used.has(oldIdx)) return cloneWithNewKeys(source)
-    used.add(oldIdx)
+    if (used.has(source.key)) return cloneWithNewKeys(source)
+    used.add(source.key)
     return source
   }).filter(Boolean)
 
@@ -495,7 +511,9 @@ export function makeDividersEqual(tree, frameKey, axis) {
   const dividers = sortedDividers(frame, isWidths ? 'mullionPart' : 'transomPart')
   if (dividers.length === 0) return tree
 
-  const interior = frameInterior(tree)
+  // Step BC board 3: THIS frame's interior. It took the first frame's, so
+  // evening up frame B or C spaced its dividers across the wrong total.
+  const interior = frameInterior(tree, frame)
   const total = (isWidths ? interior.width : interior.height) ?? 0
   const thick = dividers.reduce((s, d) => s + (Number(d.values?.thicknessInFrame) || 0), 0)
   const slots = dividers.length + 1
