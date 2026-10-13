@@ -38,6 +38,18 @@ const DELIBERATE = {
   //   FD5 / FD6  +108.42  2 x 2626 of mullion + 2720 of transom, at 13.60/m
   FD5:  { cost: '108.42', price: '216.84' },
   FD6:  { cost: '108.42', price: '216.84' },
+  // Step BB: the single garden doors, and FD7.
+  //   SD2  +13.67   the transom
+  //   SD3  +28.76   the mullion
+  //   SD4  +97.72   the transom and both mullions
+  //   FD7  +58.15 = 57.53 both mullions (BY DESIGN) + 0.62 PARKED and
+  //                 unexplained (A1’s glass area — see the parked table in
+  //                 docs/integrate-differences.md). The page reads the two
+  //                 apart; this total is what the row shows.
+  SD2:  { cost: '13.67', price: '27.33' },
+  SD3:  { cost: '28.76', price: '57.53' },
+  SD4:  { cost: '97.72', price: '195.43' },
+  FD7:  { cost: '58.15', price: '116.29' },
 }
 
 // NOTE on the Kenrick gearbox gap (J–P £14.70, Q/R/S £8.40): that is a gap in
@@ -145,7 +157,8 @@ test.describe('GlazePro live smoke (read only)', () => {
     expect(seen).toContain('D')
     expect(seen).toContain('Q')
     // Step AZ / BA: all seven door benchmarks are on the page
-    for (const fd of ['FD1', 'FD2', 'FD3', 'FD3b', 'FD4', 'FD5', 'FD6']) expect(seen).toContain(fd)
+    for (const fd of ['FD1', 'FD2', 'FD3', 'FD3b', 'FD4', 'FD5', 'FD6', 'FD7',
+      'SD1', 'SD2', 'SD3', 'SD4']) expect(seen).toContain(fd)
     expect(unexpected, unexpected.join('\n')).toEqual([])
   })
 

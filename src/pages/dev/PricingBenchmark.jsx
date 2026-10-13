@@ -412,8 +412,18 @@ export default function PricingBenchmark() {
             // REASON rather than a bare FAIL that invites someone to "fix"
             // a decision Nathan made.
             const deliberate = benchmark.deliberateDifference ?? null
+            // Step BB: a row can carry BOTH a decided difference and a parked
+            // residual, and FD7 is the first that does — £57.53 of mullion
+            // (difference 11, decided) plus £0.62 of glass nobody has
+            // explained yet (Integrate's own area for a hidden-0 direct
+            // glazed unit). They are kept apart on purpose: one is a choice,
+            // the other is an open question, and collapsing the two into a
+            // single "expected" figure is how an unexplained gap becomes a
+            // decision nobody made.
+            const parked = benchmark.parkedResidual ?? null
+            const expectedDiff = (deliberate?.cost ?? 0) + (parked?.cost ?? 0)
             const asExpected = deliberate != null &&
-              Math.abs((m.costDiff ?? 0) - deliberate.cost) < 0.02
+              Math.abs((m.costDiff ?? 0) - expectedDiff) < 0.02
             const allOk = (m.costOk && m.priceOk) || asExpected
             // Step AZ hotfix item 4: a part the LIVE catalogue does not have,
             // priced here from the fixture's own cost. The row is never PASS
@@ -451,8 +461,9 @@ export default function PricingBenchmark() {
                     </span>
                   ) : asExpected ? (
                     <span style={{ color: '#8a6d00' }}>
-                      {'BY DESIGN'} {'\u2014'} GlazePro is {'\u00A3'}{fmt(m.costDiff)} dearer
-                      on purpose: {deliberate.reason}
+                      {'BY DESIGN'} {'\u2014'} GlazePro is {'\u00A3'}{fmt(m.costDiff)} dearer:
+                      {' '}{'\u00A3'}{fmt(deliberate.cost)} on purpose ({deliberate.reason})
+                      {parked ? `, plus \u00A3${fmt(parked.cost)} PARKED and unexplained: ${parked.reason}` : ''}
                     </span>
                   ) : (
                     <span style={allOk ? S.hit : S.miss}>

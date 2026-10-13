@@ -169,7 +169,13 @@ function computePartVarsForAllocator(partNode, tree, derived, baseVars, glassCat
     // Nathan sells French doors multipoint-locked, and Integrate allocated
     // the lock set on all three FD drawings. A drawing can turn it off.
     const item = findFirst(tree, 'paintAndIronmongeryPart')
-    const mpls = item?.values?.isDoorMpls ?? v.isDoorMpls ?? isFrench
+    // Step BB: a door leaf with no stored flag is multipoint-locked. The
+    // fallback was isFrench, so a SINGLE door got no lock at all — SD1 lost
+    // its Thunderbolt (53.55) while every French drawing kept one. This
+    // branch only ever runs for a door leaf, and every door Nathan sells is
+    // mpls; a drawing turns it off by storing isDoorMpls false, which is what
+    // Integrate stores too (SD1: isDoorMpls true, isFrontDoor false).
+    const mpls = item?.values?.isDoorMpls ?? v.isDoorMpls ?? true
     return {
       to_be_replaced,
       gross_sash_height_in_mm: leafHeight,

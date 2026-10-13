@@ -62,7 +62,15 @@ export const CASEMENT_SASH_TYPES = ['casementSashPart', ...FRENCH_SASH_TYPES]
 // frame holding a left and a right leaf, and no mullion, exactly as a French
 // casement does.
 export const FRENCH_DOOR_PAIR_PART = 'frenchDoorPart'
-export const OPENING_TYPES = ['casementSashPart', 'glassPart', FRENCH_PAIR_PART, FRENCH_DOOR_PAIR_PART]
+
+// Step BB: a SINGLE door leaf is an opening in its own right. Integrate
+// stores it as a plain `doorLeafPart` DIRECTLY in the frame opening with no
+// pair part at all (docs/integrate-L31115-single-doors.txt), which is the
+// whole difference from a French door — so the frame's opening list has to
+// include it, or the leaf has no cell, no size, no glass and no weight.
+export const SINGLE_DOOR_LEAF_PART = 'doorLeafPart'
+export const OPENING_TYPES = ['casementSashPart', 'glassPart', FRENCH_PAIR_PART,
+  FRENCH_DOOR_PAIR_PART, SINGLE_DOOR_LEAF_PART]
 
 // A French casement pair and a French door pair have the SAME shape — one
 // opening, two leaves, no mullion, a master leaf — so the board treats them

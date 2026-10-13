@@ -23,7 +23,7 @@ import { makeKey } from './gridActions.js'
 import { resolveJambTypeCode } from './applyOperationDefaults.js'
 import {
   frameCells, OPENING_TYPES, FRENCH_PAIR_PART, FRENCH_SASH_TYPES, CASEMENT_SASH_TYPES,
-  FRENCH_DOOR_PAIR_PART, PAIR_PART_TYPES, PAIR_LEAF_TYPES, isPairPart, isLeftLeaf,
+  FRENCH_DOOR_PAIR_PART, SINGLE_DOOR_LEAF_PART, PAIR_PART_TYPES, PAIR_LEAF_TYPES, isPairPart, isLeftLeaf,
 } from '../pricing/casementGeometry.js'
 
 // ── Profile value helpers ────────────────────────────────────────────────────
@@ -292,10 +292,24 @@ function num(profileValues, fieldKey, fallbackKey = null) {
 
 export const OPENING_KINDS = ['opening_casement', 'fixed_casement', 'direct_glazed', 'french_casement']
 
+// Step BB: a DOOR frame can also hold a single door leaf. It is not offered
+// on a window — nothing else in GlazePro builds a door — so the choices are
+// filtered per tree rather than listed everywhere and refused later.
+export const DOOR_OPENING_KINDS = [...OPENING_KINDS, 'single_door']
+
+/** The opening kinds this drawing can offer. */
+export function openingKindsFor(tree) {
+  const frame = findFirst(tree, 'assemblyFramePart')
+  const hasDoor = (frame?.children ?? []).some(
+    c => c.part_type === SINGLE_DOOR_LEAF_PART || c.part_type === FRENCH_DOOR_PAIR_PART)
+  return hasDoor ? DOOR_OPENING_KINDS : OPENING_KINDS
+}
+
 export const OPENING_KIND_LABELS = {
   opening_casement: 'Opening casement',
   fixed_casement:   'Fixed casement',
   direct_glazed:    'Direct glazed unit',
+  single_door:      'Single door',
   french_casement:  'French casement',
 }
 
@@ -312,6 +326,7 @@ export function openingKindOf(node) {
   if (node.part_type === 'glassPart') return 'direct_glazed'
   if (node.part_type === FRENCH_PAIR_PART) return 'french_casement'
   if (node.part_type === FRENCH_DOOR_PAIR_PART) return 'french_doors'
+  if (node.part_type === SINGLE_DOOR_LEAF_PART) return 'single_door'
   if (node.part_type !== 'casementSashPart') return null
   return node.values?.operation === 'fix' ? 'fixed_casement' : 'opening_casement'
 }
@@ -724,10 +739,23 @@ export function openingMatrixIndex(tree, node) {
   const idx = nodes.findIndex(n => n.key === node?.key ||
     (isPairPart(n) && (n.children ?? []).some(c => c.key === node?.key)))
   if (idx < 0) return null
-  const cell = frameCells(tree)[idx]
+  const cells = frameCells(tree)
+  const cell = cells[idx]
   if (!cell) return matrixIndexOf(idx, columnCount(tree))
   const isRightLeaf = PAIR_LEAF_TYPES.includes(node?.part_type) && !isLeftLeaf(node)
-  return matrixLabel(cell.col + (isRightLeaf ? 1 : 0), cell.row)
+  // Step BB: A PAIR TAKES TWO COLUMN LETTERS, so every column to its right
+  // moves on one. Integrate labels FD5's pair B2 / C2 and the column after
+  // it D2 — in EVERY row, not just the pair's own: its top row reads
+  // A1, B1, D1. Step BA gave that column C, which collided with the right
+  // leaf's own label.
+  //
+  // The shift is per COLUMN (a pair's two letters belong to the whole
+  // column), so it counts the columns left of this one that hold a pair.
+  const pairColumns = new Set(
+    nodes.map((n, i) => (isPairPart(n) ? cells[i]?.col : null))
+      .filter(c => c != null))
+  const shift = [...pairColumns].filter(c => c < cell.col).length
+  return matrixLabel(cell.col + shift + (isRightLeaf ? 1 : 0), cell.row)
 }
 
 /**
@@ -747,6 +775,9 @@ export function openingTypeLabel(tree, node) {
   if (node?.part_type === FRENCH_PAIR_PART) return 'French Casement'
   if (FRENCH_SASH_TYPES.includes(node?.part_type)) return 'French Casement Sash'
   if (node?.part_type === FRENCH_DOOR_PAIR_PART) return 'French Door'
+  // Step BB: a SINGLE door leaf is an opening of its own — a plain
+  // doorLeafPart in the frame, with no pair part.
+  if (node?.part_type === SINGLE_DOOR_LEAF_PART) return 'Single Door'
   if (node?.part_type === 'leftFrenchDoorLeafPart') return 'French Door Leaf Left'
   if (node?.part_type === 'rightFrenchDoorLeafPart') return 'French Door Leaf Right'
   if (node?.part_type !== 'casementSashPart') return null

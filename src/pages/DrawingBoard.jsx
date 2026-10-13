@@ -28,7 +28,7 @@ import {
 } from '../drawingBoard/cillReplacement.js'
 import { applyFanlightBottomRails, isStormproofWindow,
   openingLabel, columnCount, resizeCasementFrame,
-  OPENING_KINDS, OPENING_KIND_LABELS, CASEMENT_OPERATIONS, openingKindOf,
+  OPENING_KINDS, OPENING_KIND_LABELS, CASEMENT_OPERATIONS, openingKindOf, openingKindsFor,
   openingNodes, openingMatrixIndex, isCasementFrameTree, changeOpening,
   setFrenchMasterLeaf, FRENCH_MASTER_LEAVES, DEFAULT_FRENCH_MASTER_LEAF,
   setCasementOperation, casementProfileDefaults,
@@ -36,6 +36,7 @@ import { applyFanlightBottomRails, isStormproofWindow,
 import { setStormproof } from '../drawingBoard/stormproof.js'
 import {
   setLeafMidRail, leafMidRailOf, leafMidRailOffsetFor, DEFAULT_LEAF_PANEL_HEIGHT_MM,
+  changeOpeningToSingleDoor,
 } from '../drawingBoard/doorOpenings.js'
 import { DOOR_LEAF_TYPES, doorLeafSize, doorPanelSize } from '../pricing/doorGeometry.js'
 import { computeSashWeight } from '../pricing/sashWeight.js'
@@ -2317,7 +2318,12 @@ function DrawingBoard() {
     // every part type shares one namespace — asking it for
     // casementSashPart.bottomHeight returned the FRAME's bottomHeight. The
     // raw rows are matched on the full field_key.
-    const { tree: next, changed } = changeOpening(tree, selectedKey, kind, profileValues)
+    // Step BB: a SINGLE door is a door part, so it is built in
+    // doorOpenings.js — casementOpenings.js knows nothing about doors and
+    // the dispatch belongs here rather than a circular import.
+    const { tree: next, changed } = kind === 'single_door'
+      ? changeOpeningToSingleDoor(tree, selectedKey, profileValues)
+      : changeOpening(tree, selectedKey, kind, profileValues)
     if (!changed) return
     // The replacement is a new node, so move the selection to it
     const frame = findFirst(next, 'assemblyFramePart')
@@ -2940,7 +2946,7 @@ function DrawingBoard() {
                   <span style={{ fontSize: 11, color: '#888', flexShrink: 0 }}>
                     {selectedOpeningLabel} change to:
                   </span>
-                  {OPENING_KINDS.map(kind => (
+                  {openingKindsFor(tree).map(kind => (
                     <button
                       key={kind}
                       onClick={() => handleChangeOpeningKind(kind)}

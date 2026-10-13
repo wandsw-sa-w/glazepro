@@ -15,11 +15,13 @@ import { fileURLToPath } from 'url'
 import {
   buildFrenchDoorFrame, buildFrenchDoorPair, doorProfileDefaults,
   buildPanelledFrenchDoorFrame, buildFrenchDoorSetFrame, setLeafMidRail, leafMidRailOf,
+  buildSingleDoorFrame, buildFrenchDoorSidePanelFrame, changeOpeningToSingleDoor,
   isFrenchDoorTree, DOOR_MATERIALS, DEFAULT_DOOR_MASTER_LEAF,
 } from './doorOpenings.js'
 import {
   setFrenchMasterLeaf, setCasementOperation, openingNodes,
   openingMatrixIndex, openingTypeLabel, resizeCasementFrame, openingLabel,
+  openingKindsFor, openingKindOf,
 } from './casementOpenings.js'
 import { assertSaveable } from './containment.js'
 import { findRequiredEmpty } from './requiredFields.js'
@@ -30,11 +32,13 @@ import {
   doorGlassSightline, doorPanelSize,
 } from '../pricing/doorGeometry.js'
 import { runPricingOnTree } from '../pricing/pricingEngine.js'
+import { resolveIronmongeryLines } from '../pricing/loadPricingContext.js'
 import { computeVariables } from '../pricing/computeVariables.js'
 import { defaultIronmonger } from '../pricing/defaultIronmongery.js'
 import {
   BENCHMARK_FD1, BENCHMARK_FD2, BENCHMARK_FD3, BENCHMARK_FD3b,
   BENCHMARK_FD4, BENCHMARK_FD5, BENCHMARK_FD6,
+  BENCHMARK_SD1, BENCHMARK_SD3,
 } from '../pricing/benchmarks/fixtureDoor.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -443,8 +447,10 @@ describe('Step BA — the board builds the French door variants', () => {
     expect(frameRows(tree).map(r => r.width)).toEqual([448, 2137])
     const labels = openingNodes(tree).map(n => openingLabel(tree, n))
     expect(labels).toEqual([
-      'Direct Glazed Unit A1', 'Direct Glazed Unit B1', 'Direct Glazed Unit C1',
-      'Casement Sash A2', 'French Door B2', 'Casement Sash C2',
+      // Step BB: the pair takes TWO column letters (B2 / C2), so the third
+      // column is D in every row — Integrate's own labelling.
+      'Direct Glazed Unit A1', 'Direct Glazed Unit B1', 'Direct Glazed Unit D1',
+      'Casement Sash A2', 'French Door B2', 'Casement Sash D2',
     ])
     expect(() => assertSaveable(tree)).not.toThrow()
     expect(findRequiredEmpty(tree, REQUIRED_DEFS)).toEqual([])
@@ -462,7 +468,7 @@ describe('Step BA — the board builds the French door variants', () => {
   it('FD6: the top row is three FIXED casement fanlights at Nathan’s 62', () => {
     const tree = boardDoorset({ topRow: 'casement' })
     const labels = openingNodes(tree).map(n => openingLabel(tree, n))
-    expect(labels.slice(0, 3)).toEqual(['Fanlight A1', 'Fanlight B1', 'Fanlight C1'])
+    expect(labels.slice(0, 3)).toEqual(['Fanlight A1', 'Fanlight B1', 'Fanlight D1'])
     const sashes = openingNodes(tree).filter(n => n.part_type === 'casementSashPart')
     expect(sashes.length).toBe(5)
     // the three top lights take 62; the two side lights keep Integrate's 86
@@ -545,5 +551,203 @@ dPrice('Step BA — the board’s variants price as the fixtures do', () => {
       .find(l => l.fires && l.alloc_part_code === code)?.quantity ?? 0
     expect(section(mine, 'Utile63x96')).toBeLessThan(section(theirs, 'Utile63x96'))
     expect(section(mine, 'Utile63x63')).toBeGreaterThan(section(theirs, 'Utile63x63'))
+  })
+})
+
+// ── Step BB: the single garden doors, built by the board ─────────────────────
+
+describe('Step BB — the board builds a single garden door', () => {
+  const build = opts => {
+    const { tree, missing } = buildSingleDoorFrame(PV, { product: 'french_door', ...opts })
+    expect(missing, 'profile values the build could not resolve').toEqual([])
+    return tree
+  }
+
+  it('template 15: one door leaf in the frame, no pair part', () => {
+    const tree = build({ width: 1099, height: 2199 })
+    const leaves = doorLeaves(tree)
+    expect(leaves.length).toBe(1)
+    expect(leaves[0].part_type).toBe('doorLeafPart')
+    // its opening less its OWN clearances: 1005 - 3 - 3 by 2115 - 2 - 3
+    expect(doorLeafSize(tree, leaves[0])).toEqual({ width: 999, height: 2110 })
+    expect(doorGlassSightline(tree, leaves[0])).toEqual({ width: 779, height: 1837 })
+    expect(openingNodes(tree).map(n => openingLabel(tree, n))).toEqual(['Single Door A1'])
+    expect(() => assertSaveable(tree)).not.toThrow()
+    expect(findRequiredEmpty(tree, REQUIRED_DEFS)).toEqual([])
+  })
+
+  it('a new leaf is Left Hand Hung, open out, and NEVER arched', () => {
+    // Integrate's board hands a dropped-in leaf Arch Head + Half Circle ON
+    // (archHeight 389.5), which priced SD2 as shaped glass and 240 minutes of
+    // swept-head work until the reviewer unticked it.
+    const leaf = doorLeaves(build({}))[0]
+    expect(leaf.values.operation).toBe('left_hand_hung')
+    expect(leaf.values.casementTypeId).toBe('open_out')
+    expect(leaf.values.archHead).toBe(false)
+    expect(leaf.values.thickness).toBe(54)
+    expect(leaf.values.topHeight).toBe(110)
+    expect(leaf.values.leftWidth).toBe(110)
+    expect(leaf.values.bottomHeight).toBe(163)
+    expect(leaf.values.bottomHeightExternal).toBe(170)
+    expect(leaf.values.toBeReplaced).toBe(true)
+    // the single door's own clearances, not the French pair's 3 / 1 / 1 / 3
+    expect(leaf.values.mechanicalClearanceTop).toBe(2)
+    expect(leaf.values.mechanicalClearanceLeft).toBe(3)
+    expect(leaf.values.mechanicalClearanceRight).toBe(3)
+    expect(leaf.values.mechanicalClearanceBottom).toBe(3)
+  })
+
+  it('with a fanlight over: a transom, and the fanlight on Nathan’s 62', () => {
+    const tree = build({ width: 1099, height: 2599, fanlight: { offset: 399 } })
+    expect(frameRows(tree).map(r => r.width)).toEqual([399, 2075])
+    const labels = openingNodes(tree).map(n => openingLabel(tree, n))
+    expect(labels).toEqual(['Fanlight A1', 'Single Door A2'])
+    const sash = openingNodes(tree).find(n => n.part_type === 'casementSashPart')
+    expect(sash.values.operation).toBe('fix')
+    expect(sash.values.bottomHeight, 'a new GlazePro fanlight is 62').toBe(62)
+    expect(doorLeafSize(tree, doorLeaves(tree)[0])).toEqual({ width: 999, height: 2070 })
+    expect(() => assertSaveable(tree)).not.toThrow()
+  })
+
+  it('with one side light: the door on the left at its own 1005', () => {
+    const tree = build({ width: 1699, height: 2199, sideLights: 1 })
+    // Integrate’s own SD3: mullion at 1005, side column 559
+    expect(frameColumns(tree).map(c => c.width)).toEqual([1005, 559])
+    expect(openingNodes(tree).map(n => openingLabel(tree, n)))
+      .toEqual(['Single Door A1', 'Casement Sash B1'])
+    const sash = openingNodes(tree).find(n => n.part_type === 'casementSashPart')
+    expect(sash.values.bottomHeight, 'a SIDE light keeps Integrate’s 86').toBe(86)
+    expect(doorLeafSize(tree, doorLeaves(tree)[0])).toEqual({ width: 999, height: 2110 })
+    expect(() => assertSaveable(tree)).not.toThrow()
+  })
+
+  it('with side lights and fanlights: 3 x 2, the door at B2', () => {
+    const tree = build({ width: 2249, height: 2599, sideLights: 2, fanlight: { offset: 399 } })
+    expect(frameColumns(tree).map(c => c.width)).toEqual([534, 1005, 534])
+    expect(frameRows(tree).map(r => r.width)).toEqual([399, 2075])
+    expect(openingNodes(tree).map(n => openingLabel(tree, n))).toEqual([
+      'Fanlight A1', 'Fanlight B1', 'Fanlight C1',
+      'Casement Sash A2', 'Single Door B2', 'Casement Sash C2',
+    ])
+    // the side lights MATCH, and the door keeps its own column
+    const [a, b, c] = frameColumns(tree).map(x => x.width)
+    expect(a).toBe(c)
+    expect(b).toBe(1005)
+    expect(() => assertSaveable(tree)).not.toThrow()
+    expect(findRequiredEmpty(tree, REQUIRED_DEFS)).toEqual([])
+  })
+
+  it('FD7’s template: a pair between two glazed panels, equal side columns', () => {
+    const { tree, missing } = buildFrenchDoorSidePanelFrame(PV, {
+      width: 2820, height: 2199, product: 'french_door',
+    })
+    expect(missing).toEqual([])
+    // Integrate's own template is 618 / 1405 / 621 — the sides MATCH here
+    const [a, b, c] = frameColumns(tree).map(x => x.width)
+    expect(a).toBe(c)
+    expect(a + b + c + 2 * 41).toBe(2726)
+    expect(openingNodes(tree).map(n => openingLabel(tree, n))).toEqual([
+      'Direct Glazed Unit A1', 'French Door B1', 'Direct Glazed Unit D1',
+    ])
+    // both panels take 12 hidden, not Integrate's A1 quirk of 0
+    for (const dgu of openingNodes(tree).filter(n => n.part_type === 'glassPart')) {
+      expect(dgu.values.hiddenInRebateLeft).toBe(12)
+      expect(dgu.values.mechanicalClearanceLeft).toBe(15)
+    }
+    expect(() => assertSaveable(tree)).not.toThrow()
+  })
+
+  it('an opening of a door frame can be CHANGED to a single door', () => {
+    // Item 3: the change-opening choices include a single door on a door
+    // frame, and only there.
+    const doorset = buildFrenchDoorSetFrame(PV, { width: 2814, height: 2710 }).tree
+    expect(openingKindsFor(doorset)).toContain('single_door')
+    const casement = buildFrenchDoorFrame(PV, { width: 1899, height: 2199 }).tree
+    expect(openingKindsFor(casement)).toContain('single_door')
+
+    // change the middle bottom opening (the pair) into a single door
+    const pair = openingNodes(doorset).find(n => n.part_type === 'frenchDoorPart')
+    const { tree: next, changed } = changeOpeningToSingleDoor(doorset, pair.key, PV)
+    expect(changed).toBe(true)
+    expect(doorLeaves(next).length).toBe(1)
+    expect(doorLeaves(next)[0].part_type).toBe('doorLeafPart')
+    expect(openingKindOf(doorLeaves(next)[0])).toBe('single_door')
+    // the glass codes carried over, and the leaf is square
+    const glass = doorLeaves(next)[0].children.find(c => c.part_type === 'glassPart')
+    expect(glass.values.internalGlassPartNo).toBe('GL100010')
+    expect(doorLeaves(next)[0].values.archHead).toBe(false)
+    expect(() => assertSaveable(next)).not.toThrow()
+    // and changing it again is a no-op rather than a second leaf
+    expect(changeOpeningToSingleDoor(next, doorLeaves(next)[0].key, PV).changed).toBe(false)
+  })
+})
+
+const dSingle = SNAPSHOT ? describe : describe.skip
+
+dSingle('Step BB — the board’s single doors price as the fixtures do', () => {
+  function price(tree, bm) {
+    return runPricingOnTree(tree, SNAPSHOT.rules, SNAPSHOT.pfVariables, {
+      glassCatalogue: SNAPSHOT.glassCatalogue,
+      partAllocationRules: SNAPSHOT.partAllocationRules,
+      partCostMap: bm.partCostMap,
+      ironmongeryLines: bm.ironmongeryLines,
+      ironmongeryCatalogue: SNAPSHOT.ironmongeryCatalogue,
+      profileValues: SNAPSHOT.profileValues,
+      profileCode: bm.profileCode,
+    })
+  }
+  const lines = r => r.price.lines.filter(l => l.fires && !l.error && l.line_cost > 0)
+    .map(l => [l.name, l.alloc_part_code ?? l.alloc_iron_part_code ?? '',
+      Number(l.quantity.toFixed(4)), Number(l.line_cost.toFixed(2))])
+
+  it('SD1: the board’s tree prices exactly as the fixture does', () => {
+    const tree = buildSingleDoorFrame(PV, { width: 1099, height: 2199, product: 'french_door' }).tree
+    const mine   = price(tree, BENCHMARK_SD1)
+    const theirs = price(BENCHMARK_SD1.tree, BENCHMARK_SD1)
+    expect(mine.manufacture_labour.total_minutes).toBe(theirs.manufacture_labour.total_minutes)
+    expect(mine.install_labour.total_minutes).toBe(theirs.install_labour.total_minutes)
+    expect(mine.price.total_cost).toBeCloseTo(theirs.price.total_cost, 2)
+    expect(lines(mine)).toEqual(lines(theirs))
+  })
+
+  it('SD3: the board’s side-light drawing prices as the fixture does', () => {
+    const tree = buildSingleDoorFrame(PV, {
+      width: 1699, height: 2199, sideLights: 1, product: 'french_door',
+    }).tree
+    const mine   = price(tree, BENCHMARK_SD3)
+    const theirs = price(BENCHMARK_SD3.tree, BENCHMARK_SD3)
+    expect(mine.manufacture_labour.total_minutes).toBe(theirs.manufacture_labour.total_minutes)
+    expect(mine.install_labour.total_minutes).toBe(theirs.install_labour.total_minutes)
+    expect(lines(mine)).toEqual(lines(theirs))
+  })
+
+  it('a GlazePro-built single door takes the DEFAULT ironmongery: +59.85', () => {
+    // As the French doors (differences 9 and 10): the rules give the Hardwick
+    // Lyndon espag set where Integrate's template stored the Windsor inline
+    // handle, and both trickle vents. Integrate's OWN default rules give a
+    // single door exactly the same list — Nathan's choice, nothing new.
+    const tree = buildSingleDoorFrame(PV, { width: 1099, height: 2199, product: 'french_door' }).tree
+    const ctx = {
+      pfVariables: SNAPSHOT.pfVariables, ironmongeryRules: SNAPSHOT.ironmongeryRules,
+      glassCatalogue: SNAPSHOT.glassCatalogue, ironmongeryCatalogue: SNAPSHOT.ironmongeryCatalogue,
+    }
+    const defaults = resolveIronmongeryLines(tree, ctx, SNAPSHOT.profileValues,
+      { profileCode: 'open_out_doors' })
+    const names = defaults.map(l => l.product_short_name).sort()
+    expect(names).toContain('hardwick_lyndon_door_espag_set')
+    expect(names).not.toContain('windsor_inline_handle')
+    expect(names).toContain('102mm_hinges')
+    expect(names).toContain('double_euro_cylinder')
+    expect(names).toContain('trickle_vent_xr16')
+    expect(names).toContain('trickle')
+    // a single door takes TWO hinge pairs, not a French pair's four
+    expect(defaults.find(l => l.product_short_name === '102mm_hinges').qty).toBe(2)
+
+    const withDefaults = price(tree, { ...BENCHMARK_SD1, ironmongeryLines: defaults })
+    const withStored   = price(tree, BENCHMARK_SD1)
+    const installMaterials = r => r.price.lines
+      .filter(l => l.fires && !l.error && l.group_name === 'installation_materials')
+      .reduce((t, l) => t + l.line_cost, 0)
+    expect(installMaterials(withDefaults) - installMaterials(withStored)).toBeCloseTo(59.85, 2)
   })
 })

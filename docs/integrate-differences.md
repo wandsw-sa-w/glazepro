@@ -530,6 +530,7 @@ explained — never by editing a target.
 |---|---|---|---|---|
 | **A50** | +£0.28 | +£0.42 | Top sash LEAD counterweight: GlazePro 17.6 kg against Integrate's 17.5 (before the Lead Weight rule's 15% wastage). `sashWeight.js` was calibrated to L34046 and the reviewer is obtaining Integrate's own weight calculation. Everything else on A50 matches. | 12 Oct 2026 |
 | **D** | +£0.54 | +£0.80 | Double-box STEEL counterweights, two lines +0.54 between them. Same weight model as A50; a double box divides its weight per pair, so the two are expected to share one cause. | 12 Oct 2026 |
+| **FD7** | +£0.62 | +£1.24 | A1’s GLASS AREA. FD7’s left panel is a direct glazed unit carrying Integrate’s hidden-0 template quirk: 588 x 2085 = 1.22598 m². GlazePro prices 1.23 (round half up, as every other glass line in every benchmark); Integrate prices 1.22 — and rounds its OWN D1 up, 1.29704 to 1.30, in the same drawing. 0.01 m² x 58.50 + 0.2 kg x 0.17 = 0.62. The reviewer to read Integrate’s glass panel for a hidden-0 unit; the FD5 A1 case was hidden by the 0.30 m² minimum. This is the ONLY unexplained figure in Step BB, and nothing has been tuned to close it. | 13 Oct 2026 |
 
 Not parked, and still reported every step because each is over £1.00 or has a known fix
 pending rather than an open question:

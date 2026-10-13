@@ -14,7 +14,7 @@ import { applySashesReplaced } from '../../drawingBoard/sashesReplaced.js'
 import { computeDerived } from '../../drawingBoard/computeDerived.js'
 import { computeVariables } from '../computeVariables.js'
 import { shortDividerSpanMm, isShortDivider, frameCells, frameGridSize, frameOpenings, casementSashSize, casementSashWeightKg, casementFrameTimberVolumeDm3, casementSashTimberVolumeDm3, casementGlassSightline, frameMuntinLengthM, frameColumns, frameRows, CASEMENT_SASH_TYPES, FRENCH_SASH_TYPES } from '../casementGeometry.js'
-import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_B_UNCORRECTED, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F, BENCHMARK_G, BENCHMARK_H, BENCHMARK_I, BENCHMARK_J, BENCHMARK_K, BENCHMARK_L, BENCHMARK_M, BENCHMARK_N, BENCHMARK_P, BENCHMARK_Q, BENCHMARK_R, BENCHMARK_S, BENCHMARK_SA, BENCHMARK_SB, BENCHMARK_SC, BENCHMARK_SD, BENCHMARK_SE, BENCHMARK_SF, BENCHMARK_TC1, BENCHMARK_TC2, BENCHMARK_TC3, BENCHMARK_FR1, BENCHMARK_FR2, BENCHMARK_FD1, BENCHMARK_FD2, BENCHMARK_FD3, BENCHMARK_FD3b, BENCHMARK_FD4, BENCHMARK_FD5, BENCHMARK_FD6 } from './index.js'
+import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_B_UNCORRECTED, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F, BENCHMARK_G, BENCHMARK_H, BENCHMARK_I, BENCHMARK_J, BENCHMARK_K, BENCHMARK_L, BENCHMARK_M, BENCHMARK_N, BENCHMARK_P, BENCHMARK_Q, BENCHMARK_R, BENCHMARK_S, BENCHMARK_SA, BENCHMARK_SB, BENCHMARK_SC, BENCHMARK_SD, BENCHMARK_SE, BENCHMARK_SF, BENCHMARK_TC1, BENCHMARK_TC2, BENCHMARK_TC3, BENCHMARK_FR1, BENCHMARK_FR2, BENCHMARK_FD1, BENCHMARK_FD2, BENCHMARK_FD3, BENCHMARK_FD3b, BENCHMARK_FD4, BENCHMARK_FD5, BENCHMARK_FD6, BENCHMARK_FD7, BENCHMARK_SD1, BENCHMARK_SD2, BENCHMARK_SD3, BENCHMARK_SD4 } from './index.js'
 import { resolveIronmongeryLines } from '../loadPricingContext.js'
 import { allocatedSectionParts, doorLeaves, doorLeafSize, doorLeafWeightKg, doorGlassSightline, doorPanelSize } from '../doorGeometry.js'
 // The LIVE price-file snapshot (reviewer-checked, 8 Oct 2026) — the honest
@@ -25,7 +25,7 @@ import SNAPSHOT from './pf30-snapshot.json'
 // Never edited to match GlazePro output — a failing test that tells the
 // truth is the right outcome when GlazePro disagrees with Integrate.
 import INTEGRATE from './integrate-targets.json'
-import { matrixIndexOf, isStormproofSash, isStormproofWindow, openingNodes } from '../../drawingBoard/casementOpenings.js'
+import { matrixIndexOf, isStormproofSash, isStormproofWindow, openingNodes, openingLabel } from '../../drawingBoard/casementOpenings.js'
 
 // ── Minimal price-file variables (PF30 scalars) ────────────────────────────
 // Sash profile rebate/tolerance (14 / 2) — the measured sash-weight model
@@ -2513,6 +2513,210 @@ describe('Step BA — French door variant benchmarks', () => {
         .toEqual(label === 'FD4'
           ? ['LTW General Consumables', 'Tricoya Panel', 'Utile Section Part']
           : ['LTW General Consumables', 'Utile Section Part'])
+    }
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step BB — single garden doors: SD1-SD4, and FD7's glazed side panels
+// ══════════════════════════════════════════════════════════════════════════════
+// docs/integrate-L31115-single-doors.txt, read 13 Oct 2026.
+//
+// Integrate stores a single door as a plain `doorLeafPart` DIRECTLY in a frame
+// opening — no pair part, which is the whole difference from a French door —
+// with its OWN clearances (2 / 3 / 3 / 3 against the pair's 3 / 1 / 1 / 3).
+//
+// No new pricing rule: every figure comes out of rules GlazePro already had.
+describe('Step BB — single garden door benchmarks', () => {
+  const CASES = [
+    ['SD1', BENCHMARK_SD1, INTEGRATE.benchmarkSD1_single_door,                      36.33, 11.75,  0],
+    ['SD2', BENCHMARK_SD2, INTEGRATE.benchmarkSD2_single_door_with_fanlight,         47.08, 13.75, 13.67],
+    ['SD3', BENCHMARK_SD3, INTEGRATE.benchmarkSD3_single_door_with_sidelight,        55.08, 14.50, 28.76],
+    ['SD4', BENCHMARK_SD4, INTEGRATE.benchmarkSD4_single_doorset_sidelights_fanlights, 97.25, 23.25, 97.72],
+    // FD7 carries a PARKED residual as well as its decided difference
+    ['FD7', BENCHMARK_FD7, INTEGRATE.benchmarkFD7_french_doorset_dgu_sidelights,     66.17, 16.83, 57.53 + 0.62],
+  ]
+
+  function runSD(bm) {
+    return runPricingOnTree(bm.tree, SNAPSHOT.rules, SNAPSHOT.pfVariables, {
+      glassCatalogue: SNAPSHOT.glassCatalogue,
+      partAllocationRules: SNAPSHOT.partAllocationRules,
+      partCostMap: bm.partCostMap,
+      ironmongeryLines: bm.ironmongeryLines,
+      ironmongeryCatalogue: SNAPSHOT.ironmongeryCatalogue,
+      profileValues: SNAPSHOT.profileValues,
+      profileCode: bm.profileCode,
+    })
+  }
+
+  for (const [label, bm, target, production, labour, extra] of CASES) {
+    it(`${label}: production ${production} h and labour ${labour} h, exactly`, () => {
+      const r = runSD(bm)
+      expect(r.manufacture_labour.total_minutes / 60, label).toBeCloseTo(production, 2)
+      expect(r.install_labour.total_minutes / 60, label).toBeCloseTo(labour, 2)
+    })
+
+    it(`${label}: every group matches Integrate${extra ? ', bar the transom and mullions' : ', exactly'}`, () => {
+      const r = runSD(bm)
+      const got = {}
+      for (const l of r.price.lines) {
+        if (!l.fires || l.error) continue
+        got[l.group_name] = (got[l.group_name] ?? 0) + l.line_cost
+      }
+      for (const [group, t] of Object.entries(target.groups)) {
+        // FD7's 0.62 is in the GLASS group, not manufacture_materials
+        const allowance = label === 'FD7'
+          ? (group === 'manufacture_materials' ? 57.53 : group === 'glass_done' ? 0.62 : 0)
+          : (group === 'manufacture_materials' ? extra : 0)
+        expect(got[group] ?? 0, `${label} ${group}`).toBeCloseTo(t.cost + allowance, 2)
+      }
+      expect(r.price.total_cost, `${label} total`).toBeCloseTo(target.total_cost + extra, 2)
+    })
+  }
+
+  it('SD1 matches Integrate on EVERY line — a single door needs nothing new', () => {
+    const r = runSD(BENCHMARK_SD1)
+    const t = INTEGRATE.benchmarkSD1_single_door
+    expect(r.price.total_cost).toBeCloseTo(t.total_cost, 2)
+    expect(r.price.total).toBeCloseTo(t.total_price, 2)
+  })
+
+  it('a single door leaf is its opening less its OWN clearances', () => {
+    // 2 / 3 / 3 / 3, not the French pair's 3 / 1 / 1 / 3, and no overlap:
+    // 1005 - 3 - 3 = 999 by 2115 - 2 - 3 = 2110. doorLeafSize already did
+    // this for a leaf with no pair; what was missing was the leaf being an
+    // OPENING at all, so it had no cell and therefore no size.
+    const leaves = doorLeaves(BENCHMARK_SD1.tree)
+    expect(leaves.length).toBe(1)
+    expect(leaves[0].part_type).toBe('doorLeafPart')
+    expect(doorLeafSize(BENCHMARK_SD1.tree, leaves[0])).toEqual({ width: 999, height: 2110 })
+    expect(doorGlassSightline(BENCHMARK_SD1.tree, leaves[0])).toEqual({ width: 779, height: 1837 })
+  })
+
+  it('a single door takes "Single Door Only" and never "French Doors"', () => {
+    for (const [label, bm] of [['SD1', BENCHMARK_SD1], ['SD4', BENCHMARK_SD4]]) {
+      const fired = runSD(bm).install_labour.lines.filter(l => l.fires && !l.error)
+      const names = fired.map(l => l.name)
+      expect(names, label).toContain('Single Door Only')
+      expect(names, label).not.toContain('French Doors')
+      expect(fired.find(l => l.name === 'Single Door Only').minutes, label).toBe(660)
+    }
+    // and the other way round on a French pair
+    const fd = runSD(BENCHMARK_FD7).install_labour.lines.filter(l => l.fires && !l.error).map(l => l.name)
+    expect(fd).toContain('French Doors')
+    expect(fd).not.toContain('Single Door Only')
+  })
+
+  it('every fixed casement sash in a door frame takes Fixed Fanlight 120', () => {
+    // Integrate's rule counts them all — a SIDE light as much as a fanlight
+    // (SD3's 870 minutes and SD4's 1395 only add up that way).
+    const inst = bm => {
+      const o = {}
+      for (const l of runSD(bm).install_labour.lines) {
+        if (!l.fires || l.error) continue
+        o[l.name] = (o[l.name] ?? 0) + l.minutes
+      }
+      return o
+    }
+    expect(inst(BENCHMARK_SD2)['Fixed Fanlight']).toBe(120)       // one fanlight
+    expect(inst(BENCHMARK_SD3)['Fixed Fanlight']).toBe(120)       // one SIDE light
+    expect(inst(BENCHMARK_SD4)['Fixed Fanlight']).toBe(600)       // three + two
+    // and the side lights over 25 kg take Any Sash Overweight as well
+    expect(inst(BENCHMARK_SD3)['Any Sash Overweight (Casement)']).toBe(45)
+    expect(inst(BENCHMARK_SD4)['Any Sash Overweight (Casement)']).toBe(90)
+    // the door leaf itself is over 50 kg on all four
+    for (const [label, bm] of [['SD1', BENCHMARK_SD1], ['SD2', BENCHMARK_SD2],
+      ['SD3', BENCHMARK_SD3], ['SD4', BENCHMARK_SD4]]) {
+      expect(inst(bm)['Any Door Overweight'], label).toBe(45)
+    }
+  })
+
+  it('a single door allocates the Thunderbolt and NOTHING else', () => {
+    // Allocator 2020 "MPLS non-front non-french". The French-pair parts
+    // (flush bolt, shootbolt, keeps) must not appear: they are rules 2010 /
+    // 2030 / 2060 / 2090, all gated on a French leaf.
+    // The four lock parts BY CODE, not every allocated part: RHZ665 is the
+    // XR16 vent's own kit part and belongs to the stored ironmongery list.
+    const LOCK_CODES = ['RJZ2382', 'RHZ1648', 'RHZ1653', 'RHZ1667']
+    const codes = bm => runSD(bm).price.lines
+      .filter(l => l.fires && !l.error && l.alloc_iron_part_code)
+      .map(l => l.alloc_iron_part_code)
+    for (const [label, bm] of [['SD1', BENCHMARK_SD1], ['SD4', BENCHMARK_SD4]]) {
+      expect(codes(bm).filter(c => LOCK_CODES.includes(c)), label).toEqual(['RJZ2382'])
+    }
+    // FD7 is a French pair and takes all four
+    expect(codes(BENCHMARK_FD7).filter(c => LOCK_CODES.includes(c)).sort())
+      .toEqual(['RHZ1648', 'RHZ1653', 'RHZ1667', 'RJZ2382'])
+  })
+
+  it('SD1-SD4 allocate Integrate’s own section lengths, to the mm', () => {
+    const byCode = bm => Object.fromEntries(
+      allocatedSectionParts(bm.tree, { material: 'utile' }).map(s => [s.part_code, s.length_mm]))
+
+    expect(byCode(BENCHMARK_SD1)).toEqual({
+      Utile67x96: 5497, Utile63x200: 2098, Utile63x120: 5213,
+    })
+    const sd2 = byCode(BENCHMARK_SD2)
+    expect(sd2.Utile63x120).toBe(5133)
+    expect(sd2.Utile63x200).toBe(2098)
+    expect(sd2.Utile63x63).toBe(1809)
+    expect(sd2.Utile63x96).toBe(1003)
+    expect(sd2.Utile67x96).toBe(6297 + 1005)      // Integrate's + the transom
+    const sd3 = byCode(BENCHMARK_SD3)
+    expect(sd3.Utile63x120).toBe(5213)
+    expect(sd3.Utile63x200).toBe(2698)
+    expect(sd3.Utile63x63).toBe(4795)
+    expect(sd3.Utile67x96).toBe(6097 + 2115)      // + the mullion
+    const sd4 = byCode(BENCHMARK_SD4)
+    expect(sd4.Utile63x120).toBe(5133)
+    expect(sd4.Utile63x200).toBe(3248)
+    expect(sd4.Utile63x63).toBe(13865)
+    expect(sd4.Utile63x96).toBe(3131)
+    expect(sd4.Utile67x96).toBe(7447 + 2155 + 2 * 2515)   // + transom + mullions
+    expect(byCode(BENCHMARK_FD7).Utile63x120).toBe(9849)
+    expect(byCode(BENCHMARK_FD7).Utile63x200).toBe(4245)
+    expect(byCode(BENCHMARK_FD7).Utile67x96).toBe(7218 + 2 * 2115)
+  })
+
+  it('the labels are Integrate’s, and a pair pushes the next column to D', () => {
+    const labels = bm => openingNodes(bm.tree).map(n => openingLabel(bm.tree, n))
+    expect(labels(BENCHMARK_SD1)).toEqual(['Single Door A1'])
+    expect(labels(BENCHMARK_SD2)).toEqual(['Fanlight A1', 'Single Door A2'])
+    expect(labels(BENCHMARK_SD3)).toEqual(['Single Door A1', 'Casement Sash B1'])
+    expect(labels(BENCHMARK_SD4)).toEqual([
+      'Fanlight A1', 'Fanlight B1', 'Fanlight C1',
+      'Casement Sash A2', 'Single Door B2', 'Casement Sash C2',
+    ])
+    // FD7's pair holds B and C, so its right-hand panel is D1 — not C1,
+    // which Step BA gave it and which collided with the right leaf.
+    expect(labels(BENCHMARK_FD7)).toEqual([
+      'Direct Glazed Unit A1', 'French Door B1', 'Direct Glazed Unit D1',
+    ])
+  })
+
+  it('FD7’s 0.62 is PARKED, not decided, and the two are declared apart', () => {
+    // The one figure in this step nobody has explained: Integrate prices
+    // A1's hidden-0 direct glazed unit on 1.22 m2 where 588 x 2085 is
+    // 1.22598 — and rounds its own D1 UP, 1.29704 to 1.30, in the same
+    // drawing. Under GBP 1.00 with a named cause, so parked.
+    expect(BENCHMARK_FD7.deliberateDifference.cost).toBeCloseTo(57.53, 2)
+    expect(BENCHMARK_FD7.parkedResidual.cost).toBeCloseTo(0.62, 2)
+    const r = runSD(BENCHMARK_FD7)
+    const glass = r.price.lines
+      .filter(l => l.fires && !l.error && l.group_name === 'glass_done')
+      .reduce((t, l) => t + l.line_cost, 0)
+    expect(glass - INTEGRATE.benchmarkFD7_french_doorset_dgu_sidelights.groups.glass_done.cost)
+      .toBeCloseTo(0.62, 2)
+  })
+
+  it('a single door prices NO timber volume, as every door does', () => {
+    for (const [label, bm] of [['SD1', BENCHMARK_SD1], ['SD4', BENCHMARK_SD4]]) {
+      const names = runSD(bm).price.lines
+        .filter(l => l.fires && !l.error && l.line_cost > 0 &&
+          l.group_name === 'manufacture_materials')
+        .map(l => l.name)
+      expect([...new Set(names)].sort(), label)
+        .toEqual(['LTW General Consumables', 'Utile Section Part'])
     }
   })
 })

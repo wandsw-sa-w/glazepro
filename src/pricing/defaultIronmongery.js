@@ -188,22 +188,13 @@ function computePartVars(partNode, tree, derived, baseVars, glassCatalogue, prof
     }
   }
 
-  if (pt === 'doorLeafPart') {
-    const is_complete_new = baseVars.is_complete_new ?? false
-    const to_be_replaced  = is_complete_new || v.toBeReplaced === true
-    return {
-      to_be_replaced,
-      is_door_mpls:            v.isDoorMpls    ?? false,
-      is_front_door:           v.isFrontDoor   ?? false,
-      is_french_door_leaf:     v.isFrenchDoor  ?? false,
-      is_slave_leaf_in_french_pair:  v.isSlaveFrenchLeaf  ?? false,
-      is_master_leaf_in_french_pair: v.isMasterFrenchLeaf ?? false,
-      is_left_hand_hung_viewed_internally:  v.handedness === 'left',
-      is_right_hand_hung_viewed_internally: v.handedness === 'right',
-      is_opening_in:  v.openingDirection === 'in',
-      is_opening_out: v.openingDirection === 'out',
-    }
-  }
+  // Step BB: a second `doorLeafPart` branch stood here and has been DELETED.
+  // It could never run — the DOOR_LEAF_TYPES branch above it includes
+  // 'doorLeafPart' and returns first (Step AZ) — and it read keys no drawing
+  // has ever stored: `handedness`, `openingDirection`, `isFrenchDoor`,
+  // `isSlaveFrenchLeaf`, `isMasterFrenchLeaf`. Had it ever been reached, a
+  // single door would have had no hand, no opening direction and no lock.
+  // The branch above derives all of them from the part type and the geometry.
 
   return {}
 }

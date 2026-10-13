@@ -227,6 +227,10 @@ function doorTree({ width, height, dividers = [], openings, ironmongeryLines }) 
           cillFinish: 'clean_white',
           cutOutBrickReveal: false,
           ironmongeryFinish: 'PB',
+          // Integrate stores both of these on the paint part (SD1 facts), and
+          // the allocator reads isDoorMpls to add the multipoint lock.
+          isDoorMpls: true,
+          isFrontDoor: false,
           ironmongeryLines: ironmongeryLines.map(l => ({ ...l })),
         },
         children: [],
@@ -623,4 +627,220 @@ export const BENCHMARK_FD6 = {
   ironmongeryLines: DOORSET_IRONMONGERY_FD6,
   profileCode: 'open_out_doors',
   assumptions: DOORSET_ASSUMPTIONS,
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Step BB — single garden doors (open out): SD1-SD4, and FD7's glazed panels
+// docs/integrate-L31115-single-doors.txt, read 13 Oct 2026.
+// ═════════════════════════════════════════════════════════════════════════════
+
+/**
+ * A SINGLE door leaf. Integrate stores it as a plain `DoorLeafPart` DIRECTLY
+ * in a frame opening — no pair part, which is the whole difference from a
+ * French door (contrast `frenchDoorPart`).
+ *
+ * Its clearances are its OWN, and they are not a French pair's: 2 top,
+ * 3 each side, 3 bottom, against the pair's 3 / 1 / 1 / 3. So a leaf in a
+ * 1005 x 2115 opening is 999 x 2110, which `doorLeafSize` already works out
+ * for a leaf with no pair.
+ */
+function singleDoorLeaf(key, { operation = 'left_hand_hung' } = {}) {
+  return {
+    key,
+    part_type: 'doorLeafPart',
+    values: {
+      operation,                        // Integrate 17 LH / 18 RH / 11 Fix
+      casementTypeId: 'open_out',       // typeId 7
+      thickness: 54,
+      topHeight: 110,
+      leftWidth: 110,
+      rightWidth: 110,
+      bottomHeight: 163,
+      bottomHeightExternal: 170,
+      btmRailShapeId: 'stepped',
+      mechanicalClearanceTop: 2,
+      mechanicalClearanceLeft: 3,
+      mechanicalClearanceRight: 3,
+      mechanicalClearanceBottom: 3,
+      // Integrate's board gave this leaf an ARCH HEAD when it was dropped
+      // into an opening (archHeight 389.5), which priced shaped glass and
+      // 240 minutes of swept-head work. The reviewer unticked it and
+      // re-read; a GlazePro single door is square and never arched by
+      // default (brief item 3).
+      archHead: false,
+      toBeReplaced: true,
+    },
+    children: [glassChild(key)],
+  }
+}
+
+/** SD1-SD4's stored list: a SINGLE door takes two hinge pairs, not four. */
+const SINGLE_DOOR_IRONMONGERY = [
+  { product_short_name: '102mm_hinges', finish_code: 'PB', qty: 2, source: 'survey' },
+  { product_short_name: 'double_euro_cylinder', finish_code: 'PB', qty: 1, source: 'survey' },
+  { product_short_name: 'trickle_vent_xr16', finish_code: 'Wht', qty: 1, source: 'survey' },
+  { product_short_name: 'windsor_inline_handle', finish_code: 'PB', qty: 1, source: 'survey' },
+]
+
+const SINGLE_DOOR_ASSUMPTIONS = [
+  ...DOOR_ASSUMPTIONS,
+  'A single door leaf is a plain doorLeafPart in the frame opening, with its OWN clearances 2 / 3 / 3 / 3 — a French pair’s are 3 / 1 / 1 / 3',
+  'The transom and the mullions are charged at Utile67x96 for their full internal length (differences 7b and 11) — Integrate allocates nothing for them',
+  'Integrate’s board arrives at a dropped-in door leaf with Arch Head and Half Circle ON; the reviewer unticked them before reading, and a GlazePro single door is never arched by default',
+]
+
+// ── SD1: a plain single garden door (Integrate template 15) ──────────────────
+// 1099 x 2199, internal 1005 x 2115, leaf 999 x 2110, glass 779 x 1837.
+// Production 2180 min; labour 705 = Single Door Only 660 + Any Door
+// Overweight 45 (the leaf is over 50 kg). EXACT in every line.
+
+export const BENCHMARK_SD1 = {
+  name: 'Benchmark SD1 — single garden door, fully glazed (L31115 Item 10 Drawing 7)',
+  tree: doorTree({
+    width: 1099, height: 2199,
+    openings: [singleDoorLeaf('sd1_leaf')],
+    ironmongeryLines: SINGLE_DOOR_IRONMONGERY,
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkSD1_single_door },
+  partCostMap: DOOR_PART_COST_MAP,
+  profileValues: DOOR_PROFILE_VALUES,
+  glassCatalogue: {},
+  ironmongeryLines: SINGLE_DOOR_IRONMONGERY,
+  profileCode: 'open_out_doors',
+  assumptions: SINGLE_DOOR_ASSUMPTIONS,
+}
+
+// ── SD2: the same door with a fixed fanlight over ────────────────────────────
+// 1099 x 2599, transom at 399; fanlight 1003 x 396 at the 86 rail, door
+// 999 x 2070. Labour 825 = 660 + Fixed Fanlight 120 + Any Door Overweight 45.
+
+export const BENCHMARK_SD2 = {
+  name: 'Benchmark SD2 — single door with a fixed fanlight (L31115 Item 10 Drawing 9)',
+  tree: doorTree({
+    width: 1099, height: 2599,
+    dividers: [transom('sd2_trans', 399)],
+    openings: [
+      doorsetCasementSash('sd2_fan'),
+      singleDoorLeaf('sd2_leaf'),
+    ],
+    ironmongeryLines: SINGLE_DOOR_IRONMONGERY,
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkSD2_single_door_with_fanlight },
+  deliberateDifference: {
+    cost: 13.67,
+    reason: 'the transom, charged at Utile67x96 for the internal frame width (1005 mm) — Integrate allocates nothing for it (PROVISIONAL)',
+  },
+  partCostMap: DOOR_PART_COST_MAP,
+  profileValues: DOOR_PROFILE_VALUES,
+  glassCatalogue: {},
+  ironmongeryLines: SINGLE_DOOR_IRONMONGERY,
+  profileCode: 'open_out_doors',
+  assumptions: SINGLE_DOOR_ASSUMPTIONS,
+}
+
+// ── SD3: the door with one full-height side light beside it ──────────────────
+// 1699 x 2199, mullion at 1005: the door in the LEFT column (1005) and a
+// fixed side light 557 x 2112 in the right. Labour 870 = 660 + Fixed
+// Fanlight 120 (Integrate's rule counts every fixed casement sash in a door)
+// + Any Sash Overweight 45 (the side light is over 25 kg) + Any Door
+// Overweight 45.
+
+export const BENCHMARK_SD3 = {
+  name: 'Benchmark SD3 — single door with a side light (L31115 Item 10 Drawing 10)',
+  tree: doorTree({
+    width: 1699, height: 2199,
+    dividers: [mullion('sd3_mull', 1005)],
+    openings: [
+      singleDoorLeaf('sd3_leaf'),
+      doorsetCasementSash('sd3_side'),
+    ],
+    ironmongeryLines: SINGLE_DOOR_IRONMONGERY,
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkSD3_single_door_with_sidelight },
+  deliberateDifference: {
+    cost: 28.76,
+    reason: 'the mullion, charged at Utile67x96 for the internal frame height (2115 mm) — Integrate allocates nothing for it (PROVISIONAL)',
+  },
+  partCostMap: DOOR_PART_COST_MAP,
+  profileValues: DOOR_PROFILE_VALUES,
+  glassCatalogue: {},
+  ironmongeryLines: SINGLE_DOOR_IRONMONGERY,
+  profileCode: 'open_out_doors',
+  assumptions: SINGLE_DOOR_ASSUMPTIONS,
+}
+
+// ── SD4: three columns by two rows, the door in the middle ───────────────────
+// 2249 x 2599, mullions at 534 and 1580, transom at 399 — columns
+// 534 / 1005 / 534 and rows 399 / 2075. Three fixed fanlights over a side
+// light, the door, and a side light. Labour 1395 = 660 + Fixed Fanlight
+// 120 x 5 + Any Sash Overweight 45 x 2 + Any Door Overweight 45.
+
+export const BENCHMARK_SD4 = {
+  name: 'Benchmark SD4 — single door with side lights and fanlights (L31115 Item 10 Drawing 11)',
+  tree: doorTree({
+    width: 2249, height: 2599,
+    dividers: [mullion('sd4_mull_a', 534), mullion('sd4_mull_b', 1580), transom('sd4_trans', 399)],
+    openings: [
+      doorsetCasementSash('sd4_fan_a'),
+      doorsetCasementSash('sd4_fan_b'),
+      doorsetCasementSash('sd4_fan_c'),
+      doorsetCasementSash('sd4_side_a'),
+      singleDoorLeaf('sd4_leaf'),
+      doorsetCasementSash('sd4_side_c'),
+    ],
+    ironmongeryLines: SINGLE_DOOR_IRONMONGERY,
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkSD4_single_doorset_sidelights_fanlights },
+  deliberateDifference: {
+    cost: 97.72,
+    reason: 'the transom (2155 mm) and both mullions (2 x 2515 mm), charged at Utile67x96 for their full internal length — Integrate allocates nothing for them (PROVISIONAL)',
+  },
+  partCostMap: DOOR_PART_COST_MAP,
+  profileValues: DOOR_PROFILE_VALUES,
+  glassCatalogue: {},
+  ironmongeryLines: SINGLE_DOOR_IRONMONGERY,
+  profileCode: 'open_out_doors',
+  assumptions: SINGLE_DOOR_ASSUMPTIONS,
+}
+
+// ── FD7: a French pair between two direct glazed side panels ─────────────────
+// Integrate template 28, 2820 x 2199. Two full-height mullions give columns
+// 618 / 1405 / 621; the pair's leaves are 712.5 x 2109. A1 keeps Integrate's
+// hidden 0, D1 has 12 — the same template quirk as FD5's A1.
+// A doorset of the Step BA family, benchmarked here because Nathan sells it.
+
+export const BENCHMARK_FD7 = {
+  name: 'Benchmark FD7 — French doors with glazed side panels (L31115 Item 10 Drawing 8)',
+  tree: doorTree({
+    width: 2820, height: 2199,
+    dividers: [mullion('fd7_mull_a', 618), mullion('fd7_mull_b', 2064)],
+    openings: [
+      doorsetDirectGlazed('fd7_dgu_a', { hidden: 0 }),
+      frenchDoorPair('fd7'),
+      doorsetDirectGlazed('fd7_dgu_d'),
+    ],
+    ironmongeryLines: DOOR_IRONMONGERY,
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkFD7_french_doorset_dgu_sidelights },
+  deliberateDifference: {
+    cost: 57.53,
+    reason: 'both frame mullions, charged at Utile67x96 for the internal frame height (2 x 2115 mm) — Integrate allocates nothing for them (PROVISIONAL)',
+  },
+  // The ONE figure in this step nobody has explained. FD7’s A1 is a direct
+  // glazed unit with Integrate’s hidden-0 template quirk, 588 x 2085 =
+  // 1.22598 m2. GlazePro prices 1.23 (round half up, as every other glass
+  // line in every benchmark); Integrate prices 1.22, and its own D1 rounds
+  // 1.29704 UP to 1.30 in the same drawing. Under the GBP 1.00 small-differences
+  // policy it is PARKED, not closed, and nothing has been tuned to hide it:
+  // 0.01 m2 x 58.50 + 0.2 kg x 0.17 = 0.62.
+  parkedResidual: {
+    cost: 0.62,
+    reason: 'A1’s area: Integrate prices 1.22 m2 where 588 x 2085 is 1.22598, which rounds to 1.23 — and its own D1 rounds 1.29704 up to 1.30',
+  },
+  partCostMap: DOOR_PART_COST_MAP,
+  profileValues: DOOR_PROFILE_VALUES,
+  glassCatalogue: {},
+  ironmongeryLines: DOOR_IRONMONGERY,
+  profileCode: 'open_out_doors',
+  assumptions: SINGLE_DOOR_ASSUMPTIONS,
 }

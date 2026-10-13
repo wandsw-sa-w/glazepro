@@ -81,6 +81,15 @@ export const ALLOWED_PAIRS = new Set([
   'leftFrenchDoorLeafPart->transomPart',
   'rightFrenchDoorLeafPart->transomPart',
   'leftFrenchDoorLeafPart->panelPart',
+
+  // Step BB: a SINGLE door. Integrate stores it as a plain doorLeafPart
+  // DIRECTLY in a frame opening, with no pair part — so the frame has to be
+  // allowed to hold one, and the leaf its own glass, its mid rail and its
+  // panel. sql/step-bb1-single-door-containment.sql adds these live.
+  'assemblyFramePart->doorLeafPart',
+  'doorLeafPart->glassPart',
+  'doorLeafPart->transomPart',
+  'doorLeafPart->panelPart',
   'rightFrenchDoorLeafPart->panelPart',
 ])
 

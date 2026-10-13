@@ -661,3 +661,342 @@ export function buildPanelledFrenchDoorFrame(profileValues, {
   }
   return { tree: walk(built.tree), missing: [], midRailOffset: offset }
 }
+
+// ── Step BB: a SINGLE door in an opening ─────────────────────────────────────
+
+/** The operations Integrate offers on a single door leaf: LH / RH / Fix. */
+export const SINGLE_DOOR_OPERATIONS = ['left_hand_hung', 'right_hand_hung', 'fix']
+export const DEFAULT_SINGLE_DOOR_OPERATION = 'left_hand_hung'
+
+/** A single door leaf's own clearances — NOT a French pair's 3 / 1 / 1 / 3. */
+export const SINGLE_DOOR_CLEARANCES = { top: 2, left: 3, right: 3, bottom: 3 }
+
+/**
+ * Build a single door leaf for a frame opening: a plain `doorLeafPart`, as
+ * Integrate stores it, with no pair part around it.
+ *
+ * Its sections are a French leaf's (110 head and stiles, 163 bottom rail,
+ * 170 external) because that is what Integrate's own single door carries;
+ * its CLEARANCES are its own.
+ *
+ * It is NEVER arched. Integrate's board hands a dropped-in door leaf Arch
+ * Head and Half Circle switched on (archHeight 389.5), which priced SD2 as
+ * 1.14 m2 of shaped glass and 240 minutes of swept-head work until the
+ * reviewer unticked it (docs/integrate-L31115-single-doors.txt, the SD2
+ * quirk). GlazePro does not copy that.
+ *
+ * @returns {{node: Object|null, missing: string[]}}
+ */
+export function buildSingleDoorLeaf(profileValues, {
+  glass = null,
+  defaults = null,
+  operation = DEFAULT_SINGLE_DOOR_OPERATION,
+  bottomHeight = DEFAULT_LEAF_BOTTOM_RAIL_MM,
+  bottomHeightExternal = DEFAULT_LEAF_BOTTOM_RAIL_EXTERNAL_MM,
+} = {}) {
+  const resolved = defaults ?? doorProfileDefaults(profileValues)
+  if (resolved.missing.length > 0) return { node: null, missing: resolved.missing }
+  const d = resolved.values
+  const key = makeKey('doorleaf')
+  return {
+    node: {
+      key,
+      part_type: 'doorLeafPart',
+      values: {
+        operation,
+        casementTypeId: 'open_out',          // Integrate typeId 7
+        thickness:  d.doorThickness,
+        topHeight:  d.leafHead,
+        leftWidth:  d.leafStileLeft,
+        rightWidth: d.leafStileRight,
+        bottomHeight,
+        bottomHeightExternal,
+        btmRailShapeId: 'stepped',
+        mechanicalClearanceTop:    SINGLE_DOOR_CLEARANCES.top,
+        mechanicalClearanceLeft:   SINGLE_DOOR_CLEARANCES.left,
+        mechanicalClearanceRight:  SINGLE_DOOR_CLEARANCES.right,
+        mechanicalClearanceBottom: SINGLE_DOOR_CLEARANCES.bottom,
+        archHead: false,
+        toBeReplaced: true,
+      },
+      children: [{
+        key: `${key}_glass`,
+        part_type: 'glassPart',
+        values: {
+          ...DEFAULT_GLASS,
+          ...(glass ?? {}),
+          glazingRebateWidth: d.glassRebate,
+          glazingTolerance:   d.glassTolerance,
+        },
+        children: [],
+      }],
+    },
+    missing: [],
+  }
+}
+
+/**
+ * Turn an opening of a DOOR frame into a single door.
+ *
+ * This lives here rather than in `changeOpening` to keep the module
+ * direction one-way: casementOpenings.js knows nothing about doors, and the
+ * board dispatches on the kind.
+ *
+ * @returns {{tree: Object, changed: boolean, missing?: string[]}}
+ */
+export function changeOpeningToSingleDoor(tree, openingKey, profileValues) {
+  const frame = (tree?.children ?? []).find(c => c.part_type === 'assemblyFramePart')
+  if (!frame) return { tree, changed: false }
+  const idx = (frame.children ?? []).findIndex(c => c.key === openingKey)
+  if (idx < 0) return { tree, changed: false }
+  const current = frame.children[idx]
+  if (current.part_type === 'doorLeafPart') return { tree, changed: false }
+
+  // Carry the glass CODES over, as every other opening change does: on a
+  // casement sash they live on its glass child, on a direct glazed unit on
+  // the unit itself, and on a pair on its left leaf's glass.
+  const glassSource = current.part_type === 'glassPart'
+    ? current
+    : (current.children ?? []).find(c => c.part_type === 'glassPart')
+      ?? (current.children?.[0]?.children ?? []).find(c => c.part_type === 'glassPart')
+  const codes = {}
+  for (const k of ['glazingId', 'isIndividualPanes', 'internalGlassPartNo',
+    'externalGlassPartNo']) {
+    if (glassSource?.values?.[k] !== undefined) codes[k] = glassSource.values[k]
+  }
+
+  const { node, missing } = buildSingleDoorLeaf(profileValues, { glass: codes })
+  if (!node) return { tree, changed: false, missing }
+
+  const children = [...frame.children]
+  children[idx] = node
+  return {
+    tree: {
+      ...tree,
+      children: tree.children.map(c => c.key === frame.key ? { ...frame, children } : c),
+    },
+    changed: true,
+  }
+}
+
+// ── Step BB: the single-door frames, and FD7's side panels ───────────────────
+
+/** Integrate's own template sizes for the single garden doors. */
+export const SINGLE_DOOR_DEFAULTS = {
+  width: 1099,
+  height: 2199,
+  doorColumn: 1005,            // the door's own opening, template 15's internal width
+  sideLight: 534,              // SD4's side columns, which are already symmetrical
+  transomOffset: 399,
+  sideLightBottomRail: 86,     // Integrate's own; a FANLIGHT takes Nathan's 62
+  sideLightBottomRailExternal: 93,
+}
+
+/**
+ * Build a single garden door drawing: the frame, one `doorLeafPart` in its
+ * opening, and — as asked for — a transom with a fixed fanlight over the
+ * whole frame and a fixed side light on either side of the door.
+ *
+ * The door's own column is `doorColumn` wide; the side lights share what is
+ * left, equally. A fanlight spans the whole frame (one transom, full
+ * length), so a drawing with both reads as a 3 x 2 grid, which is SD4.
+ *
+ * @returns {{tree: Object|null, missing: string[]}}
+ */
+export function buildSingleDoorFrame(profileValues, {
+  width = SINGLE_DOOR_DEFAULTS.width,
+  height = SINGLE_DOOR_DEFAULTS.height,
+  material = DEFAULT_DOOR_MATERIAL,
+  product = null,
+  quantity = 1,
+  operation = DEFAULT_SINGLE_DOOR_OPERATION,
+  fanlight = null,                   // { offset } or null
+  sideLights = 0,                    // 0, 1 (right) or 2
+  doorColumn = SINGLE_DOOR_DEFAULTS.doorColumn,
+  fanlightBottomRail = 62,
+  fanlightBottomRailExternal = 69,
+} = {}) {
+  const resolved = doorProfileDefaults(profileValues)
+  if (resolved.missing.length > 0) return { tree: null, missing: resolved.missing }
+  const d = resolved.values
+
+  const base = buildFrenchDoorFrame(profileValues, {
+    width, height, material, product, quantity,
+  })
+  if (!base.tree) return base
+  const frame = base.tree.children.find(c => c.part_type === 'assemblyFramePart')
+
+  const leaf = buildSingleDoorLeaf(profileValues, { defaults: resolved, operation })
+  if (!leaf.node) return { tree: null, missing: leaf.missing }
+
+  const interiorWidth = width - d.frameJambLeft - (d.frameJambRight ?? d.frameJambLeft)
+  const mullionT = d.transomThickness
+
+  // The door column, and the side lights' share of what is left.
+  const spare = interiorWidth - doorColumn - sideLights * mullionT
+  const sideWidth = sideLights > 0 ? Math.floor(spare / sideLights) : 0
+
+  const dividers = []
+  if (sideLights === 1) {
+    // The door on the LEFT, one side light on the right (Integrate's SD3).
+    dividers.push(mullionNode(makeKey('mull'), doorColumn, d))
+  } else if (sideLights === 2) {
+    dividers.push(mullionNode(makeKey('mull'), sideWidth, d))
+    dividers.push(mullionNode(makeKey('mull'), sideWidth + mullionT + doorColumn, d))
+  }
+  if (fanlight != null) {
+    dividers.push({
+      key: makeKey('trans'),
+      part_type: 'transomPart',
+      values: {
+        offset: fanlight.offset ?? SINGLE_DOOR_DEFAULTS.transomOffset,
+        thicknessInFrame: mullionT,
+        transomStopSize: 18,
+        startDivider: '0', endDivider: '0',
+      },
+      children: [],
+    })
+  }
+
+  const fixedSash = ({ bottomHeight, bottomHeightExternal }) => {
+    const key = makeKey('cas')
+    return {
+      key,
+      part_type: 'casementSashPart',
+      values: {
+        operation: 'fix',
+        casementTypeId: 'open_out',
+        thickness: d.fanlightThickness,
+        topHeight: d.fanlightHead,
+        leftWidth: d.fanlightStile,
+        rightWidth: d.fanlightStile,
+        bottomHeight, bottomHeightExternal,
+        btmRailShapeId: 'stepped',
+        mechanicalClearanceTop: 1,
+        mechanicalClearanceLeft: 1,
+        mechanicalClearanceRight: 1,
+        mechanicalClearanceBottom: 2,
+        toBeReplaced: true,
+      },
+      children: [{
+        key: `${key}_glass`,
+        part_type: 'glassPart',
+        values: {
+          ...DEFAULT_GLASS,
+          glazingRebateWidth: d.glassRebate,
+          glazingTolerance:   d.glassTolerance,
+        },
+        children: [],
+      }],
+    }
+  }
+  const topLight  = () => fixedSash({
+    bottomHeight: fanlightBottomRail, bottomHeightExternal: fanlightBottomRailExternal,
+  })
+  const sideLight = () => fixedSash({
+    bottomHeight: SINGLE_DOOR_DEFAULTS.sideLightBottomRail,
+    bottomHeightExternal: SINGLE_DOOR_DEFAULTS.sideLightBottomRailExternal,
+  })
+
+  // Reading order: the whole top row first, then the bottom row left to right.
+  const columns = 1 + (sideLights === 2 ? 2 : sideLights)
+  const openings = []
+  if (fanlight != null) for (let i = 0; i < columns; i++) openings.push(topLight())
+  if (sideLights === 2) openings.push(sideLight())
+  openings.push(leaf.node)
+  if (sideLights >= 1) openings.push(sideLight())
+
+  const cill = (frame.children ?? []).filter(c => c.part_type === 'cillPart')
+  return {
+    tree: {
+      ...base.tree,
+      children: base.tree.children.map(c => c.part_type !== 'assemblyFramePart' ? c : {
+        ...c,
+        children: [...dividers, ...openings, ...cill],
+      }),
+    },
+    missing: [],
+  }
+}
+
+function mullionNode(key, offset, d) {
+  return {
+    key,
+    part_type: 'mullionPart',
+    values: { offset, thicknessInFrame: d.transomThickness, mullionStopSize: d.stileStop },
+    children: [],
+  }
+}
+
+/**
+ * Build Integrate's template 28 (FD7): a French pair between two DIRECT
+ * GLAZED side panels, one row, two full-height mullions.
+ *
+ * The side columns are EQUAL, as every GlazePro doorset is — Integrate's own
+ * template has 618 and 621 — and the panels take 12 mm hidden in the rebate
+ * on both sides, not the hidden-0 quirk its A1 carries.
+ *
+ * @returns {{tree: Object|null, missing: string[]}}
+ */
+export function buildFrenchDoorSidePanelFrame(profileValues, {
+  width = 2820,
+  height = 2199,
+  material = DEFAULT_DOOR_MATERIAL,
+  product = null,
+  quantity = 1,
+  masterLeaf = DEFAULT_DOOR_MASTER_LEAF,
+  middleColumn = 1405,
+} = {}) {
+  const resolved = doorProfileDefaults(profileValues)
+  if (resolved.missing.length > 0) return { tree: null, missing: resolved.missing }
+  const d = resolved.values
+
+  const base = buildFrenchDoorFrame(profileValues, {
+    width, height, material, product, quantity, masterLeaf,
+  })
+  if (!base.tree) return base
+  const frame = base.tree.children.find(c => c.part_type === 'assemblyFramePart')
+  const pair = (frame.children ?? []).find(c => c.part_type === 'frenchDoorPart')
+
+  const interiorWidth = width - d.frameJambLeft - (d.frameJambRight ?? d.frameJambLeft)
+  const { side, middle } = doorsetColumns(interiorWidth, {
+    mullionThickness: d.transomThickness, middleColumn,
+  })
+
+  const panel = () => ({
+    key: makeKey('dgu'),
+    part_type: 'glassPart',
+    values: {
+      ...DEFAULT_GLASS,
+      glazingRebateWidth: d.glassRebate,
+      glazingTolerance:   d.glassTolerance,
+      mechanicalClearanceTop: DOORSET_DEFAULTS.directGlazedClearance,
+      mechanicalClearanceBottom: DOORSET_DEFAULTS.directGlazedClearance,
+      mechanicalClearanceLeft: DOORSET_DEFAULTS.directGlazedClearance,
+      mechanicalClearanceRight: DOORSET_DEFAULTS.directGlazedClearance,
+      hiddenInRebateTop: DOORSET_DEFAULTS.directGlazedHidden,
+      hiddenInRebateBottom: DOORSET_DEFAULTS.directGlazedHidden,
+      hiddenInRebateLeft: DOORSET_DEFAULTS.directGlazedHidden,
+      hiddenInRebateRight: DOORSET_DEFAULTS.directGlazedHidden,
+      toBeReplaced: true,
+    },
+    children: [],
+  })
+
+  const dividers = [
+    mullionNode(makeKey('mull'), side, d),
+    mullionNode(makeKey('mull'), side + d.transomThickness + middle, d),
+  ]
+  const cill = (frame.children ?? []).filter(c => c.part_type === 'cillPart')
+  return {
+    tree: {
+      ...base.tree,
+      children: base.tree.children.map(c => c.part_type !== 'assemblyFramePart' ? c : {
+        ...c,
+        children: [...dividers, panel(), pair, panel(), ...cill],
+      }),
+    },
+    missing: [],
+    layout: { side, middle },
+  }
+}
