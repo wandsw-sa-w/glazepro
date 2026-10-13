@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { regenerateKeys, clearItemValues, templateGlassNameWarnings, prepareTemplateTree } from './templates.js'
+import { regenerateKeys, clearItemValues, templateGlassNameWarnings, prepareTemplateTree, drawingRowFieldsFromTemplate } from './templates.js'
 
 // ── Fixture: minimal box sash tree ──────────────────────────────────────────
 
@@ -308,5 +308,116 @@ describe('prepareTemplateTree', () => {
     expect(tree.key).not.toBe('t_item')
     expect(tree.values.location).toBeNull()
     expect(tree.values.sheetQty).toBe(1)
+  })
+})
+
+// ── Step AZ hotfix item 2: the drawing row's materials and window type ──────
+//
+// A new drawing from the live "French Doors" template had material_frame /
+// material_sash 'Solid Redwood' and material_cill 'Solid Utile Hardwood' —
+// the table's own defaults — while its TREE, the board and the pricing all
+// said utile. The quote matrix card read "Door · Solid Redwood".
+// createDrawingFromTemplate never wrote the material columns at all.
+
+describe('drawingRowFieldsFromTemplate — Step AZ hotfix item 2', () => {
+  const doorTemplate = {
+    name: 'French Doors', family: 'door', window_type: 'French Door',
+    tree: {
+      part_type: 'drawingItemPart',
+      values: {
+        typeOfWork: 'complete_new',
+        frameMaterialId: 'utile', sashMaterialId: 'utile', cillMaterialId: 'utile',
+      },
+      children: [{ part_type: 'assemblyFramePart', values: {}, children: [
+        { part_type: 'frenchDoorPart', values: {}, children: [] },
+      ] }],
+    },
+  }
+
+  it('takes the materials from the template tree, as labels the row holds', () => {
+    const row = drawingRowFieldsFromTemplate(doorTemplate)
+    expect(row.material_frame).toBe('Solid Utile Hardwood')
+    expect(row.material_sash).toBe('Solid Utile Hardwood')
+    expect(row.material_cill).toBe('Solid Utile Hardwood')
+  })
+
+  it('keeps the template’s own window_type', () => {
+    expect(drawingRowFieldsFromTemplate(doorTemplate).window_type).toBe('French Door')
+  })
+
+  it('a box sash template: softwood frame and sashes, utile cill', () => {
+    const row = drawingRowFieldsFromTemplate({
+      window_type: 'Box Sash',
+      tree: {
+        part_type: 'drawingItemPart',
+        values: { frameMaterialId: 'softwood', sashMaterialId: 'softwood', cillMaterialId: 'utile' },
+        children: [],
+      },
+    })
+    expect(row.material_frame).toBe('Solid Redwood')
+    expect(row.material_sash).toBe('Solid Redwood')
+    expect(row.material_cill).toBe('Solid Utile Hardwood')
+    expect(row.window_type).toBe('Box Sash')
+  })
+
+  it('an Accoya casement template', () => {
+    const row = drawingRowFieldsFromTemplate({
+      window_type: 'Flush Casement',
+      tree: {
+        part_type: 'drawingItemPart',
+        values: { frameMaterialId: 'accoya', sashMaterialId: 'accoya', cillMaterialId: 'accoya' },
+        children: [],
+      },
+    })
+    expect(row.material_frame).toBe('Accoya')
+    expect(row.material_sash).toBe('Accoya')
+    expect(row.material_cill).toBe('Accoya')
+  })
+
+  it('reads an older tree’s timberType parts too, as the quote PDF does', () => {
+    const row = drawingRowFieldsFromTemplate({
+      window_type: 'Box Sash',
+      tree: {
+        part_type: 'drawingItemPart', values: {},
+        children: [{ part_type: 'assemblyFramePart', values: {}, children: [
+          { part_type: 'frameMaterialPart', values: { timberType: 'accoya' }, children: [] },
+          { part_type: 'sashMaterialPart',  values: { timberType: 'accoya' }, children: [] },
+          { part_type: 'cillPart',          values: { timberType: 'utile' },  children: [] },
+        ] }],
+      },
+    })
+    expect(row.material_frame).toBe('Accoya')
+    expect(row.material_cill).toBe('Solid Utile Hardwood')
+  })
+
+  it('a material code with no label is left UNSET, never guessed', () => {
+    // oak and meranti are real price-file species with no option in the
+    // drawer's list. A wrong label on the card is worse than none: the
+    // column stays null and the reader falls back to its own default.
+    const row = drawingRowFieldsFromTemplate({
+      window_type: 'Box Sash',
+      tree: { part_type: 'drawingItemPart', values: { frameMaterialId: 'oak' }, children: [] },
+    })
+    expect('material_frame' in row).toBe(false)
+  })
+
+  it('a door template with no window_type is NOT called a Box Sash', () => {
+    // The old fallback was `template.window_type ?? 'Box Sash'`, which would
+    // label a French door template a box sash on the matrix card.
+    const { window_type: wt } = drawingRowFieldsFromTemplate({
+      ...doorTemplate, window_type: null,
+    })
+    expect(wt).toBe('French Door')
+  })
+
+  it('a tree it cannot read keeps the old Box Sash fallback', () => {
+    expect(drawingRowFieldsFromTemplate({ window_type: null, tree: null }).window_type)
+      .toBe('Box Sash')
+  })
+
+  it('createDrawingFromTemplate writes those fields on the insert (source check)', async () => {
+    const fs = await import('fs')
+    const src = fs.readFileSync('src/drawingBoard/templates.js', 'utf-8')
+    expect(src).toMatch(/\.\.\.drawingRowFieldsFromTemplate\(template\)/)
   })
 })

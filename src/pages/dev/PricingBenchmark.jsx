@@ -13,6 +13,7 @@ import { supabase } from '../../supabase.js'
 import { runPricingOnTree } from '../../pricing/pricingEngine.js'
 import { computeDerived } from '../../drawingBoard/computeDerived.js'
 import { loadPricingContext, resolveIronmongeryLines } from '../../pricing/loadPricingContext.js'
+import { mergeBenchmarkPartCosts } from '../../pricing/benchmarks/livePartCosts.js'
 import { PriceTable, fmt, costPriceMatch } from '../../pricing/PriceRuleTable.jsx'
 import * as BENCHMARKS from '../../pricing/benchmarks/index.js'
 
@@ -80,13 +81,17 @@ const S = {
 
 // ── Variables panel ───────────────────────────────────────────────────────────
 
-function VariablesPanel({ tree }) {
+function VariablesPanel({ tree, profileCode }) {
   const derived = computeDerived(tree)
   const [varsObj, setVarsObj] = useState(null)
 
   useEffect(() => {
     import('../../pricing/computeVariables.js').then(m => {
-      setVarsObj(m.computeVariables(tree, derived))
+      // Step AZ hotfix: the profile CODE, as every real-drawing caller now
+      // passes it. Without it this panel showed
+      // is_single_and_french_doors_range: false on a DOOR benchmark, which
+      // is precisely the reading that would have found the live bug.
+      setVarsObj(m.computeVariables(tree, derived, {}, { profileCode: profileCode ?? null }))
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -116,7 +121,7 @@ function VariablesPanel({ tree }) {
 // ── Single benchmark section ─────────────────────────────────────────────────
 
 function BenchmarkSection({ benchmark, results, ironmongeryLines, ironWarnings }) {
-  const { targets, tree, assumptions } = benchmark
+  const { targets, tree, assumptions, profileCode } = benchmark
   const totalCost  = results.price.total_cost ?? 0
   const totalPrice = results.price.total ?? 0
   const m = costPriceMatch(totalCost, totalPrice, targets)
@@ -193,7 +198,7 @@ function BenchmarkSection({ benchmark, results, ironmongeryLines, ironWarnings }
       {/* Variables */}
       <details style={S.details}>
         <summary style={S.summary}>All computed variables</summary>
-        <VariablesPanel tree={tree} />
+        <VariablesPanel tree={tree} profileCode={profileCode} />
       </details>
     </div>
   )
@@ -269,7 +274,9 @@ export default function PricingBenchmark() {
         const benchmarkResults = ALL_BENCHMARKS.map(benchmark => {
           // Ironmongery: resolveIronmongeryLines handles tree-saved vs defaults
           // (profile values feed the measured sash-weight model)
-          const ironmongeryLines = resolveIronmongeryLines(benchmark.tree, ctx, benchmark.profileValues ?? profileValuesMap)
+          const ironmongeryLines = resolveIronmongeryLines(
+            benchmark.tree, ctx, benchmark.profileValues ?? profileValuesMap,
+            { profileCode: benchmark.profileCode ?? null })
 
           // Check for unresolved ironmongery products
           const ironWarnings = []
@@ -280,11 +287,18 @@ export default function PricingBenchmark() {
             }
           }
 
+          // Step AZ hotfix item 4: THE LIVE CATALOGUE WINS. A fixture cost
+          // fills a gap only, and every gap is reported on the row — the old
+          // spread had the fixture overriding live data, which is how
+          // fourteen missing lock parts stayed invisible behind a PASS.
+          const { partCostMap: benchmarkCostMap, missingLive } =
+            mergeBenchmarkPartCosts(partCostMap, benchmark.partCostMap)
+
           const results = runPricingOnTree(benchmark.tree, rules || [], pfVariables, {
             testMode: false,
             glassCatalogue: { ...glassCatalogue, ...(benchmark.glassCatalogue ?? {}) },
             partAllocationRules,
-            partCostMap: { ...partCostMap, ...(benchmark.partCostMap ?? {}) },
+            partCostMap: benchmarkCostMap,
             ironmongeryLines,
             ironmongeryCatalogue,
             profileValues: benchmark.profileValues ?? profileValuesMap,
@@ -294,7 +308,7 @@ export default function PricingBenchmark() {
             profileCode: benchmark.profileCode ?? null,
           })
 
-          return { benchmark, results, ironmongeryLines, ironWarnings }
+          return { benchmark, results, ironmongeryLines, ironWarnings, missingLive }
         })
 
         if (cancelled) return
@@ -388,7 +402,7 @@ export default function PricingBenchmark() {
           </tr>
         </thead>
         <tbody>
-          {benchmarkResults.map(({ benchmark, results }, i) => {
+          {benchmarkResults.map(({ benchmark, results, missingLive }, i) => {
             const cost  = results.price.total_cost ?? 0
             const price = results.price.total ?? 0
             const m = costPriceMatch(cost, price, benchmark.targets)
@@ -401,23 +415,41 @@ export default function PricingBenchmark() {
             const asExpected = deliberate != null &&
               Math.abs((m.costDiff ?? 0) - deliberate.cost) < 0.02
             const allOk = (m.costOk && m.priceOk) || asExpected
+            // Step AZ hotfix item 4: a part the LIVE catalogue does not have,
+            // priced here from the fixture's own cost. The row is never PASS
+            // — whatever the figures say, the live site cannot price this
+            // drawing — and 'PART MISSING' is a status of its own, so the
+            // live smoke test reports it by name instead of a silent green.
+            const partsMissing = (missingLive ?? []).length > 0
+            const status = partsMissing
+              ? 'PART MISSING'
+              : (allOk && !asExpected ? 'PASS' : (asExpected ? 'BY DESIGN' : 'FAIL'))
             return (
               <tr key={i}
                 data-testid="benchmark-row"
                 data-benchmark={benchmark.key ?? ''}
-                data-status={allOk && !asExpected ? 'PASS' : (asExpected ? 'BY DESIGN' : 'FAIL')}
+                data-status={status}
                 data-cost-diff={m.hasCost ? fmt(m.costDiff) : ''}
                 data-price-diff={fmt(m.priceDiff)}
-                style={asExpected
-                  ? { background: '#fffdf0' }
-                  : (allOk ? { background: '#f0fff0' } : { background: '#fff0f0' })}>
+                data-missing-live={(missingLive ?? []).join(',')}
+                style={partsMissing
+                  ? { background: '#fff0f8' }
+                  : (asExpected
+                    ? { background: '#fffdf0' }
+                    : (allOk ? { background: '#f0fff0' } : { background: '#fff0f0' }))}>
                 <td style={S.td}><strong>{benchmark.name}</strong></td>
                 <td style={S.td}>{'\u00A3'}{fmt(cost)}</td>
                 <td style={S.td}>{'\u00A3'}{fmt(benchmark.targets.total_cost)}</td>
                 <td style={S.td}>{'\u00A3'}{fmt(price)}</td>
                 <td style={S.td}>{'\u00A3'}{fmt(benchmark.targets.total_price)}</td>
                 <td style={S.td}>
-                  {asExpected ? (
+                  {partsMissing ? (
+                    <span style={{ color: '#a0006a' }}>
+                      {'PART MISSING'} {'\u2014'} part missing live: {missingLive.join(', ')}
+                      {'. '}Priced from the fixture, so this row proves nothing about the
+                      live site until the part is in the catalogue.
+                    </span>
+                  ) : asExpected ? (
                     <span style={{ color: '#8a6d00' }}>
                       {'BY DESIGN'} {'\u2014'} GlazePro is {'\u00A3'}{fmt(m.costDiff)} dearer
                       on purpose: {deliberate.reason}

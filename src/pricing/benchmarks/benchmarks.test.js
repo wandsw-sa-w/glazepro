@@ -2213,6 +2213,60 @@ describe('Step AZ — French door benchmarks', () => {
     expect(v(BENCHMARK_FD1).casement_sash_qty).toBe(0)
   })
 
+  it('the live template’s default ironmongery costs 59.85 more than Integrate’s stored list', () => {
+    // Step AZ hotfix item 3, Nathan's decisions of 13 Oct, recorded as
+    // deliberate differences 9 and 10 in docs/integrate-differences.md:
+    //   * a new French door starts with the Hardwick Lyndon espag set
+    //     (GlazePro's default RULE), not Integrate's template choice of the
+    //     Windsor inline handle: +74.55 - 16.80;
+    //   * a door gets BOTH trickle vents, as a casement does:       +2.10.
+    // No rule was changed. This test exists so the figure cannot drift
+    // unnoticed, the way differences 7 and 8 are pinned.
+    const bare = JSON.parse(JSON.stringify(BENCHMARK_FD1.tree))
+    for (const child of bare.children ?? []) {
+      if (child.part_type === 'paintAndIronmongeryPart') delete child.values.ironmongeryLines
+    }
+    const ctx = {
+      pfVariables: SNAPSHOT.pfVariables, ironmongeryRules: SNAPSHOT.ironmongeryRules,
+      glassCatalogue: SNAPSHOT.glassCatalogue, ironmongeryCatalogue: SNAPSHOT.ironmongeryCatalogue,
+    }
+    const defaults = resolveIronmongeryLines(bare, ctx, SNAPSHOT.profileValues,
+      { profileCode: 'open_out_doors' })
+    expect(defaults.map(l => l.product_short_name).sort()).toEqual([
+      '102mm_hinges', 'double_euro_cylinder', 'hardwick_lyndon_door_espag_set',
+      'trickle', 'trickle_vent_xr16',
+    ])
+
+    const priceWith = (tree, lines) => runPricingOnTree(tree, SNAPSHOT.rules, SNAPSHOT.pfVariables, {
+      glassCatalogue: SNAPSHOT.glassCatalogue,
+      partAllocationRules: SNAPSHOT.partAllocationRules,
+      partCostMap: BENCHMARK_FD1.partCostMap,
+      ironmongeryLines: lines,
+      ironmongeryCatalogue: SNAPSHOT.ironmongeryCatalogue,
+      profileValues: SNAPSHOT.profileValues,
+      profileCode: BENCHMARK_FD1.profileCode,
+    })
+    const installMaterials = r => r.price.lines
+      .filter(l => l.fires && !l.error && l.group_name === 'installation_materials')
+      .reduce((t, l) => t + l.line_cost, 0)
+
+    const stored = priceWith(BENCHMARK_FD1.tree, BENCHMARK_FD1.ironmongeryLines)
+    const live   = priceWith(bare, defaults)
+
+    expect(installMaterials(stored)).toBeCloseTo(309.21, 2)   // Integrate's own
+    expect(installMaterials(live)).toBeCloseTo(369.06, 2)
+    expect(installMaterials(live) - installMaterials(stored)).toBeCloseTo(59.85, 2)
+
+    // The whole of the difference is in that group, and these are the
+    // figures the reviewer re-prices live drawing 25 against.
+    expect(live.price.total_cost).toBeCloseTo(2879.38, 2)
+    expect(live.price.total).toBeCloseTo(5758.71, 2)
+    const mm = live.price.lines
+      .filter(l => l.fires && !l.error && l.group_name === 'manufacture_materials')
+      .reduce((t, l) => t + l.line_cost, 0)
+    expect(mm, 'the timber is unaffected by the ironmongery list').toBeCloseTo(395.95, 2)
+  })
+
   it('the four multipoint-lock parts are allocated, and priced as ironmongery', () => {
     // Integrate adds them on SAVE and prices each as whole pounds x 1.05,
     // which is the Ironmongery Cost rule — not a component line.

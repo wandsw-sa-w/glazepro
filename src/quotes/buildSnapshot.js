@@ -439,6 +439,7 @@ export async function buildQuoteSnapshot({ quoteId, leadId, userId, userName, su
     // Load default-ironmongery rules once for the fallback computation
     let defaultIronRules = null
     const pvShortByProfile = {}   // profile_id → { shortFieldKey: value } for sash weight
+    const profileCodeById  = {}   // profile_id → code, for the range variables
     for (const dwgId of drawingIds) {
       if (ironmongeryByDrawing[dwgId] && ironmongeryByDrawing[dwgId].length > 0) continue
       const tree = trees[dwgId]
@@ -466,6 +467,20 @@ export async function buildQuoteSnapshot({ quoteId, leadId, userId, userName, su
       }
       const profMap = pvShortByProfile[profId] ?? {}
 
+      // The profile CODE as well as its values (Step AZ hotfix). The default
+      // rules take the same variables the price rules do, and the range ones
+      // (is_single_and_french_doors_range, is_open_in_doors_range,
+      // is_replacement_sashes_range) exist only when the code is passed — a
+      // rule written on one is silently dead without it. Section 12 builds
+      // the same map for the snapshot's item rows, but it runs after this
+      // loop, so the codes are read here and cached.
+      if (profId != null && !(profId in profileCodeById)) {
+        const { data: profRow } = await supabase
+          .from('default_profiles').select('code').eq('id', profId).maybeSingle()
+        profileCodeById[profId] = profRow?.code ?? null
+      }
+      const profileCode = profId == null ? null : (profileCodeById[profId] ?? null)
+
       // Try saved tree lines first
       const paintPart = findFirst(tree, 'paintAndIronmongeryPart')
       const itemFinish = paintPart?.values?.ironmongeryFinish ?? null
@@ -484,7 +499,7 @@ export async function buildQuoteSnapshot({ quoteId, leadId, userId, userName, su
         }
         if (defaultIronRules.length > 0) {
           try {
-            const vars = computeVariables(tree, computeDerived(tree), {})
+            const vars = computeVariables(tree, computeDerived(tree), {}, { profileCode })
             lines = defaultIronmonger(tree, vars, defaultIronRules, {}, profMap)
           } catch { /* leave null */ }
         }

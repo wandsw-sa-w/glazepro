@@ -31,7 +31,11 @@ describe('Single pricing path — source-level verification', () => {
   })
 
   it('pricingEngine.js calls resolveIronmongeryLines in priceDrawing', () => {
-    expect(engineSource).toContain('resolveIronmongeryLines(tree, ctx, profileValues)')
+    // Step AZ hotfix: with the drawing's profile CODE as well as its values.
+    // The default-ironmongery rules take the same variables as the price
+    // rules, and the range ones exist only when the code is passed.
+    expect(engineSource).toContain(
+      'resolveIronmongeryLines(tree, ctx, profileValues, { profileCode })')
   })
 
   it('PricingBenchmark.jsx imports loadPricingContext', () => {
@@ -43,7 +47,15 @@ describe('Single pricing path — source-level verification', () => {
   })
 
   it('PricingBenchmark.jsx calls resolveIronmongeryLines', () => {
-    expect(benchmarkSource).toContain('resolveIronmongeryLines(benchmark.tree, ctx,')
+    expect(benchmarkSource).toContain('resolveIronmongeryLines(')
+    expect(benchmarkSource).toContain('benchmark.tree, ctx,')
+  })
+
+  it('PricingBenchmark.jsx passes the benchmark’s profile code to it', () => {
+    // Step AZ hotfix: the default-ironmongery rules take the range variables
+    // too, and a door benchmark's are false without its profile code.
+    expect(benchmarkSource).toMatch(
+      /resolveIronmongeryLines\([\s\S]{0,200}profileCode: benchmark\.profileCode/)
   })
 
   it('PricingBenchmark.jsx does NOT import defaultIronmonger directly', () => {

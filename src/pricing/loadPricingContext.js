@@ -274,9 +274,16 @@ function withSource(finish, source, opts) {
  * @param {Object} pricingContext - The object returned by loadPricingContext
  * @param {Object} [profileValues] - Profile rebate/tolerance values; needed by
  *        the sash-weight model when default rules evaluate per-sash variables
+ * @param {Object} [opts]
+ * @param {string|null} [opts.profileCode] - The drawing's profile CODE. The
+ *        range variables (is_single_and_french_doors_range,
+ *        is_open_in_doors_range, is_replacement_sashes_range) come from this
+ *        and nothing else, so a default-ironmongery rule written on one is
+ *        dead without it. Step AZ hotfix: the same omission in priceDrawing
+ *        cost a live door every one of its timber lines.
  * @returns {Array<{ product_short_name: string, finish_code: string, qty: number }>}
  */
-export function resolveIronmongeryLines(tree, pricingContext, profileValues = {}) {
+export function resolveIronmongeryLines(tree, pricingContext, profileValues = {}, opts = {}) {
   const { pfVariables, ironmongeryRules, glassCatalogue, ironmongeryCatalogue } = pricingContext
 
   // Check for tree-saved ironmongery lines
@@ -310,7 +317,8 @@ export function resolveIronmongeryLines(tree, pricingContext, profileValues = {}
   }
 
   const derived  = computeDerived(tree, profileValues)
-  const itemVars = computeVariables(tree, derived, pfVariables) ?? {}
+  const itemVars = computeVariables(tree, derived, pfVariables,
+    { profileCode: opts.profileCode ?? null }) ?? {}
   return withResolvedFinish(
     defaultIronmonger(tree, { ...pfVariables, ...itemVars }, ironmongeryRules, glassCatalogue, profileValues)
   )

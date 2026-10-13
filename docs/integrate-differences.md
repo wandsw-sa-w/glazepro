@@ -386,6 +386,81 @@ than absurd, and the fix is a data change when the prices arrive.
 
 ---
 
+## 9. A new French door starts with the espag set, not Integrate's Windsor handle
+
+**Date:** 13 October 2026
+**Decided by:** Nathan Smith
+**Code:** none — a decision ABOUT the data. No `default_ironmongery` rule was
+changed. Asserted in `src/drawingBoard/frenchDoor.test.js` and, with the
+money, in `src/pricing/benchmarks/benchmarks.test.js` (Step AZ block).
+
+**What differs:**
+
+A French door built from the live "French Doors" template has **no stored
+ironmongery list** (difference 4), so the default rules make it. They pick
+`hardwick_lyndon_door_espag_set`. Integrate's own template stores
+`windsor_inline_handle`:
+
+| | GlazePro's default rule | Integrate's stored template |
+|---|---|---|
+| handle | `hardwick_lyndon_door_espag_set` **74.55** | Windsor Inline PB **16.80** |
+
+**Why:**
+
+Nathan (13 Oct): **the espag set is what a new French door should start
+with.** The Windsor inline handle on Integrate's L31115 drawing is a
+surveyor's choice on that job, not the default GlazePro should ship — a
+template choice against a rule default, and the rule is the one to follow.
+
+Benchmarks FD1–FD3b keep Integrate's **stored** list, because their job is to
+reproduce Integrate's figures line for line. A door created on the live board
+uses the rules, and is therefore dearer — see difference 10 for the total.
+
+---
+
+## 10. A door gets BOTH trickle vents, as a casement does
+
+**Date:** 13 October 2026
+**Decided by:** Nathan Smith
+**Code:** none. No rule was changed. Asserted in
+`src/drawingBoard/frenchDoor.test.js`.
+
+**What differs:**
+
+The same two rules as difference 6 — rule 50 the slot vent (`trickle_vent_xr16`)
+and rule 52 the vent **grille** (`trickle`) — both fire on a door, because
+rule 52's gate is `not is_sw` and a door is not a box sash. Integrate's
+stored list has the slot vent only.
+
+**Why:**
+
+Nathan (13 Oct): **a door gets both, exactly as a casement does.** They are
+two different products, and difference 6's reasoning applies unchanged. It is
+recorded separately because Step AY decided it for a *casement* and Step AZ
+only **reported** it for a door; this is the decision.
+
+**The two decisions together, in money.** FD1 built from the live template
+costs **£59.85 more** in `installation_materials` than Integrate's stored
+list — and nothing else moves:
+
+| | |
+|---|---|
+| the espag set | **+74.55** |
+| less Integrate's Windsor inline handle | **−16.80** |
+| the vent grille (difference 10) | **+2.10** |
+| | **+59.85** |
+
+| FD1 | `installation_materials` | total cost | price |
+|---|---|---|---|
+| Integrate's stored list (benchmark FD1) | 309.21 | 2,819.53 | 5,639.01 |
+| GlazePro's default list (a live door) | **369.06** | **2,879.38** | **5,758.71** |
+
+`manufacture_materials` stays 395.95 either way: the ironmongery list does not
+touch the timber. These are the figures a live French door is re-priced
+against after the Step AZ hotfix.
+
+---
+
 # Parked residuals
 
 Added by Step AT (12 Oct 2026), under the small-differences policy in

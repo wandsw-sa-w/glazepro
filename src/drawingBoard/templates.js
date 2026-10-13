@@ -132,6 +132,84 @@ export function prepareTemplateTree(templateTree) {
   return { tree, adjustments }
 }
 
+// ── The drawing ROW's own columns ────────────────────────────────────────────
+
+/**
+ * Step AZ hotfix item 2.
+ *
+ * A new drawing from the live "French Doors" template carried
+ * material_frame / material_sash 'Solid Redwood' and material_cill 'Solid
+ * Utile Hardwood' — the table's defaults — while its TREE, the board and the
+ * pricing all said utile, so the quote matrix card read "Door · Solid
+ * Redwood". createDrawingFromTemplate never wrote the material columns.
+ *
+ * The TREE is the truth: it holds option CODES (frameMaterialId 'utile'), and
+ * the drawings row holds the LABELS the quote drawer and the matrix card
+ * display. This is the only place the two meet, so the mapping lives here
+ * and nowhere else.
+ */
+const MATERIAL_LABELS = {
+  softwood: 'Solid Redwood',
+  utile:    'Solid Utile Hardwood',
+  accoya:   'Accoya',
+}
+
+/** The first descendant of a part type, as the quote doc model looks one up. */
+function firstOfType(node, partType) {
+  if (!node) return null
+  if (node.part_type === partType) return node
+  for (const child of node.children ?? []) {
+    const found = firstOfType(child, partType)
+    if (found) return found
+  }
+  return null
+}
+
+/** The window_type a tree implies, for a template whose column is empty. */
+function windowTypeFromTree(tree) {
+  if (firstOfType(tree, 'frenchDoorPart'))   return 'French Door'
+  if (firstOfType(tree, 'doorLeafPart'))     return 'Single Door'
+  if (firstOfType(tree, 'casementSashPart')) return 'Flush Casement'
+  if (firstOfType(tree, 'sashPairPart'))     return 'Box Sash'
+  return null
+}
+
+/**
+ * The drawings-row fields a new drawing should take from its template:
+ * window_type and the three material columns.
+ *
+ * A material code with no label is LEFT OUT rather than guessed — oak and
+ * meranti are real price-file species with no option in the drawer's list,
+ * and a wrong label on the card is worse than none.
+ *
+ * @param {{ window_type?: string|null, tree?: object|null }} template
+ * @returns {{ window_type: string, material_frame?: string,
+ *             material_sash?: string, material_cill?: string }}
+ */
+export function drawingRowFieldsFromTemplate(template) {
+  const tree = template?.tree ?? null
+  const item = firstOfType(tree, 'drawingItemPart')
+
+  // Each material, as the quote doc model reads it: the material PART's
+  // timberType first (older trees), then the item's own code (every tree
+  // saved by this board).
+  const code = (partType, itemKey) =>
+    firstOfType(tree, partType)?.values?.timberType ?? item?.values?.[itemKey] ?? null
+
+  const fields = {
+    window_type: template?.window_type ?? windowTypeFromTree(tree) ?? 'Box Sash',
+  }
+  for (const [column, partType, itemKey] of [
+    ['material_frame', 'frameMaterialPart', 'frameMaterialId'],
+    ['material_sash',  'sashMaterialPart',  'sashMaterialId'],
+    ['material_cill',  'cillPart',          'cillMaterialId'],
+  ]) {
+    const label = MATERIAL_LABELS[code(partType, itemKey)]
+    if (label) fields[column] = label
+  }
+  return fields
+}
+
 // ── Template CRUD ────────────────────────────────────────────────────────────
 
 /**
@@ -214,7 +292,13 @@ export async function createDrawingFromTemplate(jobItemId, template, nextDrawing
       job_item_id: jobItemId,
       drawing_number: nextDrawingNumber,
       sort_order: nextDrawingNumber,
-      window_type: template.window_type ?? 'Box Sash',
+      // window_type AND the material columns, from the template and its tree
+      // (Step AZ hotfix item 2). The old line here was
+      // `window_type: template.window_type ?? 'Box Sash'`, which would label
+      // a door template a box sash, and the materials were never written at
+      // all — so the row disagreed with its own tree from the moment it was
+      // created.
+      ...drawingRowFieldsFromTemplate(template),
       default_profile_id: profileId,
     })
     .select()

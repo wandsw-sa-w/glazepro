@@ -1303,6 +1303,32 @@ export async function priceDrawing(drawingId, supabase, { priceFileId } = {}) {
       .select('default_profile_id')
       .eq('id', drawingId)
       .maybeSingle()
+    // ── 4a. The profile CODE, not just its values ────────────────────────────
+    // Step AZ hotfix: this was missing, and it cost a live French door every
+    // one of its timber lines. computeVariables derives
+    // is_single_and_french_doors_range, is_open_in_doors_range and
+    // is_replacement_sashes_range from the code ALONE, so without it all
+    // three were false on every drawing priced here — and the live rule
+    // "Utile Section Part" is conditioned on the first two. Every test and
+    // the benchmark page passed the code explicitly, which is why nothing
+    // caught it; the stored variable snapshot said `false` on a drawing whose
+    // profile is open_out_doors.
+    //
+    // Read with the INJECTED client rather than api.js's loadDrawingProfileCode,
+    // because this function takes its Supabase client as an argument — and it
+    // returns null rather than throwing, as that helper does: a drawing whose
+    // profile row cannot be read must still price, with the flags false.
+    let profileCode = null
+    if (drawingRow?.default_profile_id) {
+      const { data: profRow, error: profErr } = await supabase
+        .from('default_profiles')
+        .select('code')
+        .eq('id', drawingRow.default_profile_id)
+        .maybeSingle()
+      if (profErr) console.warn('[priceDrawing] profile code lookup failed:', profErr.message)
+      profileCode = profRow?.code ?? null
+    }
+
     let profileValues = {}
     if (drawingRow?.default_profile_id) {
       const { data: pvRows, error: pvErr } = await supabase
@@ -1318,7 +1344,7 @@ export async function priceDrawing(drawingId, supabase, { priceFileId } = {}) {
     }
 
     // ── 4b. Resolve ironmongery lines ────────────────────────────────────────
-    const ironmongeryLines = resolveIronmongeryLines(tree, ctx, profileValues)
+    const ironmongeryLines = resolveIronmongeryLines(tree, ctx, profileValues, { profileCode })
 
     // ── 5. Create pricing_runs row ────────────────────────────────────────────
     const currentTreeHash = treeHash(tree)
@@ -1370,6 +1396,7 @@ export async function priceDrawing(drawingId, supabase, { priceFileId } = {}) {
       ironmongeryLines,
       ironmongeryCatalogue,
       profileValues,
+      profileCode,
     })
 
     if (engineResults.error) {
@@ -1378,7 +1405,10 @@ export async function priceDrawing(drawingId, supabase, { priceFileId } = {}) {
 
     // ── 7. Collect variables snapshot from the engine run ─────────────────────
     const derived  = computeDerived(tree, profileValues)
-    const variables = computeVariables(tree, derived, pfVariables) ?? {}
+    // The snapshot takes the profile code too: this is the row the reviewer
+    // read `is_single_and_french_doors_range: false` off, and a snapshot that
+    // disagrees with the run it belongs to is worse than no snapshot.
+    const variables = computeVariables(tree, derived, pfVariables, { profileCode }) ?? {}
     variables.std_labour_time          = engineResults.manufacture_labour.total_minutes / 60
     variables.installation_labour_time = engineResults.install_labour.total_minutes / 60
     variables.total_manufacture_minutes = engineResults.manufacture_labour.total_minutes
