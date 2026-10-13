@@ -1474,5 +1474,129 @@
       "production": 66.17,
       "labour": 16.83
     }
+  },
+  "benchmarkCD1_single_door_two_flag_frames": {
+    "source": "L31115 Item 10 Drawing 12 (template 70: flag 693 x 1137 | door frame 995 x 2101 | flag 693 x 1136, fixed flag casements). Read 13 Oct 2026 via the temporary Quote 2 test quote; drawing SAVED in Integrate. Facts: docs/integrate-L31115-single-doors.txt (coupled section). A container of separate coupled frames. GlazePro differs by Nathan's decisions a-d: +591.03 cost",
+    "total_cost": 3024.06,
+    "total_price": 6048.13,
+    "groups": {
+      "glass_done": {
+        "cost": 133.08,
+        "price": 266.17
+      },
+      "installation_materials": {
+        "cost": 141.3,
+        "price": 282.6
+      },
+      "manufacture": {
+        "cost": 1750.86,
+        "price": 3501.72
+      },
+      "labour": {
+        "cost": 633.31,
+        "price": 1266.62
+      },
+      "manufacture_materials": {
+        "cost": 365.51,
+        "price": 731.02
+      }
+    },
+    "hours": {
+      "production": 71.0,
+      "labour": 15.75
+    }
+  },
+  "benchmarkCD2_single_door_flag_right": {
+    "source": "L31115 Item 10 Drawing 13 (template 71: door frame 998 x 2101 | flag 693 x 1136). Read 13 Oct 2026 via the temporary Quote 2 test quote; drawing SAVED in Integrate. Facts: docs/integrate-L31115-single-doors.txt (coupled section). A container of separate coupled frames. GlazePro: +303.49 cost",
+    "total_cost": 2421.57,
+    "total_price": 4843.15,
+    "groups": {
+      "glass_done": {
+        "cost": 105.23,
+        "price": 210.46
+      },
+      "installation_materials": {
+        "cost": 139.2,
+        "price": 278.4
+      },
+      "manufacture": {
+        "cost": 1323.5,
+        "price": 2647.0
+      },
+      "labour": {
+        "cost": 552.89,
+        "price": 1105.78
+      },
+      "manufacture_materials": {
+        "cost": 300.75,
+        "price": 601.51
+      }
+    },
+    "hours": {
+      "production": 53.67,
+      "labour": 13.75
+    }
+  },
+  "benchmarkCD3_single_door_flag_left": {
+    "source": "L31115 Item 10 Drawing 14 (template 72: flag 696 x 1136 | door frame 1001 x 2101). Read 13 Oct 2026 via the temporary Quote 2 test quote; drawing SAVED in Integrate. Facts: docs/integrate-L31115-single-doors.txt (coupled section). A container of separate coupled frames. GlazePro: +303.57 cost",
+    "total_cost": 2421.95,
+    "total_price": 4843.9,
+    "groups": {
+      "glass_done": {
+        "cost": 105.23,
+        "price": 210.46
+      },
+      "installation_materials": {
+        "cost": 139.2,
+        "price": 278.4
+      },
+      "manufacture": {
+        "cost": 1323.5,
+        "price": 2647.0
+      },
+      "labour": {
+        "cost": 552.89,
+        "price": 1105.78
+      },
+      "manufacture_materials": {
+        "cost": 301.13,
+        "price": 602.26
+      }
+    },
+    "hours": {
+      "production": 53.67,
+      "labour": 13.75
+    }
+  },
+  "benchmarkCD4_single_door_flag_and_fan_lights": {
+    "source": "L31115 Item 10 Drawing 15 (template 69 'Doorset with Flag and Fan Lights': flags 650 x 1632 with top-hung fanlight over fixed light | door frame 1082 x 2496 with fixed fanlight over the door). Read 13 Oct 2026 via the temporary Quote 2 test quote; drawing SAVED in Integrate. Facts: docs/integrate-L31115-single-doors.txt (coupled section). A container of separate coupled frames. GlazePro: +646.34 cost",
+    "total_cost": 4209.35,
+    "total_price": 8418.64,
+    "groups": {
+      "glass_done": {
+        "cost": 199.96,
+        "price": 399.88
+      },
+      "installation_materials": {
+        "cost": 182.25,
+        "price": 364.5
+      },
+      "manufacture": {
+        "cost": 2546.15,
+        "price": 5092.29
+      },
+      "labour": {
+        "cost": 834.36,
+        "price": 1668.72
+      },
+      "manufacture_materials": {
+        "cost": 446.63,
+        "price": 893.25
+      }
+    },
+    "hours": {
+      "production": 103.25,
+      "labour": 20.75
+    }
   }
 }

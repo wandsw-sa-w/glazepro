@@ -201,7 +201,7 @@ function transom(key, offset) {
   }
 }
 
-function doorTree({ width, height, dividers = [], openings, ironmongeryLines }) {
+function doorTree({ width, height, dividers = [], openings, ironmongeryLines, product = 'french_door' }) {
   return {
     key: 'item1',
     part_type: 'drawingItemPart',
@@ -212,7 +212,10 @@ function doorTree({ width, height, dividers = [], openings, ironmongeryLines }) 
       sashMaterialId:  'utile',
       cillMaterialId:  'utile',
       floorLevel:      'ground_floor',
-      product:         'french_door',
+      // Step BC item 0: a SINGLE door is product 'door', not
+      // 'french_door' — the reviewer corrected sql/step-bb2 before running
+      // it, and it is live that way. Cosmetic here: no rule reads product.
+      product,
       quantity:        1,
     },
     children: [
@@ -699,6 +702,7 @@ export const BENCHMARK_SD1 = {
   tree: doorTree({
     width: 1099, height: 2199,
     openings: [singleDoorLeaf('sd1_leaf')],
+    product: 'door',
     ironmongeryLines: SINGLE_DOOR_IRONMONGERY,
   }),
   targets: { ...INTEGRATE_TARGETS.benchmarkSD1_single_door },
@@ -723,6 +727,7 @@ export const BENCHMARK_SD2 = {
       doorsetCasementSash('sd2_fan'),
       singleDoorLeaf('sd2_leaf'),
     ],
+    product: 'door',
     ironmongeryLines: SINGLE_DOOR_IRONMONGERY,
   }),
   targets: { ...INTEGRATE_TARGETS.benchmarkSD2_single_door_with_fanlight },
@@ -754,6 +759,7 @@ export const BENCHMARK_SD3 = {
       singleDoorLeaf('sd3_leaf'),
       doorsetCasementSash('sd3_side'),
     ],
+    product: 'door',
     ironmongeryLines: SINGLE_DOOR_IRONMONGERY,
   }),
   targets: { ...INTEGRATE_TARGETS.benchmarkSD3_single_door_with_sidelight },
@@ -788,6 +794,7 @@ export const BENCHMARK_SD4 = {
       singleDoorLeaf('sd4_leaf'),
       doorsetCasementSash('sd4_side_c'),
     ],
+    product: 'door',
     ironmongeryLines: SINGLE_DOOR_IRONMONGERY,
   }),
   targets: { ...INTEGRATE_TARGETS.benchmarkSD4_single_doorset_sidelights_fanlights },

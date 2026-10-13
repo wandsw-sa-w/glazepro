@@ -138,14 +138,99 @@
 #   cylinder (3), slot vent (50) and grille (52) — Nathan's choice. vs the template's stored Windsor list: +59.85 cost.
 # - Fanlights made by GlazePro default to the 62 rail (charged at 63x63); the SD2 / SD4 fixtures keep Integrate's 86.
 
-## Coupled multi-frame doorsets (NEXT step — read only, not drawn)
-# Integrate stores these as a ContainerPart (999999999 x 999999999) holding SEPARATE AssemblyFrameParts side by side:
-#   70: flag frame 693 x 1137 (one FIXED casement sash 597 x 1050) | door frame 995 x 2101 (DoorLeafPart 895 x 2012) |
-#       flag frame 693 x 1136 (fixed casement 597 x 1049). Stored ironmongery adds trickle grille.
-#   71: door frame 998 x 2101 + right flag frame 693 x 1136.   72: left flag frame 696 x 1136 + door frame 1001 x 2101.
-#   69 "Doorset with Flag and Fan Lights": flag frames 650 x 1632 each with a TOP-HUNG fanlight (op 15) 554 x 345 over a
-#     fixed casement 554 x 1156 (transom 41 at 348) ; door frame 1082 x 2496 with a fixed fanlight 986 x 345 over the
-#     door leaf 982 x 2018 (transom 41 at 348) ; stored ironmongery adds Connoisseur handles, Defender stays, Kenrick
-#     extensions and gearboxes for the top-hung fanlights.
-# GlazePro already has containerPart and drawingItemPart -> containerPart -> assemblyFramePart containment; the board and
-# the engine handle one frame only. Benchmarks for these come with that step.
+## Coupled multi-frame doorsets — single door with FLAG frames (Step BC; read 13 Oct, drawings 12-15 SAVED)
+# Integrate stores these as ONE item holding a ContainerPart ("Frames", bayTypeId 176, partSpacing -47, isCoupledInTheFactory
+# false, 999999999 x 999999999) with SEPARATE AssemblyFrameParts side by side, left to right. partSpacing -47: each frame
+# starts 47 mm (one jamb) before the previous one ends — CD1's frames sit at left 0 / 646 / 1594, so the set is
+# 693 + 995 + 693 - 2 x 47 = 2287 wide. Every frame is a normal frame (jambs 47 / 47, head 47, cill 37, depth 96, cill 145)
+# with its own CillPart. Labels run on across the frames (A | B | C). Each frame keeps its own dividers.
+#   CD1 = drawing 10/12 (310635), template 70 (unnamed): flag 693 x 1137 (FIXED casement 597 x 1050, A1) | door frame
+#         995 x 2101 (DoorLeafPart 895 x 2012, LH op 17, B1) | flag 693 x 1136 (FIXED casement 597 x 1049, C1)
+#   CD2 = drawing 10/13 (310636), template 71: door frame 998 x 2101 (leaf 898 x 2012, A1) | flag 693 x 1136 (B1)
+#   CD3 = drawing 10/14 (310637), template 72: flag 696 x 1136 (fixed 600 x 1049, A1) | door frame 1001 x 2101 (901 x 2012, B1)
+#   CD4 = drawing 10/15 (310638), template 69 "Doorset with Flag and Fan Lights": flag 650 x 1632 (transom 41 at 348 / 1159;
+#         TOP-HUNG op 15 casement A1 554 x 345 over FIXED A2 554 x 1156) | door frame 1082 x 2496 (transom 41 at 348 / 2023;
+#         FIXED fanlight B1 986 x 345 over door B2 982 x 2018, RH op 18) | flag 650 x 1632 (C1 top hung / C2 fixed)
+#   All casement sashes 54, 62 / 62 / 62, bottom 86 (ext 93), clearances 1/1/1/2; door leaves as SD1 (2/3/3/3, 110/163).
+#   Stored ironmongery (template lists): CD1 hinges x2, double euro cylinder, trickle grille (XHD16), XR16, Windsor inline;
+#   CD2 / CD3 as SD1; CD4 adds connoisseur_handle_lh x2, defender_209mm x2, kenrick_extension_490mm x4,
+#   kenrick_extension_gear_box x2 (priced as the Kenrick variant parts below). Allocated on save: RJZ2382 only.
+#   NO surround list on any of them after save — Integrate prices NO architrave on a container item.
+
+# Utile sections (Integrate, on save) — the FRAME and CILL ignore the flag frames' own jambs and cills:
+#   67x96 = sum of every frame's WIDTH + 2 x the door frame's height (equally: + 2 x the tallest frame) ;
+#   63x200 = the DOOR frame's width + leaf width (no flag-frame cill) ; 63x120 per leaf as SD1 ;
+#   63x63 every casement sash W + 2H + 14 (flags included) ; 63x96 every 86 rail W. Transoms not allocated.
+#   CD1: 120 4913 (2 x 2012 + 895 - 6) ; 200 1890 (995 + 895) ; 63 5420 (2711 + 2709) ; 96 1194 ; 67 6583 (693 + 995 + 693 + 2 x 2101)
+#   CD2: 120 4916 ; 200 1896 ; 63 2709 ; 96 597 ; 67 5893 (998 + 693 + 4202)
+#   CD3: 120 4919 ; 200 1902 ; 63 2712 ; 96 600 ; 67 5899 (696 + 1001 + 4202)
+#   CD4: 120 5012 (2 x 2018 + 982 - 6) ; 200 2064 (1082 + 982) ; 63 9966 (1258 + 2880 + 1690 + 1258 + 2880) ; 96 3202 ;
+#        67 7374 (650 + 1082 + 650 + 2 x 2496)
+
+## CD1 — flag | single door | flag (template 70)                    Integrate 3,024.06 / 6,048.13
+# Lines: Square Glass 0.46 = 26.91 / 53.82 ; 1.23 = 71.96 / 143.91 ; 0.46 = 26.91 / 53.82 (flags 497 x 926 / 925 cut ;
+#   door 699 x 1763) ; Energy 9.20 / 24.60 / 9.20 kg = 1.56 / 4.18 / 1.56 (3.13 / 8.36 / 3.13) ;
+#   Ironmongery hinges 14.70, cylinder 21.00, XHD16 grille 2.10, XR16 3.15, Windsor 16.80, Thunderbolt 53.55 = 111.30 / 222.60 ;
+#   NO component (architrave) lines ; Installation Consumables 30 ; LTW General Consumables 25 x 3 (ONE PER FRAME) ;
+#   Production 71.00 h = 1,750.86 / 3,501.72 ; Labour 15.75 h = 633.31 / 1,266.62 ;
+#   Utile 120 84.99 / 169.99 ; 200 54.81 / 109.62 ; 63 46.61 / 93.22 ; 96 14.57 / 29.13 ; 67 89.53 / 179.06
+# Groups: glass 133.08 / 266.17 ; installation_materials 141.30 / 282.60 ; manufacture 1,750.86 / 3,501.72 ;
+#   labour 633.31 / 1,266.62 ; manufacture_materials 365.51 / 731.02 ; TOTAL 3,024.06 / 6,048.13
+# Production 4260 = Door Leaf 1035 + Machining & Joining a Door Frame 855 (ONCE) + Door Frame Single Finish 180 x 3
+#   (frame_qty) + Door Leaf finish 90 + Glazing 20 x 3 + Sidelights in Doorsets 780 x 2 + Casement Sash Single Finish 60 x 2.
+# Labour 945 = Single Door Only 660 + Fixed Fanlight 120 x 2 + Any Door Overweight 45 (Fitting Units test view, read).
+#   NOT fired: "French Doors" winglight 240 (French only), and install rule 140 "Winglight Frame" (is_door_mpls and
+#   door_leaf_qty == 1 and frame_qty > 1, 1 x 1 minute) — it does not show in the test view.
+
+## CD2 — single door | flag right (template 71)                     Integrate 2,421.57 / 4,843.15
+# Glass 1.24 = 72.54 / 145.08 (door 702 x 1763) ; 0.46 = 26.91 / 53.82 ; Energy 24.80 kg 4.22 / 8.43 ; 9.20 kg 1.56 / 3.13 ;
+#   Ironmongery as SD1 109.20 / 218.40 ; no components ; Consumables 30 ; LTW 25 x 2 ; Production 53.67 h = 1,323.50 /
+#   2,647.00 ; Labour 13.75 h = 552.89 / 1,105.78 ; Utile 120 85.05 / 170.09 ; 200 54.98 / 109.97 ; 63 23.30 / 46.59 ;
+#   96 7.28 / 14.57 ; 67 80.14 / 160.29
+# Groups: glass 105.23 / 210.46 ; installation_materials 139.20 / 278.40 ; manufacture 1,323.50 / 2,647.00 ;
+#   labour 552.89 / 1,105.78 ; manufacture_materials 300.75 / 601.51 ; TOTAL 2,421.57 / 4,843.15
+# Production 3220 = 1035 + 855 + 180 x 2 + 90 + 20 x 2 + 780 + 60. Labour 825 = 660 + 120 + 45.
+# NOTE Integrate rounds the HOURS to 2 dp before the rate: 3220 min = 53.67 h x 24.66 = 1,323.50 (not 1,323.42).
+
+## CD3 — flag left | single door (template 72)                      Integrate 2,421.95 / 4,843.90
+# Glass 0.46 = 26.91 / 53.82 ; 1.24 = 72.54 / 145.08 (door 705 x 1763) ; Energy 9.20 / 24.80 kg ; Ironmongery as SD1 ;
+#   no components ; Consumables 30 ; LTW 25 x 2 ; Production 53.67 h = 1,323.50 / 2,647.00 ; Labour 13.75 h = 552.89 /
+#   1,105.78 ; Utile 120 85.10 / 170.20 ; 200 55.16 / 110.32 ; 63 23.32 / 46.65 ; 96 7.32 / 14.64 ; 67 80.23 / 160.45
+# Groups: glass 105.23 / 210.46 ; installation_materials 139.20 / 278.40 ; manufacture 1,323.50 / 2,647.00 ;
+#   labour 552.89 / 1,105.78 ; manufacture_materials 301.13 / 602.26 ; TOTAL 2,421.95 / 4,843.90
+
+## CD4 — flag + fan | door with fanlight | flag + fan (template 69)  Integrate 4,209.35 / 8,418.64
+# Glass (Integrate's order): 0.30 17.55 ; 0.47 27.50 / 54.99 ; 0.30 17.55 ; 1.39 81.32 / 162.63 ; 0.30 17.55 ; 0.47 27.50 / 54.99
+#   (flag fanlights and the door fanlight take the 0.30 minimum) ; Energy 6.00 / 9.40 / 6.00 / 27.80 / 6.00 / 9.40 kg =
+#   1.02 / 1.60 / 1.02 / 4.73 / 1.02 / 1.60 (2.04 / 3.20 / 2.04 / 9.45 / 2.04 / 3.20) ;
+#   Ironmongery (cost / price): hinges (pair) x 2 14.70 / 29.40 ; Connoisseur Handle PB LH x 2 15.75 / 31.50 ;
+#     Defender 208mm Top Hung Friction Hinge x 2 8.40 / 16.80 ; double euro cylinder 21.00 / 42.00 ; Kenrick Centre Strike x 2
+#     4.20 / 8.40 ; Kenrick Excalibur Extension Shootbolt 490-700 x 4 4.20 / 8.40 ; Kenrick Excalibur Gearbox 25mm x 2
+#     8.40 / 16.80 ; Kenrick LH Shootbolt Strike x 2 1.05 / 2.10 ; Kenrick RH Shootbolt Strike x 2 1.05 / 2.10 ;
+#     XR16 3.15 / 6.30 ; Windsor 16.80 / 33.60 ; Thunderbolt 53.55 / 107.10                      = 152.25 / 304.50
+#   no components ; Consumables 30 ; LTW 25 x 3 ; Production 103.25 h = 2,546.15 / 5,092.29 ; Labour 20.75 h = 834.36 /
+#   1,668.72 ; Utile 120 86.71 / 173.42 ; 200 59.86 / 119.71 ; 63 85.71 / 171.42 ; 96 39.06 / 78.13 ; 67 100.29 / 200.57
+# Groups: glass 199.96 / 399.88 ; installation_materials 182.25 / 364.50 ; manufacture 2,546.15 / 5,092.29 ;
+#   labour 834.36 / 1,668.72 ; manufacture_materials 446.63 / 893.25 ; TOTAL 4,209.35 / 8,418.64
+# Production 6195 = 1035 + 855 + 180 x 3 + 90 + Glazing 20 x 6 + Door Frame Single Finish (Mullions) 85 x 3 (three transoms)
+#   + Additional for Frame Mullion or Transom 180 x 3 + Fanlights in Doorsets 300 x 3 (A1, B1, C1 — above a transom IN
+#   THEIR OWN FRAME) + Sidelights in Doorsets 780 x 2 (A2, C2) + Casement Sash Single Finish 60 x 5.
+# Labour 1245 = Single Door Only 660 + Opening Casement Sash 90 x 2 (top-hung A1, C1) + Fixed Fanlight 120 x 3 + Any Door
+#   Overweight 45.
+
+## Nathan's decisions (13 Oct) — GlazePro differs from Integrate on purpose
+# a. Flag-frame TIMBER charged in full: each frame W + 2H at 67x96 and its own cill at 63x200 (+ transoms at their frame's
+#    internal width, decision 7b).
+# b. ARCHITRAVE round the whole set: head = the set's overall width (with the -47 overlaps) + 100, two jambs = the door
+#    frame's height + 100, same snapping/rounding as a single frame (Ogee MDF 2.85 / m).
+# c. FITTING: + 4 h per flag frame on a single door (as Integrate's French-door winglight rule, 240 min per extra frame).
+# d. WORKSHOP: + 180 min per flag frame ("Machining & Joining" a frame, as a casement frame).
+# Cost differences (GlazePro - Integrate), lines recomputed whole, hours rounded to 2 dp before the rate:
+#          timber 67x96 | cill 63x200 | architrave | production | labour | TOTAL      GlazePro cost
+#   CD1     +61.82      |   +40.19    |   +19.38   |  +147.96   | +321.68 | +591.03    3,615.09
+#   CD2     +30.90      |   +20.10    |   +17.67   |   +73.98   | +160.84 | +303.49    2,725.06
+#   CD3     +30.90      |   +20.18    |   +17.67   |   +73.98   | +160.84 | +303.57    2,725.52
+#   CD4    +117.34      |   +37.70    |   +21.66   |  +147.96   | +321.68 | +646.34    4,855.69
+#   (CD4 67x96 = 16002 mm: frames 2 x (650 + 3264) + 1082 + 4992 + transoms 556 + 988 + 556.)
+#   architrave: CD1 head 2387 -> 2.4 m, jambs 2201 -> 2.2 m x 2 ; CD2 1744 -> 1.8 ; CD3 1750 -> 1.8 ; CD4 2388 -> 2.4,
+#   jambs 2596 -> 2.6 x 2.
