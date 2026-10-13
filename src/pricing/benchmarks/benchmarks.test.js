@@ -13,10 +13,10 @@ import { runPricingOnTree, shapedGlassCutAreaM2 } from '../pricingEngine.js'
 import { applySashesReplaced } from '../../drawingBoard/sashesReplaced.js'
 import { computeDerived } from '../../drawingBoard/computeDerived.js'
 import { computeVariables } from '../computeVariables.js'
-import { shortDividerSpanMm, isShortDivider, frameCells, frameGridSize, frameOpenings, casementSashSize, casementSashWeightKg, casementFrameTimberVolumeDm3, casementSashTimberVolumeDm3, casementGlassSightline, frameMuntinLengthM, CASEMENT_SASH_TYPES, FRENCH_SASH_TYPES } from '../casementGeometry.js'
-import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_B_UNCORRECTED, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F, BENCHMARK_G, BENCHMARK_H, BENCHMARK_I, BENCHMARK_J, BENCHMARK_K, BENCHMARK_L, BENCHMARK_M, BENCHMARK_N, BENCHMARK_P, BENCHMARK_Q, BENCHMARK_R, BENCHMARK_S, BENCHMARK_SA, BENCHMARK_SB, BENCHMARK_SC, BENCHMARK_SD, BENCHMARK_SE, BENCHMARK_SF, BENCHMARK_TC1, BENCHMARK_TC2, BENCHMARK_TC3, BENCHMARK_FR1, BENCHMARK_FR2, BENCHMARK_FD1, BENCHMARK_FD2, BENCHMARK_FD3, BENCHMARK_FD3b } from './index.js'
+import { shortDividerSpanMm, isShortDivider, frameCells, frameGridSize, frameOpenings, casementSashSize, casementSashWeightKg, casementFrameTimberVolumeDm3, casementSashTimberVolumeDm3, casementGlassSightline, frameMuntinLengthM, frameColumns, frameRows, CASEMENT_SASH_TYPES, FRENCH_SASH_TYPES } from '../casementGeometry.js'
+import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_B_UNCORRECTED, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F, BENCHMARK_G, BENCHMARK_H, BENCHMARK_I, BENCHMARK_J, BENCHMARK_K, BENCHMARK_L, BENCHMARK_M, BENCHMARK_N, BENCHMARK_P, BENCHMARK_Q, BENCHMARK_R, BENCHMARK_S, BENCHMARK_SA, BENCHMARK_SB, BENCHMARK_SC, BENCHMARK_SD, BENCHMARK_SE, BENCHMARK_SF, BENCHMARK_TC1, BENCHMARK_TC2, BENCHMARK_TC3, BENCHMARK_FR1, BENCHMARK_FR2, BENCHMARK_FD1, BENCHMARK_FD2, BENCHMARK_FD3, BENCHMARK_FD3b, BENCHMARK_FD4, BENCHMARK_FD5, BENCHMARK_FD6 } from './index.js'
 import { resolveIronmongeryLines } from '../loadPricingContext.js'
-import { allocatedSectionParts, doorLeaves, doorLeafSize, doorLeafWeightKg } from '../doorGeometry.js'
+import { allocatedSectionParts, doorLeaves, doorLeafSize, doorLeafWeightKg, doorGlassSightline, doorPanelSize } from '../doorGeometry.js'
 // The LIVE price-file snapshot (reviewer-checked, 8 Oct 2026) — the honest
 // benchmarks and the real-tree case price from this, never from the
 // hand-typed pf30Rules.js (whose rules are all is_active: false).
@@ -2295,6 +2295,224 @@ describe('Step AZ — French door benchmarks', () => {
       }
       // 51 + 89 + 35 + 6 = 181, x 1.05 = 190.05
       expect(lines.reduce((t, l) => t + l.line_cost, 0), label).toBeCloseTo(190.05, 2)
+    }
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step BA — French door variants: FD4 panels, FD5 / FD6 doorsets
+// ══════════════════════════════════════════════════════════════════════════════
+// docs/integrate-L31115-french-doors.txt, "French door variants", read 13 Oct.
+//
+// FD4 puts a MID RAIL in each leaf, with glass above and a raised-and-fielded
+// Tricoya panel below. FD5 and FD6 are doorsets: two full-height mullions and
+// a full-width transom, the pair in the middle bottom opening, a fixed
+// casement sash each side, and a top row of either three direct glazed units
+// (FD5) or three fixed casement sashes (FD6).
+//
+// No new pricing rule: every figure comes out of rules GlazePro already had.
+describe('Step BA — French door variant benchmarks', () => {
+  const CASES = [
+    ['FD4', BENCHMARK_FD4, INTEGRATE.benchmarkFD4_french_doors_with_panels,                 59.42, 13.00],
+    ['FD5', BENCHMARK_FD5, INTEGRATE.benchmarkFD5_french_doorset_sidelights_toplights,      99.58, 24.25],
+    ['FD6', BENCHMARK_FD6, INTEGRATE.benchmarkFD6_french_doorset_casement_lights,          116.33, 24.50],
+  ]
+
+  // The mullions and transom GlazePro charges and Integrate does not
+  // (difference 11): 2 x 2626 + 2720 = 7972 mm of Utile67x96 at 13.60.
+  const DOORSET_SECTIONS = Math.round((7972 / 1000) * 13.60 * 100) / 100   // 108.42
+  const EXTRA = { FD4: 0, FD5: DOORSET_SECTIONS, FD6: DOORSET_SECTIONS }
+
+  function runFD(bm) {
+    return runPricingOnTree(bm.tree, SNAPSHOT.rules, SNAPSHOT.pfVariables, {
+      glassCatalogue: SNAPSHOT.glassCatalogue,
+      partAllocationRules: SNAPSHOT.partAllocationRules,
+      partCostMap: bm.partCostMap,
+      ironmongeryLines: bm.ironmongeryLines,
+      ironmongeryCatalogue: SNAPSHOT.ironmongeryCatalogue,
+      profileValues: SNAPSHOT.profileValues,
+      profileCode: bm.profileCode,
+    })
+  }
+
+  for (const [label, bm, target, production, labour] of CASES) {
+    it(`${label}: production ${production} h and labour ${labour} h, exactly`, () => {
+      const r = runFD(bm)
+      expect(r.manufacture_labour.total_minutes / 60, label).toBeCloseTo(production, 2)
+      expect(r.install_labour.total_minutes / 60, label).toBeCloseTo(labour, 2)
+    })
+
+    it(`${label}: every group matches Integrate${EXTRA[label] ? ', bar the mullions and transom' : ', exactly'}`, () => {
+      const r = runFD(bm)
+      const got = {}
+      for (const l of r.price.lines) {
+        if (!l.fires || l.error) continue
+        got[l.group_name] = (got[l.group_name] ?? 0) + l.line_cost
+      }
+      for (const [group, t] of Object.entries(target.groups)) {
+        const expected = group === 'manufacture_materials' ? t.cost + EXTRA[label] : t.cost
+        expect(got[group] ?? 0, `${label} ${group}`).toBeCloseTo(expected, 2)
+      }
+      expect(r.price.total_cost, `${label} total`).toBeCloseTo(target.total_cost + EXTRA[label], 2)
+    })
+  }
+
+  it('FD4 matches Integrate on EVERY line — a panelled leaf adds nothing of its own', () => {
+    const r = runFD(BENCHMARK_FD4)
+    const t = INTEGRATE.benchmarkFD4_french_doors_with_panels
+    expect(r.price.total_cost).toBeCloseTo(t.total_cost, 2)
+    expect(r.price.total).toBeCloseTo(t.total_price, 2)
+  })
+
+  // ── FD4: the leaf mid rail, the glass above it and the panel below ────────
+
+  it('FD4: each leaf is split by its mid rail, glass above and panel below', () => {
+    const leaves = doorLeaves(BENCHMARK_FD4.tree)
+    expect(leaves.length).toBe(2)
+    for (const leaf of leaves) {
+      expect(doorLeafSize(BENCHMARK_FD4.tree, leaf)).toEqual({ width: 662.5, height: 2109 })
+      // The GLASS stops at the mid rail: 2109 - 110 head - 170 rail - 425
+      // panel - 163 bottom rail = 1241, which is Integrate's own offset.
+      expect(doorGlassSightline(BENCHMARK_FD4.tree, leaf)).toEqual({ width: 442.5, height: 1241 })
+      // and the panel is the rest of the leaf below the rail
+      expect(doorPanelSize(BENCHMARK_FD4.tree, leaf)).toEqual({ width: 442.5, height: 425 })
+    }
+  })
+
+  it('FD4: the glass is 0.59 m2 a leaf, not the full-height 0.87', () => {
+    // Without the mid rail the glass ran the whole leaf and priced 107.72
+    // instead of 73.06 — a third more glass than the door has.
+    const r = runFD(BENCHMARK_FD4)
+    const glass = r.price.lines
+      .filter(l => l.fires && !l.error && l.group_name === 'glass_done')
+      .reduce((t, l) => t + l.line_cost, 0)
+    expect(glass).toBeCloseTo(73.06, 2)
+  })
+
+  it('FD4: a leaf mid rail is NOT a frame transom', () => {
+    // It is a transomPart, but inside the LEAF. Counted as a frame divider it
+    // charged "Additional for Frame Mullion or Transom" 180 x 2 and
+    // "Door Frame - Single Finish (Mullions)" 85 x 2 — 530 minutes of frame
+    // work on a frame with no dividers at all.
+    const v = computeVariables(BENCHMARK_FD4.tree, computeDerived(BENCHMARK_FD4.tree),
+      PF_VARIABLES, { profileCode: 'open_out_doors' })
+    expect(v.frame_transom_qty).toBe(0)
+    expect(v.frame_mullion_qty).toBe(0)
+    expect(v.leaf_mid_rail_qty).toBe(2)
+    // and the panels ARE counted, which is what the panel rules loop on
+    expect(v.panel_qty).toBe(2)
+    // in the LEAF, not in the frame — "Panel to Frame" (80 min) must not fire
+    expect(v.panel_in_frame_qty).toBe(0)
+  })
+
+  it('FD4: the two panel rules fire, and only those two', () => {
+    const r = runFD(BENCHMARK_FD4)
+    const panelLines = [...r.price.lines, ...r.manufacture_labour.lines]
+      .filter(l => l.fires && !l.error && l.loop_target === 'panel')
+      .map(l => l.name)
+    expect([...new Set(panelLines)].sort()).toEqual(['Additional for R&F Panel', 'Tricoya Panel'])
+    // Tricoya Panel is the panel's VISIBLE area, unrounded: 442.5 x 425 =
+    // 0.1880625 m2 x 188.85 = 35.52 a panel.
+    const tricoya = r.price.lines.filter(l => l.fires && l.name === 'Tricoya Panel')
+    expect(tricoya.length).toBe(2)
+    expect(tricoya[0].quantity).toBeCloseTo(0.1880625, 6)
+    expect(tricoya[0].line_cost).toBeCloseTo(35.52, 2)
+    // and 120 minutes a panel of R&F work, which is all FD4 adds to FD1's
+    // production
+    const rf = r.manufacture_labour.lines.filter(l => l.fires && l.name === 'Additional for R&F Panel')
+    expect(rf.length).toBe(2)
+    expect(rf.reduce((t, l) => t + l.minutes, 0)).toBe(240)
+  })
+
+  it('FD4: the mid rails are cut from Utile63x200 at leaf width − 10', () => {
+    const byCode = Object.fromEntries(
+      allocatedSectionParts(BENCHMARK_FD4.tree, { material: 'utile' })
+        .map(s => [s.part_code, s.length_mm]))
+    // cill 1399 + bottom rails 2 x 662.5 + MID RAILS 2 x 652.5 = 4029
+    expect(byCode.Utile63x200).toBe(4029)
+    expect(byCode.Utile63x120).toBe(9749)
+    expect(byCode.Utile67x96).toBe(5797)
+  })
+
+  // ── FD5 / FD6: the doorset frame ──────────────────────────────────────────
+
+  it('FD5 / FD6: three columns and two rows, the pair in the middle bottom cell', () => {
+    for (const bm of [BENCHMARK_FD5, BENCHMARK_FD6]) {
+      expect(frameColumns(bm.tree).map(c => c.width)).toEqual([648, 1339, 651])
+      expect(frameRows(bm.tree).map(r => r.width)).toEqual([448, 2137])
+      const pair = openingNodes(bm.tree).find(n => n.part_type === 'frenchDoorPart')
+      expect(pair, 'the pair is an opening').toBeTruthy()
+      // the pair's leaves lap in the 1339 opening: (1339 - 1 - 1 - 5 + 27) / 2
+      expect(doorLeaves(bm.tree).map(l => doorLeafSize(bm.tree, l)))
+        .toEqual([{ width: 679.5, height: 2131 }, { width: 679.5, height: 2131 }])
+    }
+  })
+
+  it('FD5: a sash beside the door is a SIDE LIGHT, one above the transom a FANLIGHT', () => {
+    // 780 minutes against 300, decided per sash by is_fanlight — and the
+    // whole of why FD6's production is 16.75 h more than FD5's.
+    const sidelights = l => l.fires && !l.error && l.name === 'Sidelights in Doorsets'
+    const fanlights  = l => l.fires && !l.error && l.name === 'Fanlights in Doorsets'
+    const fd5 = runFD(BENCHMARK_FD5).manufacture_labour.lines
+    expect(fd5.filter(sidelights).length, 'FD5 side lights').toBe(2)
+    expect(fd5.filter(fanlights).length, 'FD5 has no casement fanlight').toBe(0)
+
+    const fd6 = runFD(BENCHMARK_FD6).manufacture_labour.lines
+    expect(fd6.filter(sidelights).length, 'FD6 side lights').toBe(2)
+    expect(fd6.filter(fanlights).length, 'FD6 top row').toBe(3)
+    expect(fd6.filter(fanlights).reduce((t, l) => t + l.minutes, 0)).toBe(900)
+  })
+
+  it('FD5: the three direct glazed units price, the smallest at the minimum', () => {
+    const v = computeVariables(BENCHMARK_FD5.tree, computeDerived(BENCHMARK_FD5.tree),
+      PF_VARIABLES, { profileCode: 'open_out_doors' })
+    expect(v.direct_glazed_unit_qty).toBe(3)
+    expect(v.is_door).toBe(true)
+    expect(v.is_casement_window, 'a doorset is not a casement window').toBe(false)
+  })
+
+  it('FD5 / FD6 allocate Integrate’s own section lengths, plus the mullions', () => {
+    const byCode = bm => Object.fromEntries(
+      allocatedSectionParts(bm.tree, { material: 'utile' }).map(s => [s.part_code, s.length_mm]))
+    const fd5 = byCode(BENCHMARK_FD5)
+    // Integrate's 8234 (W + 2H) PLUS the transom 2720 and both mullions
+    // 2 x 2626 — the deliberate difference
+    expect(fd5.Utile67x96).toBe(8234 + 2720 + 2 * 2626)
+    expect(fd5.Utile63x200).toBe(4173)
+    expect(fd5.Utile63x120).toBe(9871)
+    expect(fd5.Utile63x63).toBe(9859)     // the two side lights
+    expect(fd5.Utile63x96).toBe(1295)     // their 86 bottom rails
+
+    const fd6 = byCode(BENCHMARK_FD6)
+    expect(fd6.Utile67x96).toBe(8234 + 2720 + 2 * 2626)
+    expect(fd6.Utile63x63).toBe(15203)    // + the three fanlights
+    expect(fd6.Utile63x96).toBe(3927)     // + their 86 rails
+  })
+
+  it('the mullion and transom charge is exactly 108.42, and only in manufacture_materials', () => {
+    for (const [label, bm] of [['FD5', BENCHMARK_FD5], ['FD6', BENCHMARK_FD6]]) {
+      const r = runFD(bm)
+      const target = label === 'FD5'
+        ? INTEGRATE.benchmarkFD5_french_doorset_sidelights_toplights
+        : INTEGRATE.benchmarkFD6_french_doorset_casement_lights
+      const mm = r.price.lines
+        .filter(l => l.fires && !l.error && l.group_name === 'manufacture_materials')
+        .reduce((t, l) => t + l.line_cost, 0)
+      expect(mm - target.groups.manufacture_materials.cost, label).toBeCloseTo(108.42, 2)
+      expect(bm.deliberateDifference.cost, `${label} declares it`).toBeCloseTo(108.42, 2)
+    }
+  })
+
+  it('a doorset prices NO timber volume, as every door does', () => {
+    for (const [label, bm] of [['FD4', BENCHMARK_FD4], ['FD5', BENCHMARK_FD5], ['FD6', BENCHMARK_FD6]]) {
+      const names = runFD(bm).price.lines
+        .filter(l => l.fires && !l.error && l.line_cost > 0 &&
+          l.group_name === 'manufacture_materials')
+        .map(l => l.name)
+      expect([...new Set(names)].sort(), label)
+        .toEqual(label === 'FD4'
+          ? ['LTW General Consumables', 'Tricoya Panel', 'Utile Section Part']
+          : ['LTW General Consumables', 'Utile Section Part'])
     }
   })
 })

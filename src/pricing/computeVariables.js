@@ -97,8 +97,19 @@ export function computeVariables(tree, derived = {}, pfVariables = {}, opts = {}
     const allSashPairs     = findAll(tree, 'sashPairPart')
     const allFrames        = findAll(tree, 'assemblyFramePart')
     const allGlassParts    = findAll(tree, 'glassPart')
-    const allMullions      = findAll(tree, 'mullionPart')
-    const allTransoms      = findAll(tree, 'transomPart')
+    // Step BA: a divider counts as a FRAME divider only when it is the
+    // frame's own child. A panelled door leaf carries a MID RAIL stored as a
+    // transomPart inside the LEAF (Integrate's isMidrail), and counting those
+    // charged FD4 "Additional for Frame Mullion or Transom" 180 x 2 and
+    // "Door Frame - Single Finish (Mullions)" 85 x 2 — 530 minutes of frame
+    // work on a frame that has no dividers at all.
+    const frameDividers   = partType => allFrames
+      .flatMap(f => (f.children ?? []).filter(c => c.part_type === partType))
+    const allMullions      = frameDividers('mullionPart')
+    const allTransoms      = frameDividers('transomPart')
+    /** Mid rails: a transomPart anywhere else — today, inside a door leaf. */
+    const allLeafMidRails  = findAll(tree, 'transomPart')
+      .filter(t => !allTransoms.some(f => f.key === t.key))
     // Step AX: a French pair's left and right sashes count as casement
     // sashes everywhere a sash is counted — production per sash, the
     // opener counts, the stormproof test and rule 43's quote note.
@@ -679,7 +690,19 @@ export function computeVariables(tree, derived = {}, pfVariables = {}, opts = {}
     const opening_in_door_leaf_qty  = allDoorLeaves.filter(
       l => !casementIsFixed(l) && casementOpensIn(l)).length
 
-    const panel_qty             = 0
+    // Step BA: panels are real now — FD4 has a raised-and-fielded Tricoya
+    // panel under each leaf's mid rail. `panel_qty` was hard 0, so the live
+    // "Stained Panels" rule could never fire and nothing counted a panel.
+    //
+    // panel_in_frame_qty is the frame's OWN panels, which is what "Panel to
+    // Frame" (80 min) charges for fitting. A panel in a leaf is made with the
+    // leaf, not fitted to the frame, so FD4's two must not reach it — the
+    // facts' production reconciles to FD1 + 2 x 120 and nothing else.
+    const allPanels             = findAll(tree, 'panelPart')
+    const panel_qty             = allPanels.length
+    const panel_in_frame_qty    = allFrames
+      .flatMap(f => (f.children ?? []).filter(c => c.part_type === 'panelPart')).length
+    const leaf_mid_rail_qty     = allLeafMidRails.length
 
     // new_sash_qty: "all sashes inc. door leaves" (variable dictionary) —
     // sliding AND casement. Benchmark J proves casements count: its two
@@ -1063,6 +1086,7 @@ export function computeVariables(tree, derived = {}, pfVariables = {}, opts = {}
       new_casement_sash_qty, new_door_leaf_qty,
       door_leaf_qty, casement_sash_qty,
       direct_glazed_unit_qty, full_length_frame_mullion_qty, panel_qty,
+      panel_in_frame_qty, leaf_mid_rail_qty,
       fixed_casement_sash_qty, new_opening_casement_sash_qty,
       opening_out_casement_sash_qty, opening_in_casement_sash_qty,
       is_casement_range, is_casement_mpls, is_heritage_range,

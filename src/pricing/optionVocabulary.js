@@ -195,6 +195,47 @@ export function isWarmEdgeSpacerColour(spacerColourId) {
   return String(spacerColourId ?? '').toLowerCase().includes('warm_edge')
 }
 
+// ── Panels (Step BA) ──────────────────────────────────────────────────────────
+//
+// A panelled door leaf stores a panel TYPE and a panel BEAD, each side.
+// Integrate stores them as numeric ids and GlazePro as codes, so both are
+// mapped here: a tree imported from Integrate must price exactly as one the
+// board drew. The ids are Integrate's own defaults, from
+// docs/integrate-drawingboard-schema.txt (internalPanelTypeId default 110,
+// internalPanelBeadId default 120) and confirmed on FD4's real panels.
+//
+// NOT VERIFIED: that the live `reference_options` hold the two categories
+// under these codes — SECTION 0 of sql/step-ba2 asks for the rows. A code
+// outside this set is never a silent false; collectVocabularyWarnings names
+// it, as it does every other option.
+export const PANEL_TYPES = {
+  110:                 'raised_and_fielded',
+  raised_and_fielded:  'raised_and_fielded',
+  flat:                'flat',
+  vertical_tongue_and_groove:   'vertical_tongue_and_groove',
+  horizontal_tongue_and_groove: 'horizontal_tongue_and_groove',
+}
+
+export const PANEL_BEADS = {
+  120:   'ovolo',
+  ovolo: 'ovolo',
+  lambs_tongue: 'lambs_tongue',
+  square:       'square',
+  bolection:    'bolection',
+}
+
+/** @returns the panel type code, or undefined for an unrecognised value. */
+export function panelType(code) {
+  if (code == null || code === '') return null
+  return PANEL_TYPES[String(code).toLowerCase()] ?? PANEL_TYPES[Number(code)]
+}
+
+/** @returns the panel bead code, or undefined for an unrecognised value. */
+export function panelBead(code) {
+  if (code == null || code === '') return null
+  return PANEL_BEADS[String(code).toLowerCase()] ?? PANEL_BEADS[Number(code)]
+}
+
 // ── Moulding ──────────────────────────────────────────────────────────────────
 // moulding_profile lives on drawingItemPart.mouldingTypeId (real tree:
 // 'ovolo'). The old read of a mouldingPart node matched nothing on real trees.

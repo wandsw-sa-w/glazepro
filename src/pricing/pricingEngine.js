@@ -130,7 +130,7 @@ export function ironmongeryLineLabel(ironLine) {
 import {
   glazingType, hornLengthMm, operationKind, glassSpacerMm,
   isWarmEdgeSpacerColour, collectVocabularyWarnings, resolveTopSashArch,
-  casementIsFixed, casementOpensOut, timberFamily,
+  casementIsFixed, casementOpensOut, timberFamily, panelType, panelBead,
 } from './optionVocabulary.js'
 import { fetchAllRows } from '../lib/fetchAllRows.js'
 import { sashSizes, owningSashPair } from './derivedGeometry.js'
@@ -143,6 +143,7 @@ import {
 import {
   DOOR_LEAF_TYPES, FRENCH_DOOR_LEAF_TYPES, doorLeafSize, doorGlassSightline,
   frenchDoorPairFor, doorLeafWeightKg, allocatedSectionParts,
+  doorPanelSize, leafForPanel,
 } from './doorGeometry.js'
 import { isFanlightSash } from './casementSashVariables.js'
 
@@ -513,6 +514,48 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
       hand: pt === 'leftFrenchDoorLeafPart' ? 'left'
         : pt === 'rightFrenchDoorLeafPart' ? 'right'
           : (String(v.operation ?? '').includes('left') ? 'left' : 'right'),
+    }
+  }
+
+  // Step BA: a PANEL. FD4 carries a raised-and-fielded Tricoya panel under
+  // each leaf's mid rail, and the live `panel` loop had no variables at all —
+  // "Tricoya Panel" prices the panel's VISIBLE size and the five "Additional
+  // for ... Panel" rules each read a panel-type flag, so without these the
+  // loop visited the part and every rule read undefined.
+  //
+  // `visible_width_in_mm_old` is Integrate's name for the panel's visible
+  // size (the "_old" suffix is Integrate's, not a stale copy — the rule
+  // calls it that). The size comes from the leaf's geometry, never from a
+  // stored value: a panel is what is left of the leaf below its mid rail.
+  if (pt === 'panelPart') {
+    const is_complete_new = baseVars.is_complete_new ?? false
+    const leaf = leafForPanel(tree, partNode)
+    const size = leaf ? doorPanelSize(tree, leaf) : { width: null, height: null }
+    const internal = panelType(v.internalPanelTypeId)
+    const external = panelType(v.externalPanelTypeId)
+    const beadIn   = panelBead(v.internalPanelBeadId)
+    const beadOut  = panelBead(v.externalPanelBeadId)
+    const typeIs = (code, side) => (side === 'internal' ? internal : external) === code
+    return {
+      to_be_replaced: is_complete_new || v.toBeReplaced === true,
+      visible_width_in_mm_old:  size.width  ?? 0,
+      visible_height_in_mm_old: size.height ?? 0,
+      internal_panel_type: internal ?? '',
+      external_panel_type: external ?? '',
+      is_flat_panel_internally: typeIs('flat', 'internal'),
+      is_flat_panel_externally: typeIs('flat', 'external'),
+      is_raised_and_fielded_panel_internally: typeIs('raised_and_fielded', 'internal'),
+      is_raised_and_fielded_panel_externally: typeIs('raised_and_fielded', 'external'),
+      is_vertical_tongue_and_groove_panel_internally: typeIs('vertical_tongue_and_groove', 'internal'),
+      is_vertical_tongue_and_groove_panel_externally: typeIs('vertical_tongue_and_groove', 'external'),
+      is_horizontal_tongue_and_groove_panel_internally: typeIs('horizontal_tongue_and_groove', 'internal'),
+      is_horizontal_tongue_and_groove_panel_externally: typeIs('horizontal_tongue_and_groove', 'external'),
+      is_tongue_and_groove_panel_internally:
+        typeIs('vertical_tongue_and_groove', 'internal') || typeIs('horizontal_tongue_and_groove', 'internal'),
+      is_tongue_and_groove_panel_externally:
+        typeIs('vertical_tongue_and_groove', 'external') || typeIs('horizontal_tongue_and_groove', 'external'),
+      is_bolection_moulding_around_panel_internally: beadIn === 'bolection',
+      is_bolection_moulding_around_panel_externally: beadOut === 'bolection',
     }
   }
 

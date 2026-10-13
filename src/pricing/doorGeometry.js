@@ -122,15 +122,72 @@ function openingFor(tree, node) {
   return frameOpenings(tree)[idx] ?? null
 }
 
-/** A door leaf's glass sightline: the leaf less its stiles and rails. */
+/**
+ * A leaf's MID RAIL, or null.
+ *
+ * Step BA. Integrate splits a panelled leaf with a TransomPart inside the
+ * leaf carrying `isMidrail` — a divider in the leaf, exactly as a frame
+ * transom is a divider in the frame — and GlazePro stores it the same way.
+ * Its `offset` is the opening ABOVE it (the glass) and the rest of the leaf
+ * below it is the panel, which is how a frame transom's offset works too.
+ */
+export function leafMidRail(leafNode) {
+  return (leafNode?.children ?? []).find(c => c.part_type === 'transomPart') ?? null
+}
+
+/** A mid rail's own thickness in the leaf. */
+function midRailThickness(rail) {
+  const v = rail?.values ?? {}
+  return num(v.midrailThickness) ?? num(v.thicknessInFrame) ?? 0
+}
+
+/**
+ * A door leaf's glass sightline: the leaf less its stiles and rails.
+ *
+ * With a MID RAIL the glass stops at the rail: its height is the rail's own
+ * offset, not the whole leaf less the top and bottom rails. FD4's leaf is
+ * 2109 high and its glass 1241 — without this the glass ran the full 1836
+ * and priced a third more glass than the door has.
+ */
 export function doorGlassSightline(tree, leafNode) {
   const leaf = doorLeafSize(tree, leafNode)
   if (leaf.width == null || leaf.height == null) return { width: null, height: null }
   const v = leafNode.values ?? {}
+  const width = leaf.width - (num(v.leftWidth) ?? 0) - (num(v.rightWidth) ?? 0)
+  const rail = leafMidRail(leafNode)
+  if (rail) return { width, height: num(rail.values?.offset) ?? 0 }
   return {
-    width: leaf.width - (num(v.leftWidth) ?? 0) - (num(v.rightWidth) ?? 0),
+    width,
     height: leaf.height - (num(v.topHeight) ?? 0) - (num(v.bottomHeight) ?? 0),
   }
+}
+
+/**
+ * The PANEL under a leaf's mid rail, in mm — its visible size, which is what
+ * the live "Tricoya Panel" rule prices (visible W x H, unrounded).
+ *
+ * It is the leaf's sightline width by what is left below the rail:
+ * leaf height - top rail - glass - mid rail - bottom rail. FD4:
+ * 2109 - 110 - 1241 - 170 - 163 = 425, which is Integrate's own offset2.
+ */
+export function doorPanelSize(tree, leafNode) {
+  const rail = leafMidRail(leafNode)
+  if (!rail) return { width: null, height: null }
+  const leaf = doorLeafSize(tree, leafNode)
+  const glass = doorGlassSightline(tree, leafNode)
+  if (leaf.height == null || glass.height == null) return { width: null, height: null }
+  const v = leafNode.values ?? {}
+  return {
+    width: glass.width,
+    height: leaf.height - (num(v.topHeight) ?? 0) - glass.height -
+      midRailThickness(rail) - (num(v.bottomHeight) ?? 0),
+  }
+}
+
+/** The leaf a panel belongs to, or null. */
+export function leafForPanel(tree, panelNode) {
+  return doorLeaves(tree)
+    .find(l => (l.children ?? []).some(c => c.key === panelNode?.key)) ?? null
 }
 
 // ── The allocated Utile sections ─────────────────────────────────────────────
@@ -169,6 +226,13 @@ export const DOOR_MATERIALS = {
  */
 export const LEAF_SECTION_OFFSET_MM = -6     // per leaf, on 2 x H + W
 export const FANLIGHT_SECTION_OFFSET_MM = 14 // per fanlight, on W + 2 x H
+/**
+ * A leaf MID RAIL is cut from the cill-and-bottom-rail section at the leaf
+ * width LESS 10 (Step BA). FD4: 2 x 652.5 on leaves 662.5 wide, which with
+ * the cill and the two bottom rails makes Integrate's 4029. A single
+ * reading, like the two above — one drawing, not a derivation.
+ */
+export const MID_RAIL_SECTION_OFFSET_MM = -10
 
 /**
  * The lengths of stock section a door drawing uses, for the
@@ -211,6 +275,11 @@ export function allocatedSectionParts(tree, { material = 'utile' } = {}) {
     // Each leaf's two stiles and its top rail
     add(codes.leaf, 2 * (z.height ?? 0) + (z.width ?? 0) + LEAF_SECTION_OFFSET_MM,
       'Door stiles and top rail')
+    // A panelled leaf's MID RAIL, from the same 63x200 section as the bottom
+    // rail — it is the same 170-ish deep rail (Step BA).
+    if (leafMidRail(leaf)) {
+      add(codes.cillAndBottom, (z.width ?? 0) + MID_RAIL_SECTION_OFFSET_MM, 'Leaf mid rail')
+    }
   }
 
   // A FANLIGHT over the pair: its top rail and stiles, and its bottom rail.
@@ -236,6 +305,16 @@ export function allocatedSectionParts(tree, { material = 'utile' } = {}) {
   // stock (docs/integrate-differences.md 7b).
   for (const _transom of (frame.children ?? []).filter(c => c.part_type === 'transomPart')) {
     add(codes.frame, interior.width ?? 0, 'Transom (provisional section)')
+  }
+
+  // A DOORSET's frame MULLIONS, the same way (Step BA). Integrate allocates
+  // nothing for them either; the reviewer applied Nathan's transom decision
+  // to mullions for consistency and flagged it to him
+  // (docs/integrate-differences.md 11). Each is charged at the frame section
+  // for the full INTERNAL HEIGHT, as the transom is charged for the full
+  // internal width — FD5 and FD6: 2 x 2626 + 2720 = 7972 mm = 108.42.
+  for (const _mullion of (frame.children ?? []).filter(c => c.part_type === 'mullionPart')) {
+    add(codes.frame, interior.height ?? 0, 'Mullion (provisional section)')
   }
 
   return [...lengths.values()].map(r => ({

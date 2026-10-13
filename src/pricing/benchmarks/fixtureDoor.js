@@ -383,3 +383,244 @@ export const BENCHMARK_FD3b = {
   profileCode: 'open_out_doors',
   assumptions: DOOR_ASSUMPTIONS,
 }
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Step BA — the variants: panelled leaves, and doorsets with side and top lights
+// docs/integrate-L31115-french-doors.txt, "French door variants", read 13 Oct.
+// ═════════════════════════════════════════════════════════════════════════════
+
+/**
+ * A leaf MID RAIL. Integrate stores it as a TransomPart INSIDE the leaf with
+ * `isMidrail` true — a divider in the leaf, exactly as a frame transom is a
+ * divider in the frame — splitting the leaf into glass above and a panel
+ * below. GlazePro models it the same way: a `transomPart` child of the leaf,
+ * `isMidrail: true`, carrying the divider's own `offset` (the opening ABOVE
+ * it), so the existing divider layout code measures it.
+ *
+ * FD4: 2109 − 110 (head) − 163 (bottom rail) = 1836 = 1241 + 170 + 425.
+ */
+function leafMidRail(key, { offset, thickness = 170 }) {
+  return {
+    key,
+    part_type: 'transomPart',
+    values: {
+      isMidrail: true,
+      offset,
+      thicknessInFrame: thickness,
+      midrailThickness: thickness,
+      transomStopSize: 18,
+      startDivider: '0', endDivider: '0',
+    },
+    children: [],
+  }
+}
+
+/**
+ * The Tricoya panel under a leaf's mid rail: raised and fielded BOTH sides,
+ * ovolo bead both sides.
+ *
+ * Integrate stores the four option ids as numbers (internalPanelTypeId 110 =
+ * Raised & Fielded, internalPanelBeadId 120 = Ovolo — its own defaults, in
+ * docs/integrate-drawingboard-schema.txt). GlazePro stores CODES, as it does
+ * for every other option, and the id-to-code mapping lives in
+ * optionVocabulary.js so a tree imported from Integrate prices the same.
+ *
+ * NOT VERIFIED: that the live `reference_options` hold these two categories
+ * under these codes. SECTION 0 of sql/step-ba2 asks for the rows.
+ */
+function doorPanel(key) {
+  return {
+    key,
+    part_type: 'panelPart',
+    values: {
+      internalPanelTypeId: 'raised_and_fielded',
+      externalPanelTypeId: 'raised_and_fielded',
+      internalPanelBeadId: 'ovolo',
+      externalPanelBeadId: 'ovolo',
+      insulationThickness: 15,
+      createVisionPanel: true,
+      panelThickness: 0,
+      toBeReplaced: true,
+    },
+    children: [],
+  }
+}
+
+/**
+ * FD4's pair: FD1's pair, but each leaf carries a mid rail, its glass ABOVE
+ * the rail and a panel BELOW it.
+ */
+function panelledFrenchDoorPair(key, { masterLeaf = 'right', midRailOffset = 1241 } = {}) {
+  const pair = frenchDoorPair(key, { masterLeaf })
+  return {
+    ...pair,
+    children: pair.children.map(leaf => ({
+      ...leaf,
+      children: [
+        leafMidRail(`${leaf.key}_midrail`, { offset: midRailOffset }),
+        ...leaf.children,                   // the glass, above the rail
+        doorPanel(`${leaf.key}_panel`),     // the panel, below it
+      ],
+    })),
+  }
+}
+
+/** A FIXED casement sash in a door frame — a side light or a top light. */
+function doorsetCasementSash(key, { bottomHeight = 86, bottomHeightExternal = 93 } = {}) {
+  return {
+    key,
+    part_type: 'casementSashPart',
+    values: {
+      operation: 'fix',                // Integrate operation 11
+      casementTypeId: 'open_out',
+      thickness: 54,
+      topHeight: 62, leftWidth: 62, rightWidth: 62,
+      bottomHeight, bottomHeightExternal,
+      btmRailShapeId: 'stepped',
+      mechanicalClearanceTop: 1,
+      mechanicalClearanceLeft: 1,
+      mechanicalClearanceRight: 1,
+      mechanicalClearanceBottom: 2,
+      toBeReplaced: true,
+    },
+    children: [glassChild(key)],
+  }
+}
+
+/**
+ * A DIRECT GLAZED unit in a door frame: a glassPart that is a direct child of
+ * the frame, its visible size the opening less 15 mm clearance all round and
+ * its glass that plus what the rebate hides.
+ *
+ * FD5's A1 stores hidden 0 where B1 and D1 store 12 — an Integrate template
+ * quirk the fixture KEEPS, because a fixture's job is Integrate's figures.
+ * GlazePro's own template uses 12 on all three (brief §2).
+ */
+function doorsetDirectGlazed(key, { hidden = 12 } = {}) {
+  return {
+    key,
+    part_type: 'glassPart',
+    values: {
+      ...GLASS_CODES,
+      glazingRebateWidth: 15, glazingTolerance: 3,
+      mechanicalClearanceTop: 15, mechanicalClearanceBottom: 15,
+      mechanicalClearanceLeft: 15, mechanicalClearanceRight: 15,
+      hiddenInRebateTop: hidden, hiddenInRebateBottom: hidden,
+      hiddenInRebateLeft: hidden, hiddenInRebateRight: hidden,
+      toBeReplaced: true,
+    },
+    children: [],
+  }
+}
+
+function mullion(key, offset) {
+  return {
+    key,
+    part_type: 'mullionPart',
+    values: { offset, thicknessInFrame: 41, mullionStopSize: 20 },
+    children: [],
+  }
+}
+
+const DOORSET_ASSUMPTIONS = [
+  ...DOOR_ASSUMPTIONS,
+  'A doorset’s frame MULLIONS and TRANSOM are charged at Utile67x96 for their full internal length — Integrate allocates nothing for them. The reviewer applied Nathan’s transom decision to mullions for consistency (difference 11), flagged to Nathan',
+  'A panel’s option ids are Integrate’s own defaults (110 Raised & Fielded, 120 Ovolo) from the drawing board schema; the live reference_options rows are NOT verified — SECTION 0 of sql/step-ba2 asks for them',
+]
+
+// ── FD4: panelled leaves (template 79) ───────────────────────────────────────
+// 1399 x 2199, internal 1305 x 2115. Leaves (1305 − 1 − 1 − 5 + 27) / 2
+// = 662.5 x 2109. Each leaf: a 170 mid rail at 1241, glass 442.5 x 1241 above
+// it, and a raised-and-fielded Tricoya panel 442.5 x 425 below. Production is
+// FD1's 3325 + 2 x 120 for the R&F panels; labour 780, both leaves under 50 kg.
+
+export const BENCHMARK_FD4 = {
+  name: 'Benchmark FD4 — French doors with panels (L31115 Item 10 Drawing 4)',
+  tree: doorTree({
+    width: 1399, height: 2199,
+    openings: [panelledFrenchDoorPair('fd4')],
+    ironmongeryLines: DOOR_IRONMONGERY,
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkFD4_french_doors_with_panels },
+  partCostMap: DOOR_PART_COST_MAP,
+  profileValues: DOOR_PROFILE_VALUES,
+  glassCatalogue: {},
+  ironmongeryLines: DOOR_IRONMONGERY,
+  profileCode: 'open_out_doors',
+  assumptions: DOORSET_ASSUMPTIONS,
+}
+
+// ── FD5 / FD6: the doorsets (templates 29 and 46) ────────────────────────────
+// 2814 x 2710, internal 2720 x 2626. Two full-height mullions (41) at 648 and
+// 2028 and a full-width transom (41) at 448 give columns 648 / 1339 / 651 and
+// rows 448 / 2137. The pair sits in the middle BOTTOM opening, a fixed
+// casement sash each side of it, and the top row is three direct glazed units
+// (FD5) or three fixed casement sashes (FD6).
+
+const DOORSET_DIVIDERS = [mullion('mull_a', 648), mullion('mull_b', 2028), transom('trans_1', 448)]
+
+export const BENCHMARK_FD5 = {
+  name: 'Benchmark FD5 — French doorset, side lights and direct glazed top lights (L31115 Item 10 Drawing 5)',
+  tree: doorTree({
+    width: 2814, height: 2710,
+    dividers: DOORSET_DIVIDERS,
+    openings: [
+      doorsetDirectGlazed('dgu_a1', { hidden: 0 }),
+      doorsetDirectGlazed('dgu_b1'),
+      doorsetDirectGlazed('dgu_d1'),
+      doorsetCasementSash('side_a2'),
+      frenchDoorPair('fd5'),
+      doorsetCasementSash('side_d2'),
+    ],
+    ironmongeryLines: DOOR_IRONMONGERY,
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkFD5_french_doorset_sidelights_toplights },
+  deliberateDifference: {
+    cost: 108.42,
+    reason: 'the frame mullions and transom, charged at Utile67x96 for their full internal length (2 x 2626 + 2720 = 7972 mm) — Integrate allocates no timber for them (PROVISIONAL, as the transom is)',
+  },
+  partCostMap: DOOR_PART_COST_MAP,
+  profileValues: DOOR_PROFILE_VALUES,
+  glassCatalogue: {},
+  ironmongeryLines: DOOR_IRONMONGERY,
+  profileCode: 'open_out_doors',
+  assumptions: DOORSET_ASSUMPTIONS,
+}
+
+/** FD6's stored list is FD5's plus the XHD16 grille. */
+const DOORSET_IRONMONGERY_FD6 = [
+  ...DOOR_IRONMONGERY,
+  { product_short_name: 'trickle', finish_code: 'Wht', qty: 1, source: 'survey' },
+]
+
+export const BENCHMARK_FD6 = {
+  name: 'Benchmark FD6 — French doorset with casement top lights (L31115 Item 10 Drawing 6)',
+  tree: doorTree({
+    width: 2814, height: 2710,
+    dividers: DOORSET_DIVIDERS,
+    openings: [
+      // The top row's three sashes are FANLIGHTS: row 0 of two rows, each
+      // within its own column. Integrate's drawing has them at an 86 bottom
+      // rail; GlazePro's own template uses Nathan's 62 (difference 5), which
+      // moves those three rails from 63x96 to 63x63.
+      doorsetCasementSash('fan_a1'),
+      doorsetCasementSash('fan_b1'),
+      doorsetCasementSash('fan_d1'),
+      doorsetCasementSash('side_a2'),
+      frenchDoorPair('fd6'),
+      doorsetCasementSash('side_d2'),
+    ],
+    ironmongeryLines: DOORSET_IRONMONGERY_FD6,
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkFD6_french_doorset_casement_lights },
+  deliberateDifference: {
+    cost: 108.42,
+    reason: 'the frame mullions and transom, charged at Utile67x96 for their full internal length (2 x 2626 + 2720 = 7972 mm) — Integrate allocates no timber for them (PROVISIONAL, as the transom is)',
+  },
+  partCostMap: DOOR_PART_COST_MAP,
+  profileValues: DOOR_PROFILE_VALUES,
+  glassCatalogue: {},
+  ironmongeryLines: DOORSET_IRONMONGERY_FD6,
+  profileCode: 'open_out_doors',
+  assumptions: DOORSET_ASSUMPTIONS,
+}
