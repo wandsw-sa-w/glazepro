@@ -36,7 +36,9 @@ import { setStormproof } from '../drawingBoard/stormproof.js'
 import { computeSashWeight } from '../pricing/sashWeight.js'
 import { loadDrawingRunPrices } from '../quotes/drawingRunPrice.js'
 import { SashElevation } from '../drawingBoard/renderElevation.jsx'
-import { applyDividers, applyBars, frameGrid, addDividerInCell } from '../drawingBoard/gridActions.js'
+import {
+  applyDividers, applyBars, frameGrid, splitOpening, removeDivider, makeDividersEqual,
+} from '../drawingBoard/gridActions.js'
 import { isDirectGlazedUnit } from '../pricing/casementGeometry.js'
 import { findRequiredEmpty } from '../drawingBoard/requiredFields.js'
 import { loadGlassCatalogue } from '../pricing/loadPricingContext.js'
@@ -666,7 +668,7 @@ function IronmongeryPanel({ node, tree, derived, refOptions, onChangeField, onAu
 
 // ── PropertyEditor ────────────────────────────────────────────────────────────
 
-function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, onAutoApplyDefaults, onPrev, onNext, prevDisabled, nextDisabled, prevLabel, nextLabel, visibilityMap, boardMode, showHidden, tree, ironmongeryRules, ironmongeryProducts, onShowPriceBreakdown, profileValueMap, onSetCompleteNewThickness, onSetSashesReplaced, onChangeInternalSize }) {
+function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, onAutoApplyDefaults, onPrev, onNext, prevDisabled, nextDisabled, prevLabel, nextLabel, visibilityMap, boardMode, showHidden, tree, ironmongeryRules, ironmongeryProducts, onShowPriceBreakdown, profileValueMap, onSetCompleteNewThickness, onSetSashesReplaced, onChangeInternalSize, onMakeDividersEqual }) {
   if (!node) {
     return (
       <div style={{ padding: 16, color: '#aaa', fontSize: 12, textAlign: 'center', paddingTop: 48 }}>
@@ -744,6 +746,19 @@ function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, o
     }
   }
 
+  // Step AW: Integrate's "Divider Spacing: Make Widths Equal / Make Heights
+  // Equal" on an opening's panel. GlazePro had no equivalent: the picker
+  // spaces dividers equally when it lays a grid out, and a resize re-spaces
+  // the columns proportionally, but nothing could even them up afterwards.
+  const dividerSpacing = (() => {
+    if (!tree || !onMakeDividersEqual || !isCasementFrameTree(tree)) return null
+    if (!openingNodes(tree).some(n => n.key === node.key)) return null
+    return {
+      canWidths:  findAll(tree, 'mullionPart').length > 0,
+      canHeights: findAll(tree, 'transomPart').length > 0,
+    }
+  })()
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Panel header */}
@@ -771,6 +786,24 @@ function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, o
           >
             {'£'} Price breakdown
           </button>
+        )}
+        {/* Step AW: Divider Spacing, on an opening of a casement frame */}
+        {dividerSpacing && (dividerSpacing.canWidths || dividerSpacing.canHeights) && (
+          <div style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #e8e6e0' }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#555', marginBottom: 6 }}>Divider Spacing</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {[['widths', 'Make Widths Equal', dividerSpacing.canWidths, 'Needs a mullion'],
+                ['heights', 'Make Heights Equal', dividerSpacing.canHeights, 'Needs a transom']].map(([axis, label, can, why]) => (
+                <button
+                  key={axis}
+                  onClick={() => onMakeDividersEqual(axis)}
+                  disabled={!can}
+                  title={can ? label : why}
+                  style={{ flex: 1, fontSize: 11, padding: '5px 0', borderRadius: 6, fontFamily: 'inherit', cursor: can ? 'pointer' : 'default', border: '1px solid #d8d5cf', background: can ? '#fff' : '#f7f6f2', color: can ? '#555' : '#bbb' }}
+                >{label}</button>
+              ))}
+            </div>
+          </div>
         )}
         {/* Ironmongery panel for paintAndIronmongeryPart */}
         {node.part_type === 'paintAndIronmongeryPart' && (
@@ -1250,138 +1283,101 @@ function HistoryPanel({ entries, loading: historyLoading, error: historyError })
   )
 }
 
-// ── GridPickerDialog ──────────────────────────────────────────────────────────
-// A 1-15 × 1-15 cell grid where the user hovers/clicks to choose N columns × M rows.
-// For mullion/transom: N cols × M rows → (N-1) vertical dividers + (M-1) horizontal dividers.
-// For glazing bars: the same, but children of a glassPart.
+// ── DividerPaletteDialog ──────────────────────────────────────────────────────
+// Step AW: Integrate's "Transom / Mullion" dialog, which Nathan prefers to the
+// hover grid that was here before (he has used both).
+//
+// A palette of icon TILES: each tile is a little drawing of the layout — a
+// square with its divider lines — with "columns x rows" under it. ONE CLICK on
+// a tile applies it. There is no Apply button, no radio buttons and no
+// drop-downs, just a close cross at the top right.
+//
+// What the palette offers depends on what is selected:
+//
+//   the FRAME  -> 1x1 ... 7x7, dividing the WHOLE frame (down the palette =
+//                 columns 1-7, across = rows 1-7, so "1x2" is one column and
+//                 two rows: a transom)
+//   an OPENING -> just "1x2" and "2x1", splitting THAT opening, the new
+//                 divider stopping at whatever bounds it
+//
+// The tile icon is the whole point of the dialog — a surveyor picks the shape
+// they can see rather than reading two numbers — so it is drawn, not labelled:
+// (cols - 1) vertical lines and (rows - 1) horizontal lines inside a square.
 
-function GridPickerDialog({ title, applyLabel = 'Apply', onApply, onClose, maxCols = 15, maxRows = 15, initialCols = 1, initialRows = 1, error = null, note = null, oneOnly = null }) {
-  // Step AQ item 7: the CHOICE and the hover PREVIEW are separate.
-  //
-  // There used to be one `hover` state doing both jobs, so Apply applied
-  // whatever the mouse last touched. Moving the mouse off the grid towards
-  // the Apply button lost the selection and Apply then offered to remove the
-  // frame's dividers. `selected` starts at the frame's current grid and only
-  // changes on a CLICK; leaving the grid clears the preview and falls back
-  // to it, so what Apply applies is always what the user clicked.
-  const [selected, setSelected] = useState({ cols: initialCols, rows: initialRows })
-  const [hover, setHover]       = useState(null)
-  const shown = hover ?? selected
+function DividerTile({ cols, rows, onPick, size = 30, current = false }) {
+  const [hover, setHover] = useState(false)
+  const pad = 0.5
+  const line = (x1, y1, x2, y2, i) => (
+    <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#3d35a8" strokeWidth={1} />
+  )
+  return (
+    <button
+      type="button"
+      onClick={() => onPick(cols, rows)}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      title={`${cols} column${cols === 1 ? '' : 's'} x ${rows} row${rows === 1 ? '' : 's'}`}
+      aria-label={`${cols}x${rows}`}
+      data-testid={`divider-tile-${cols}x${rows}`}
+      style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+        padding: 3, borderRadius: 5, cursor: 'pointer', fontFamily: 'inherit',
+        // Step AQ item 7 kept: the frame's CURRENT grid is marked, so the
+        // palette says what the frame is on instead of only what it could be.
+        border: `1px solid ${hover ? '#3d35a8' : (current ? '#c9c4ee' : 'transparent')}`,
+        background: hover ? '#f0eefc' : (current ? '#f7f6fd' : 'transparent'),
+      }}
+    >
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
+        <rect x={pad} y={pad} width={size - 1} height={size - 1}
+          fill="#fff" stroke="#8a8578" strokeWidth={1} />
+        {Array.from({ length: cols - 1 }, (_, i) => {
+          const x = pad + (size - 1) * (i + 1) / cols
+          return line(x, pad, x, size - pad, `v${i}`)
+        })}
+        {Array.from({ length: rows - 1 }, (_, i) => {
+          const y = pad + (size - 1) * (i + 1) / rows
+          return line(pad, y, size - pad, y, `h${i}`)
+        })}
+      </svg>
+      <span style={{ fontSize: 9, color: '#555', lineHeight: 1 }}>{cols}x{rows}</span>
+    </button>
+  )
+}
 
-  // Step AV: the picker's two modes. "whole" is the grid above — dividers
-  // that run frame to frame. "one" adds a single divider that stops at a
-  // crossing one, so an opening spans two columns or two rows (TC1, TC3).
-  const [mode, setMode]   = useState('whole')
-  const [axis, setAxis]   = useState('transom')
-  const [slot, setSlot]   = useState(0)
-  const slotCount = oneOnly
-    ? (axis === 'transom' ? oneOnly.columns : oneOnly.rows)
-    : 1
-  // Pointing at a slot that is no longer there would add the divider
-  // somewhere the surveyor did not choose.
-  const slotIdx = Math.min(slot, Math.max(0, slotCount - 1))
-  const slotLabel = i => axis === 'transom'
-    ? `column ${String.fromCharCode(65 + i)}`
-    : `row ${i + 1}`
-
-  const cellSize = 22
-  const gap      = 2
+function DividerPaletteDialog({ onPick, onClose, error = null, tiles = null, note = null, current = null, maxCols = 7, maxRows = 7 }) {
+  // When `tiles` is given the palette shows exactly those, which is the
+  // opening case ("1x2" and "2x1"). Otherwise the full square palette.
+  const grid = tiles ?? Array.from({ length: maxCols }, (_, c) =>
+    Array.from({ length: maxRows }, (_, r) => [c + 1, r + 1])).flat()
+  const columnsInPalette = tiles ? grid.length : maxRows
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       onClick={onClose}>
-      <div style={{ background: '#fff', border: '1px solid #d8d5cf', borderRadius: 10, padding: 20, boxShadow: '0 8px 32px rgba(0,0,0,.18)', minWidth: 340, maxWidth: 420 }}
-        onClick={e => e.stopPropagation()}>
-        <div style={{ fontWeight: 700, fontSize: 14, color: '#1a1a1a', marginBottom: 12 }}>{title}</div>
-        {note && (
-          <div style={{ fontSize: 11, color: '#888', marginBottom: 8 }}>{note}</div>
-        )}
+      <div onClick={e => e.stopPropagation()}
+        style={{ background: '#fff', border: '1px solid #d8d5cf', borderRadius: 10, padding: '14px 16px 16px', boxShadow: '0 8px 32px rgba(0,0,0,.18)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 10 }}>
+          <div style={{ fontWeight: 700, fontSize: 14, color: '#1a1a1a' }}>Transom / Mullion</div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            title="Close"
+            style={{ marginLeft: 'auto', border: 'none', background: 'none', cursor: 'pointer', fontSize: 16, lineHeight: 1, color: '#888', padding: 2, fontFamily: 'inherit' }}
+          >{'×'}</button>
+        </div>
+        {note && <div style={{ fontSize: 11, color: '#888', marginBottom: 8, maxWidth: 260 }}>{note}</div>}
         {error && (
-          <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 6, padding: '6px 10px', marginBottom: 10, fontSize: 12, color: '#991b1b' }}>
+          <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 6, padding: '6px 10px', marginBottom: 10, fontSize: 12, color: '#991b1b', maxWidth: 260 }}>
             {'⚠'} {error}
           </div>
         )}
-
-        {/* Step AV: which mode — only offered where a divider can stop at one */}
-        {oneOnly && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 12 }}>
-            {[['whole', 'Across the whole frame'], ['one', 'In one column / one row only']].map(([v, label]) => (
-              <label key={v} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#333', cursor: 'pointer' }}>
-                <input type="radio" name="divider-mode" value={v} checked={mode === v} onChange={() => setMode(v)} />
-                {label}
-              </label>
-            ))}
-          </div>
-        )}
-
-        {oneOnly && mode === 'one' && (
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-              <select
-                value={axis}
-                onChange={e => { setAxis(e.target.value); setSlot(0) }}
-                style={{ ...SI, flex: 1 }}
-              >
-                <option value="transom">Transom in one column</option>
-                <option value="mullion">Mullion in one row</option>
-              </select>
-              <select
-                value={slotIdx}
-                onChange={e => setSlot(Number(e.target.value))}
-                style={{ ...SI, flex: 1 }}
-              >
-                {Array.from({ length: slotCount }, (_, i) => (
-                  <option key={i} value={i}>{slotLabel(i)}</option>
-                ))}
-              </select>
-            </div>
-            <div style={{ fontSize: 11, color: '#888' }}>
-              {axis === 'transom'
-                ? `A transom across ${slotLabel(slotIdx)} only — it stops at the mullion, so the other column spans both rows.`
-                : `A mullion down ${slotLabel(slotIdx)} only — it stops at the transom, so the other row spans both columns.`}
-              {' '}It is added halfway; set the exact Offset on the part afterwards.
-            </div>
-          </div>
-        )}
-
-        {/* Grid */}
-        {(!oneOnly || mode === 'whole') && (
-        <div style={{ display: 'inline-grid', gap, gridTemplateColumns: `repeat(${maxCols}, ${cellSize}px)`, cursor: 'pointer', userSelect: 'none', marginBottom: 10 }}
-          onMouseLeave={() => setHover(null)}>
-          {Array.from({ length: maxRows }, (_, r) =>
-            Array.from({ length: maxCols }, (_, c) => {
-              const col = c + 1, row = r + 1
-              const active = col <= shown.cols && row <= shown.rows
-              return (
-                <div
-                  key={`${r}-${c}`}
-                  style={{ width: cellSize, height: cellSize, borderRadius: 3, background: active ? '#3d35a8' : '#e8e6e0', transition: 'background .08s' }}
-                  onMouseEnter={() => setHover({ cols: col, rows: row })}
-                  onClick={() => { setSelected({ cols: col, rows: row }); onApply(col, row) }}
-                />
-              )
-            })
-          )}
-        </div>
-        )}
-
-        {(!oneOnly || mode === 'whole') && (
-        <div style={{ fontSize: 12, color: '#555', marginBottom: 12 }}>
-          {shown.cols} × {shown.rows} — {shown.cols - 1} mullion{shown.cols - 1 !== 1 ? 's' : ''} + {shown.rows - 1} transom{shown.rows - 1 !== 1 ? 's' : ''}
-        </div>
-        )}
-
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button
-            onClick={() => (oneOnly && mode === 'one')
-              ? oneOnly.onApply(axis, slotIdx)
-              : onApply(selected.cols, selected.rows)}
-            style={{ flex: 1, fontSize: 12, padding: '6px 0', border: 'none', borderRadius: 7, background: '#3d35a8', color: '#fff', cursor: 'pointer', fontWeight: 600, fontFamily: 'inherit' }}
-          >{applyLabel}</button>
-          <button
-            onClick={onClose}
-            style={{ flex: 1, fontSize: 12, padding: '6px 0', border: '1px solid #d8d5cf', borderRadius: 7, background: '#fff', color: '#555', cursor: 'pointer', fontFamily: 'inherit' }}
-          >Cancel</button>
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${columnsInPalette}, auto)`, gap: 2 }}>
+          {grid.map(([c, r]) => (
+            <DividerTile key={`${c}x${r}`} cols={c} rows={r} onPick={onPick}
+              current={current != null && current.cols === c && current.rows === r} />
+          ))}
         </div>
       </div>
     </div>
@@ -2356,26 +2352,20 @@ function DrawingBoard() {
     }
   }
 
-  // Step AV: the picker's second mode — one divider that stops at a crossing
-  // one. It goes in halfway, the way the grid picker spaces its dividers
-  // equally; the surveyor then types the exact Offset on the part.
-  function handleAddDividerInCell(axis, index) {
-    if (!tree) return
+  // Step AW: the palette's "1x2" and "2x1" tiles when an OPENING is selected
+  // — split that opening, the new divider stopping at whatever bounds it. It
+  // goes in the middle; the surveyor then types the exact Offset on the part.
+  function handleSplitPick(cols, rows) {
+    if (!tree || !splitTarget) return
     const frame = findFirst(tree, 'assemblyFramePart')
     if (!frame) return
-    const fv = frame.values ?? {}
-    const cillH = findFirst(tree, 'cillPart')?.values?.height ?? 0
-    const iW = (fv.width  ?? 0) - (fv.leftWidth ?? 0) - (fv.rightWidth ?? 0)
-    const iH = (fv.height ?? 0) - (fv.topHeight ?? 0) - cillH
+    // "1x2" is one column and two rows, so it is a transom; "2x1" a mullion.
+    const axis = rows > cols ? 'transom' : 'mullion'
     try {
-      let newTree = addDividerInCell(tree, frame.key, {
-        axis,
-        index,
-        offset: Math.round(((axis === 'transom' ? iH : iW) / 2) * 10) / 10,
-        profileValues: profileValueMap,
-      })
-      // A new top-row opening is a fanlight and takes the 62 mm bottom rail,
-      // as the grid picker's does. The raw profile rows — see Step AR item 3.
+      let newTree = splitOpening(tree, frame.key, splitTarget.key, axis, profileValueMap)
+      // A new top-row opening is a fanlight and takes the fanlight bottom
+      // rail, as the whole-frame palette's does. The raw profile rows, not
+      // profileValueMap — see Step AR item 3.
       newTree = applyFanlightBottomRails(newTree, profileValues).tree
       setDividerError(null)
       commit(newTree)
@@ -2383,6 +2373,14 @@ function DrawingBoard() {
     } catch (e) {
       setDividerError(e?.message ?? String(e))
     }
+  }
+
+  // Step AW: Integrate's "Divider Spacing" on an opening's panel.
+  function handleMakeDividersEqual(axis) {
+    if (!tree) return
+    const frame = findFirst(tree, 'assemblyFramePart')
+    if (!frame) return
+    commit(makeDividersEqual(tree, frame.key, axis))
   }
 
   function handleDividerConfirm() {
@@ -2407,7 +2405,18 @@ function DrawingBoard() {
     if (!node) return
     const removable = ['mullionPart', 'transomPart', 'verticalGlazingBarPart', 'horizontalGlazingBarPart']
     if (!removable.includes(node.part_type)) return
-    const newTree = removeNode(tree, selectedKey)
+    // Step AW: removing a casement DIVIDER merges the openings it separated
+    // and re-points any divider that stopped at it (Step AV's removeDivider).
+    // Dropping the node alone would leave one opening per old slot and a
+    // divider pointing at one that had gone. A glazing bar is still a plain
+    // node removal, and so is a box sash divider, whose openings are its
+    // sash pairs rather than frame cells.
+    const isCasementDivider = isCasementFrameTree(tree) &&
+      (node.part_type === 'mullionPart' || node.part_type === 'transomPart')
+    const frame = findFirst(tree, 'assemblyFramePart')
+    const newTree = isCasementDivider && frame
+      ? removeDivider(tree, frame.key, selectedKey)
+      : removeNode(tree, selectedKey)
     setSelectedKey(null)
     commit(newTree)
   }
@@ -2472,6 +2481,20 @@ function DrawingBoard() {
   const selectedOpeningLabel = selectedOpeningKind
     ? openingMatrixIndex(tree, selectedNode)
     : null
+
+  // Step AW: the opening the palette would SPLIT. Integrate offers its two
+  // tiles when an opening's GLAZING is selected, and on this board the glass
+  // of a casement sash is a child of the sash, so the selection is taken up
+  // to the opening it belongs to — clicking the glass and clicking the sash
+  // both split the same opening. Only a casement frame's dividers can stop
+  // at each other, so a box sash always gets the whole-frame palette.
+  const splitTarget = (() => {
+    if (!isCasementDrawing || !selectedNode) return null
+    const openings = openingNodes(tree)
+    return openings.find(n => n.key === selectedNode.key)
+      ?? openings.find(n => (n.children ?? []).some(c => c.key === selectedNode.key))
+      ?? null
+  })()
 
   // ── Render ────────────────────────────────────────────────────────────────────
   if (loadError) {
@@ -2756,6 +2779,7 @@ function DrawingBoard() {
               onSetCompleteNewThickness={handleSetCompleteNewThickness}
               onSetSashesReplaced={handleSetSashesReplaced}
               onChangeInternalSize={handleChangeInternalSize}
+              onMakeDividersEqual={handleMakeDividersEqual}
             />
           </div>
 
@@ -2989,26 +3013,22 @@ function DrawingBoard() {
         </div>
       )}
 
-      {/* Transom / Mullion grid picker dialog */}
+      {/* Step AW: Integrate's Transom / Mullion tile palette */}
       {dividerDialog && (
-        <GridPickerDialog
-          title="Transom / Mullion — choose grid"
-          applyLabel="Apply to frame"
-          onApply={handleApplyDividers}
+        <DividerPaletteDialog
+          onPick={splitTarget ? handleSplitPick : handleApplyDividers}
           onClose={() => { setDividerError(null); setDividerDialog(false) }}
           error={dividerError}
-          initialCols={currentFrameGrid.cols}
-          initialRows={currentFrameGrid.rows}
-          maxRows={15}
-          note={isCasementDrawing
-            ? 'A second row adds a transom: the top row is the fanlight'
-            : null}
-          // Step AV: only a casement frame's dividers can stop at each other
-          oneOnly={isCasementDrawing ? {
-            columns: currentFrameGrid.cols,
-            rows: currentFrameGrid.rows,
-            onApply: handleAddDividerInCell,
-          } : null}
+          // An opening selected: just the two tiles that split it. Only a
+          // casement frame's dividers can stop at each other, so a box sash
+          // always gets the whole-frame palette.
+          tiles={splitTarget ? [[1, 2], [2, 1]] : null}
+          current={splitTarget ? null : currentFrameGrid}
+          note={splitTarget
+            ? `Split ${openingMatrixIndex(tree, splitTarget) ?? 'this opening'} with a transom (1x2) or a mullion (2x1)`
+            : (isCasementDrawing
+              ? 'Divides the whole frame. A second row adds a transom: the top row is the fanlight'
+              : 'Divides the whole frame')}
         />
       )}
 
