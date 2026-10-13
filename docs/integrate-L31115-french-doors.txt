@@ -1,0 +1,117 @@
+# Integrate facts — French doors (open out), read 13 Oct 2026, wandsworth.work, L31115 item 10 "TEST French doors",
+# Ground Floor, Rear — created with Nathan's approval from Integrate's own door templates. PF30, range
+# single_and_french_doors (GlazePro profile open_out_doors), Solid Utile Hardwood frame / leaves / cill (material 44),
+# Teknos Spray Finish Clean White both sides (single finish), complete new, supply & install. Priced through the temporary
+# Quote 2 test quote (item 10's slot switched between drawings); lines are the PF30 price-file test view (cost; price x 2).
+# Nathan (13 Oct): doors sold = front doors (open in), French doors (open out), single garden doors / doorsets, stable
+# doors; French doors first. Doors are sold in UTILE and ACCOYA only.
+
+## Integrate's templates (Door group "2. Open Out Doors")
+# 26 "Fully Glazed"             1899 x 2199 -> FD1 = drawing 10/1 (drawingId 310614), template size, SAVED
+#                                           -> FD2 = drawing 10/2 (310616), resized to 1599 x 2099, SAVED
+# 16 "French Doors w Fanlight"  1350 x 2599 -> FD3 = drawing 10/3 (310617), template size, SAVED (fanlight rail 86)
+#                                           -> FD3b = the same drawing with the fanlight bottom rail set to 62 (int) / 69 (ext), SAVED
+#   (the drawing now stands as FD3b; FD3's lines below were read before the change)
+# Not drawn yet: 29 French Door W Lights (sidelights), 46 French Door Set W Casement Lights, 79 French Doors with Panels,
+#   15 Fully Glazed Single Door, 28/69 doorsets — later steps.
+
+## IMPORTANT — save matters for doors
+# The template carries a STORED allocated-parts list (Utile sections only). On the first save Integrate's server
+# recomputes the allocated parts: it ADDS the multipoint-lock parts (allocator rules 2000-2120) and recomputes the
+# Utile section lengths from the drawing's sizes. An unsaved FD1 priced 5,258.91 (no lock parts); saved 5,639.01.
+# Every benchmark below is a SAVED drawing (what a surveyor's quote actually holds).
+
+## How Integrate stores a French door (FD1 tree, unchanged parts omitted)
+# AssemblyFrame{1899 x 2199, jambType solid_profiled, head/jambs 47 (+20 stop = 67 finished), cill height 37 (63 finished),
+#   frameDepth 96, cillDepth 145, frameHeadStopSize 20, frameStileStopSize 20, cillStopSize 26}
+#   internal 1805 x 2115 (= 2199 - 47 - 37)
+# FrenchDoorPart{thickness 54, typeId 7 (open out), clearances top 3 / bottom 3 / left 1 / right 1, midRail 198,
+#   gapBetweenMeetingStiles 5, meetingStileOverlap 27, mullionThickness 83}   — no mullion; ONE opening holds the pair
+#   LeftFrenchDoorLeafPart  A1 {op 17 LH, typeId 7, 54 thick, top 110, stiles 110/110, bottom 163 (ext 170), stepped
+#     bottom rail, overlap 7, width 912.5, height 2109}
+#   RightFrenchDoorLeafPart B1 {op 18 RH, ... same sections, isMasterLeaf true}
+#   Leaf height = opening height - 3 - 3; leaf width = (opening width - 1 - 1 - gap 5 + overlap 27) / 2
+#     FD1 (1805 - 2 - 5 + 27) / 2 = 912.5 x 2109 ; FD2 762.5 x 2009 ; FD3 (1256 - 2 - 5 + 27) / 2 = 638 x 2069
+#   Glass on each leaf: GL100010 / GL100080, rebate 15, tolerance 3, sightline = leaf - 110 - 110 by leaf - 110 - 163
+#     (FD1 692.5 x 1836), cut size sightline + 2 x (15 - 3) = 716.5 x 1860 = 1.333 -> 1.33 m2
+# CillPart{depth 145, height 37, width = internal width}
+# FD3 adds: frame dividers = [TransomPart{thickness 41 (77 finished, stops 18 / 18), offset 399, offset2 2075,
+#   startDivider '0', endDivider '0'}]  (internal 1256 x 2515 = 399 + 41 + 2075)
+#   A1 fanlight = CasementSashPart{54, op 15 top hung, typeId 7, clearances top 1 / left 1 / right 1 / bottom 2,
+#     62 / 62 / 62, bottom 86 (ext 93), stepped} = 1254 x 396 ; pair below as A2 (LH) / B2 (RH, master), 638 x 2069
+# Profile (GlazePro open_out_doors, imported) already holds these values incl. frenchDoor.* and doorLeaf.*; door leaf
+#   bottomHeight 163 / ext 170 come from the template (not in the profile). The profile's
+#   casementSash.defaultFanlightBottomHeight is 58 (Integrate) — Nathan's rule is 62 for new fanlights.
+
+## Stored lists (templates)
+# FD1 / FD2 ironmongerySet: 102mm_hinges PB 4; double_euro_cylinder PB 1; trickle_vent_xr16 Wht 1; windsor_inline_handle PB 1
+# FD3 adds for the fanlight: connoisseur_handle_lh PB 1; defender_310mm PC 1; kenrick_extension_1210mm PC 2;
+#   kenrick_extension_gear_box PC 1
+# Allocated parts after save (FD1 / FD2 / FD3 the same set): RJZ2382 (master shootbolt) 1, RHZ1648 (slave LH 1853-2565
+#   open out) 1, RHZ1653 (slave hinge keep 1997-2139) 1, RHZ1667 (slave flush bolt) 1 — GlazePro's mpls_doors allocator
+#   rules 2010 / 2030 / 2060 / 2090, gross_sash_height_in_mm = leaf height (2109 / 2009 / 2069)
+# Surround (auto, saved): Ogee Architrave in MDF 2 x (H + 100 rounded up to 10) and 1 x (W + 100 rounded up to 10):
+#   FD1 2300 / 2000 ; FD2 2200 / 1700 ; FD3 2700 / 1450
+
+## Allocated Utile sections (server-side, recomputed on save; price rule "Utile Section Part", loop
+## allocated_section_part, cost = length_in_m (UNROUNDED, mm / 1000) x purchase_cost, line rounded to 2 dp; x 2.00)
+# Stock parts (Integrate part list, measure_only, material 44): Utile63x63 8.60/m ; Utile63x96 12.20/m ;
+#   Utile63x120 17.30/m ; Utile63x200 29.00/m ; Utile67x96 13.60/m   (NOT in GlazePro's parts catalogue yet)
+#                     FD1 1899x2199   FD2 1599x2099   FD3 1350x2599 (rail 86)   FD3b (rail 62)
+# Utile67x96  (frame)       6297            5797            6548                    6548     = W + 2 x H (overall frame)
+# Utile63x200 (cill+btm)    3724            3124            2626                    2626     = W (cill, overall) + each leaf width (bottom rail 163)
+# Utile63x120 (leaf)       10249            9549            9540                    9540     = per leaf 2 x leaf H + leaf W - 6
+# Utile63x63  (fanlight)      -               -             2060                    2060     = fanlight sash W + 2 x H + 14 (top rail + stiles)
+# Utile63x96  (fanl. btm)     -               -             1254                      -      = fanlight sash W (bottom rail 86)
+# Single readings: the -6 per leaf and +14 per fanlight are fixed offsets that size changes do not move (FD1 -> FD2
+#   moved every length by exactly the sizes). Integrate does NOT allocate: the transom (41 / 77 finished x 96 deep), or a
+#   62 mm fanlight bottom rail (FD3b: 63x96 disappears and nothing replaces it).
+# Nathan (13 Oct): GlazePro CHARGES for both (deliberate difference): the 62 rail at 63x63 for the sash width (as the 86
+#   rail is charged at 63x96); the transom at Utile67x96 for the internal frame width — PROVISIONAL (no listed section is
+#   big enough for 77 x 96 finished; the workshop to confirm the real stock).
+# Nathan (13 Oct): Accoya doors use the utile per-metre prices until he supplies Accoya section prices (Integrate has no
+#   Accoya sections at all, so its Accoya doors carry NO timber cost — an Integrate gap).
+
+## Price-file lines (cost)            FD1            FD2            FD3            FD3b
+# Square Glass Cost (58.50/m2)  2 x 1.33 77.81  2 x 1.00 58.50  fan 0.31 18.14   fan 0.34 19.89 ; leaves 2 x 0.80 46.80
+# All Glass Energy (0.17/kg)    2 x 26.60 4.52  2 x 20.00 3.40  6.20 1.05 ; 2 x 16.00 2.72   6.80 1.16 ; 2 x 2.72
+#   (energy kg = rounded area x 20)
+# Ironmongery (each line whole pounds x 1.05):
+#   102mm Ball Bearing Hinges (Pair) Brass 4 29.40 ; Double Euro Cylinder 40/40 PB 21.00 ; Trickle Vent XR16 3.15 ;
+#   Windsor Inline PB 16.80 ; Adj Single Shootbolt Keep 6.30 ; Winkhaus FAB Shootbolt 399 36.75 ;
+#   Winkhaus Flushbolt LH 93.45 ; Winkhaus Thunderbolt Master Multipoint Lock 53.55          = 260.40 (FD1, FD2)
+#   FD3 / FD3b add: Connoisseur Handle PB LH 8.40 ; Defender 310mm Top Hung 5.25 ; Kenrick Centre Strike 2.10 ;
+#   Kenrick Extension 1210-1470 x2 5.25 ; Kenrick Gearbox 25mm 4.20 ; LH strike 1.05 ; RH strike 1.05 = 287.70
+# Component (Ogee MDF 2.85/m)   4.60 13.11 ; 2.00 5.70    4.40 12.54 ; 1.70 4.85    5.40 15.39 ; 1.50 4.28 (both)
+# Installation Consumables      30.00 (all)
+# Production (24.66/h)          55.42 h 1,366.66  55.42 h 1,366.66  66.17 h 1,631.75  66.17 h 1,631.75
+# Labour (40.21/h)              14.50 h 583.05    13.00 h 522.73    14.50 h 583.05    14.50 h 583.05
+# LTW General Consumables       25.00 (all)
+# Utile Section Part            177.31 / 108.00 / 85.64   165.20 / 90.60 / 78.84   165.04 / 76.15 / 17.72 / 15.30 / 89.05
+#                                                                                   FD3b: as FD3 without the 15.30
+# Groups (cost)   glass_done   installation_materials   manufacture   labour   manufacture_materials   TOTAL (price)
+#   FD1           164.66       309.21                    1,366.66      583.05   395.95                  2,819.53 (5,639.01)
+#   FD2           123.80       307.79                    1,366.66      522.73   359.64                  2,680.62 (5,361.21)
+#   FD3           118.23       337.37                    1,631.75      583.05   388.26                  3,058.66 (6,117.31)
+#   FD3b          120.09       337.37                    1,631.75      583.05   372.96                  3,045.22 (6,090.42)
+# No "Softwood Casement Frame & Sashes" / sash / cill volume lines on a utile door — timber is ONLY the section lines.
+
+## Reconciliations with GlazePro's live rules (all exact)
+# Production minutes: Door Leaf 1035 per leaf + Machining & Joining a Door Frame 855 + Door Frame Single Finish 180 +
+#   Door Leaf Single Finish 90 per leaf + Glazing a Sash 20 per glass unit
+#   FD1 / FD2 = 2070 + 855 + 180 + 180 + 40 = 3325 = 55.42 h
+#   FD3 adds Fanlights in Doorsets 300 + glazing 20 + Door Frame Single Finish (Mullions) 85 x 1 transom +
+#   Additional for Frame Mullion or Transom 180 + Casement Sash Single Finish 60 = 3970 = 66.17 h
+# Labour minutes (Fitting Units test view, read): French Doors 780 per new pair; Any Door Overweight 45 per leaf over
+#   50 kg; Door Opening Casement Sash 90 per opening fanlight.
+#   FD1 780 + 45 + 45 = 870 (14.50 h) ; FD2 780 (13.00 h) ; FD3 780 + 90 = 870 (14.50 h)
+#   Leaf weight (GlazePro's sash weight method, utile 780.1 kg/m3, glass 20 kg/m2 for 4/16/4):
+#   FD1 (2 x 2109 x 110 + 692.5 x 273) x 54 = 35.26 dm3 = 27.5 kg + 26.7 kg glass = 54 kg > 50 ;
+#   FD2 24.9 + 19.9 = 45 kg ; FD3 24.0 + 16.1 = 40 kg
+
+## Integrate's property panels (survey mode, FD1)
+# French Door (pair): Internal Frame Width 1805 ; Internal Frame Height 2115 ; Door Type "Open Out / Flush with Stops
+#   Internally" ; Overall Meeting Stile 198 ; Thickness 54 ; Sash Split "1/2 - 1/2 split" ; Set left leaf width ;
+#   Set right leaf width ; Left / Right / Top / Bottom Clearance 1 / 1 / 3 / 3
+# RHS Door Leaf: Arch Head ; To Be Replaced ; Special Joinery Details ; Special Glass Details ; Divider Spacing (x2) ;
+#   Operation (Fix / Right Hand Hung) ; Bottom Rail (int) 163 ; Master Leaf

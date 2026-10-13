@@ -1102,5 +1102,129 @@
       "production": 21.5,
       "labour": 13.0
     }
+  },
+  "benchmarkFD1_french_doors": {
+    "source": "L31115 Item 10 Drawing 1 (ground floor, TEST French doors, Integrate template 26 Fully Glazed, utile, 1899 x 2199, master leaf right). Read 13 Oct 2026 via the temporary Quote 2 test quote; drawing SAVED in Integrate (lock parts and Utile sections recomputed on save). Facts: docs/integrate-L31115-french-doors.txt",
+    "total_cost": 2819.53,
+    "total_price": 5639.01,
+    "groups": {
+      "glass_done": {
+        "cost": 164.66,
+        "price": 329.3
+      },
+      "installation_materials": {
+        "cost": 309.21,
+        "price": 618.42
+      },
+      "manufacture": {
+        "cost": 1366.66,
+        "price": 2733.31
+      },
+      "labour": {
+        "cost": 583.05,
+        "price": 1166.09
+      },
+      "manufacture_materials": {
+        "cost": 395.95,
+        "price": 791.89
+      }
+    },
+    "hours": {
+      "production": 55.42,
+      "labour": 14.5
+    }
+  },
+  "benchmarkFD2_french_doors_resized": {
+    "source": "L31115 Item 10 Drawing 2 (template 26 resized to 1599 x 2099). Read 13 Oct 2026 via the temporary Quote 2 test quote; drawing SAVED in Integrate (lock parts and Utile sections recomputed on save). Facts: docs/integrate-L31115-french-doors.txt",
+    "total_cost": 2680.62,
+    "total_price": 5361.21,
+    "groups": {
+      "glass_done": {
+        "cost": 123.8,
+        "price": 247.6
+      },
+      "installation_materials": {
+        "cost": 307.79,
+        "price": 615.57
+      },
+      "manufacture": {
+        "cost": 1366.66,
+        "price": 2733.31
+      },
+      "labour": {
+        "cost": 522.73,
+        "price": 1045.46
+      },
+      "manufacture_materials": {
+        "cost": 359.64,
+        "price": 719.27
+      }
+    },
+    "hours": {
+      "production": 55.42,
+      "labour": 13.0
+    }
+  },
+  "benchmarkFD3_french_doors_with_fanlight": {
+    "source": "L31115 Item 10 Drawing 3 as first saved (template 16 French Doors w Fanlight, 1350 x 2599, top-hung fanlight bottom rail 86 / ext 93). Read 13 Oct 2026 via the temporary Quote 2 test quote; drawing SAVED in Integrate (lock parts and Utile sections recomputed on save). Facts: docs/integrate-L31115-french-doors.txt. Integrate charges no transom timber (GlazePro will: deliberate difference)",
+    "total_cost": 3058.66,
+    "total_price": 6117.31,
+    "groups": {
+      "glass_done": {
+        "cost": 118.23,
+        "price": 236.46
+      },
+      "installation_materials": {
+        "cost": 337.37,
+        "price": 674.73
+      },
+      "manufacture": {
+        "cost": 1631.75,
+        "price": 3263.5
+      },
+      "labour": {
+        "cost": 583.05,
+        "price": 1166.09
+      },
+      "manufacture_materials": {
+        "cost": 388.26,
+        "price": 776.53
+      }
+    },
+    "hours": {
+      "production": 66.17,
+      "labour": 14.5
+    }
+  },
+  "benchmarkFD3b_french_doors_fanlight_rail_62": {
+    "source": "L31115 Item 10 Drawing 3 after setting the fanlight bottom rail to 62 / ext 69 and saving. Read 13 Oct 2026 via the temporary Quote 2 test quote; drawing SAVED in Integrate (lock parts and Utile sections recomputed on save). Facts: docs/integrate-L31115-french-doors.txt. Integrate charges neither the transom nor the 62 rail (GlazePro will: deliberate difference)",
+    "total_cost": 3045.22,
+    "total_price": 6090.42,
+    "groups": {
+      "glass_done": {
+        "cost": 120.09,
+        "price": 240.17
+      },
+      "installation_materials": {
+        "cost": 337.37,
+        "price": 674.73
+      },
+      "manufacture": {
+        "cost": 1631.75,
+        "price": 3263.5
+      },
+      "labour": {
+        "cost": 583.05,
+        "price": 1166.09
+      },
+      "manufacture_materials": {
+        "cost": 372.96,
+        "price": 745.93
+      }
+    },
+    "hours": {
+      "production": 66.17,
+      "labour": 14.5
+    }
   }
 }
