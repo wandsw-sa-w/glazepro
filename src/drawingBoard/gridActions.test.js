@@ -13,6 +13,10 @@ import { describe, it, expect } from 'vitest'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { applyDividers, applyBars, cloneWithNewKeys, makeKey , frameGrid } from './gridActions.js'
+import { addDividerInCell, removeDivider } from './gridActions.js'
+import { buildCasementFrame, resizeCasementFrame } from './casementOpenings.js'
+import { frameCells, frameInterior, isShortDivider, shortDividerSpanMm } from '../pricing/casementGeometry.js'
+import { BENCHMARK_TC1, BENCHMARK_TC3 } from '../pricing/benchmarks/fixtureCasement.js'
 import { buildNewBoxSash } from './buildTree.js'
 import { computeDerived } from './computeDerived.js'
 import { computeSashGeometry } from './sashGeometry.js'
@@ -349,5 +353,226 @@ describe('frameGrid', () => {
     const after = applyDividers(tree, 'frame1', cols, rows, 1125, 1205,
       { thicknessInFrameSolid: 27, mullionStopSize: 20 }, 'solid')
     expect(frameGrid(after, 'frame1')).toEqual({ cols, rows })
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step AV — the picker's second mode: a divider in ONE column or ONE row
+// ══════════════════════════════════════════════════════════════════════════════
+// TC1 and TC3 cannot be drawn by the grid picker: their second divider stops
+// at the first one. These run the real board actions — the same functions the
+// Transom/Mullion... dialog calls — and check the geometry that comes out is
+// the benchmark geometry, cell for cell.
+describe('Step AV — a divider in one column or one row', () => {
+  // Profile 2 (casement) as api.js loadProfileValues returns it. buildCasementFrame
+  // reads the FULL field keys; the picker takes DrawingBoard's short-keyed
+  // profileValueMap, so the test passes each what the board passes it.
+  const ROWS = [
+    { profile_id: 2, field_key: 'assemblyFramePart.leftWidth',    default_value: '37' },
+    { profile_id: 2, field_key: 'assemblyFramePart.rightWidth',   default_value: '37' },
+    { profile_id: 2, field_key: 'assemblyFramePart.topHeight',    default_value: '47' },
+    { profile_id: 2, field_key: 'assemblyFramePart.bottomHeight', default_value: '47' },
+    { profile_id: 2, field_key: 'assemblyFramePart.frameDepth',   default_value: '96' },
+    { profile_id: 2, field_key: 'assemblyFramePart.frameHeadStopSize',  default_value: '20' },
+    { profile_id: 2, field_key: 'assemblyFramePart.frameStileStopSize', default_value: '20' },
+    { profile_id: 2, field_key: 'assemblyFramePart.cillStopSize', default_value: '20' },
+    { profile_id: 2, field_key: 'cillPart.height',                default_value: '47' },
+    { profile_id: 2, field_key: 'cillPart.depth',                 default_value: '128' },
+    { profile_id: 2, field_key: 'mullionPart.thicknessInFrameSolid', default_value: '27' },
+    { profile_id: 2, field_key: 'mullionPart.mullionStopSize',     default_value: '20' },
+    { profile_id: 2, field_key: 'casementSashPart.thickness',      default_value: '54' },
+    { profile_id: 2, field_key: 'casementSashPart.topHeight',      default_value: '62' },
+    { profile_id: 2, field_key: 'casementSashPart.leftWidth',      default_value: '62' },
+    { profile_id: 2, field_key: 'casementSashPart.rightWidth',     default_value: '62' },
+    { profile_id: 2, field_key: 'casementSashPart.defaultFanlightBottomHeight', default_value: '83' },
+    { profile_id: 2, field_key: 'casementSashPart.mechanicalClearanceLeft',   default_value: '4' },
+    { profile_id: 2, field_key: 'casementSashPart.mechanicalClearanceRight',  default_value: '4' },
+    { profile_id: 2, field_key: 'casementSashPart.mechanicalClearanceTop',    default_value: '4' },
+    { profile_id: 2, field_key: 'casementSashPart.mechanicalClearanceBottom', default_value: '4' },
+    { profile_id: 2, field_key: 'glassPart.defaultDoubleGlazingRebateWidthForSash', default_value: '16' },
+    { profile_id: 2, field_key: 'glassPart.defaultDoubleGlazingTolerance',          default_value: '2' },
+    { profile_id: 2, field_key: 'glassPart.defaultDirGuStopSize',                   default_value: '20' },
+    { profile_id: 2, field_key: 'glassPart.defaultDoubleGlazingRebateWidthForDirGU', default_value: '20' },
+    { profile_id: 2, field_key: 'glassPart.defaultDoubleGlazingToleranceForDirGU',   default_value: '2' },
+  ]
+  const PV = (() => {
+    const map = {}
+    for (const r of ROWS) {
+      const key = r.field_key.split('.').pop()
+      const n = Number(r.default_value)
+      map[key] = isNaN(n) ? r.default_value : n
+    }
+    return map
+  })()
+
+  const frameOf = t => findFirst(t, 'assemblyFramePart')
+  const dividersOf = t => (frameOf(t).children ?? [])
+    .filter(c => c.part_type === 'mullionPart' || c.part_type === 'transomPart')
+  const openingsOf = t => (frameOf(t).children ?? [])
+    .filter(c => c.part_type === 'casementSashPart' || c.part_type === 'glassPart')
+  const shapeOf = t => frameCells(t).map(c => [c.col, c.row, c.colSpan, c.rowSpan])
+  const sizesOf = t => frameCells(t).map(c => [c.width, c.height])
+
+  /** A casement frame the way DrawingBoard.jsx builds one from a template. */
+  function newFrame(width, height) {
+    // buildCasementFrame reports the profile values it could not resolve
+    const { tree, missing } = buildCasementFrame(ROWS, { width, height, openings: ['opening_casement'] })
+    expect(missing, 'profile values the build could not resolve').toEqual([])
+    return tree
+  }
+
+  it('TC1: a transom across the frame, then a mullion in the bottom row only', () => {
+    // 1105 x 1405. Interior 1031 x 1284 (frame stile 37 each side).
+    let tree = newFrame(1105, 1405)
+    const interior = frameInterior(tree)
+    expect([interior.width, interior.height]).toEqual([1031, 1311])
+
+    // The grid picker: 1 column, 2 rows, then the transom moved to 301
+    tree = applyDividers(tree, frameOf(tree).key, 1, 2, interior.width, interior.height, PV, 'solid')
+    tree = setValues(tree, 'transomPart', { offset: 301 })
+    expect(shapeOf(tree)).toEqual([[0, 0, 1, 1], [0, 1, 1, 1]])
+
+    // The new mode: a mullion in row 2 (index 1), at 493 from the left jamb
+    const transomKey = findFirst(tree, 'transomPart').key
+    tree = addDividerInCell(tree, frameOf(tree).key,
+      { axis: 'mullion', index: 1, offset: 493, profileValues: PV })
+
+    // It stops AT the transom, and runs to the cill
+    const mullion = findFirst(tree, 'mullionPart')
+    expect(mullion.values.startDivider).toBe(transomKey)
+    expect(mullion.values.endDivider).toBe('0')
+    expect(mullion.values.thicknessInFrame).toBe(27)
+
+    // which is TC1's geometry: the fanlight spans both columns
+    expect(shapeOf(tree)).toEqual([[0, 0, 2, 1], [0, 1, 1, 1], [1, 1, 1, 1]])
+    expect(sizesOf(tree)).toEqual([[1031, 301], [493, 983], [511, 983]])
+    expect(sizesOf(tree)).toEqual(sizesOf(BENCHMARK_TC1.tree))
+
+    // three openings for three cells, and the mullion is short
+    expect(openingsOf(tree).length).toBe(3)
+    expect(isShortDivider(tree, mullion)).toBe(true)
+    expect(shortDividerSpanMm(tree, mullion)).toBe(983)
+  })
+
+  it('TC3: a mullion across the frame, then a transom in column B only', () => {
+    let tree = newFrame(1205, 1295)
+    const interior = frameInterior(tree)
+    tree = applyDividers(tree, frameOf(tree).key, 2, 1, interior.width, interior.height, PV, 'solid')
+    tree = setValues(tree, 'mullionPart', { offset: 543 })
+
+    const mullionKey = findFirst(tree, 'mullionPart').key
+    tree = addDividerInCell(tree, frameOf(tree).key,
+      { axis: 'transom', index: 1, offset: 354, profileValues: PV })
+
+    const transom = findFirst(tree, 'transomPart')
+    expect(transom.values.startDivider).toBe(mullionKey)
+    expect(transom.values.endDivider).toBe('0')
+    expect(transom.values.transomStopSize).toBe(20)
+
+    expect(shapeOf(tree)).toEqual([[0, 0, 1, 2], [1, 0, 1, 1], [1, 1, 1, 1]])
+    expect(sizesOf(tree)).toEqual([[543, 1201], [561, 354], [561, 820]])
+    expect(sizesOf(tree)).toEqual(sizesOf(BENCHMARK_TC3.tree))
+    expect(openingsOf(tree).length).toBe(3)
+    expect(shortDividerSpanMm(tree, transom)).toBe(561)
+  })
+
+  it('a divider in one column needs a divider to stop at, and says so', () => {
+    const tree = newFrame(1200, 1300)
+    expect(() => addDividerInCell(tree, frameOf(tree).key,
+      { axis: 'transom', index: 1, offset: 300, profileValues: PV }))
+      .toThrow(/needs a mullion to stop at/)
+    expect(() => addDividerInCell(tree, frameOf(tree).key,
+      { axis: 'mullion', index: 1, offset: 300, profileValues: PV }))
+      .toThrow(/needs a transom to stop at/)
+  })
+
+  it('without the profile thickness nothing is added, and the message says why', () => {
+    let tree = newFrame(1105, 1405)
+    const interior = frameInterior(tree)
+    tree = applyDividers(tree, frameOf(tree).key, 1, 2, interior.width, interior.height, PV, 'solid')
+    expect(() => addDividerInCell(tree, frameOf(tree).key,
+      { axis: 'mullion', index: 1, offset: 493, profileValues: {} }))
+      .toThrow(/thicknessInFrameSolid/)
+  })
+
+  it('index 0 puts the divider in the FIRST column, stopping at the mullion', () => {
+    // The mirror of TC3 — template 14's fanlight is on the left.
+    let tree = newFrame(1205, 1295)
+    const interior = frameInterior(tree)
+    tree = applyDividers(tree, frameOf(tree).key, 2, 1, interior.width, interior.height, PV, 'solid')
+    tree = setValues(tree, 'mullionPart', { offset: 543 })
+    const mullionKey = findFirst(tree, 'mullionPart').key
+    tree = addDividerInCell(tree, frameOf(tree).key,
+      { axis: 'transom', index: 0, offset: 354, profileValues: PV })
+
+    const transom = findFirst(tree, 'transomPart')
+    expect(transom.values.startDivider).toBe('0')
+    expect(transom.values.endDivider).toBe(mullionKey)
+    // column A is split, column B spans both rows
+    expect(shapeOf(tree)).toEqual([[0, 0, 1, 1], [1, 0, 1, 2], [0, 1, 1, 1]])
+  })
+
+  it('removing a divider merges the openings it separated', () => {
+    let tree = newFrame(1105, 1405)
+    const interior = frameInterior(tree)
+    tree = applyDividers(tree, frameOf(tree).key, 1, 2, interior.width, interior.height, PV, 'solid')
+    tree = setValues(tree, 'transomPart', { offset: 301 })
+    tree = addDividerInCell(tree, frameOf(tree).key,
+      { axis: 'mullion', index: 1, offset: 493, profileValues: PV })
+    expect(openingsOf(tree).length).toBe(3)
+
+    // take the short mullion away: back to a transom and two openings
+    const mullionKey = findFirst(tree, 'mullionPart').key
+    tree = removeDivider(tree, frameOf(tree).key, mullionKey)
+    expect(dividersOf(tree).map(d => d.part_type)).toEqual(['transomPart'])
+    expect(openingsOf(tree).length).toBe(2)
+    expect(shapeOf(tree)).toEqual([[0, 0, 1, 1], [0, 1, 1, 1]])
+    expect(sizesOf(tree)).toEqual([[1031, 301], [1031, 983]])
+  })
+
+  it('removing the divider a short one stops at makes that one run frame to frame', () => {
+    // Otherwise the short mullion would point at a divider that has gone.
+    let tree = newFrame(1105, 1405)
+    const interior = frameInterior(tree)
+    tree = applyDividers(tree, frameOf(tree).key, 1, 2, interior.width, interior.height, PV, 'solid')
+    tree = setValues(tree, 'transomPart', { offset: 301 })
+    tree = addDividerInCell(tree, frameOf(tree).key,
+      { axis: 'mullion', index: 1, offset: 493, profileValues: PV })
+
+    const transomKey = findFirst(tree, 'transomPart').key
+    tree = removeDivider(tree, frameOf(tree).key, transomKey)
+
+    const mullion = findFirst(tree, 'mullionPart')
+    expect(mullion.values.startDivider).toBe('0')
+    expect(mullion.values.endDivider).toBe('0')
+    expect(isShortDivider(tree, mullion)).toBe(false)
+    expect(shapeOf(tree)).toEqual([[0, 0, 1, 1], [1, 0, 1, 1]])
+    expect(sizesOf(tree)).toEqual([[493, 1311], [511, 1311]])
+  })
+
+  it('removing a divider that is not there changes nothing', () => {
+    const tree = newFrame(1200, 1300)
+    expect(removeDivider(tree, frameOf(tree).key, 'nosuchkey')).toBe(tree)
+  })
+
+  it('resizing carries the spanning openings with their cells', () => {
+    // The cells are read from the offsets, so re-spacing the columns moves
+    // the span with them — the fanlight stays one opening across the top.
+    let tree = newFrame(1105, 1405)
+    const interior = frameInterior(tree)
+    tree = applyDividers(tree, frameOf(tree).key, 1, 2, interior.width, interior.height, PV, 'solid')
+    tree = setValues(tree, 'transomPart', { offset: 301 })
+    tree = addDividerInCell(tree, frameOf(tree).key,
+      { axis: 'mullion', index: 1, offset: 493, profileValues: PV })
+
+    const wider = resizeCasementFrame(tree, { width: 1505, height: 1605 }).tree
+    expect(shapeOf(wider)).toEqual([[0, 0, 2, 1], [0, 1, 1, 1], [1, 1, 1, 1]])
+    const cells = frameCells(wider)
+    // the span is still the whole interior width, and the extra height went
+    // to the bottom row — the fanlight keeps its 301
+    expect(cells[0].width).toBe(frameInterior(wider).width)
+    expect(cells[0].height).toBe(301)
+    expect(cells[1].height).toBe(1183)
+    expect(cells[1].width + 27 + cells[2].width).toBe(frameInterior(wider).width)
   })
 })

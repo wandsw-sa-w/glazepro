@@ -263,3 +263,157 @@ export function frameGrid(tree, frameKey) {
     rows: children.filter(c => c.part_type === 'transomPart').length + 1,
   }
 }
+
+// ── Step AV: a divider in ONE column or ONE row ──────────────────────────────
+
+/**
+ * Add a divider that STOPS AT ANOTHER DIVIDER — a transom in one column, or
+ * a mullion in one row — which is how Integrate's combination templates are
+ * built (its startDivider / endDivider).
+ *
+ * `applyDividers` above lays out a whole grid of full-width dividers. This is
+ * the other picker mode: it ADDS one divider bounded by the crossing dividers
+ * that already bound the chosen column or row, leaving everything else alone.
+ *
+ *   axis 'transom'  + colIndex  → a transom in that column only (TC3)
+ *   axis 'mullion'  + rowIndex  → a mullion in that row only    (TC1)
+ *
+ * The new divider's offset is measured on its own axis exactly as a full one
+ * is: the extent of the opening ABOVE a transom, or to the LEFT of a mullion.
+ * The openings it separates are rebuilt by copying the one being split, so
+ * the new pair keeps its sections — the same rule the grid picker follows.
+ *
+ * Returns the new tree, as applyDividers does.
+ */
+export function addDividerInCell(tree, frameKey, {
+  axis,
+  index = 0,
+  offset = null,
+  profileValues = null,
+} = {}) {
+  const frame = findFrame(tree, frameKey)
+  if (!frame) return tree
+
+  const isTransom = axis === 'transom'
+  const crossingType = isTransom ? 'mullionPart' : 'transomPart'
+  const crossing = (frame.children ?? [])
+    .filter(c => c.part_type === crossingType)
+    .sort((a, b) => (Number(a.values?.offset) || 0) - (Number(b.values?.offset) || 0))
+
+  // A divider "in one column" needs a column to be in: that means at least
+  // one crossing divider. With none, the caller wants the whole-frame
+  // picker instead, and saying so beats quietly adding a full divider.
+  if (crossing.length === 0) {
+    throw new Error(
+      `A ${axis} in one ${isTransom ? 'column' : 'row'} needs a ${isTransom ? 'mullion' : 'transom'} to stop at. ` +
+      'Add one across the whole frame first, or choose "across the whole frame".')
+  }
+
+  const thickness = Number(profileValues?.thicknessInFrameSolid)
+  if (!isFinite(thickness) || thickness <= 0) {
+    throw new Error(
+      'Missing profile value thicknessInFrameSolid — a casement divider is solid and takes its ' +
+      'thickness from the profile. Nothing was added; check the drawing’s profile values.')
+  }
+  const stop = Number(profileValues?.mullionStopSize) ||
+    Number(profileValues?.frameStileStopSize) || 0
+
+  // The slot the new divider sits in is bounded by crossing[index - 1] and
+  // crossing[index]: startDivider is the one BEFORE it, endDivider the one
+  // after, and '0' wherever that is the frame.
+  const slot = Math.max(0, Math.min(index, crossing.length))
+  const startDivider = slot > 0 ? crossing[slot - 1].key : '0'
+  const endDivider   = slot < crossing.length ? crossing[slot].key : '0'
+
+  const divider = {
+    key: makeKey(isTransom ? 'trans' : 'mull'),
+    part_type: isTransom ? 'transomPart' : 'mullionPart',
+    values: {
+      // Stored to 1 dp, as Integrate stores offsets (Step AH 3b)
+      offset: Math.round((Number(offset) || 0) * 10) / 10,
+      thicknessInFrame: thickness,
+      ...(isTransom ? { transomStopSize: stop } : { mullionStopSize: stop }),
+      startDivider,
+      endDivider,
+    },
+    children: [],
+  }
+
+  // The opening being split is the one in that slot; its copy becomes the
+  // second of the pair, so both keep the sections it had.
+  const OPENING_TYPES = ['casementSashPart', 'glassPart']
+  const openings = (frame.children ?? []).filter(c => OPENING_TYPES.includes(c.part_type))
+  const source = openings[Math.min(slot, Math.max(0, openings.length - 1))] ?? openings[0]
+  const extra = source ? cloneWithNewKeys(source) : null
+
+  function process(node) {
+    if (node.key !== frame.key) {
+      return { ...node, children: (node.children ?? []).map(process) }
+    }
+    const others = (node.children ?? []).filter(c => !OPENING_TYPES.includes(c.part_type))
+    // The new divider joins the existing ones; the openings keep their order
+    // and gain the copy. frameCells works out the rest from the offsets.
+    return {
+      ...node,
+      children: [...others.filter(c => c.part_type !== 'cillPart'), divider,
+        ...openings, ...(extra ? [extra] : []),
+        ...others.filter(c => c.part_type === 'cillPart')],
+    }
+  }
+  return process(tree)
+}
+
+/**
+ * Remove a divider, MERGING the openings it separated.
+ *
+ * The openings it separated become one, so the extra parts go: the opening
+ * that keeps its place is the first of them, which keeps the surveyor's
+ * sections rather than a copy's.
+ */
+export function removeDivider(tree, frameKey, dividerKey) {
+  const frame = findFrame(tree, frameKey)
+  if (!frame) return tree
+  if (!(frame.children ?? []).some(c => c.key === dividerKey)) return tree
+
+  const OPENING_TYPES = ['casementSashPart', 'glassPart']
+  const openings = (frame.children ?? []).filter(c => OPENING_TYPES.includes(c.part_type))
+  // One divider fewer means one opening fewer along its axis. Dropping the
+  // LAST opening keeps A1 and the lower-numbered slots, which is what a
+  // surveyor sees stay put.
+  const keep = Math.max(1, openings.length - 1)
+  const kept = openings.slice(0, keep)
+
+  // Any divider that stopped AT this one now runs to the frame instead,
+  // otherwise it would point at a divider that no longer exists.
+  function relink(values) {
+    const next = { ...values }
+    if (next.startDivider === dividerKey) next.startDivider = '0'
+    if (next.endDivider === dividerKey) next.endDivider = '0'
+    return next
+  }
+
+  function process(node) {
+    if (node.key !== frame.key) {
+      return { ...node, children: (node.children ?? []).map(process) }
+    }
+    const children = (node.children ?? [])
+      .filter(c => c.key !== dividerKey)
+      .filter(c => !OPENING_TYPES.includes(c.part_type) || kept.includes(c))
+      .map(c => (c.part_type === 'mullionPart' || c.part_type === 'transomPart')
+        ? { ...c, values: relink(c.values) }
+        : c)
+    return { ...node, children }
+  }
+  return process(tree)
+}
+
+function findFrame(node, frameKey) {
+  if (!node) return null
+  if (node.key === frameKey && node.part_type === 'assemblyFramePart') return node
+  if (!frameKey && node.part_type === 'assemblyFramePart') return node
+  for (const child of (node.children ?? [])) {
+    const found = findFrame(child, frameKey)
+    if (found) return found
+  }
+  return null
+}

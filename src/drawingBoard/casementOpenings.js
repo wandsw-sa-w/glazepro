@@ -21,6 +21,7 @@
 
 import { makeKey } from './gridActions.js'
 import { resolveJambTypeCode } from './applyOperationDefaults.js'
+import { frameCells } from '../pricing/casementGeometry.js'
 
 // ── Profile value helpers ────────────────────────────────────────────────────
 
@@ -504,7 +505,28 @@ export function matrixIndexOf(index, cols = 1) {
   const n = Math.max(1, cols)
   const col = index % n
   const row = Math.floor(index / n) + 1
-  return `${String.fromCharCode(65 + col)}${row}`
+  return matrixLabel(col, row - 1)
+}
+
+/** Integrate's label for a slot: column letter + row number, both 0-based in. */
+export function matrixLabel(col, row) {
+  return `${String.fromCharCode(65 + col)}${row + 1}`
+}
+
+/**
+ * The matrix label of an OPENING, from the cell it occupies.
+ *
+ * Step AV: a spanning opening takes its TOP-LEFT slot, so the label cannot
+ * come from the opening's position in the list any more — TC1's second
+ * opening is A2, not B1, because the fanlight above it covers both of row 1.
+ */
+export function openingMatrixIndex(tree, node) {
+  const nodes = openingNodes(tree)
+  const idx = nodes.findIndex(n => n.key === node?.key)
+  if (idx < 0) return null
+  const cell = frameCells(tree)[idx]
+  if (!cell) return matrixIndexOf(idx, columnCount(tree))
+  return matrixLabel(cell.col, cell.row)
 }
 
 /**
@@ -525,8 +547,19 @@ export function openingTypeLabel(tree, node) {
   const nodes = openingNodes(tree)
   const idx = nodes.findIndex(n => n.key === node.key)
   if (idx < 0) return 'Casement Sash'
-  const isTopRow = idx < columnCount(tree)
-  return (isTopRow && rowCount(tree) > 1) ? 'Fanlight' : 'Casement Sash'
+  // Step AV: from the CELL, so a spanning opening is judged by where it
+  // starts. TC1's wide fanlight is in row 0 and IS a fanlight; TC3's
+  // full-height opener also starts in row 0 but spans both rows, so it is
+  // NOT a fanlight — a fanlight is a light over something, and this one is
+  // the whole column.
+  const cell = frameCells(tree)[idx]
+  if (!cell) {
+    const isTopRow = idx < columnCount(tree)
+    return (isTopRow && rowCount(tree) > 1) ? 'Fanlight' : 'Casement Sash'
+  }
+  const isTopRow = cell.row === 0
+  const spansAllRows = cell.rowSpan >= rowCount(tree)
+  return (isTopRow && rowCount(tree) > 1 && !spansAllRows) ? 'Fanlight' : 'Casement Sash'
 }
 
 /** "Fanlight A1", "Casement Sash A2", "Direct Glazed Unit B1". */
@@ -536,7 +569,7 @@ export function openingLabel(tree, node) {
   const type = openingTypeLabel(tree, node)
   if (!type) return null
   if (idx < 0) return type
-  return `${type} ${matrixIndexOf(idx, columnCount(tree))}`
+  return `${type} ${openingMatrixIndex(tree, node) ?? matrixIndexOf(idx, columnCount(tree))}`
 }
 
 // ── Stormproof (Step AU) ─────────────────────────────────────────────────────
