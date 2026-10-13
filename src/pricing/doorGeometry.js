@@ -20,7 +20,7 @@
  */
 
 import {
-  frameInterior, openingNodes, frameOpenings, casementSashSize,
+  frameInterior, openingNodes, frameOpenings, casementSashSize, itemFrames, frameOwning,
 } from './casementGeometry.js'
 import { KG_PER_M2_PER_MM } from './sashWeight.js'
 import { timberFamily, TIMBER_FAMILY_DENSITIES } from './optionVocabulary.js'
@@ -113,13 +113,21 @@ export function doorLeafSize(tree, leafNode) {
   }
 }
 
-/** The cell a door opening (or a leaf's pair) sits in. */
+/**
+ * The cell a door opening (or a leaf's pair) sits in.
+ *
+ * Step BC: in the frame that OWNS it. A drawing can hold several frames, and
+ * this asked the first frame about every one of them — so a door leaf in the
+ * middle frame of CD1 had no cell, and therefore no size, no glass, no weight
+ * and no sections.
+ */
 function openingFor(tree, node) {
-  const nodes = openingNodes(tree)
+  const frame = frameOwning(tree, node)
+  const nodes = openingNodes(tree, frame)
   const idx = nodes.findIndex(n => n.key === node?.key ||
     (n.children ?? []).some(c => c.key === node?.key))
   if (idx < 0) return null
-  return frameOpenings(tree)[idx] ?? null
+  return frameOpenings(tree, frame)[idx] ?? null
 }
 
 /**
@@ -245,16 +253,12 @@ export const MID_RAIL_SECTION_OFFSET_MM = -10
  * @returns {Array<{part_code, part_name, length_mm, length_in_m, label}>}
  */
 export function allocatedSectionParts(tree, { material = 'utile' } = {}) {
-  const frame = findFirst(tree, 'assemblyFramePart')
-  if (!frame) return []
+  const frames = itemFrames(tree)
+  if (frames.length === 0) return []
   const leaves = doorLeaves(tree)
   if (leaves.length === 0) return []
 
   const codes = DOOR_MATERIALS[String(material).toLowerCase()] ?? SECTION_PART_CODES
-  const fv = frame.values ?? {}
-  const overallW = num(fv.width) ?? 0
-  const overallH = num(fv.height) ?? 0
-  const interior = frameInterior(tree)
 
   const lengths = new Map()
   const add = (code, mm, label) => {
@@ -264,11 +268,43 @@ export function allocatedSectionParts(tree, { material = 'utile' } = {}) {
     lengths.set(code, row)
   }
 
-  // Frame head + both jambs, at the OVERALL frame size
-  add(codes.frame, overallW + 2 * overallH, 'Frame head and jambs')
+  // ── Step BC: EVERY frame, not just the first ──────────────────────────
+  //
+  // A single door with flag lights is one item holding several frames, and
+  // Nathan (13 Oct, decision a) charges each frame's timber IN FULL: its
+  // own head and jambs, its own cill, its own dividers. Integrate charges
+  // one frame — the sum of the widths with twice the DOOR frame's height —
+  // and only the door frame's cill, so a flag frame's jambs and cill are
+  // free in Integrate and charged here.
+  //
+  // On a one-frame drawing this loop runs once and the arithmetic is
+  // exactly what it was.
+  for (const frame of frames) {
+    const fv = frame.values ?? {}
+    const overallW = num(fv.width) ?? 0
+    const overallH = num(fv.height) ?? 0
+    const interior = frameInterior(tree, frame)
 
-  // The cill (overall width) and each leaf's bottom rail (its own width)
-  add(codes.cillAndBottom, overallW, 'Cill')
+    // Frame head + both jambs, at the OVERALL frame size
+    add(codes.frame, overallW + 2 * overallH, 'Frame head and jambs')
+    // and its own cill
+    add(codes.cillAndBottom, overallW, 'Cill')
+
+    // The TRANSOM under a fanlight. Integrate allocates nothing for it.
+    // Nathan (13 Oct): GlazePro charges it at Utile67x96 for the internal
+    // frame width — PROVISIONAL, because no listed section is big enough
+    // for its 77 x 96 finished size and the workshop has to confirm the
+    // real stock (docs/integrate-differences.md 7b). Per frame: each of
+    // CD4's three frames has one.
+    for (const _t of (frame.children ?? []).filter(c => c.part_type === 'transomPart')) {
+      add(codes.frame, interior.width ?? 0, 'Transom (provisional section)')
+    }
+    // A DOORSET's frame MULLIONS, the same way (Step BA, difference 11).
+    for (const _m of (frame.children ?? []).filter(c => c.part_type === 'mullionPart')) {
+      add(codes.frame, interior.height ?? 0, 'Mullion (provisional section)')
+    }
+  }
+
   for (const leaf of leaves) {
     const z = doorLeafSize(tree, leaf)
     add(codes.cillAndBottom, z.width ?? 0, 'Door bottom rail')
@@ -298,24 +334,6 @@ export function allocatedSectionParts(tree, { material = 'utile' } = {}) {
       `Fanlight bottom rail ${rail}`)
   }
 
-  // The TRANSOM under a fanlight. Integrate allocates nothing for it.
-  // Nathan (13 Oct): GlazePro charges it at Utile67x96 for the internal
-  // frame width — PROVISIONAL, because no listed section is big enough for
-  // its 77 x 96 finished size and the workshop has to confirm the real
-  // stock (docs/integrate-differences.md 7b).
-  for (const _transom of (frame.children ?? []).filter(c => c.part_type === 'transomPart')) {
-    add(codes.frame, interior.width ?? 0, 'Transom (provisional section)')
-  }
-
-  // A DOORSET's frame MULLIONS, the same way (Step BA). Integrate allocates
-  // nothing for them either; the reviewer applied Nathan's transom decision
-  // to mullions for consistency and flagged it to him
-  // (docs/integrate-differences.md 11). Each is charged at the frame section
-  // for the full INTERNAL HEIGHT, as the transom is charged for the full
-  // internal width — FD5 and FD6: 2 x 2626 + 2720 = 7972 mm = 108.42.
-  for (const _mullion of (frame.children ?? []).filter(c => c.part_type === 'mullionPart')) {
-    add(codes.frame, interior.height ?? 0, 'Mullion (provisional section)')
-  }
 
   return [...lengths.values()].map(r => ({
     ...r,

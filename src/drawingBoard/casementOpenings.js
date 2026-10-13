@@ -24,6 +24,7 @@ import { resolveJambTypeCode } from './applyOperationDefaults.js'
 import {
   frameCells, OPENING_TYPES, FRENCH_PAIR_PART, FRENCH_SASH_TYPES, CASEMENT_SASH_TYPES,
   FRENCH_DOOR_PAIR_PART, SINGLE_DOOR_LEAF_PART, PAIR_PART_TYPES, PAIR_LEAF_TYPES, isPairPart, isLeftLeaf,
+  frameOwning, itemFrames,
 } from '../pricing/casementGeometry.js'
 
 // ── Profile value helpers ────────────────────────────────────────────────────
@@ -687,20 +688,29 @@ function findAll(node, partType, acc = []) {
  * first (A1, B1, …) then down (A2, B2, …), which is the order the frame
  * stores them in and the order frameOpenings returns their cells.
  */
-export function openingNodes(tree) {
-  const frame = findFirst(tree, 'assemblyFramePart')
+// Step BC: an optional frame, as casementGeometry's helpers take. A
+// one-frame drawing resolves to the only frame; on a container the caller
+// passes the frame (or a node inside it) whose openings it means.
+export function openingNodes(tree, frameOrNode = null) {
+  const frame = frameOrNode
+    ? frameOwning(tree, frameOrNode)
+    : findFirst(tree, 'assemblyFramePart')
   return (frame?.children ?? []).filter(c => OPENING_TYPES.includes(c.part_type))
 }
 
 /** How many columns the frame is divided into (mullions + 1). */
-export function columnCount(tree) {
-  const frame = findFirst(tree, 'assemblyFramePart')
+export function columnCount(tree, frameOrNode = null) {
+  const frame = frameOrNode
+    ? frameOwning(tree, frameOrNode)
+    : findFirst(tree, 'assemblyFramePart')
   return (frame?.children ?? []).filter(c => c.part_type === 'mullionPart').length + 1
 }
 
 /** How many rows the frame is divided into (transoms + 1). */
-export function rowCount(tree) {
-  const frame = findFirst(tree, 'assemblyFramePart')
+export function rowCount(tree, frameOrNode = null) {
+  const frame = frameOrNode
+    ? frameOwning(tree, frameOrNode)
+    : findFirst(tree, 'assemblyFramePart')
   return (frame?.children ?? []).filter(c => c.part_type === 'transomPart').length + 1
 }
 
@@ -731,7 +741,16 @@ export function matrixLabel(col, row) {
  * opening is A2, not B1, because the fanlight above it covers both of row 1.
  */
 export function openingMatrixIndex(tree, node) {
-  const nodes = openingNodes(tree)
+  // Step BC: within the node's own frame, with the COLUMN LETTERS running
+  // on across the frames of a container — CD1 reads A1 | B1 | C1 and CD4
+  // A1 / A2 | B1 / B2 | C1 / C2, which is how Integrate labels them.
+  const frame = frameOwning(tree, node)
+  const frames = itemFrames(tree)
+  const frameShift = frames.length > 1
+    ? frames.slice(0, Math.max(0, frames.indexOf(frame)))
+      .reduce((t, f) => t + columnCount(tree, f), 0)
+    : 0
+  const nodes = openingNodes(tree, frame)
   // Step AX: a French SASH is not an opening — the PAIR is. Integrate still
   // gives each leaf its own label, taking the pair's cell and the column
   // after it: FR1's leaves are A1 and B1 although there is no mullion, and
@@ -739,9 +758,9 @@ export function openingMatrixIndex(tree, node) {
   const idx = nodes.findIndex(n => n.key === node?.key ||
     (isPairPart(n) && (n.children ?? []).some(c => c.key === node?.key)))
   if (idx < 0) return null
-  const cells = frameCells(tree)
+  const cells = frameCells(tree, frame)
   const cell = cells[idx]
-  if (!cell) return matrixIndexOf(idx, columnCount(tree))
+  if (!cell) return matrixIndexOf(idx + frameShift, columnCount(tree, frame))
   const isRightLeaf = PAIR_LEAF_TYPES.includes(node?.part_type) && !isLeftLeaf(node)
   // Step BB: A PAIR TAKES TWO COLUMN LETTERS, so every column to its right
   // moves on one. Integrate labels FD5's pair B2 / C2 and the column after
@@ -755,7 +774,7 @@ export function openingMatrixIndex(tree, node) {
     nodes.map((n, i) => (isPairPart(n) ? cells[i]?.col : null))
       .filter(c => c != null))
   const shift = [...pairColumns].filter(c => c < cell.col).length
-  return matrixLabel(cell.col + shift + (isRightLeaf ? 1 : 0), cell.row)
+  return matrixLabel(cell.col + frameShift + shift + (isRightLeaf ? 1 : 0), cell.row)
 }
 
 /**
@@ -781,7 +800,11 @@ export function openingTypeLabel(tree, node) {
   if (node?.part_type === 'leftFrenchDoorLeafPart') return 'French Door Leaf Left'
   if (node?.part_type === 'rightFrenchDoorLeafPart') return 'French Door Leaf Right'
   if (node?.part_type !== 'casementSashPart') return null
-  const nodes = openingNodes(tree)
+  // Step BC: within ITS OWN frame. A flag frame's top-hung sash is a
+  // fanlight of that frame (300 min), and the fixed light below it a side
+  // light (780) — judged by its own frame's rows, not the first frame's.
+  const frame = frameOwning(tree, node)
+  const nodes = openingNodes(tree, frame)
   const idx = nodes.findIndex(n => n.key === node.key)
   if (idx < 0) return 'Casement Sash'
   // Step AV: from the CELL, so a spanning opening is judged by where it
@@ -789,24 +812,30 @@ export function openingTypeLabel(tree, node) {
   // full-height opener also starts in row 0 but spans both rows, so it is
   // NOT a fanlight — a fanlight is a light over something, and this one is
   // the whole column.
-  const cell = frameCells(tree)[idx]
+  const cell = frameCells(tree, frame)[idx]
   if (!cell) {
-    const isTopRow = idx < columnCount(tree)
-    return (isTopRow && rowCount(tree) > 1) ? 'Fanlight' : 'Casement Sash'
+    const isTopRow = idx < columnCount(tree, frame)
+    return (isTopRow && rowCount(tree, frame) > 1) ? 'Fanlight' : 'Casement Sash'
   }
   const isTopRow = cell.row === 0
-  const spansAllRows = cell.rowSpan >= rowCount(tree)
-  return (isTopRow && rowCount(tree) > 1 && !spansAllRows) ? 'Fanlight' : 'Casement Sash'
+  const spansAllRows = cell.rowSpan >= rowCount(tree, frame)
+  return (isTopRow && rowCount(tree, frame) > 1 && !spansAllRows) ? 'Fanlight' : 'Casement Sash'
 }
 
 /** "Fanlight A1", "Casement Sash A2", "Direct Glazed Unit B1". */
 export function openingLabel(tree, node) {
-  const nodes = openingNodes(tree)
-  const idx = nodes.findIndex(n => n.key === node?.key)
   const type = openingTypeLabel(tree, node)
   if (!type) return null
+  // Step BC: the index comes from openingMatrixIndex, which knows which FRAME
+  // the node is in. This used to look the node up in the first frame's
+  // openings and return the bare type when it was not there — so on a
+  // container every opening outside the first frame lost its label.
+  const matrix = openingMatrixIndex(tree, node)
+  if (matrix) return `${type} ${matrix}`
+  const frame = frameOwning(tree, node)
+  const idx = openingNodes(tree, frame).findIndex(n => n.key === node?.key)
   if (idx < 0) return type
-  return `${type} ${openingMatrixIndex(tree, node) ?? matrixIndexOf(idx, columnCount(tree))}`
+  return `${type} ${matrixIndexOf(idx, columnCount(tree, frame))}`
 }
 
 // ── Stormproof (Step AU) ─────────────────────────────────────────────────────

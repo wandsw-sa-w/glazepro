@@ -515,6 +515,79 @@ mullions left free, the change is to delete one loop in
 
 ---
 
+## 12. A flag frame is charged in full — timber, cill, architrave, workshop and fitting
+
+**Date:** 13 October 2026
+**Decided by:** Nathan Smith (decisions a, b, c and d)
+**Code:** `src/pricing/doorGeometry.js` (`allocatedSectionParts`, per frame),
+`src/pricing/partAllocator.js` (`wholeSetFrame`),
+`src/pricing/pricingEngine.js` (a frame loop sees its own frame's counts), and
+`sql/step-bc1-single-door-flag-frame-fitting.sql` for the fitting
+**Asserted in:** `src/pricing/benchmarks/benchmarks.test.js` (Step BC block),
+pinned in `e2e/smoke.spec.js`
+
+**What differs:**
+
+A single garden door can be sold with **flag frames** — half-height side
+windows in frames of their own, coupled to the door frame. Integrate stores
+them as one item holding several frames, and then charges for **almost none of
+the extra work**:
+
+| | Integrate | GlazePro |
+|---|---|---|
+| **a. flag frame timber** | one frame — the widths plus twice the door frame's height | **every frame's own** head, jambs and dividers |
+| **a. flag frame cill** | the door frame's only | **every frame's own** |
+| **b. architrave** | none at all on a container item | **one set round the whole set** |
+| **d. workshop** | nothing per flag frame | **+180 min** a flag frame ("Machining & Joining a Casement Frame") |
+| **c. fitting** | nothing — its own rule 140 is a 1-minute placeholder | **+240 min** per extra frame |
+
+In money, on the four drawings the reviewer read (cost):
+
+| | timber | cill | architrave | workshop | fitting | total | GlazePro |
+|---|---|---|---|---|---|---|---|
+| CD1 | +61.82 | +40.19 | +19.38 | +147.96 | +321.68 | **+591.03** | 3,615.09 |
+| CD2 | +30.90 | +20.10 | +17.67 | +73.98 | +160.84 | **+303.49** | 2,725.06 |
+| CD3 | +30.90 | +20.18 | +17.67 | +73.98 | +160.84 | **+303.57** | 2,725.52 |
+| CD4 | +117.34 | +37.70 | +21.66 | +147.96 | +321.68 | **+646.34** | 4,855.69 |
+
+**Why:**
+
+A flag frame is a frame. It is machined, joined, finished, glazed, delivered
+and fitted exactly as any other frame is, and its jambs, head and cill are cut
+from the same stock. Integrate charging one frame's timber for three is not a
+pricing decision anybody made — it is what its allocator happens to do — and
+on CD1 it leaves **£591** of real work unpaid for.
+
+**The architrave is the one that goes the other way.** Per frame it would be
+three sets on CD1 (£34.49); round the whole set it is one (£19.38), which is
+what a fitter actually puts up: head across the top of the set, two jambs down
+its sides. The set's width carries the `-47` coupling overlaps, and the jambs
+are the DOOR frame's height, because a flag light sits over a wall and its
+jambs are not architraved to the floor.
+
+**How each one is computed, so a figure can be checked:**
+
+- **a** — each frame's `W + 2H` at Utile67x96 and its own width at Utile63x200,
+  plus its own transoms and mullions (differences 7b and 11). CD1's 67x96 is
+  `(693 + 2×1137) + (995 + 2×2101) + (693 + 2×1136) = 11,129 mm` against
+  Integrate's 6,583.
+- **b** — head `= the set's overall width + 100`, two jambs `= the door frame's
+  height + 100`, through the same snap-up-to-10 / nearest-0.1 m rounding as a
+  single frame. CD1: 2,387 → 2.4 m and 2,201 → 2.2 m ×2, at £2.85/m.
+- **c** — live rule **140**, rewritten by `sql/step-bc1` from a 1-minute
+  placeholder to `new_frame_qty - 1` × 240 min. It is the single-door twin of
+  rule 14, which already charges a French door's winglight frames the same way.
+- **d** — falls out of the frame loop seeing **its own** frame: a flag frame has
+  no door leaf, so "Machining & Joining a Casement Frame" (`door_leaf_qty < 1`)
+  fires on it, and the door frame still takes its own 855.
+
+**Until `sql/step-bc1` is run**, decision **c** charges nothing: the four CD
+benchmarks declare it as a PENDING decision, the benchmark page shows
+"STILL TO COME: £321.68 …" on the row, and both figures are accepted so the
+row is neither red today nor silent afterwards.
+
+---
+
 # Parked residuals
 
 Added by Step AT (12 Oct 2026), under the small-differences policy in

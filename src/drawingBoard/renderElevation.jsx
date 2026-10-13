@@ -19,6 +19,7 @@ import {
   FRENCH_PAIR_PART, FRENCH_SASH_TYPES, PAIR_LEAF_TYPES, isPairPart, isLeftLeaf,
 } from '../pricing/casementGeometry.js'
 import { columnCount, isCasementFrameTree, matrixIndexOf, matrixLabel } from './casementOpenings.js'
+import { itemFrames, isMultiFrame } from '../pricing/casementGeometry.js'
 
 // ── Tree helpers ──────────────────────────────────────────────────────────────
 
@@ -198,6 +199,46 @@ export function SashElevation({
   settings,
   fontFamily: fontFamilyProp,
 }) {
+  // Step BC: a COUPLED SET — several frames in one drawing, side by side and
+  // HEAD-ALIGNED (a flag light is a high side window over a wall, not
+  // floor-standing). Each frame is drawn by the code that already draws one,
+  // on a tree of its own with the container replaced by that frame, and the
+  // widths share the row in proportion to the real frames. The column letters
+  // run on across the set.
+  if (isMultiFrame(tree)) {
+    const frames = itemFrames(tree)
+    const total = frames.reduce((t, f) => t + (Number(f.values?.width) || 0), 0) || 1
+    // The running column offset, worked out BEFORE the render rather than
+    // during it: frame i starts after every column of the frames before it.
+    const offsets = frames.reduce((acc, f, i) => {
+      acc.push(i === 0 ? 0 : acc[i - 1] + columnCount(tree, frames[i - 1]))
+      return acc
+    }, [])
+    return (
+      <div style={{ flex: 1, display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+        {frames.map((f, i) => {
+          const columnOffset = offsets[i]
+          const share = (Number(f.values?.width) || 0) / total
+          const frameTree = {
+            ...tree,
+            children: (tree.children ?? []).map(
+              c => c.part_type === 'containerPart' ? f : c),
+          }
+          return (
+            <div key={f.key} style={{ flex: `0 0 ${(share * 100).toFixed(3)}%`, minWidth: 0 }}>
+              <CasementElevation
+                tree={frameTree} refOptions={refOptions} viewMode={viewMode}
+                selectedKey={selectedKey} onSelectKey={onSelectKey}
+                settings={settings} fontFamily={fontFamilyProp}
+                columnOffset={columnOffset}
+              />
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
   // A casement / direct glazed frame is drawn by CasementElevation: it has no
   // sash PAIRS, so computeSashGeometry returns null for it and none of the
   // box-sash geometry below applies.
@@ -849,6 +890,10 @@ export function CasementElevation({
   onSelectKey,
   settings,
   fontFamily: fontFamilyProp,
+  // Step BC: which column letter this frame starts at. A coupled set's
+  // letters run ON across its frames (CD1: A1 | B1 | C1), so a frame drawn
+  // as part of a set is told how many columns came before it.
+  columnOffset = 0,
 }) {
   const frame = findFirst(tree, 'assemblyFramePart')
   const cill  = findFirst(tree, 'cillPart')
@@ -915,7 +960,8 @@ export function CasementElevation({
   // A2, B2: the fanlight spans both columns and the slot B1 does not exist.
   const cellLabel = idx => {
     const c = cells[idx]
-    return c ? matrixLabel(c.col, c.row) : matrixIndexOf(idx, nCols)
+    return c ? matrixLabel(c.col + columnOffset, c.row)
+      : matrixIndexOf(idx + columnOffset, nCols)
   }
 
   const refLabel = (list, code) =>

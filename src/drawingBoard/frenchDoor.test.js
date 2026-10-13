@@ -16,6 +16,7 @@ import {
   buildFrenchDoorFrame, buildFrenchDoorPair, doorProfileDefaults,
   buildPanelledFrenchDoorFrame, buildFrenchDoorSetFrame, setLeafMidRail, leafMidRailOf,
   buildSingleDoorFrame, buildFrenchDoorSidePanelFrame, changeOpeningToSingleDoor,
+  buildCoupledSingleDoorFrame, buildFlagFrame, addFlagFrame, removeFrame,
   isFrenchDoorTree, DOOR_MATERIALS, DEFAULT_DOOR_MASTER_LEAF,
 } from './doorOpenings.js'
 import {
@@ -26,7 +27,7 @@ import {
 import { assertSaveable } from './containment.js'
 import { findRequiredEmpty } from './requiredFields.js'
 import { computeDerived } from './computeDerived.js'
-import { frameCells, frameInterior, isPairPart, frameColumns, frameRows, casementSashSize } from '../pricing/casementGeometry.js'
+import { frameCells, frameInterior, isPairPart, frameColumns, frameRows, casementSashSize, itemFrames, isMultiFrame } from '../pricing/casementGeometry.js'
 import {
   doorLeaves, doorLeafSize, doorLeafWeightKg, allocatedSectionParts,
   doorGlassSightline, doorPanelSize,
@@ -38,7 +39,7 @@ import { defaultIronmonger } from '../pricing/defaultIronmongery.js'
 import {
   BENCHMARK_FD1, BENCHMARK_FD2, BENCHMARK_FD3, BENCHMARK_FD3b,
   BENCHMARK_FD4, BENCHMARK_FD5, BENCHMARK_FD6,
-  BENCHMARK_SD1, BENCHMARK_SD3,
+  BENCHMARK_SD1, BENCHMARK_SD3, BENCHMARK_CD1, BENCHMARK_CD4,
 } from '../pricing/benchmarks/fixtureDoor.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -749,5 +750,249 @@ dSingle('Step BB — the board’s single doors price as the fixtures do', () =>
       .filter(l => l.fires && !l.error && l.group_name === 'installation_materials')
       .reduce((t, l) => t + l.line_cost, 0)
     expect(installMaterials(withDefaults) - installMaterials(withStored)).toBeCloseTo(59.85, 2)
+  })
+})
+
+// ── Step BC helpers ─────────────────────────────────────────────────────────
+
+/** Every opening label in a tree, in tree order. */
+function openingLabelsOf(tree) {
+  const out = []
+  const walk = n => {
+    const l = openingLabel(tree, n)
+    if (l) out.push(l)
+    for (const c of (n.children ?? [])) walk(c)
+  }
+  walk(tree)
+  return out
+}
+
+/** Integrate template 70, from the board. */
+function build70() {
+  const { tree, missing } = buildCoupledSingleDoorFrame(PV, {
+    doorWidth: 995, doorHeight: 2101, product: 'door',
+  })
+  expect(missing).toEqual([])
+  return tree
+}
+
+/** Integrate template 69, from the board. */
+function build69() {
+  const { tree, missing } = buildCoupledSingleDoorFrame(PV, {
+    doorWidth: 1082, doorHeight: 2496, flagWidth: 650, flagHeight: 1632, product: 'door',
+    fanlights: { doorOffset: 348, flagOffset: 348 },
+  })
+  expect(missing).toEqual([])
+  return tree
+}
+
+// ── Step BC: the flag-frame templates, built by the board ────────────────────
+
+describe('Step BC — the board builds a coupled flag-frame door', () => {
+  const build = opts => {
+    const { tree, missing } = buildCoupledSingleDoorFrame(PV, { product: 'door', ...opts })
+    expect(missing, 'profile values the build could not resolve').toEqual([])
+    return tree
+  }
+
+  it('template 70: flag | door | flag, coupled and head-aligned', () => {
+    const tree = build({ doorWidth: 995, doorHeight: 2101 })
+    expect(itemFrames(tree).map(f => `${f.values.width}x${f.values.height}`))
+      .toEqual(['693x1136', '995x2101', '693x1136'])
+    expect(isMultiFrame(tree)).toBe(true)
+    // one container, partSpacing -47 — the coupling that makes the set 2287
+    // wide rather than 2381
+    const container = tree.children.find(c => c.part_type === 'containerPart')
+    expect(container.values.partSpacing).toBe(-47)
+    // every frame is a WHOLE frame: its own cill
+    for (const f of itemFrames(tree)) {
+      expect(f.children.some(c => c.part_type === 'cillPart'), 'own cill').toBe(true)
+    }
+    // one door, two flag lights, and the labels run on
+    expect(doorLeaves(tree).length).toBe(1)
+    expect(openingLabelsOf(tree)).toEqual([
+      'Casement Sash A1', 'Single Door B1', 'Casement Sash C1',
+    ])
+    expect(() => assertSaveable(tree)).not.toThrow()
+    expect(findRequiredEmpty(tree, REQUIRED_DEFS)).toEqual([])
+  })
+
+  it('templates 71 and 72 are mirror images', () => {
+    // Integrate's own 72 is 1001 / 696 against 71's 998 / 693 — three
+    // millimetres nobody drew on purpose. GlazePro uses 998 / 693 for both.
+    const right = build({ doorWidth: 998, doorHeight: 2101, flags: ['right'] })
+    const left  = build({ doorWidth: 998, doorHeight: 2101, flags: ['left'] })
+    expect(itemFrames(right).map(f => f.values.width)).toEqual([998, 693])
+    expect(itemFrames(left).map(f => f.values.width)).toEqual([693, 998])
+    expect(openingLabelsOf(right)).toEqual(['Single Door A1', 'Casement Sash B1'])
+    expect(openingLabelsOf(left)).toEqual(['Casement Sash A1', 'Single Door B1'])
+    for (const t of [right, left]) expect(() => assertSaveable(t)).not.toThrow()
+  })
+
+  it('template 69: a fanlight in every frame, top hung on the flags', () => {
+    const tree = build({
+      doorWidth: 1082, doorHeight: 2496, flagWidth: 650, flagHeight: 1632,
+      fanlights: { doorOffset: 348, flagOffset: 348 },
+    })
+    expect(itemFrames(tree).map(f => `${f.values.width}x${f.values.height}`))
+      .toEqual(['650x1632', '1082x2496', '650x1632'])
+    // every frame has its own transom
+    for (const f of itemFrames(tree)) {
+      expect(f.children.filter(c => c.part_type === 'transomPart').length, 'one transom').toBe(1)
+    }
+    // the flags' top lights OPEN (Integrate operation 15) and take Nathan's
+    // 62 rail; their fixed lights below keep Integrate's 86; the door's
+    // fanlight is FIXED
+    const sashes = []
+    const walk = n => { if (n.part_type === 'casementSashPart') sashes.push(n); for (const c of (n.children ?? [])) walk(c) }
+    walk(tree)
+    expect(sashes.map(s => `${s.values.operation}/${s.values.bottomHeight}`)).toEqual([
+      'top_hung/62', 'fix/86', 'fix/62', 'top_hung/62', 'fix/86',
+    ])
+    expect(openingLabelsOf(tree)).toEqual([
+      'Fanlight A1', 'Casement Sash A2',
+      'Fanlight B1', 'Single Door B2',
+      'Fanlight C1', 'Casement Sash C2',
+    ])
+    expect(() => assertSaveable(tree)).not.toThrow()
+    expect(findRequiredEmpty(tree, REQUIRED_DEFS)).toEqual([])
+  })
+
+  it('a flag frame can be ADDED to a one-frame drawing, left or right', () => {
+    // A one-frame drawing becomes a container drawing when it gains a flag —
+    // and only then. Nothing migrates.
+    const plain = buildSingleDoorFrame(PV, { width: 1099, height: 2199 }).tree
+    expect(isMultiFrame(plain)).toBe(false)
+
+    const frameKey = itemFrames(plain)[0].key
+    const right = addFlagFrame(plain, frameKey, 'right', PV)
+    expect(right.changed).toBe(true)
+    expect(isMultiFrame(right.tree)).toBe(true)
+    expect(itemFrames(right.tree).map(f => f.values.width)).toEqual([1099, 693])
+    expect(right.tree.children.filter(c => c.part_type === 'assemblyFramePart').length,
+      'the frame moved into the container').toBe(0)
+    expect(() => assertSaveable(right.tree)).not.toThrow()
+
+    const left = addFlagFrame(plain, frameKey, 'left', PV)
+    expect(itemFrames(left.tree).map(f => f.values.width)).toEqual([693, 1099])
+
+    // and a second flag goes beside the frame it is asked for
+    const both = addFlagFrame(right.tree, frameKey, 'left', PV)
+    expect(itemFrames(both.tree).map(f => f.values.width)).toEqual([693, 1099, 693])
+    expect(openingLabelsOf(both.tree)).toEqual([
+      'Casement Sash A1', 'Single Door B1', 'Casement Sash C1',
+    ])
+  })
+
+  it('a new flag frame is 693 x 1136 with one FIXED light, and its own cill', () => {
+    const { node, missing } = buildFlagFrame(PV)
+    expect(missing).toEqual([])
+    expect(node.values.width).toBe(693)
+    expect(node.values.height).toBe(1136)
+    expect(node.values.leftWidth).toBe(47)
+    const sash = node.children.find(c => c.part_type === 'casementSashPart')
+    expect(sash.values.operation).toBe('fix')
+    expect(sash.values.thickness).toBe(54)
+    expect(sash.values.topHeight).toBe(62)
+    expect(sash.values.bottomHeight).toBe(86)
+    expect(node.children.some(c => c.part_type === 'cillPart')).toBe(true)
+  })
+
+  it('a frame can be REMOVED, and the last one back unwraps the container', () => {
+    const tree = build({ doorWidth: 995, doorHeight: 2101 })
+    const frames = itemFrames(tree)
+    const flagA = frames[0].key, doorKey = frames[1].key, flagC = frames[2].key
+
+    // the DOOR frame cannot go
+    const refused = removeFrame(tree, doorKey)
+    expect(refused.changed).toBe(false)
+    expect(refused.reason).toMatch(/door/)
+
+    const two = removeFrame(tree, flagA)
+    expect(two.changed).toBe(true)
+    expect(itemFrames(two.tree).map(f => f.values.width)).toEqual([995, 693])
+
+    // taking it back to ONE frame unwraps the container, so the drawing is
+    // the shape a one-frame drawing has always been
+    const one = removeFrame(two.tree, flagC)
+    expect(one.changed).toBe(true)
+    expect(isMultiFrame(one.tree)).toBe(false)
+    expect(one.tree.children.some(c => c.part_type === 'containerPart')).toBe(false)
+    expect(one.tree.children.some(c => c.part_type === 'assemblyFramePart')).toBe(true)
+    expect(() => assertSaveable(one.tree)).not.toThrow()
+
+    // and the only frame cannot be removed
+    expect(removeFrame(one.tree, itemFrames(one.tree)[0].key).changed).toBe(false)
+  })
+})
+
+const dCoupled = SNAPSHOT ? describe : describe.skip
+
+dCoupled('Step BC — the board’s coupled doors price as the fixtures do', () => {
+  function price(tree, bm) {
+    return runPricingOnTree(tree, SNAPSHOT.rules, SNAPSHOT.pfVariables, {
+      glassCatalogue: SNAPSHOT.glassCatalogue,
+      partAllocationRules: SNAPSHOT.partAllocationRules,
+      partCostMap: bm.partCostMap,
+      ironmongeryLines: bm.ironmongeryLines,
+      ironmongeryCatalogue: SNAPSHOT.ironmongeryCatalogue,
+      profileValues: SNAPSHOT.profileValues,
+      profileCode: bm.profileCode,
+    })
+  }
+
+  it('template 70 prices as CD1 does, bar CD1’s 1 mm taller left flag', () => {
+    // Integrate's drawing 12 has flags 1137 and 1136 high; the template
+    // builds both at 1136, so the only difference is that millimetre.
+    const tree = build70()
+    const mine   = price(tree, BENCHMARK_CD1)
+    const theirs = price(BENCHMARK_CD1.tree, BENCHMARK_CD1)
+    expect(mine.manufacture_labour.total_minutes).toBe(theirs.manufacture_labour.total_minutes)
+    expect(mine.install_labour.total_minutes).toBe(theirs.install_labour.total_minutes)
+    expect(mine.price.total_cost).toBeCloseTo(theirs.price.total_cost, 0)
+    // the same RULES fire, line for line
+    const names = r => [...new Set(r.price.lines
+      .filter(l => l.fires && !l.error && l.line_cost > 0).map(l => l.name))].sort()
+    expect(names(mine)).toEqual(names(theirs))
+  })
+
+  it('template 69 prices as CD4 does, bar the 62 fanlight rails', () => {
+    // GlazePro's template puts the three fanlights on Nathan's 62 rail where
+    // Integrate's drawing has 86 on the flags' fixed lights only — so the
+    // 63x96 section is shorter and the 63x63 longer (difference 7b).
+    const tree = build69()
+    const mine   = price(tree, BENCHMARK_CD4)
+    const theirs = price(BENCHMARK_CD4.tree, BENCHMARK_CD4)
+    expect(mine.manufacture_labour.total_minutes).toBe(theirs.manufacture_labour.total_minutes)
+    expect(mine.install_labour.total_minutes).toBe(theirs.install_labour.total_minutes)
+    const section = (r, code) => r.price.lines
+      .find(l => l.fires && l.alloc_part_code === code)?.quantity ?? 0
+    expect(section(mine, 'Utile63x96')).toBeLessThan(section(theirs, 'Utile63x96'))
+    expect(section(mine, 'Utile63x63')).toBeGreaterThan(section(theirs, 'Utile63x63'))
+  })
+
+  it('reports the default ironmongery a GlazePro-built CD4 gets', () => {
+    // For the reviewer to check against Integrate's casement rules: the
+    // flags' TOP-HUNG fanlights are what need gear, and this is what the
+    // live default rules give them.
+    const tree = build69()
+    const ctx = {
+      pfVariables: SNAPSHOT.pfVariables, ironmongeryRules: SNAPSHOT.ironmongeryRules,
+      glassCatalogue: SNAPSHOT.glassCatalogue, ironmongeryCatalogue: SNAPSHOT.ironmongeryCatalogue,
+    }
+    const defaults = resolveIronmongeryLines(tree, ctx, SNAPSHOT.profileValues,
+      { profileCode: 'open_out_doors' })
+    const list = defaults.map(l => `${l.product_short_name} ${l.finish_code} x${l.qty}`).sort()
+    console.log('default ironmongery for a GlazePro-built CD4:\n ' + list.join('\n '))
+
+    // What must be true whatever the rules give: the door's own set, and
+    // nothing from a French pair.
+    const names = defaults.map(l => l.product_short_name)
+    expect(names).toContain('hardwick_lyndon_door_espag_set')
+    expect(names).toContain('102mm_hinges')
+    expect(names).toContain('double_euro_cylinder')
+    expect(names).not.toContain('windsor_inline_handle')
+    expect(defaults.find(l => l.product_short_name === '102mm_hinges').qty,
+      'a single door takes two hinge pairs').toBe(2)
   })
 })

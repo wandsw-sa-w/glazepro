@@ -50,6 +50,14 @@ const DELIBERATE = {
   SD3:  { cost: '28.76', price: '57.53' },
   SD4:  { cost: '97.72', price: '195.43' },
   FD7:  { cost: '58.15', price: '116.29' },
+  // Step BC: the coupled FLAG FRAME doors. Nathan’s decisions a, b and d
+  // are live now; decision c (+4 h fitting a flag frame) arrives when the
+  // reviewer runs sql/step-bc1, and the page accepts either figure — so the
+  // SECOND number in each pair is what the row reads once it has.
+  CD1:  { cost: ['269.35', '591.03'], price: ['538.72', '1182.06'] },
+  CD2:  { cost: ['142.65', '303.49'], price: ['285.29', '606.98'] },
+  CD3:  { cost: ['142.73', '303.57'], price: ['285.46', '607.14'] },
+  CD4:  { cost: ['324.66', '646.34'], price: ['649.32', '1292.68'] },
 }
 
 // NOTE on the Kenrick gearbox gap (J–P £14.70, Q/R/S £8.40): that is a gap in
@@ -147,7 +155,13 @@ test.describe('GlazePro live smoke (read only)', () => {
 
       if (DELIBERATE[key]) {
         // GlazePro is dearer ON PURPOSE, by exactly this much.
-        if (costDiff !== DELIBERATE[key].cost || priceDiff !== DELIBERATE[key].price) {
+        // Step BC: a row may have more than one acceptable figure — a
+        // decided difference whose rule the reviewer has still to run reads
+        // one amount before the SQL and another after, and both are right.
+        const ok = (actual, expected) => Array.isArray(expected)
+          ? expected.includes(actual)
+          : actual === expected
+        if (!ok(costDiff, DELIBERATE[key].cost) || !ok(priceDiff, DELIBERATE[key].price)) {
           unexpected.push(
             `${key} is deliberately dearer by cost £${DELIBERATE[key].cost} / ` +
             `price £${DELIBERATE[key].price}, now cost £${costDiff} / price £${priceDiff} ` +
@@ -164,7 +178,7 @@ test.describe('GlazePro live smoke (read only)', () => {
     expect(seen).toContain('Q')
     // Step AZ / BA: all seven door benchmarks are on the page
     for (const fd of ['FD1', 'FD2', 'FD3', 'FD3b', 'FD4', 'FD5', 'FD6', 'FD7',
-      'SD1', 'SD2', 'SD3', 'SD4']) expect(seen).toContain(fd)
+      'SD1', 'SD2', 'SD3', 'SD4', 'CD1', 'CD2', 'CD3', 'CD4']) expect(seen).toContain(fd)
     expect(unexpected, unexpected.join('\n')).toEqual([])
   })
 

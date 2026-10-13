@@ -851,3 +851,296 @@ export const BENCHMARK_FD7 = {
   profileCode: 'open_out_doors',
   assumptions: SINGLE_DOOR_ASSUMPTIONS,
 }
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Step BC — single doors with FLAG frames: CD1-CD4, several frames in one item
+// docs/integrate-L31115-single-doors.txt, "Coupled multi-frame doorsets".
+// ═════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Integrate stores a door with flag lights as ONE item holding a
+ * `containerPart` ("Frames", bayTypeId 176, partSpacing -47) with separate
+ * `assemblyFrameParts` side by side, left to right.
+ *
+ * `partSpacing -47` is the coupling: each frame starts one jamb (47 mm) before
+ * the previous one ends, so CD1's 693 + 995 + 693 set is 2287 mm overall and
+ * not 2381. The frames are HEAD-ALIGNED (all at top 0) — flag lights are high
+ * side windows over a wall, not floor-standing.
+ */
+export const CONTAINER_FRAME_SPACING_MM = -47
+
+function frameNode(key, { width, height, dividers = [], openings }) {
+  return {
+    key,
+    part_type: 'assemblyFramePart',
+    values: {
+      width, height,
+      leftWidth: 47, rightWidth: 47, topHeight: 47, bottomHeight: 37,
+      frameDepth: 96, jambType: 'solid_profiled',
+      frameHeadStopSize: 20, frameStileStopSize: 20, cillStopSize: 26,
+      rakeFrame: false, archHead: false,
+      toBeReplaced: true,
+    },
+    children: [
+      ...dividers,
+      ...openings,
+      // Every frame is a WHOLE frame and carries its own cill, as Integrate's
+      // does — which is Nathan's decision (a): GlazePro charges each one.
+      { key: `${key}_cill`, part_type: 'cillPart', values: { height: 37, depth: 145 }, children: [] },
+    ],
+  }
+}
+
+/** A door item holding several frames, left to right. */
+function coupledDoorTree({ frames, ironmongeryLines, product = 'door' }) {
+  return {
+    key: 'item1',
+    part_type: 'drawingItemPart',
+    values: {
+      typeOfWork:      'complete_new',
+      frameMaterialId: 'utile',
+      sashMaterialId:  'utile',
+      cillMaterialId:  'utile',
+      floorLevel:      'ground_floor',
+      product,
+      quantity:        1,
+    },
+    children: [
+      {
+        key: 'paint1',
+        part_type: 'paintAndIronmongeryPart',
+        values: {
+          internalFinish: 'clean_white',
+          externalFinish: 'clean_white',
+          cillFinish: 'clean_white',
+          cutOutBrickReveal: false,
+          ironmongeryFinish: 'PB',
+          isDoorMpls: true,
+          isFrontDoor: false,
+          ironmongeryLines: ironmongeryLines.map(l => ({ ...l })),
+        },
+        children: [],
+      },
+      { key: 'notes1', part_type: 'notesPart', values: {}, children: [] },
+      { key: 'price1', part_type: 'pricePart', values: {}, children: [] },
+      {
+        key: 'frames1',
+        part_type: 'containerPart',
+        values: {
+          bayTypeId: 176,
+          partSpacing: CONTAINER_FRAME_SPACING_MM,
+          isCoupledInTheFactory: false,
+          isBayPoleRequired: false,
+          hasContinousSubCill: false,
+          isCornerpostRequired: false,
+        },
+        children: frames,
+      },
+    ],
+  }
+}
+
+/** A FLAG frame: one fixed casement light, and nothing else. */
+function flagFrame(key, { width, height }) {
+  return frameNode(key, {
+    width, height,
+    openings: [doorsetCasementSash(`${key}_light`)],
+  })
+}
+
+/** A flag frame with a TOP-HUNG fanlight over a fixed light (CD4). */
+function flagFrameWithFanlight(key, { width, height, transomOffset }) {
+  const fan = doorsetCasementSash(`${key}_fan`)
+  return frameNode(key, {
+    width, height,
+    dividers: [transom(`${key}_trans`, transomOffset)],
+    openings: [
+      // Integrate's operation 15 — the flag fanlights OPEN, which is what
+      // makes them 90 install minutes each and what their Kenrick gear is for
+      { ...fan, values: { ...fan.values, operation: 'top_hung' } },
+      doorsetCasementSash(`${key}_light`),
+    ],
+  })
+}
+
+/** The door frame of a coupled set. */
+function doorFrame(key, { width, height, operation = 'left_hand_hung', fanlight = null }) {
+  return frameNode(key, {
+    width, height,
+    dividers: fanlight ? [transom(`${key}_trans`, fanlight.offset)] : [],
+    openings: [
+      ...(fanlight ? [doorsetCasementSash(`${key}_fan`)] : []),
+      singleDoorLeaf(`${key}_leaf`, { operation }),
+    ],
+  })
+}
+
+/** CD2 / CD3's list is SD1's; CD1 adds the XHD16 grille. */
+const COUPLED_IRONMONGERY_GRILLE = [
+  ...SINGLE_DOOR_IRONMONGERY,
+  { product_short_name: 'trickle', finish_code: 'Wht', qty: 1, source: 'survey' },
+]
+
+/** CD4 adds the top-hung flags' own gear. */
+const COUPLED_IRONMONGERY_CD4 = [
+  ...SINGLE_DOOR_IRONMONGERY,
+  { product_short_name: 'connoisseur_handle_lh', finish_code: 'PB', qty: 2, source: 'survey' },
+  { product_short_name: 'defender_209mm', finish_code: 'PC', qty: 2, source: 'survey' },
+  { product_short_name: 'kenrick_extension_490mm', finish_code: 'PC', qty: 4, source: 'survey' },
+  { product_short_name: 'kenrick_extension_gear_box', finish_code: 'PC', qty: 2, source: 'survey' },
+]
+
+const COUPLED_ASSUMPTIONS = [
+  ...SINGLE_DOOR_ASSUMPTIONS,
+  'The frames are HEAD-ALIGNED and coupled at partSpacing -47, so the set is one jamb narrower per joint than the sum of its frames (CD1: 2287, not 2381)',
+  'Nathan’s decisions a-d: every frame’s own timber and cill are charged, ONE architrave round the whole set, +4 h fitting and +180 min workshop per flag frame. Integrate charges none of them',
+  'CD4’s flag fanlights are Integrate operation 15 (top hung), which is what makes them 90 install minutes each rather than a fixed light’s 120',
+]
+
+// ── CD1: flag | single door | flag (Integrate template 70) ───────────────────
+// Frames 693 x 1137 | 995 x 2101 | 693 x 1136, coupled to 2287 overall.
+// Production 4260 min: the door frame's 855 ONCE, "Door Frame - Single Finish"
+// 180 x 3 (frame_qty), LTW 25 PER FRAME, and the two flag lights as side
+// lights (780 each) — they sit beside the door, not above a transom.
+
+export const BENCHMARK_CD1 = {
+  name: 'Benchmark CD1 — single door with a flag frame each side (L31115 Item 10 Drawing 12)',
+  tree: coupledDoorTree({
+    frames: [
+      flagFrame('cd1_flag_a', { width: 693, height: 1137 }),
+      doorFrame('cd1_door', { width: 995, height: 2101 }),
+      flagFrame('cd1_flag_c', { width: 693, height: 1136 }),
+    ],
+    ironmongeryLines: COUPLED_IRONMONGERY_GRILLE,
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkCD1_single_door_two_flag_frames },
+  deliberateDifference: {
+    cost: 269.35,
+    reason: 'Nathan’s decisions a-d: each flag frame’s own timber (+61.82) and cill (+40.19), one architrave round the set (+19.38), +180 min workshop a flag frame (+147.96) and +4 h fitting a flag frame (+321.68)',
+  },
+  // Nathan's decision (c) — +4 h FITTING per flag frame — is live rule 140
+  // rewritten, which the reviewer runs (sql/step-bc1). Until that lands and
+  // a fresh snapshot is captured the engine charges a, b and d only, so
+  // BOTH amounts are declared: the benchmark page and the live smoke test
+  // accept either, and the row says which is still to come. Pinning one
+  // alone would mean a red row today or a silent one after the SQL.
+  pendingDecision: {
+    cost: 321.68,
+    reason: 'decision c, +4 h fitting on two flag frames (240 min a frame) — sql/step-bc1 rewrites rule 140',
+  },
+  partCostMap: DOOR_PART_COST_MAP,
+  profileValues: DOOR_PROFILE_VALUES,
+  glassCatalogue: {},
+  ironmongeryLines: COUPLED_IRONMONGERY_GRILLE,
+  profileCode: 'open_out_doors',
+  assumptions: COUPLED_ASSUMPTIONS,
+}
+
+// ── CD2: single door | flag right (template 71) ──────────────────────────────
+
+export const BENCHMARK_CD2 = {
+  name: 'Benchmark CD2 — single door with a flag frame to the right (L31115 Item 10 Drawing 13)',
+  tree: coupledDoorTree({
+    frames: [
+      doorFrame('cd2_door', { width: 998, height: 2101 }),
+      flagFrame('cd2_flag_b', { width: 693, height: 1136 }),
+    ],
+    ironmongeryLines: SINGLE_DOOR_IRONMONGERY,
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkCD2_single_door_flag_right },
+  deliberateDifference: {
+    cost: 142.65,
+    reason: 'Nathan’s decisions a-d on one flag frame: its timber (+30.90) and cill (+20.10), the architrave (+17.67), +180 min workshop (+73.98) and +4 h fitting (+160.84)',
+  },
+  // Nathan's decision (c) — +4 h FITTING per flag frame — is live rule 140
+  // rewritten, which the reviewer runs (sql/step-bc1). Until that lands and
+  // a fresh snapshot is captured the engine charges a, b and d only, so
+  // BOTH amounts are declared: the benchmark page and the live smoke test
+  // accept either, and the row says which is still to come. Pinning one
+  // alone would mean a red row today or a silent one after the SQL.
+  pendingDecision: {
+    cost: 160.84,
+    reason: 'decision c, +4 h fitting on one flag frame (240 min a frame) — sql/step-bc1 rewrites rule 140',
+  },
+  partCostMap: DOOR_PART_COST_MAP,
+  profileValues: DOOR_PROFILE_VALUES,
+  glassCatalogue: {},
+  ironmongeryLines: SINGLE_DOOR_IRONMONGERY,
+  profileCode: 'open_out_doors',
+  assumptions: COUPLED_ASSUMPTIONS,
+}
+
+// ── CD3: flag left | single door (template 72) ───────────────────────────────
+
+export const BENCHMARK_CD3 = {
+  name: 'Benchmark CD3 — single door with a flag frame to the left (L31115 Item 10 Drawing 14)',
+  tree: coupledDoorTree({
+    frames: [
+      flagFrame('cd3_flag_a', { width: 696, height: 1136 }),
+      doorFrame('cd3_door', { width: 1001, height: 2101 }),
+    ],
+    ironmongeryLines: SINGLE_DOOR_IRONMONGERY,
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkCD3_single_door_flag_left },
+  deliberateDifference: {
+    cost: 142.73,
+    reason: 'Nathan’s decisions a-d on one flag frame: its timber (+30.90) and cill (+20.18), the architrave (+17.67), +180 min workshop (+73.98) and +4 h fitting (+160.84)',
+  },
+  // Nathan's decision (c) — +4 h FITTING per flag frame — is live rule 140
+  // rewritten, which the reviewer runs (sql/step-bc1). Until that lands and
+  // a fresh snapshot is captured the engine charges a, b and d only, so
+  // BOTH amounts are declared: the benchmark page and the live smoke test
+  // accept either, and the row says which is still to come. Pinning one
+  // alone would mean a red row today or a silent one after the SQL.
+  pendingDecision: {
+    cost: 160.84,
+    reason: 'decision c, +4 h fitting on one flag frame (240 min a frame) — sql/step-bc1 rewrites rule 140',
+  },
+  partCostMap: DOOR_PART_COST_MAP,
+  profileValues: DOOR_PROFILE_VALUES,
+  glassCatalogue: {},
+  ironmongeryLines: SINGLE_DOOR_IRONMONGERY,
+  profileCode: 'open_out_doors',
+  assumptions: COUPLED_ASSUMPTIONS,
+}
+
+// ── CD4: flag + fan | door with fanlight | flag + fan (template 69) ──────────
+// Every frame has a transom: the two flags carry a TOP-HUNG fanlight over a
+// fixed light, the door frame a FIXED fanlight over the leaf. So A1, B1 and C1
+// are fanlights of their own frames (300 min each) and A2 / C2 side lights
+// (780) — which is the whole point of scoping is_fanlight per frame.
+
+export const BENCHMARK_CD4 = {
+  name: 'Benchmark CD4 — single door with flag and fan lights (L31115 Item 10 Drawing 15)',
+  tree: coupledDoorTree({
+    frames: [
+      flagFrameWithFanlight('cd4_flag_a', { width: 650, height: 1632, transomOffset: 348 }),
+      doorFrame('cd4_door', {
+        width: 1082, height: 2496, operation: 'right_hand_hung', fanlight: { offset: 348 },
+      }),
+      flagFrameWithFanlight('cd4_flag_c', { width: 650, height: 1632, transomOffset: 348 }),
+    ],
+    ironmongeryLines: COUPLED_IRONMONGERY_CD4,
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkCD4_single_door_flag_and_fan_lights },
+  deliberateDifference: {
+    cost: 324.66,
+    reason: 'Nathan’s decisions a-d: each flag frame’s own timber and transom (+117.34) and cill (+37.70), one architrave round the set (+21.66), +180 min workshop a flag frame (+147.96) and +4 h fitting a flag frame (+321.68)',
+  },
+  // Nathan's decision (c) — +4 h FITTING per flag frame — is live rule 140
+  // rewritten, which the reviewer runs (sql/step-bc1). Until that lands and
+  // a fresh snapshot is captured the engine charges a, b and d only, so
+  // BOTH amounts are declared: the benchmark page and the live smoke test
+  // accept either, and the row says which is still to come. Pinning one
+  // alone would mean a red row today or a silent one after the SQL.
+  pendingDecision: {
+    cost: 321.68,
+    reason: 'decision c, +4 h fitting on two flag frames (240 min a frame) — sql/step-bc1 rewrites rule 140',
+  },
+  partCostMap: DOOR_PART_COST_MAP,
+  profileValues: DOOR_PROFILE_VALUES,
+  glassCatalogue: {},
+  ironmongeryLines: COUPLED_IRONMONGERY_CD4,
+  profileCode: 'open_out_doors',
+  assumptions: COUPLED_ASSUMPTIONS,
+}

@@ -31,6 +31,11 @@ export const ALLOWED_PAIRS = new Set([
   'drawingItemPart->notesPart',
   'drawingItemPart->pricePart',
   'drawingItemPart->assemblyFramePart',
+  // Step BC: a drawing can hold SEVERAL frames, in a container. The live
+  // table already has these two (the brief says so; SECTION 0 of
+  // sql/step-bc1 reads them back) — the local map did not.
+  'drawingItemPart->containerPart',
+  'containerPart->assemblyFramePart',
   'assemblyFramePart->cillPart',
   'assemblyFramePart->sashPairPart',
   'sashPairPart->topSashPart',

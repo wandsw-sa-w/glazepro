@@ -15,6 +15,7 @@
 import { makeKey } from './gridActions.js'
 import { firstOf } from './casementOpenings.js'
 import { DOOR_LEAF_TYPES } from '../pricing/doorGeometry.js'
+import { itemFrames } from '../pricing/casementGeometry.js'
 
 /** The materials a door may be made of. Integrate's material 44 is utile. */
 export const DOOR_MATERIALS = ['utile', 'accoya']
@@ -998,5 +999,307 @@ export function buildFrenchDoorSidePanelFrame(profileValues, {
     },
     missing: [],
     layout: { side, middle },
+  }
+}
+
+// ── Step BC: flag frames — more than one frame in a drawing ──────────────────
+
+/** Integrate's own flag frame on templates 70-72, and its light. */
+export const FLAG_FRAME_DEFAULTS = {
+  width: 693,
+  height: 1136,
+  bottomRail: 86,
+  bottomRailExternal: 93,
+}
+
+/**
+ * The container that holds a drawing's frames, as Integrate stores it:
+ * `partSpacing -47` is the coupling — each frame starts one jamb before the
+ * previous one ends, so a 693 | 995 | 693 set is 2287 wide and not 2381.
+ */
+export const CONTAINER_FRAME_SPACING_MM = -47
+
+function containerNode(key, frames) {
+  return {
+    key,
+    part_type: 'containerPart',
+    values: {
+      bayTypeId: 176,
+      partSpacing: CONTAINER_FRAME_SPACING_MM,
+      isCoupledInTheFactory: false,
+      isBayPoleRequired: false,
+      hasContinousSubCill: false,
+      isCornerpostRequired: false,
+    },
+    children: frames,
+  }
+}
+
+/** A flag frame: its own jambs, head and cill, and one FIXED light. */
+export function buildFlagFrame(profileValues, {
+  width = FLAG_FRAME_DEFAULTS.width,
+  height = FLAG_FRAME_DEFAULTS.height,
+  defaults = null,
+} = {}) {
+  const resolved = defaults ?? doorProfileDefaults(profileValues)
+  if (resolved.missing.length > 0) return { node: null, missing: resolved.missing }
+  const d = resolved.values
+  const key = makeKey('flagframe')
+  const sashKey = `${key}_light`
+  return {
+    node: {
+      key,
+      part_type: 'assemblyFramePart',
+      values: {
+        width, height,
+        leftWidth:  d.frameJambLeft,
+        rightWidth: d.frameJambRight ?? d.frameJambLeft,
+        topHeight:  d.frameHead,
+        bottomHeight: d.frameBottom,
+        frameDepth: d.frameDepth,
+        jambType: 'solid_profiled',
+        frameHeadStopSize:  d.headStop,
+        frameStileStopSize: d.stileStop,
+        cillStopSize:       d.cillStop,
+        rakeFrame: false,
+        archHead: false,
+        toBeReplaced: true,
+      },
+      children: [
+        {
+          key: sashKey,
+          part_type: 'casementSashPart',
+          values: {
+            operation: 'fix',
+            casementTypeId: 'open_out',
+            thickness: d.fanlightThickness,
+            topHeight: d.fanlightHead,
+            leftWidth: d.fanlightStile,
+            rightWidth: d.fanlightStile,
+            bottomHeight: FLAG_FRAME_DEFAULTS.bottomRail,
+            bottomHeightExternal: FLAG_FRAME_DEFAULTS.bottomRailExternal,
+            btmRailShapeId: 'stepped',
+            mechanicalClearanceTop: 1,
+            mechanicalClearanceLeft: 1,
+            mechanicalClearanceRight: 1,
+            mechanicalClearanceBottom: 2,
+            toBeReplaced: true,
+          },
+          children: [{
+            key: `${sashKey}_glass`,
+            part_type: 'glassPart',
+            values: {
+              ...DEFAULT_GLASS,
+              glazingRebateWidth: d.glassRebate,
+              glazingTolerance:   d.glassTolerance,
+            },
+            children: [],
+          }],
+        },
+        // Every frame is a WHOLE frame and carries its own cill — which is
+        // what Nathan charges for (decision a) and Integrate does not.
+        {
+          key: `${key}_cill`,
+          part_type: 'cillPart',
+          values: { height: d.cillHeight, depth: d.cillDepth },
+          children: [],
+        },
+      ],
+    },
+    missing: [],
+  }
+}
+
+/**
+ * Add a flag frame to the left or right of a frame (Integrate's "Copy
+ * selected frame to left / right", but a flag rather than a copy — a flag
+ * light is what Nathan sells beside a door).
+ *
+ * A ONE-frame drawing becomes a container drawing: the frame moves into a new
+ * containerPart beside the flag. An existing container gains one frame. No
+ * existing drawing or template is migrated — this happens only when somebody
+ * adds a flag.
+ *
+ * @returns {{tree: Object, changed: boolean, missing?: string[]}}
+ */
+export function addFlagFrame(tree, frameKey, side, profileValues, opts = {}) {
+  if (side !== 'left' && side !== 'right') return { tree, changed: false }
+  const frames = itemFrames(tree)
+  const target = frames.find(f => f.key === frameKey) ?? frames[0]
+  if (!target) return { tree, changed: false }
+
+  const { node, missing } = buildFlagFrame(profileValues, opts)
+  if (!node) return { tree, changed: false, missing }
+
+  const at = frames.indexOf(target) + (side === 'right' ? 1 : 0)
+  const next = [...frames]
+  next.splice(at, 0, node)
+
+  const container = (tree.children ?? []).find(c => c.part_type === 'containerPart')
+  if (container) {
+    return {
+      tree: {
+        ...tree,
+        children: tree.children.map(
+          c => c.key === container.key ? { ...container, children: next } : c),
+      },
+      changed: true,
+    }
+  }
+  // One frame until now: wrap both in a container, in place of the frame.
+  return {
+    tree: {
+      ...tree,
+      children: (tree.children ?? []).flatMap(
+        c => c.part_type === 'assemblyFramePart'
+          ? [containerNode(makeKey('frames'), next)]
+          : [c]),
+    },
+    changed: true,
+  }
+}
+
+/**
+ * Remove a frame from a coupled set.
+ *
+ * Taking a set back down to ONE frame unwraps the container, so the drawing
+ * is exactly the shape a one-frame drawing has always been — nothing is left
+ * carrying a container with a single frame in it. The last frame cannot be
+ * removed, and neither can the frame holding the door.
+ *
+ * @returns {{tree: Object, changed: boolean, reason?: string}}
+ */
+export function removeFrame(tree, frameKey) {
+  const frames = itemFrames(tree)
+  if (frames.length <= 1) return { tree, changed: false, reason: 'the only frame' }
+  const target = frames.find(f => f.key === frameKey)
+  if (!target) return { tree, changed: false }
+
+  const hasLeaf = node => DOOR_LEAF_TYPES.includes(node.part_type) ||
+    (node.children ?? []).some(hasLeaf)
+  if ((target.children ?? []).some(hasLeaf)) {
+    return { tree, changed: false, reason: 'the frame with the door in it' }
+  }
+
+  const kept = frames.filter(f => f.key !== frameKey)
+  const container = (tree.children ?? []).find(c => c.part_type === 'containerPart')
+  if (!container) return { tree, changed: false }
+
+  if (kept.length === 1) {
+    return {
+      tree: {
+        ...tree,
+        children: tree.children.map(c => c.key === container.key ? kept[0] : c),
+      },
+      changed: true,
+    }
+  }
+  return {
+    tree: {
+      ...tree,
+      children: tree.children.map(
+        c => c.key === container.key ? { ...container, children: kept } : c),
+    },
+    changed: true,
+  }
+}
+
+/**
+ * Build a whole coupled single-door drawing: flag frames and the door frame,
+ * left to right, for the Step BC templates.
+ *
+ * `flags` is an array of 'left' / 'right' — Integrate's templates 70 (both),
+ * 71 (right) and 72 (left) — and `fanlights` gives every frame a transom
+ * with a light over it, which is template 69.
+ *
+ * @returns {{tree: Object|null, missing: string[]}}
+ */
+export function buildCoupledSingleDoorFrame(profileValues, {
+  doorWidth = 995,
+  doorHeight = 2101,
+  flagWidth = FLAG_FRAME_DEFAULTS.width,
+  flagHeight = FLAG_FRAME_DEFAULTS.height,
+  flags = ['left', 'right'],
+  material = DEFAULT_DOOR_MATERIAL,
+  product = null,
+  quantity = 1,
+  operation = DEFAULT_SINGLE_DOOR_OPERATION,
+  fanlights = null,          // { doorOffset, flagOffset } or null
+  fanlightBottomRail = 62,
+  fanlightBottomRailExternal = 69,
+} = {}) {
+  const resolved = doorProfileDefaults(profileValues)
+  if (resolved.missing.length > 0) return { tree: null, missing: resolved.missing }
+  const d = resolved.values
+
+  // The door frame, with or without a fanlight over the leaf.
+  const base = buildSingleDoorFrame(profileValues, {
+    width: doorWidth, height: doorHeight, material, product, quantity, operation,
+    fanlight: fanlights ? { offset: fanlights.doorOffset } : null,
+    fanlightBottomRail, fanlightBottomRailExternal,
+  })
+  if (!base.tree) return base
+  const doorFrame = base.tree.children.find(c => c.part_type === 'assemblyFramePart')
+
+  const flagFrames = flags.map(() => {
+    const built = buildFlagFrame(profileValues, {
+      width: flagWidth, height: flagHeight, defaults: resolved,
+    })
+    if (!built.node) return null
+    if (!fanlights) return built.node
+    // Template 69: a TOP-HUNG fanlight over the fixed light, in the flag's
+    // own frame — which is what makes it a fanlight of that frame (300 min)
+    // and the light below it a side light (780).
+    const key = built.node.key
+    const fan = {
+      ...built.node.children[0],
+      key: `${key}_fan`,
+      values: {
+        ...built.node.children[0].values,
+        operation: 'top_hung',
+        bottomHeight: fanlightBottomRail,
+        bottomHeightExternal: fanlightBottomRailExternal,
+      },
+      children: [{
+        ...built.node.children[0].children[0],
+        key: `${key}_fan_glass`,
+      }],
+    }
+    return {
+      ...built.node,
+      children: [
+        {
+          key: `${key}_trans`,
+          part_type: 'transomPart',
+          values: {
+            offset: fanlights.flagOffset,
+            thicknessInFrame: d.transomThickness,
+            transomStopSize: 18,
+            startDivider: '0', endDivider: '0',
+          },
+          children: [],
+        },
+        fan,
+        ...built.node.children,
+      ],
+    }
+  })
+  if (flagFrames.some(f => f == null)) return { tree: null, missing: ['flag frame'] }
+
+  const ordered = [
+    ...flagFrames.filter((_, i) => flags[i] === 'left'),
+    doorFrame,
+    ...flagFrames.filter((_, i) => flags[i] === 'right'),
+  ]
+
+  return {
+    tree: {
+      ...base.tree,
+      children: base.tree.children.flatMap(
+        c => c.part_type === 'assemblyFramePart'
+          ? [containerNode(makeKey('frames'), ordered)]
+          : [c]),
+    },
+    missing: [],
   }
 }

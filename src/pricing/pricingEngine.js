@@ -423,8 +423,44 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
     // cill_length_in_mm: outer frame width + left horn + right horn
     const cill_length_in_mm = outerW + (v.leftCillHorn ?? 0) + (v.rightCillHorn ?? 0)
 
+    // ── Step BC: THIS frame's own counts ────────────────────────────────────
+    //
+    // A drawing can hold several frames (a single door with flag lights), and
+    // a frame-LOOP rule asks about the frame it is visiting — not the item.
+    // These came from the item-level variables, so on a container every frame
+    // answered with the whole item's counts:
+    //
+    //   "Machining & Joining a Door Frame" 855 (door_leaf_qty >= 1) fired on
+    //   all three of CD1's frames instead of the door frame alone;
+    //   "Additional for Frame Mullion or Transom" charged CD4's three transoms
+    //   on each of its three frames; and "Machining & Joining a Casement
+    //   Frame" (door_leaf_qty < 1) could never fire on a flag frame, which is
+    //   Nathan's decision d.
+    //
+    // "LTW General Consumables" is what proves the scoping: its condition is
+    // per frame (a sash or a leaf in THIS frame) and Integrate charges it once
+    // per frame — 25 x 3 on CD1.
+    //
+    // On a ONE-frame drawing each of these equals the item-level value it
+    // replaces, so no existing benchmark moves.
+    const own     = type  => (partNode.children ?? []).filter(c => c.part_type === type)
+    const ownDeep = types => {
+      const acc = []
+      const walk = n => {
+        if (types.includes(n.part_type)) acc.push(n)
+        for (const c of (n.children ?? [])) walk(c)
+      }
+      for (const c of (partNode.children ?? [])) walk(c)
+      return acc
+    }
+    const frameLeaves   = ownDeep(DOOR_LEAF_TYPES)
+    const frameSashes   = ownDeep(CASEMENT_SASH_TYPES)
+    const frameMullions = own('mullionPart')
+    const frameTransoms = own('transomPart')
+    const isNew = baseVars.is_complete_new ?? false
+
     return {
-      to_be_replaced:          baseVars.is_complete_new ?? false,
+      to_be_replaced:          isNew,
       width:                   metres2dp(outerW),   // metres, 2 dp half-up (see above)
       height:                  metres2dp(outerH),   // metres, 2 dp half-up
       frame_width_in_mm:       outerW,          // mm (OUTER)
@@ -432,6 +468,17 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
       frame_depth_in_mm:       cv.depth ?? v.frameDepth ?? 0,
       cill_profiled_height_in_mm,
       cill_length_in_mm,
+      // ── this frame's own contents ──
+      door_leaf_qty:           frameLeaves.length,
+      new_door_leaf_qty:       isNew ? frameLeaves.length : 0,
+      casement_sash_qty:       frameSashes.length,
+      new_casement_sash_qty:   isNew ? frameSashes.length : 0,
+      fixed_casement_sash_qty: frameSashes.filter(casementIsFixed).length,
+      frame_mullion_qty:       frameMullions.length,
+      frame_transom_qty:       frameTransoms.length,
+      full_length_frame_mullion_qty:
+        frameMullions.filter(m => !(m.values?.offset2 > 0)).length,
+      panel_in_frame_qty:      own('panelPart').length,
     }
   }
 

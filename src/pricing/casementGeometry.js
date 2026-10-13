@@ -43,6 +43,56 @@ function findFirst(node, partType) {
   return null
 }
 
+function findAll(node, partType, acc = []) {
+  if (!node) return acc
+  if (node.part_type === partType) acc.push(node)
+  for (const c of (node.children ?? [])) findAll(c, partType, acc)
+  return acc
+}
+
+// ── Step BC: more than one frame in a drawing ────────────────────────────────
+//
+// Integrate stores a door with flag lights as ONE item holding a containerPart
+// with several assemblyFrameParts side by side. Every question below used to
+// start with findFirst(tree, 'assemblyFramePart') — "the" frame — which on a
+// container answered for the FIRST frame whatever was being asked about.
+//
+// Each of these helpers now takes an OPTIONAL frame: either the frame node
+// itself or any node inside it. A one-frame drawing resolves to the only
+// frame, so every existing caller and every existing benchmark is unchanged;
+// the node-based helpers (a sash's size, an opening's label) resolve the
+// frame that OWNS the node, which is what makes a flag frame's own sash a
+// fanlight of its own frame rather than of the first one.
+
+/** Every assembly frame in the item, in tree order — left to right. */
+export function itemFrames(tree) {
+  return findAll(tree, 'assemblyFramePart')
+}
+
+/** Is this a multi-frame (container) drawing? */
+export function isMultiFrame(tree) {
+  return itemFrames(tree).length > 1
+}
+
+/** The frame that OWNS a node, or null. */
+export function frameOwning(tree, node) {
+  if (!node) return null
+  if (node.part_type === 'assemblyFramePart') return node
+  const holds = (n, key) => (n.children ?? []).some(
+    c => c.key === key || holds(c, key))
+  return itemFrames(tree).find(f => holds(f, node.key)) ?? null
+}
+
+/**
+ * The frame a helper should answer for: the frame passed in, the frame that
+ * owns the node passed in, or — asked nothing — the FIRST frame, which is
+ * what every one-frame drawing means by "the frame".
+ */
+function theFrame(tree, frameOrNode = null) {
+  if (frameOrNode) return frameOwning(tree, frameOrNode)
+  return itemFrames(tree)[0] ?? null
+}
+
 function num(v) {
   if (v == null || v === '') return null
   const n = Number(v)
@@ -94,15 +144,21 @@ export function isLeftLeaf(node) {
 
 /** Is this glassPart a direct glazed unit — a direct child of the frame? */
 export function isDirectGlazedUnit(tree, glassNode) {
-  const frame = findFirst(tree, 'assemblyFramePart')
-  if (!frame || glassNode?.part_type !== 'glassPart') return false
-  return (frame.children ?? []).some(c => c.key === glassNode.key)
+  if (glassNode?.part_type !== 'glassPart') return false
+  // Step BC: a unit is direct glazed when it is the child of ANY frame of
+  // the item, not only the first.
+  return itemFrames(tree).some(
+    f => (f.children ?? []).some(c => c.key === glassNode.key))
 }
 
 /** The frame's interior, in mm: { width, height }. */
-export function frameInterior(tree) {
-  const frame = findFirst(tree, 'assemblyFramePart')
-  const cill  = findFirst(tree, 'cillPart')
+export function frameInterior(tree, frameOrNode = null) {
+  const frame = theFrame(tree, frameOrNode)
+  // Step BC: the frame's OWN cill. findFirst(tree) took the first frame's
+  // cill for every frame of a container, so a flag frame's interior height
+  // came out of the door frame's cill.
+  const cill  = (frame?.children ?? []).find(c => c.part_type === 'cillPart')
+    ?? findFirst(tree, 'cillPart')
   const fv = frame?.values ?? {}
   const w = num(fv.width)
   const h = num(fv.height)
@@ -125,9 +181,9 @@ function dividerThickness(d) {
  * value `thicknessInFrameHollow`, which is what Step AE's box sash mullions
  * use.
  */
-export function frameColumns(tree) {
-  const frame = findFirst(tree, 'assemblyFramePart')
-  const interior = frameInterior(tree)
+export function frameColumns(tree, frameOrNode = null) {
+  const frame = theFrame(tree, frameOrNode)
+  const interior = frameInterior(tree, frame)
   if (!frame || interior.width == null) return []
   const mullions = (frame.children ?? []).filter(c => c.part_type === 'mullionPart')
   return computeOpeningLayout(mullions, interior.width, dividerThickness)
@@ -146,17 +202,20 @@ export function frameColumns(tree) {
  * Row 1 is the TOP row, so the fanlight is A1 and the casement below it A2,
  * as Integrate tags them.
  */
-export function frameRows(tree) {
-  const frame = findFirst(tree, 'assemblyFramePart')
-  const interior = frameInterior(tree)
+export function frameRows(tree, frameOrNode = null) {
+  const frame = theFrame(tree, frameOrNode)
+  const interior = frameInterior(tree, frame)
   if (!frame || interior.height == null) return []
   const transoms = (frame.children ?? []).filter(c => c.part_type === 'transomPart')
   return computeOpeningLayout(transoms, interior.height, dividerThickness)
 }
 
 /** How many columns and rows the frame is divided into. */
-export function frameGridSize(tree) {
-  return { cols: Math.max(frameColumns(tree).length, 1), rows: Math.max(frameRows(tree).length, 1) }
+export function frameGridSize(tree, frameOrNode = null) {
+  return {
+    cols: Math.max(frameColumns(tree, frameOrNode).length, 1),
+    rows: Math.max(frameRows(tree, frameOrNode).length, 1),
+  }
 }
 
 /**
@@ -178,8 +237,8 @@ export function frameGridSize(tree) {
  * Opening nodes take these cells in tree order, so the tree's order of
  * openings IS this order (see openingNodes).
  */
-export function frameOpenings(tree) {
-  return frameCells(tree).map(c => ({
+export function frameOpenings(tree, frameOrNode = null) {
+  return frameCells(tree, frameOrNode).map(c => ({
     width: c.width, height: c.height, x: c.x, y: c.y,
     col: c.col, row: c.row, colSpan: c.colSpan, rowSpan: c.rowSpan,
   }))
@@ -194,12 +253,12 @@ export function frameOpenings(tree) {
  * cell's width or height INCLUDES the divider it crosses (TC1's fanlight is
  * 493 + 27 + 511 = 1031 wide).
  */
-export function frameCells(tree) {
-  const cols = frameColumns(tree)
-  const rows = frameRows(tree)
+export function frameCells(tree, frameOrNode = null) {
+  const frame = theFrame(tree, frameOrNode)
+  const cols = frameColumns(tree, frame)
+  const rows = frameRows(tree, frame)
   if (cols.length === 0 || rows.length === 0) return []
 
-  const frame = findFirst(tree, 'assemblyFramePart')
   const mullions = sortedDividers(frame, 'mullionPart')
   const transoms = sortedDividers(frame, 'transomPart')
 
@@ -303,7 +362,7 @@ function dividerRefIndex(ref, crossing) {
  * allowance (casementFrameTimberVolumeDm3).
  */
 export function isShortDivider(tree, divider) {
-  const frame = findFirst(tree, 'assemblyFramePart')
+  const frame = theFrame(tree, divider)
   if (!frame || !divider) return false
   const crossing = divider.part_type === 'mullionPart'
     ? sortedDividers(frame, 'transomPart')
@@ -321,7 +380,7 @@ export function isShortDivider(tree, divider) {
  * column's 561.
  */
 export function shortDividerSpanMm(tree, divider) {
-  const frame = findFirst(tree, 'assemblyFramePart')
+  const frame = theFrame(tree, divider)
   if (!frame || !divider) return null
   const isMullion = divider.part_type === 'mullionPart'
   // A mullion runs vertically, so its length is measured down the ROWS; a
@@ -344,21 +403,25 @@ export function shortDividerSpanMm(tree, divider) {
 }
 
 /** The frame's opening NODES, in tree order (Integrate's matrixIndex order). */
-export function openingNodes(tree) {
-  const frame = findFirst(tree, 'assemblyFramePart')
+export function openingNodes(tree, frameOrNode = null) {
+  const frame = theFrame(tree, frameOrNode)
   return (frame?.children ?? []).filter(c => OPENING_TYPES.includes(c.part_type))
 }
 
 /** The opening a casement sash or direct glazed unit sits in, or null. */
 export function openingFor(tree, node) {
   if (!node) return null
-  const nodes = openingNodes(tree)
+  // Step BC: the openings of the frame that OWNS this node. On a container
+  // the first frame's openings answered for every frame, so a flag frame's
+  // sash had no cell at all and therefore no size.
+  const frame = frameOwning(tree, node)
+  const nodes = openingNodes(tree, frame)
   // A French sash is not itself an opening — the PAIR it belongs to is, so
   // the sash takes its parent's cell.
   const idx = nodes.findIndex(n => n.key === node.key ||
     (n.children ?? []).some(c => c.key === node.key))
   if (idx < 0) return null
-  return frameOpenings(tree)[idx] ?? null
+  return frameOpenings(tree, frame)[idx] ?? null
 }
 
 /** The French pair a French sash belongs to, or null. */

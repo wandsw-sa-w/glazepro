@@ -13,8 +13,8 @@ import { runPricingOnTree, shapedGlassCutAreaM2 } from '../pricingEngine.js'
 import { applySashesReplaced } from '../../drawingBoard/sashesReplaced.js'
 import { computeDerived } from '../../drawingBoard/computeDerived.js'
 import { computeVariables } from '../computeVariables.js'
-import { shortDividerSpanMm, isShortDivider, frameCells, frameGridSize, frameOpenings, casementSashSize, casementSashWeightKg, casementFrameTimberVolumeDm3, casementSashTimberVolumeDm3, casementGlassSightline, frameMuntinLengthM, frameColumns, frameRows, CASEMENT_SASH_TYPES, FRENCH_SASH_TYPES } from '../casementGeometry.js'
-import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_B_UNCORRECTED, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F, BENCHMARK_G, BENCHMARK_H, BENCHMARK_I, BENCHMARK_J, BENCHMARK_K, BENCHMARK_L, BENCHMARK_M, BENCHMARK_N, BENCHMARK_P, BENCHMARK_Q, BENCHMARK_R, BENCHMARK_S, BENCHMARK_SA, BENCHMARK_SB, BENCHMARK_SC, BENCHMARK_SD, BENCHMARK_SE, BENCHMARK_SF, BENCHMARK_TC1, BENCHMARK_TC2, BENCHMARK_TC3, BENCHMARK_FR1, BENCHMARK_FR2, BENCHMARK_FD1, BENCHMARK_FD2, BENCHMARK_FD3, BENCHMARK_FD3b, BENCHMARK_FD4, BENCHMARK_FD5, BENCHMARK_FD6, BENCHMARK_FD7, BENCHMARK_SD1, BENCHMARK_SD2, BENCHMARK_SD3, BENCHMARK_SD4 } from './index.js'
+import { shortDividerSpanMm, isShortDivider, frameCells, frameGridSize, frameOpenings, casementSashSize, casementSashWeightKg, casementFrameTimberVolumeDm3, casementSashTimberVolumeDm3, casementGlassSightline, frameMuntinLengthM, frameColumns, frameRows, itemFrames, CASEMENT_SASH_TYPES, FRENCH_SASH_TYPES } from '../casementGeometry.js'
+import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_B_UNCORRECTED, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F, BENCHMARK_G, BENCHMARK_H, BENCHMARK_I, BENCHMARK_J, BENCHMARK_K, BENCHMARK_L, BENCHMARK_M, BENCHMARK_N, BENCHMARK_P, BENCHMARK_Q, BENCHMARK_R, BENCHMARK_S, BENCHMARK_SA, BENCHMARK_SB, BENCHMARK_SC, BENCHMARK_SD, BENCHMARK_SE, BENCHMARK_SF, BENCHMARK_TC1, BENCHMARK_TC2, BENCHMARK_TC3, BENCHMARK_FR1, BENCHMARK_FR2, BENCHMARK_FD1, BENCHMARK_FD2, BENCHMARK_FD3, BENCHMARK_FD3b, BENCHMARK_FD4, BENCHMARK_FD5, BENCHMARK_FD6, BENCHMARK_FD7, BENCHMARK_SD1, BENCHMARK_SD2, BENCHMARK_SD3, BENCHMARK_SD4, BENCHMARK_CD1, BENCHMARK_CD2, BENCHMARK_CD3, BENCHMARK_CD4 } from './index.js'
 import { resolveIronmongeryLines } from '../loadPricingContext.js'
 import { allocatedSectionParts, doorLeaves, doorLeafSize, doorLeafWeightKg, doorGlassSightline, doorPanelSize } from '../doorGeometry.js'
 // The LIVE price-file snapshot (reviewer-checked, 8 Oct 2026) — the honest
@@ -2718,5 +2718,275 @@ describe('Step BB — single garden door benchmarks', () => {
       expect([...new Set(names)].sort(), label)
         .toEqual(['LTW General Consumables', 'Utile Section Part'])
     }
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step BC — single doors with FLAG frames: CD1-CD4, several frames in one item
+// ══════════════════════════════════════════════════════════════════════════════
+// docs/integrate-L31115-single-doors.txt, "Coupled multi-frame doorsets".
+//
+// Integrate stores these as ONE item holding a containerPart with separate
+// assemblyFrameParts side by side, coupled at partSpacing -47 and
+// head-aligned. Everything that used to ask "the frame" a question had to
+// learn to ask THAT frame.
+//
+// No new pricing rule: GlazePro's own rule 140 is REWRITTEN by
+// sql/step-bc1 (Nathan's decision c), which the reviewer runs.
+describe('Step BC — coupled flag-frame benchmarks', () => {
+  const CASES = [
+    ['CD1', BENCHMARK_CD1, INTEGRATE.benchmarkCD1_single_door_two_flag_frames,     77.00, 15.75],
+    ['CD2', BENCHMARK_CD2, INTEGRATE.benchmarkCD2_single_door_flag_right,          56.67, 13.75],
+    ['CD3', BENCHMARK_CD3, INTEGRATE.benchmarkCD3_single_door_flag_left,           56.67, 13.75],
+    ['CD4', BENCHMARK_CD4, INTEGRATE.benchmarkCD4_single_door_flag_and_fan_lights, 109.25, 20.75],
+  ]
+
+  function runCD(bm) {
+    return runPricingOnTree(bm.tree, SNAPSHOT.rules, SNAPSHOT.pfVariables, {
+      glassCatalogue: SNAPSHOT.glassCatalogue,
+      partAllocationRules: SNAPSHOT.partAllocationRules,
+      partCostMap: bm.partCostMap,
+      ironmongeryLines: bm.ironmongeryLines,
+      ironmongeryCatalogue: SNAPSHOT.ironmongeryCatalogue,
+      profileValues: SNAPSHOT.profileValues,
+      profileCode: bm.profileCode,
+    })
+  }
+  const groupCost = (r, group) => r.price.lines
+    .filter(l => l.fires && !l.error && l.group_name === group)
+    .reduce((t, l) => t + l.line_cost, 0)
+
+  for (const [label, bm, target, production, labour] of CASES) {
+    it(`${label}: production ${production} h and labour ${labour} h`, () => {
+      const r = runCD(bm)
+      // Production is Integrate's PLUS decision d (+180 min a flag frame).
+      expect(r.manufacture_labour.total_minutes / 60, label).toBeCloseTo(production, 2)
+      // Labour is Integrate's exactly until sql/step-bc1 lands decision c.
+      expect(r.install_labour.total_minutes / 60, label).toBeCloseTo(labour, 2)
+      expect(labour, `${label} labour matches Integrate`)
+        .toBeCloseTo(target.hours.labour, 2)
+    })
+
+    it(`${label}: every group matches Integrate plus the decided differences`, () => {
+      const r = runCD(bm)
+      const got = {}
+      for (const l of r.price.lines) {
+        if (!l.fires || l.error) continue
+        got[l.group_name] = (got[l.group_name] ?? 0) + l.line_cost
+      }
+      // glass and labour are Integrate's EXACTLY; the decisions land in
+      // manufacture (d), manufacture_materials (a) and
+      // installation_materials (b).
+      expect(got.glass_done ?? 0, `${label} glass`).toBeCloseTo(target.groups.glass_done.cost, 2)
+      expect(got.labour ?? 0, `${label} labour`).toBeCloseTo(target.groups.labour.cost, 2)
+      expect(r.price.total_cost, `${label} total`)
+        .toBeCloseTo(target.total_cost + bm.deliberateDifference.cost, 2)
+    })
+  }
+
+  it('the decided differences are exactly Nathan’s four decisions, line by line', () => {
+    // The facts' own table (docs/integrate-L31115-single-doors.txt):
+    //        timber 67x96 | cill 63x200 | architrave | production
+    //   CD1     +61.82    |   +40.19    |   +19.38   |  +147.96
+    //   CD2     +30.90    |   +20.10    |   +17.67   |   +73.98
+    //   CD3     +30.90    |   +20.18    |   +17.67   |   +73.98
+    //   CD4    +117.34    |   +37.70    |   +21.66   |  +147.96
+    const SPLIT = {
+      CD1: { materials: 102.01, architrave: 19.38, production: 147.96 },
+      CD2: { materials: 51.00,  architrave: 17.67, production: 73.98 },
+      CD3: { materials: 51.08,  architrave: 17.67, production: 73.98 },
+      CD4: { materials: 155.04, architrave: 21.66, production: 147.96 },
+    }
+    for (const [label, bm, target] of CASES) {
+      const r = runCD(bm)
+      const s = SPLIT[label]
+      // (a) every frame's own timber and cill
+      expect(groupCost(r, 'manufacture_materials') - target.groups.manufacture_materials.cost,
+        `${label} timber + cill`).toBeCloseTo(s.materials, 2)
+      // (b) ONE architrave round the whole set
+      expect(groupCost(r, 'installation_materials') - target.groups.installation_materials.cost,
+        `${label} architrave`).toBeCloseTo(s.architrave, 2)
+      // (d) +180 min of workshop a flag frame
+      expect(groupCost(r, 'manufacture') - target.groups.manufacture.cost,
+        `${label} workshop`).toBeCloseTo(s.production, 2)
+      // and the three add up to what the fixture declares
+      expect(s.materials + s.architrave + s.production, `${label} declared`)
+        .toBeCloseTo(bm.deliberateDifference.cost, 2)
+    }
+  })
+
+  it('decision c is PENDING its SQL, and is declared as such', () => {
+    // sql/step-bc1 rewrites rule 140 from a 1-minute placeholder to 240
+    // minutes per extra frame. Until it runs and a fresh snapshot is
+    // captured, the engine charges nothing for it — so the fixtures declare
+    // it separately and the page accepts either figure.
+    const rule = SNAPSHOT.rules.find(r => r.sort_order === 140 &&
+      r.rule_family === 'install_labour')
+    expect(rule, 'rule 140 is in the snapshot').toBeTruthy()
+    const landed = rule.value === '240'
+    expect(BENCHMARK_CD1.pendingDecision.cost).toBeCloseTo(321.68, 2)
+    expect(BENCHMARK_CD2.pendingDecision.cost).toBeCloseTo(160.84, 2)
+    for (const [label, bm, target] of CASES) {
+      const r = runCD(bm)
+      const expected = target.total_cost + bm.deliberateDifference.cost +
+        (landed ? bm.pendingDecision.cost : 0)
+      expect(r.price.total_cost, `${label} (rule 140 ${landed ? 'landed' : 'pending'})`)
+        .toBeCloseTo(expected, 2)
+    }
+  })
+
+  // ── what each frame sees ──────────────────────────────────────────────────
+
+  it('a frame-loop rule sees THAT frame’s own counts', () => {
+    // The whole of this step's pricing risk. CD1 has three frames and one
+    // door: the door frame is machined as a door frame (855, ONCE), the two
+    // flags as casement frames (180 each — decision d), and LTW is charged
+    // once per frame because its condition is per frame.
+    const mfg = {}
+    for (const l of runCD(BENCHMARK_CD1).manufacture_labour.lines) {
+      if (!l.fires || l.error) continue
+      mfg[l.name] = (mfg[l.name] ?? 0) + l.minutes
+    }
+    expect(mfg['Machining & Joining a Door Frame'], 'the DOOR frame, once').toBe(855)
+    expect(mfg['Machining & Joining a Casement Frame'], 'each FLAG frame').toBe(360)
+    expect(mfg['Door Frame - Single Finish'], 'item-level, qty frame_qty').toBe(540)
+    expect(mfg['Sidelights in Doorsets'], 'the two flag lights').toBe(1560)
+
+    const ltw = runCD(BENCHMARK_CD1).price.lines
+      .filter(l => l.fires && !l.error && l.name === 'LTW General Consumables')
+    expect(ltw.length, 'one LTW line per frame').toBe(3)
+    expect(ltw.reduce((t, l) => t + l.line_cost, 0)).toBeCloseTo(75, 2)
+  })
+
+  it('CD4: each frame’s own transom, and is_fanlight within its own frame', () => {
+    const mfg = {}
+    for (const l of runCD(BENCHMARK_CD4).manufacture_labour.lines) {
+      if (!l.fires || l.error) continue
+      mfg[l.name] = (mfg[l.name] ?? 0) + l.minutes
+    }
+    // three frames, one transom each — not three transoms on each frame
+    expect(mfg['Additional for Frame Mullion or Transom']).toBe(540)
+    expect(mfg['Door Frame - Single Finish (Mullions)']).toBe(255)
+    // the three top lights are FANLIGHTS of their own frames, the two lights
+    // below them SIDE lights
+    expect(mfg['Fanlights in Doorsets'], '300 x 3').toBe(900)
+    expect(mfg['Sidelights in Doorsets'], '780 x 2').toBe(1560)
+  })
+
+  it('a flag frame is NOT charged as a casement window', () => {
+    // A flag frame belongs to a DOOR item, so the two casement frame timber
+    // rules (gated on `not is_door`, which is item-level) must stay silent —
+    // Integrate has no such line on CD1-CD4 either.
+    for (const [label, bm] of CASES) {
+      const names = runCD(bm).price.lines
+        .filter(l => l.fires && !l.error && l.line_cost > 0).map(l => l.name)
+      for (const n of ['Casement Frame Jambs & Cills', 'Casement Frame Head',
+        'Softwood Casement Frame & Sashes']) {
+        expect(names, `${label} / ${n}`).not.toContain(n)
+      }
+      // and a door still prices no timber VOLUME at all
+      const mm = runCD(bm).price.lines
+        .filter(l => l.fires && !l.error && l.line_cost > 0 &&
+          l.group_name === 'manufacture_materials').map(l => l.name)
+      expect([...new Set(mm)].sort(), label)
+        .toEqual(['LTW General Consumables', 'Utile Section Part'])
+    }
+  })
+
+  it('the item-level counts are the WHOLE item', () => {
+    const v = bm => computeVariables(bm.tree, computeDerived(bm.tree), PF_VARIABLES,
+      { profileCode: bm.profileCode })
+    expect(v(BENCHMARK_CD1).frame_qty).toBe(3)
+    expect(v(BENCHMARK_CD1).new_frame_qty).toBe(3)
+    expect(v(BENCHMARK_CD1).door_leaf_qty).toBe(1)
+    expect(v(BENCHMARK_CD1).casement_sash_qty).toBe(2)
+    expect(v(BENCHMARK_CD2).frame_qty).toBe(2)
+    expect(v(BENCHMARK_CD4).frame_qty).toBe(3)
+    expect(v(BENCHMARK_CD4).casement_sash_qty).toBe(5)
+    expect(v(BENCHMARK_CD4).frame_transom_qty, 'three frames, one transom each').toBe(3)
+    // and a door item is still a door item, not a casement window
+    for (const bm of [BENCHMARK_CD1, BENCHMARK_CD4]) {
+      expect(v(bm).is_door).toBe(true)
+      expect(v(bm).is_casement_window).toBe(false)
+    }
+  })
+
+  it('every frame’s geometry is its OWN', () => {
+    // CD1's three frames are 693 x 1137 | 995 x 2101 | 693 x 1136, and each
+    // light is its own frame's opening less its clearances. Before this step
+    // the first frame answered for all three.
+    expect(itemFrames(BENCHMARK_CD1.tree).map(f => `${f.values.width}x${f.values.height}`))
+      .toEqual(['693x1137', '995x2101', '693x1136'])
+    const sashes = []
+    const walk = n => {
+      if (n.part_type === 'casementSashPart') sashes.push(n)
+      for (const c of (n.children ?? [])) walk(c)
+    }
+    walk(BENCHMARK_CD1.tree)
+    expect(sashes.map(s => casementSashSize(BENCHMARK_CD1.tree, s)))
+      .toEqual([{ width: 597, height: 1050 }, { width: 597, height: 1049 }])
+    // the door leaf is in the middle frame and sized from it
+    expect(doorLeafSize(BENCHMARK_CD1.tree, doorLeaves(BENCHMARK_CD1.tree)[0]))
+      .toEqual({ width: 895, height: 2012 })
+  })
+
+  it('the labels run ON across the frames, as Integrate’s do', () => {
+    const labels = bm => {
+      const out = []
+      const walk = n => {
+        const l = openingLabel(bm.tree, n)
+        if (l) out.push(l)
+        for (const c of (n.children ?? [])) walk(c)
+      }
+      walk(bm.tree)
+      return out
+    }
+    expect(labels(BENCHMARK_CD1)).toEqual(['Casement Sash A1', 'Single Door B1', 'Casement Sash C1'])
+    expect(labels(BENCHMARK_CD2)).toEqual(['Single Door A1', 'Casement Sash B1'])
+    expect(labels(BENCHMARK_CD3)).toEqual(['Casement Sash A1', 'Single Door B1'])
+    expect(labels(BENCHMARK_CD4)).toEqual([
+      'Fanlight A1', 'Casement Sash A2',
+      'Fanlight B1', 'Single Door B2',
+      'Fanlight C1', 'Casement Sash C2',
+    ])
+  })
+
+  it('the sections are every frame’s, and the architrave is one set', () => {
+    const byCode = bm => Object.fromEntries(
+      allocatedSectionParts(bm.tree, { material: 'utile' }).map(s => [s.part_code, s.length_mm]))
+
+    // Integrate charges ONE frame (the widths plus twice the door frame's
+    // height) and only the door frame's cill; GlazePro charges each frame.
+    const cd1 = byCode(BENCHMARK_CD1)
+    expect(cd1.Utile67x96, 'every frame W + 2H')
+      .toBe((693 + 2 * 1137) + (995 + 2 * 2101) + (693 + 2 * 1136))
+    expect(cd1.Utile63x200, 'three cills + the leaf').toBe(693 + 995 + 693 + 895)
+    expect(cd1.Utile63x120).toBe(4913)      // Integrate's own
+    expect(cd1.Utile63x63).toBe(5420)
+    expect(cd1.Utile63x96).toBe(1194)
+
+    // CD4's 67x96 is the facts' own figure, transoms included
+    expect(byCode(BENCHMARK_CD4).Utile67x96).toBe(16002)
+    expect(byCode(BENCHMARK_CD4).Utile63x120).toBe(5012)
+    expect(byCode(BENCHMARK_CD4).Utile63x63).toBe(9966)
+    expect(byCode(BENCHMARK_CD4).Utile63x96).toBe(3202)
+
+    // ONE architrave round the whole set: head = the SET's width (2287 with
+    // the -47 overlaps) + 100, two jambs = the DOOR frame's height + 100.
+    const comps = runCD(BENCHMARK_CD1).price.lines
+      .filter(l => l.fires && !l.error && l.alloc_part_code === 'TP68')
+    expect(comps.length, 'one head line and one pair of jambs').toBe(2)
+    expect(comps.reduce((t, l) => t + l.line_cost, 0)).toBeCloseTo(19.38, 2)
+  })
+
+  it('CD4 prices the Kenrick variant parts — the first benchmark that uses them', () => {
+    // The Step BB report warned that pf30-snapshot.json carries unit_cost 0
+    // on four Kenrick gearbox parts. CD4's stored list is the first to need
+    // them, and its ironmongery comes out at Integrate's own 152.25 — so the
+    // captured snapshot has them costed and nothing had to be refreshed.
+    const iron = runCD(BENCHMARK_CD4).price.lines
+      .filter(l => l.fires && !l.error && l.name === 'Ironmongery Cost')
+      .reduce((t, l) => t + l.line_cost, 0)
+    expect(iron).toBeCloseTo(152.25, 2)
   })
 })

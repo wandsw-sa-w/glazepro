@@ -17,6 +17,7 @@ import { operationKind, casementOpensOut } from './optionVocabulary.js'
 import {
   DOOR_LEAF_TYPES, FRENCH_DOOR_LEAF_TYPES, doorLeafSize, frenchDoorPairFor,
 } from './doorGeometry.js'
+import { itemFrames } from './casementGeometry.js'
 import { computeDerived } from '../drawingBoard/computeDerived.js'
 
 // ── Tree helpers ──────────────────────────────────────────────────────────────
@@ -200,6 +201,43 @@ function computePartVarsForAllocator(partNode, tree, derived, baseVars, glassCat
 // ── Main export ───────────────────────────────────────────────────────────────
 
 /**
+ * A pseudo-frame standing for a whole coupled SET, for the architrave
+ * (Step BC, Nathan's decision b).
+ *
+ * Its WIDTH is the set's overall width: the frames' widths less one jamb per
+ * joint, because `containerPart.partSpacing` is -47 — each frame starts one
+ * jamb before the previous one ends. CD1's 693 + 995 + 693 set is 2287 mm.
+ *
+ * Its HEIGHT is the DOOR frame's, which is the tallest and the one the
+ * architrave actually runs up: a flag frame is a high side window over a
+ * wall, so its jambs are not architraved to the floor.
+ *
+ * It carries the door frame's own cill so `frameInterior` and the cill
+ * variables answer as they would for the door frame alone.
+ */
+function wholeSetFrame(tree, frames) {
+  const num = v => (isFinite(Number(v)) ? Number(v) : 0)
+  const container = findFirst(tree, 'containerPart')
+  const spacing = num(container?.values?.partSpacing)
+  const joints = Math.max(0, frames.length - 1)
+  const width = frames.reduce((t, f) => t + num(f.values?.width), 0) + joints * spacing
+  // The DOOR frame — the one with a leaf — else the tallest.
+  const hasLeaf = f => {
+    const walk = n => DOOR_LEAF_TYPES.includes(n.part_type) ||
+      (n.children ?? []).some(walk)
+    return (f.children ?? []).some(walk)
+  }
+  const doorFrame = frames.find(hasLeaf) ??
+    frames.reduce((a, b) => (num(a.values?.height) >= num(b.values?.height) ? a : b))
+  return {
+    ...doorFrame,
+    key: `${doorFrame.key}_set`,
+    values: { ...doorFrame.values, width, height: num(doorFrame.values?.height) },
+  }
+}
+
+
+/**
  * Allocate parts for a drawing by evaluating all active allocation rules
  * against the supplied variable context.
  *
@@ -233,8 +271,30 @@ export function allocateParts(tree, variables, rules, glassCatalogue = {}, inclu
     return includeInactive || r.is_active !== false
   })
 
+  // ── Step BC: the architrave of a multi-frame item ──────────────────────────
+  //
+  // Nathan (13 Oct, decision b): ONE set of architrave round the WHOLE set —
+  // head = the set's overall width (with the -47 coupling overlaps), two jambs
+  // = the DOOR frame's height. Not one set per frame, which is what the two
+  // live frame-loop rules ("Surround timber – height" / "– width") would give:
+  // CD1 would carry three sets, 34.49 instead of 19.38.
+  //
+  // Integrate prices NO architrave at all on a container item, so this whole
+  // amount is Nathan's decision, not a parity figure.
+  //
+  // The RULES are live data and are not touched. Instead a surrounds rule on
+  // the frame loop visits ONE pseudo-frame standing for the set, whose width
+  // and height are the set's. A one-frame drawing has no container and is
+  // untouched.
+  const frames = itemFrames(tree)
+  const setFrame = frames.length > 1 ? wholeSetFrame(tree, frames) : null
+
   for (const rule of activeRules) {
-    const loopParts = getLoopParts(tree, rule.loop_target ?? null, baseVars)
+    const isSurroundOnFrame = setFrame != null &&
+      rule.group_name === 'surrounds' && rule.loop_target === 'frame'
+    const loopParts = isSurroundOnFrame
+      ? [setFrame]
+      : getLoopParts(tree, rule.loop_target ?? null, baseVars)
 
     for (const partNode of loopParts) {
       // Build variable context for this loop iteration

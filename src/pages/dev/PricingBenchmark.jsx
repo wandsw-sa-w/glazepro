@@ -421,9 +421,19 @@ export default function PricingBenchmark() {
             // single "expected" figure is how an unexplained gap becomes a
             // decision nobody made.
             const parked = benchmark.parkedResidual ?? null
+            // Step BC: a decided difference can also be WAITING ON DATA — a
+            // rule the reviewer has still to run. Both amounts are declared,
+            // and the row reads BY DESIGN either way: which figure it shows
+            // says whether the SQL has landed. Pinning one alone would mean a
+            // red row today or a silent one afterwards.
+            const pending = benchmark.pendingDecision ?? null
             const expectedDiff = (deliberate?.cost ?? 0) + (parked?.cost ?? 0)
+            const withPending  = expectedDiff + (pending?.cost ?? 0)
             const asExpected = deliberate != null &&
-              Math.abs((m.costDiff ?? 0) - expectedDiff) < 0.02
+              (Math.abs((m.costDiff ?? 0) - expectedDiff) < 0.02 ||
+               Math.abs((m.costDiff ?? 0) - withPending) < 0.02)
+            const pendingLanded = pending != null &&
+              Math.abs((m.costDiff ?? 0) - withPending) < 0.02
             const allOk = (m.costOk && m.priceOk) || asExpected
             // Step AZ hotfix item 4: a part the LIVE catalogue does not have,
             // priced here from the fixture's own cost. The row is never PASS
@@ -464,6 +474,9 @@ export default function PricingBenchmark() {
                       {'BY DESIGN'} {'\u2014'} GlazePro is {'\u00A3'}{fmt(m.costDiff)} dearer:
                       {' '}{'\u00A3'}{fmt(deliberate.cost)} on purpose ({deliberate.reason})
                       {parked ? `, plus \u00A3${fmt(parked.cost)} PARKED and unexplained: ${parked.reason}` : ''}
+                      {pending ? (pendingLanded
+                        ? ` (includes \u00A3${fmt(pending.cost)}: ${pending.reason})`
+                        : `. STILL TO COME: \u00A3${fmt(pending.cost)} \u2014 ${pending.reason}`) : ''}
                     </span>
                   ) : (
                     <span style={allOk ? S.hit : S.miss}>
