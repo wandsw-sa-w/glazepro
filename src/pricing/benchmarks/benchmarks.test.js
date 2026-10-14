@@ -31,10 +31,13 @@ const C_SHAPED_GLASS = (BENCHMARK_C.deliberateDifference?.cost ?? 0) +
  * is refreshed.
  */
 const SNAPSHOT_LIVE = withShapedGlassRate(SNAPSHOT)
+
+/** The same, with the AV4 costs: what the stable-door block prices from. */
+const FT_SNAPSHOT_ST = withShapedGlassRate(withAv4Costs(SNAPSHOT))
 import { shortDividerSpanMm, isShortDivider, frameCells, frameGridSize, frameOpenings, casementSashSize, casementSashWeightKg, casementFrameTimberVolumeDm3, casementSashTimberVolumeDm3, casementGlassSightline, frameMuntinLengthM, frameColumns, frameRows, itemFrames, CASEMENT_SASH_TYPES, FRENCH_SASH_TYPES } from '../casementGeometry.js'
-import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_B_UNCORRECTED, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F, BENCHMARK_G, BENCHMARK_H, BENCHMARK_I, BENCHMARK_J, BENCHMARK_K, BENCHMARK_L, BENCHMARK_M, BENCHMARK_N, BENCHMARK_P, BENCHMARK_Q, BENCHMARK_R, BENCHMARK_S, BENCHMARK_SA, BENCHMARK_SB, BENCHMARK_SC, BENCHMARK_SD, BENCHMARK_SE, BENCHMARK_SF, BENCHMARK_TC1, BENCHMARK_TC2, BENCHMARK_TC3, BENCHMARK_FR1, BENCHMARK_FR2, BENCHMARK_FD1, BENCHMARK_FD2, BENCHMARK_FD3, BENCHMARK_FD3b, BENCHMARK_FD4, BENCHMARK_FD5, BENCHMARK_FD6, BENCHMARK_FD7, BENCHMARK_SD1, BENCHMARK_SD2, BENCHMARK_SD3, BENCHMARK_SD4, BENCHMARK_CD1, BENCHMARK_CD2, BENCHMARK_CD3, BENCHMARK_CD4, BENCHMARK_FT1, BENCHMARK_FT2, BENCHMARK_FT3, BENCHMARK_FT4 } from './index.js'
+import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_B_UNCORRECTED, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F, BENCHMARK_G, BENCHMARK_H, BENCHMARK_I, BENCHMARK_J, BENCHMARK_K, BENCHMARK_L, BENCHMARK_M, BENCHMARK_N, BENCHMARK_P, BENCHMARK_Q, BENCHMARK_R, BENCHMARK_S, BENCHMARK_SA, BENCHMARK_SB, BENCHMARK_SC, BENCHMARK_SD, BENCHMARK_SE, BENCHMARK_SF, BENCHMARK_TC1, BENCHMARK_TC2, BENCHMARK_TC3, BENCHMARK_FR1, BENCHMARK_FR2, BENCHMARK_FD1, BENCHMARK_FD2, BENCHMARK_FD3, BENCHMARK_FD3b, BENCHMARK_FD4, BENCHMARK_FD5, BENCHMARK_FD6, BENCHMARK_FD7, BENCHMARK_SD1, BENCHMARK_SD2, BENCHMARK_SD3, BENCHMARK_SD4, BENCHMARK_CD1, BENCHMARK_CD2, BENCHMARK_CD3, BENCHMARK_CD4, BENCHMARK_FT1, BENCHMARK_FT2, BENCHMARK_FT3, BENCHMARK_FT4, BENCHMARK_ST1, BENCHMARK_ST2, BENCHMARK_ST3 } from './index.js'
 import { resolveIronmongeryLines } from '../loadPricingContext.js'
-import { allocatedSectionParts, doorLeaves, doorLeafSize, doorLeafWeightKg, doorGlassSightline, doorPanelSize } from '../doorGeometry.js'
+import { allocatedSectionParts, doorLeaves, doorLeafSize, doorLeafWeightKg, doorGlassSightline, doorPanelSize, leafCells } from '../doorGeometry.js'
 // The LIVE price-file snapshot (reviewer-checked, 8 Oct 2026) — the honest
 // benchmarks and the real-tree case price from this, never from the
 // hand-typed pf30Rules.js (whose rules are all is_active: false).
@@ -3228,5 +3231,126 @@ describe('Step BD — front door benchmarks', () => {
       expect([...new Set(mm)].sort(), label)
         .toEqual(['LTW General Consumables', 'Tricoya Panel', 'Utile Section Part'])
     }
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step BF — STABLE DOORS: ST1, ST2, ST3
+// docs/integrate-L31115-stable-doors.txt, drawings 21-23 read 14 Oct 2026.
+//
+// Integrate stores a StableDoorPart holding a TOP and a BOTTOM stable leaf;
+// GlazePro stores two ordinary doorLeafParts in a stableDoorPart, so
+// door_leaf_qty is 2 and every door rule fires per half — which is what
+// Integrate's own Estimated Labour Time editor shows it does.
+//
+// Production, fitting, glass, the Tricoya panels and the ironmongery are
+// Integrate's exactly on all three. The ONE difference is the halves' timber,
+// which Integrate allocates nothing for.
+// ══════════════════════════════════════════════════════════════════════════════
+describe('Step BF — stable door benchmarks', () => {
+  const ST_CASES = [
+    ['ST1', BENCHMARK_ST1, INTEGRATE.benchmarkST1_stable_door,               3405, 900],
+    ['ST2', BENCHMARK_ST2, INTEGRATE.benchmarkST2_stable_door_vision_panel,  3425, 900],
+    ['ST3', BENCHMARK_ST3, INTEGRATE.benchmarkST3_stable_door_glazed_top,    3365, 900],
+  ]
+  const runST = bm => runPricingOnTree(bm.tree, FT_SNAPSHOT_ST.rules, FT_SNAPSHOT_ST.pfVariables, {
+    glassCatalogue: FT_SNAPSHOT_ST.glassCatalogue,
+    partAllocationRules: FT_SNAPSHOT_ST.partAllocationRules,
+    partCostMap: bm.partCostMap,
+    ironmongeryLines: bm.ironmongeryLines,
+    ironmongeryCatalogue: FT_SNAPSHOT_ST.ironmongeryCatalogue,
+    profileValues: FT_SNAPSHOT_ST.profileValues,
+    profileCode: bm.profileCode,
+  })
+
+  for (const [label, bm, target, production, fitting] of ST_CASES) {
+    it(`${label}: production ${production} min and fitting ${fitting}, exactly`, () => {
+      const r = runST(bm)
+      // Door Leaf 1035 PER HALF, the panels, the frame and the single finish
+      expect(r.manufacture_labour.total_minutes, `${label} production`).toBe(production)
+      // rule 200 "Stable Door" 900, and NO other door fitting rule: "Single
+      // Door Only" wants door_leaf_qty == 1 and a stable door has two.
+      expect(r.install_labour.total_minutes, `${label} fitting`).toBe(fitting)
+      const fired = (r.install_labour.lines ?? []).filter(l => (l.minutes ?? 0) > 0)
+      expect(fired.map(l => l.rule_name ?? l.name)).toEqual(['Stable Door'])
+    })
+
+    it(`${label}: every group is Integrate plus the halves' timber`, () => {
+      const r = runST(bm)
+      const got = {}
+      for (const l of r.price.lines) {
+        if (!l.fires || l.error) continue
+        got[l.group_name] = (got[l.group_name] ?? 0) + l.line_cost
+      }
+      const timber = bm.deliberateDifference.cost
+      for (const [group, t] of Object.entries(target.groups)) {
+        const expected = group === 'manufacture_materials' ? t.cost + timber : t.cost
+        expect(got[group] ?? 0, `${label} ${group}`).toBeCloseTo(expected, 2)
+      }
+      expect(r.price.total_cost, `${label} total`).toBeCloseTo(target.total_cost + timber, 2)
+    })
+  }
+
+  it('each half is a door leaf of its own size, with its own cell', () => {
+    const halves = doorLeaves(BENCHMARK_ST1.tree)
+    expect(halves.length).toBe(2)
+    expect(halves.map(h => h.values.stableHalf)).toEqual(['top', 'bottom'])
+    // Integrate's own 1055 / 1048 of a 2103 container, and its cells
+    expect(halves.map(h => doorLeafSize(BENCHMARK_ST1.tree, h)))
+      .toEqual([{ width: 997, height: 1055 }, { width: 997, height: 1048 }])
+    expect(halves.flatMap(h => leafCells(BENCHMARK_ST1.tree, h).map(c => `${c.width}x${c.height}`)))
+      .toEqual(['777x846', '777x779'])
+  })
+
+  it('a stable door is ONE pair and TWO leaves to every rule', () => {
+    const v = computeVariables(BENCHMARK_ST1.tree, computeDerived(BENCHMARK_ST1.tree),
+      PF_VARIABLES, { profileCode: BENCHMARK_ST1.profileCode })
+    expect(v.new_stable_door_pair_qty).toBe(1)
+    expect(v.door_leaf_qty).toBe(2)
+    expect(v.is_door).toBe(true)
+    expect(v.is_front_door).toBe(false)
+    // and a front door is not a stable door
+    const ft = computeVariables(BENCHMARK_FT1.tree, computeDerived(BENCHMARK_FT1.tree),
+      PF_VARIABLES, { profileCode: BENCHMARK_FT1.profileCode })
+    expect(ft.new_stable_door_pair_qty).toBe(0)
+  })
+
+  it('ST2’s vision panel is glass in a panel, and the panel is charged in full', () => {
+    const r = runST(BENCHMARK_ST2)
+    const tricoya = r.price.lines.filter(l => l.fires && l.name === 'Tricoya Panel')
+    // the FULL cells, 0.66 and 0.61 — Integrate does not deduct the hole
+    expect(tricoya.map(l => l.line_cost)).toEqual([124.14, 114.31])
+    const glass = r.price.lines.filter(l => l.fires && /Glass Cost/.test(l.name ?? ''))
+    expect(glass.length).toBe(1)
+    expect(glass[0].quantity).toBeCloseTo(0.30, 2)   // the 0.30 m2 minimum
+    expect(glass[0].line_cost).toBeCloseTo(17.55, 2)
+  })
+
+  it('ST1 and ST3 price Integrate’s stored ironmongery, ST2 none', () => {
+    // 14.70 hinges + 29.40 sashlock + 15.75 deadlock + 3.15 vent + 25.20 handle
+    for (const label of ['ST1', 'ST3']) {
+      const bm = label === 'ST1' ? BENCHMARK_ST1 : BENCHMARK_ST3
+      const iron = runST(bm).price.lines.filter(l => l.fires && l.name === 'Ironmongery Cost')
+      expect(iron.reduce((t, l) => t + l.line_cost, 0), label).toBeCloseTo(88.20, 2)
+      // and NO multipoint lock: a stable door has none (isDoorMpls false)
+      expect(iron.map(l => l.alloc_iron_part_code), label).not.toContain('RJZ2382')
+    }
+    const st2 = runST(BENCHMARK_ST2).price.lines
+      .filter(l => l.fires && l.name === 'Ironmongery Cost')
+    expect(st2.length).toBe(0)
+  })
+
+  it('the halves’ timber is the declared 152.73, from its lengths', () => {
+    const sections = Object.fromEntries(
+      allocatedSectionParts(BENCHMARK_ST1.tree).map(x => [x.part_code, x.length_mm]))
+    // Integrate's two, exactly: the cill and the frame
+    expect(sections.Utile67x96).toBe(1099 + 2 * 2207)
+    // and GlazePro's: the halves' stiles and top rails (-20 each, open in),
+    // the top half's 99 meeting rail, the bottom half's 170 rail
+    expect(sections.Utile63x120).toBe((2 * 1055 + 997 - 20) + (2 * 1048 + 997 - 20) + 997)
+    expect(sections.Utile63x200).toBe(1099 + 997)
+    const extra = Math.round((7157 / 1000 * 17.30 + 997 / 1000 * 29) * 100) / 100
+    expect(extra).toBeCloseTo(152.73, 2)
+    expect(BENCHMARK_ST1.deliberateDifference.cost).toBeCloseTo(152.73, 2)
   })
 })

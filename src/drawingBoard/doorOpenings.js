@@ -2072,3 +2072,205 @@ export const FRONT_DOOR_TEMPLATES = [
     },
   },
 ]
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Step BF — STABLE DOORS (Nathan's decisions h-k, 14 Oct 2026)
+// docs/integrate-L31115-stable-doors.txt
+//
+// A stable door is ONE container in the frame holding a TOP and a BOTTOM
+// half, each an ordinary door leaf with its own grid. Integrate calls them
+// Top / Bottom StableDoorLeafParts; GlazePro stores doorLeafParts marked
+// `stableHalf`, so door_leaf_qty is 2 and every rule, loop, label and count
+// that knows a door leaf already sees both halves — "Door Leaf" 1035 fires
+// per half, which is what Integrate's own editor does.
+// ═════════════════════════════════════════════════════════════════════════════
+
+/** Integrate's own figures, from drawings 21-23. */
+export const STABLE_DOOR_DEFAULTS = {
+  width: 1099,
+  height: 2207,
+  frameBottom: 50,
+  clearances: { top: 4, left: 4, right: 4, bottom: 3, between: 3 },
+  /** The TOP half's height of the container: Integrate's 1055 of 2103. */
+  splitOffset: 1055,
+  top:    { rails: { top: 110, bottom: 99 } },
+  bottom: { rails: { top: 99, bottom: 170 } },
+  thickness: 58,
+  visionPanel: { width: 200, height: 350 },
+}
+
+export const STABLE_HALF = { TOP: 'top', BOTTOM: 'bottom' }
+
+/** A vision panel: a small glass unit inside a panel (Integrate's ST2). */
+function visionPanelNode(key, d, { width, height }) {
+  return {
+    key,
+    part_type: 'glassPart',
+    values: {
+      ...DEFAULT_GLASS,
+      glazingRebateWidth: d.glassRebate,
+      glazingTolerance:   d.glassTolerance,
+      visionPanelWidth: width,
+      visionPanelHeight: height,
+      isVisionPanel: true,
+      toBeReplaced: true,
+    },
+    children: [],
+  }
+}
+
+/** One half of a stable door. */
+function stableHalfNode(key, half, d, { rails, cell = 'panel', visionPanel = null }) {
+  const cellNode = cell === 'glass'
+    ? leafGlassNode(`${key}_glass`, d)
+    : {
+      ...leafPanelNode(`${key}_panel`),
+      children: visionPanel
+        ? [visionPanelNode(`${key}_vision`, d, visionPanel)]
+        : [],
+    }
+  return {
+    key,
+    part_type: 'doorLeafPart',
+    values: {
+      stableHalf: half,
+      operation: DEFAULT_FRONT_DOOR_OPERATION,
+      casementTypeId: 'open_in',
+      thickness: d.doorThickness,
+      topHeight:  rails.top,
+      leftWidth:  d.leafStileLeft,
+      rightWidth: d.leafStileRight,
+      bottomHeight: rails.bottom,
+      bottomHeightExternal: rails.bottom,
+      btmRailShapeId: 'stepped',
+      archHead: false,
+      toBeReplaced: true,
+    },
+    children: [cellNode],
+  }
+}
+
+/**
+ * Build a STABLE DOOR: the frame, the container and its two halves.
+ *
+ * `top` and `bottom` are 'panel' or 'glass'; `visionPanel` puts Integrate's
+ * 200 x 350 light in the TOP half's panel.
+ */
+export function buildStableDoorFrame(profileValues, {
+  width = STABLE_DOOR_DEFAULTS.width,
+  height = STABLE_DOOR_DEFAULTS.height,
+  material = DEFAULT_DOOR_MATERIAL,
+  product = null,
+  quantity = 1,
+  top = 'panel',
+  bottom = 'panel',
+  visionPanel = null,
+  splitOffset = STABLE_DOOR_DEFAULTS.splitOffset,
+} = {}) {
+  const resolved = doorProfileDefaults(profileValues)
+  if (resolved.missing.length > 0) return { tree: null, missing: resolved.missing }
+  const d = resolved.values
+
+  const base = buildFrenchDoorFrame(profileValues, { width, height, material, product, quantity })
+  if (!base.tree) return base
+
+  const key = makeKey('stable')
+  const container = {
+    key,
+    part_type: 'stableDoorPart',
+    values: {
+      thickness: STABLE_DOOR_DEFAULTS.thickness,
+      splitOffset,
+      mechanicalClearanceTop:    STABLE_DOOR_DEFAULTS.clearances.top,
+      mechanicalClearanceLeft:   STABLE_DOOR_DEFAULTS.clearances.left,
+      mechanicalClearanceRight:  STABLE_DOOR_DEFAULTS.clearances.right,
+      mechanicalClearanceBottom: STABLE_DOOR_DEFAULTS.clearances.bottom,
+      clearanceBetweenHalves:    STABLE_DOOR_DEFAULTS.clearances.between,
+      toBeReplaced: true,
+    },
+    children: [
+      stableHalfNode(`${key}_top`, STABLE_HALF.TOP, d, {
+        rails: STABLE_DOOR_DEFAULTS.top.rails,
+        cell: top,
+        visionPanel: top === 'panel' ? visionPanel : null,
+      }),
+      stableHalfNode(`${key}_bottom`, STABLE_HALF.BOTTOM, d, {
+        rails: STABLE_DOOR_DEFAULTS.bottom.rails,
+        cell: bottom,
+      }),
+    ],
+  }
+
+  // A stable door's frame bottom and cill are 50, its finish is SINGLE
+  // (Clean White both sides — Nathan's decision i, as Integrate's template),
+  // it is not a front door and it has NO multipoint lock.
+  const tree = {
+    ...base.tree,
+    children: base.tree.children.map(c => {
+      if (c.part_type === 'paintAndIronmongeryPart') {
+        return {
+          ...c,
+          values: {
+            ...c.values,
+            isFrontDoor: false,
+            isDoorMpls: false,
+            internalFinish: 'clean_white',
+            externalFinish: 'clean_white',
+          },
+        }
+      }
+      if (c.part_type !== 'assemblyFramePart') return c
+      return {
+        ...c,
+        values: { ...c.values, bottomHeight: STABLE_DOOR_DEFAULTS.frameBottom },
+        children: [
+          container,
+          ...(c.children ?? []).filter(x => x.part_type === 'cillPart')
+            .map(x => ({
+              ...x,
+              values: { ...x.values, height: STABLE_DOOR_DEFAULTS.frameBottom },
+            })),
+        ],
+      }
+    }),
+  }
+
+  return { tree, missing: [] }
+}
+
+/** Is this drawing a STABLE door? */
+export function isStableDoorTree(tree) {
+  const has = node => node?.part_type === 'stableDoorPart' ||
+    (node?.children ?? []).some(has)
+  return has(tree)
+}
+
+/**
+ * The three stable-door templates (Nathan's decision h), group "Cottage
+ * Doors" as Integrate's are — all at its own 1099 x 2207.
+ */
+export const STABLE_DOOR_TEMPLATES = [
+  {
+    name: 'Stable Door',
+    sort_order: 300,
+    integrate: 4553,
+    options: { top: 'panel', bottom: 'panel' },
+  },
+  {
+    // Integrate has no glazed-top template; Nathan sells one (decision h).
+    name: 'Stable Door Glazed Top',
+    sort_order: 310,
+    integrate: null,
+    options: { top: 'glass', bottom: 'panel' },
+  },
+  {
+    name: 'Stable Door With Vision Panel',
+    sort_order: 320,
+    integrate: 6618,
+    options: {
+      top: 'panel',
+      bottom: 'panel',
+      visionPanel: { ...STABLE_DOOR_DEFAULTS.visionPanel },
+    },
+  },
+]

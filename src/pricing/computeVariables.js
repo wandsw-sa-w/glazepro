@@ -17,7 +17,7 @@ import {
 } from './optionVocabulary.js'
 import {
   casementCillVolumeDm3, frameMuntinLengthM, casementFrameTimberVolumeDm3,
-  CASEMENT_SASH_TYPES,
+  CASEMENT_SASH_TYPES, STABLE_DOOR_PART,
 } from './casementGeometry.js'
 import {
   DOOR_LEAF_TYPES, FRENCH_DOOR_PART, FRENCH_DOOR_LEAF_TYPES,
@@ -706,9 +706,15 @@ export function computeVariables(tree, derived = {}, pfVariables = {}, opts = {}
     const new_french_door_pair_qty = frenchDoorPairs.filter(
       p => is_complete_new ||
         (p.children ?? []).some(c => c.values?.toBeReplaced === true)).length
-    // NEEDS-DATA: GlazePro has no stable door part yet (Nathan sells them,
-    // a later step). Integrate's "Stable Door" rule reads this.
-    const new_stable_door_pair_qty = 0
+    // Step BF: a STABLE DOOR pair is one stableDoorPart — a container in the
+    // frame holding a top and a bottom half. Integrate’s fitting rule 200
+    // "Stable Door" charges 900 minutes per pair and is the ONLY door fitting
+    // rule that fires on one: "Single Door Only" wants door_leaf_qty == 1 and
+    // a stable door has two.
+    const stableDoorPairs = findAll(tree, STABLE_DOOR_PART)
+    const new_stable_door_pair_qty = stableDoorPairs.filter(
+      p => is_complete_new ||
+        (p.children ?? []).some(c => c.values?.toBeReplaced === true)).length
 
     // A door leaf's operation and type use the SAME codes a casement sash
     // does ('fix', 'left_hand_hung', typeId 7 = open out), so the operation

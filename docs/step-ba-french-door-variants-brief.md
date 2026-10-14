@@ -11,6 +11,8 @@ stop and report.
 - A door leaf can hold a MID RAIL (Integrate: a TransomPart inside the leaf, isMidrail, 170 thick) splitting the leaf
   into glass above and a PANEL below. Model it the way GlazePro models a divider today (say how), with the board able to
   add/remove a leaf mid rail and set its height. Containment SQL only if a pair is missing (check live first).
+- CORRECTION 14 Oct 2026 (Step BF): id 110 is **FLAT**, not raised & fielded (112 is R&F) — read in Integrate’s own
+  panel-type dialog, docs/integrate-L31115-stable-doors.txt. The line below is wrong and is left as written.
 - Panel: raised & fielded both sides, ovolo bead (Integrate ids 110 / 120 -> GlazePro panel_type raised_and_fielded,
   panel_bead ovolo — confirm against reference_options), Tricoya. The live rules "Tricoya Panel" (visible W x H, unrounded)
   and "Additional for R&F Panel" (120 min, loop panel) must fire per panel.

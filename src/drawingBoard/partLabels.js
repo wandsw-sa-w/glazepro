@@ -20,6 +20,7 @@ import {
 import {
   isDirectGlazedUnit, itemFrames, SINGLE_DOOR_LEAF_PART,
 } from '../pricing/casementGeometry.js'
+import { stableDoorPartFor } from '../pricing/doorGeometry.js'
 
 export const PART_LABELS = {
   drawingItemPart:         'Item',
@@ -42,6 +43,7 @@ export const PART_LABELS = {
   leftFrenchDoorLeafPart:      'French Door Leaf Left',
   rightFrenchDoorLeafPart:     'French Door Leaf Right',
   doorLeafPart:            'Single Door',
+  stableDoorPart:          'Stable Door',
   panelPart:               'Panel',
   mullionPart:             'Mullion',
   transomPart:             'Transom',
@@ -50,7 +52,7 @@ export const PART_LABELS = {
 }
 
 /** The part types that are openings of a frame and carry a matrix label. */
-const LABELLED_OPENINGS = ['casementSashPart', SINGLE_DOOR_LEAF_PART]
+const LABELLED_OPENINGS = ['casementSashPart', SINGLE_DOOR_LEAF_PART, 'stableDoorPart']
 
 /** "Frame A" on a coupled set, "Frame" on a one-frame drawing. */
 function frameLabel(tree, node) {
@@ -70,6 +72,20 @@ function frameLabel(tree, node) {
 export function partLabel(node, tree = null) {
   if (node?.label_override) return node.label_override
   if (!node) return ''
+
+  // Step BF: a STABLE DOOR’s two halves are both door leaves in the same
+  // opening, so the opening label alone would name them the same thing
+  // twice. The half says which it is, and the opening says where it is:
+  // "Stable Door Top A1".
+  if (node.part_type === 'doorLeafPart' && node.values?.stableHalf) {
+    const half = node.values.stableHalf === 'top' ? 'Top' : 'Bottom'
+    const container = tree ? stableDoorPartFor(tree, node) : null
+    const where = container && tree ? openingLabel(tree, container) : null
+    // the opening label reads "Single Door A1" for the container, so only
+    // its matrix part is wanted here
+    const matrix = where ? where.split(' ').pop() : null
+    return matrix ? `Stable Door ${half} ${matrix}` : `Stable Door ${half}`
+  }
 
   if (tree && node.part_type === 'assemblyFramePart') return frameLabel(tree, node)
 

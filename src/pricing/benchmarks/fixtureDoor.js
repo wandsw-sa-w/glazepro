@@ -214,7 +214,7 @@ function transom(key, offset) {
  */
 function doorTree({
   width, height, dividers = [], openings, ironmongeryLines, product = 'french_door',
-  frameBottomHeight = 37, cillHeight = 37, isFrontDoor = false,
+  frameBottomHeight = 37, cillHeight = 37, isFrontDoor = false, isDoorMpls = true,
   internalFinish = 'clean_white', externalFinish = 'clean_white',
   frameArch = null,
 }) {
@@ -248,7 +248,11 @@ function doorTree({
           ironmongeryFinish: 'PB',
           // Integrate stores both of these on the paint part (SD1 facts), and
           // the allocator reads isDoorMpls to add the multipoint lock.
-          isDoorMpls: true,
+          // Step BF: a STABLE door has no multipoint lock at all (Integrate
+          // stores isDoorMpls false on all three), and with it true the
+          // allocator gave each half a Winkhaus Thunderbolt — 107.10 of
+          // ironmongery on a door whose whole stored set is 88.20.
+          isDoorMpls,
           isFrontDoor,
           ironmongeryLines: ironmongeryLines.map(l => ({ ...l })),
         },
@@ -1632,4 +1636,271 @@ export const BENCHMARK_FT4 = {
     'The side light is a FIXED CASEMENT SASH (Nathan, decision g), with its own mid rail, glass and panel — not a fixed door leaf',
     'Its clearances 3 / 3 / 3 / 3 are NOT VERIFIED: they are what reproduces Integrate\'s drawn 359 x 2079 in a 365 x 2085 opening',
   ],
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Step BF — STABLE DOORS: ST1, ST2, ST3
+// docs/integrate-L31115-stable-doors.txt, L31115 item 10 drawings 21-23,
+// read and priced 14 Oct 2026. All three SAVED.
+//
+// Integrate stores a StableDoorPart in the frame holding a TOP and a BOTTOM
+// stable leaf. GlazePro stores the container with two ordinary doorLeafParts
+// in it, each marked `stableHalf`, so door_leaf_qty is 2 and every rule that
+// knows a door leaf needs no change — which is what Integrate's own editor
+// shows it does: "Door Leaf" 1035 fires PER HALF.
+//
+// Frame 1099 x 2207, cill 50, interior 1005 x 2110. The container takes
+// 4 / 4 / 4 / 3 off that (997 x 2103) and the split is STORED: the top half
+// is 1055 and the bottom 1048, which is Integrate's own drawing — not half
+// each. The halves' rails differ (top 110 / 99, bottom 99 / 170), so the
+// cells are 777 x 846 and 777 x 779, and those are the panels it prices.
+//
+// SINGLE finish (Clean White both sides and the cill), isFrontDoor false,
+// isDoorMpls false.
+// ═════════════════════════════════════════════════════════════════════════════
+
+export const STABLE_DOOR_CLEARANCES = { top: 4, left: 4, right: 4, bottom: 3, between: 3 }
+export const STABLE_TOP_SPLIT_MM = 1055
+
+/** One half of a stable door: a door leaf with its own rails and one cell. */
+function stableHalf(key, half, { cells = [], bottomHeight, topHeight }) {
+  return {
+    key,
+    part_type: 'doorLeafPart',
+    values: {
+      stableHalf: half,
+      operation: 'left_hand_hung',
+      casementTypeId: 'open_in',
+      thickness: 54,
+      topHeight,
+      leftWidth: 110,
+      rightWidth: 110,
+      bottomHeight,
+      bottomHeightExternal: bottomHeight,
+      btmRailShapeId: 'stepped',
+      archHead: false,
+      toBeReplaced: true,
+    },
+    children: cells,
+  }
+}
+
+/**
+ * The stable-door container: the two halves, and the split between them.
+ *
+ * The clearances are the CONTAINER's (Integrate stores them there, as it does
+ * a French pair's), and `splitOffset` is the top half's height — the same
+ * "offset is the span before it" convention every divider follows.
+ */
+function stableDoor(key, { top, bottom, splitOffset = STABLE_TOP_SPLIT_MM }) {
+  return {
+    key,
+    part_type: 'stableDoorPart',
+    values: {
+      thickness: 58,
+      splitOffset,
+      mechanicalClearanceTop:    STABLE_DOOR_CLEARANCES.top,
+      mechanicalClearanceLeft:   STABLE_DOOR_CLEARANCES.left,
+      mechanicalClearanceRight:  STABLE_DOOR_CLEARANCES.right,
+      mechanicalClearanceBottom: STABLE_DOOR_CLEARANCES.bottom,
+      clearanceBetweenHalves:    STABLE_DOOR_CLEARANCES.between,
+      toBeReplaced: true,
+    },
+    children: [top, bottom],
+  }
+}
+
+/** A VISION PANEL: a small glass unit inside a panel (Integrate's ST2). */
+function visionPanel(key, { width = 200, height = 350 } = {}) {
+  return {
+    key,
+    part_type: 'glassPart',
+    values: {
+      ...GLASS_CODES,
+      glazingRebateWidth: 15, glazingTolerance: 3,
+      // A vision panel's size is its OWN, not a cell's: it is a hole cut in
+      // the panel, and the panel is still charged in full.
+      visionPanelWidth: width,
+      visionPanelHeight: height,
+      isVisionPanel: true,
+      toBeReplaced: true,
+    },
+    children: [],
+  }
+}
+
+/** ST1 / ST3's stored list. ST2 has none. */
+const STABLE_DOOR_IRONMONGERY = [
+  { product_short_name: '102mm_hinges', finish_code: 'PB', qty: 2, source: 'survey' },
+  { product_short_name: 'era_5_lever_sashlock', finish_code: 'PB', qty: 1, source: 'survey' },
+  { product_short_name: 'era_deadlock', finish_code: 'PB', qty: 1, source: 'survey' },
+  { product_short_name: 'trickle_vent_xr16', finish_code: 'Blk', qty: 1, source: 'survey' },
+  { product_short_name: 'victorian', finish_code: 'PB', qty: 1, source: 'survey' },
+]
+
+const STABLE_DOOR_ASSUMPTIONS = [
+  'Integrate stores a StableDoorPart with Top / Bottom StableDoorLeafParts; GlazePro stores two doorLeafParts in a stableDoorPart, so door_leaf_qty is 2 and every door rule fires per half as Integrate\'s editor shows',
+  'The split 1055 / 1048 is STORED, not computed: Integrate\'s own drawing has the top half 7 mm taller and nothing says why',
+  'The 3 mm clearance BETWEEN the halves is recorded and reaches no priced figure — 1055 + 1048 is the whole 2103 container',
+  'Integrate allocates NO timber for either half (only the cill and the frame); GlazePro charges the halves as it charges a door leaf (Nathan\'s standing rule), declared on each row',
+]
+
+function stableDoorTree({ cells, ironmongeryLines }) {
+  return doorTree({
+    width: 1099, height: 2207,
+    openings: [stableDoor('st_pair', {
+      top: stableHalf('st_top', 'top', {
+        topHeight: 110, bottomHeight: 99, cells: cells.top,
+      }),
+      bottom: stableHalf('st_bottom', 'bottom', {
+        topHeight: 99, bottomHeight: 170, cells: cells.bottom,
+      }),
+    })],
+    product: 'door',
+    frameBottomHeight: 50,
+    cillHeight: 50,
+    isFrontDoor: false,
+    isDoorMpls: false,
+    // Nathan's decision i: Clean White both sides, a SINGLE finish, as
+    // Integrate's template has it.
+    internalFinish: 'clean_white',
+    externalFinish: 'clean_white',
+    ironmongeryLines,
+  })
+}
+
+// ── ST1: both halves one flat panel (Integrate template 4553) ───────────────
+// Production 3,405 = Door Leaf 1035 x 2 + Flat Panel 60 x 2 + Door Frame 855
+// + Door Frame Single Finish 180 + Door Leaf Single Finish 90 x 2.
+// Fitting 900: rule 200 "Stable Door", and no other door rule.
+
+export const BENCHMARK_ST1 = {
+  name: 'Benchmark ST1 — stable door, panelled both halves (L31115 Item 10 Drawing 21)',
+  tree: stableDoorTree({
+    cells: {
+      top:    [doorPanel('st1_panel_top')],
+      bottom: [doorPanel('st1_panel_bottom')],
+    },
+    ironmongeryLines: STABLE_DOOR_IRONMONGERY,
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkST1_stable_door },
+  // The two halves’ TIMBER, which Integrate allocates nothing for (it
+  // charges only the cill and the frame). Nathan’s standing rule: where
+  // Integrate omits door timber, GlazePro charges it — the same way it
+  // charges a door leaf’s, recomputed from the lengths:
+  //
+  //   Utile63x120  7157 mm at 17.30/m = 123.82
+  //        = each half’s two stiles and top rail (2 x 1055 + 997 - 20 and
+  //          2 x 1048 + 997 - 20, the open-in offset) + the TOP half’s 99
+  //          MEETING rail at the leaf width (997), which is too deep for
+  //          63x96 and comes from 63x120
+  //   Utile63x200  2096 mm against Integrate’s 1099  = +28.91
+  //        = its cill, plus the BOTTOM half’s 170 rail (997)
+  //                                                    = 152.73
+  //
+  // PROVISIONAL in the same way every other door-timber charge is: the
+  // sections are the ones a door leaf uses, and the workshop has to confirm
+  // what is actually cut for a stable door.
+  deliberateDifference: {
+    cost: 152.73,
+    reason: 'the two halves’ timber, which Integrate allocates nothing for: 7157 mm of Utile63x120 (their stiles, top rails and the top half’s 99 meeting rail) = 123.82, and 997 mm more Utile63x200 than its cill alone (the bottom half’s 170 rail) = 28.91. PROVISIONAL, as every door-timber charge is',
+  },
+  partCostMap: DOOR_PART_COST_MAP,
+  profileValues: OPEN_IN_PROFILE_VALUES,
+  glassCatalogue: {},
+  ironmongeryLines: STABLE_DOOR_IRONMONGERY,
+  profileCode: 'open_in_doors',
+  assumptions: STABLE_DOOR_ASSUMPTIONS,
+}
+
+// ── ST2: ST1 with a 200 x 350 VISION PANEL in the top panel (template 6618) ─
+// The panel is charged IN FULL (0.66, not less the hole) and the glass prices
+// at the 0.30 m2 minimum. No stored ironmongery at all.
+
+export const BENCHMARK_ST2 = {
+  name: 'Benchmark ST2 — stable door with a vision panel (L31115 Item 10 Drawing 22)',
+  tree: stableDoorTree({
+    cells: {
+      top: [{
+        ...doorPanel('st2_panel_top'),
+        children: [visionPanel('st2_vision')],
+      }],
+      bottom: [doorPanel('st2_panel_bottom')],
+    },
+    ironmongeryLines: [],
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkST2_stable_door_vision_panel },
+  // The two halves’ TIMBER, which Integrate allocates nothing for (it
+  // charges only the cill and the frame). Nathan’s standing rule: where
+  // Integrate omits door timber, GlazePro charges it — the same way it
+  // charges a door leaf’s, recomputed from the lengths:
+  //
+  //   Utile63x120  7157 mm at 17.30/m = 123.82
+  //        = each half’s two stiles and top rail (2 x 1055 + 997 - 20 and
+  //          2 x 1048 + 997 - 20, the open-in offset) + the TOP half’s 99
+  //          MEETING rail at the leaf width (997), which is too deep for
+  //          63x96 and comes from 63x120
+  //   Utile63x200  2096 mm against Integrate’s 1099  = +28.91
+  //        = its cill, plus the BOTTOM half’s 170 rail (997)
+  //                                                    = 152.73
+  //
+  // PROVISIONAL in the same way every other door-timber charge is: the
+  // sections are the ones a door leaf uses, and the workshop has to confirm
+  // what is actually cut for a stable door.
+  deliberateDifference: {
+    cost: 152.73,
+    reason: 'the two halves’ timber, which Integrate allocates nothing for: 7157 mm of Utile63x120 (their stiles, top rails and the top half’s 99 meeting rail) = 123.82, and 997 mm more Utile63x200 than its cill alone (the bottom half’s 170 rail) = 28.91. PROVISIONAL, as every door-timber charge is',
+  },
+  partCostMap: DOOR_PART_COST_MAP,
+  profileValues: OPEN_IN_PROFILE_VALUES,
+  glassCatalogue: {},
+  ironmongeryLines: [],
+  profileCode: 'open_in_doors',
+  assumptions: [
+    ...STABLE_DOOR_ASSUMPTIONS,
+    'A VISION PANEL is a glass unit inside the panel: the panel is charged in full (Integrate does not deduct the hole) and the glass prices at the 0.30 m2 minimum',
+  ],
+}
+
+// ── ST3: the top panel replaced by GLASS (the reviewer's drawing 23) ────────
+// Glass 777 x 846 of sightline, so 801 x 870 cut = 0.70 m2 at the square
+// rate; the bottom half keeps its panel.
+
+export const BENCHMARK_ST3 = {
+  name: 'Benchmark ST3 — stable door, glazed top half (L31115 Item 10 Drawing 23)',
+  tree: stableDoorTree({
+    cells: {
+      top:    [glassChild('st3_top')],
+      bottom: [doorPanel('st3_panel_bottom')],
+    },
+    ironmongeryLines: STABLE_DOOR_IRONMONGERY,
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkST3_stable_door_glazed_top },
+  // The two halves’ TIMBER, which Integrate allocates nothing for (it
+  // charges only the cill and the frame). Nathan’s standing rule: where
+  // Integrate omits door timber, GlazePro charges it — the same way it
+  // charges a door leaf’s, recomputed from the lengths:
+  //
+  //   Utile63x120  7157 mm at 17.30/m = 123.82
+  //        = each half’s two stiles and top rail (2 x 1055 + 997 - 20 and
+  //          2 x 1048 + 997 - 20, the open-in offset) + the TOP half’s 99
+  //          MEETING rail at the leaf width (997), which is too deep for
+  //          63x96 and comes from 63x120
+  //   Utile63x200  2096 mm against Integrate’s 1099  = +28.91
+  //        = its cill, plus the BOTTOM half’s 170 rail (997)
+  //                                                    = 152.73
+  //
+  // PROVISIONAL in the same way every other door-timber charge is: the
+  // sections are the ones a door leaf uses, and the workshop has to confirm
+  // what is actually cut for a stable door.
+  deliberateDifference: {
+    cost: 152.73,
+    reason: 'the two halves’ timber, which Integrate allocates nothing for: 7157 mm of Utile63x120 (their stiles, top rails and the top half’s 99 meeting rail) = 123.82, and 997 mm more Utile63x200 than its cill alone (the bottom half’s 170 rail) = 28.91. PROVISIONAL, as every door-timber charge is',
+  },
+  partCostMap: DOOR_PART_COST_MAP,
+  profileValues: OPEN_IN_PROFILE_VALUES,
+  glassCatalogue: {},
+  ironmongeryLines: STABLE_DOOR_IRONMONGERY,
+  profileCode: 'open_in_doors',
+  assumptions: STABLE_DOOR_ASSUMPTIONS,
 }

@@ -114,6 +114,14 @@ export const ALLOWED_PAIRS = new Set([
   'casementSashPart->transomPart',
   'casementSashPart->panelPart',
   'casementSashPart->mullionPart',
+
+  // Step BF: a STABLE DOOR — one container in the frame holding a top and a
+  // bottom half, each an ordinary door leaf with its own grid. And a VISION
+  // PANEL, which is a glass unit inside a panel (Integrate’s ST2).
+  // sql/step-bf2 adds these three live.
+  'assemblyFramePart->stableDoorPart',
+  'stableDoorPart->doorLeafPart',
+  'panelPart->glassPart',
 ])
 
 /** Every parent->child edge in a tree, as "parentType->childType" strings. */

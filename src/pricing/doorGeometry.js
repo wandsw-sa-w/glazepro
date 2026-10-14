@@ -21,6 +21,7 @@
 
 import {
   frameInterior, openingNodes, frameOpenings, casementSashSize, itemFrames, frameOwning,
+  STABLE_DOOR_PART,
 } from './casementGeometry.js'
 import { KG_PER_M2_PER_MM } from './sashWeight.js'
 import { timberFamily, TIMBER_FAMILY_DENSITIES } from './optionVocabulary.js'
@@ -49,6 +50,68 @@ function findAll(node, partType, acc = []) {
   if (node.part_type === partType) acc.push(node)
   for (const c of (node.children ?? [])) findAll(c, partType, acc)
   return acc
+}
+
+/**
+ * Step BF — THE STABLE DOOR.
+ *
+ * Integrate stores a StableDoorPart in the frame holding a TOP and a BOTTOM
+ * stable leaf. GlazePro stores the container with two ordinary doorLeafParts
+ * in it, each marked `stableHalf`, so door_leaf_qty is 2, the door_leaf loop
+ * visits both, and every rule that knows a leaf needs no change: "Door Leaf"
+ * 1035 fires per half, as Integrate’s own editor shows it does.
+ *
+ * The halves are NOT half the container each. Integrate’s drawing 21 splits
+ * a 2103 container 1055 / 1048 — the top is 7 taller — so the split is
+ * STORED, as a divider offset is: `splitOffset` is the TOP half’s height and
+ * the bottom takes the rest. 1055 - 110 - 99 = 846 and 1048 - 99 - 170 = 779
+ * are Integrate’s own cells, and the panels it prices.
+ */
+export const STABLE_HALVES = { TOP: 'top', BOTTOM: 'bottom' }
+
+/** The stable-door container a leaf belongs to, or null. */
+export function stableDoorPartFor(tree, leafNode) {
+  return findAll(tree, STABLE_DOOR_PART)
+    .find(c => (c.children ?? []).some(x => x.key === leafNode?.key)) ?? null
+}
+
+/** The two halves of a stable door, top first. */
+export function stableHalves(container) {
+  const halves = (container?.children ?? [])
+    .filter(c => DOOR_LEAF_TYPES.includes(c.part_type))
+  const top = halves.find(h => h.values?.stableHalf === STABLE_HALVES.TOP)
+  const bottom = halves.find(h => h.values?.stableHalf === STABLE_HALVES.BOTTOM)
+  return { top: top ?? halves[0] ?? null, bottom: bottom ?? halves[1] ?? null }
+}
+
+/** Every stable-door container in the tree. */
+export function stableDoorParts(tree) {
+  return findAll(tree, STABLE_DOOR_PART)
+}
+
+/** Is this leaf one half of a stable door? */
+export function isStableHalf(leafNode) {
+  const h = leafNode?.values?.stableHalf
+  return h === STABLE_HALVES.TOP || h === STABLE_HALVES.BOTTOM
+}
+
+/**
+ * A stable door CONTAINER's own size: the opening less its clearances, as a
+ * single leaf is. Integrate: a 1005 x 2110 opening with 4 / 4 / 4 / 3 gives
+ * 997 x 2103.
+ */
+export function stableDoorSize(tree, container) {
+  const opening = openingFor(tree, container)
+  if (!opening || opening.width == null || opening.height == null) {
+    return { width: null, height: null }
+  }
+  const v = container?.values ?? {}
+  return {
+    width: opening.width - (num(v.mechanicalClearanceLeft) ?? 0) -
+      (num(v.mechanicalClearanceRight) ?? 0),
+    height: opening.height - (num(v.mechanicalClearanceTop) ?? 0) -
+      (num(v.mechanicalClearanceBottom) ?? 0),
+  }
 }
 
 /** An OPEN IN leaf — a front door. Integrate stores it as typeId 8. */
@@ -87,6 +150,21 @@ export function frenchDoorPairFor(tree, leafNode) {
  * leaf only as a fallback.
  */
 export function doorLeafSize(tree, leafNode) {
+  // Step BF: a STABLE HALF is sized from its container and the stored
+  // split, not from the frame opening — the container has already taken
+  // the clearances off.
+  const stable = isStableHalf(leafNode) ? stableDoorPartFor(tree, leafNode) : null
+  if (stable) {
+    const size = stableDoorSize(tree, stable)
+    if (size.width == null || size.height == null) return { width: null, height: null }
+    const split = num(stable.values?.splitOffset)
+    const topHeight = split != null ? split : Math.round(size.height / 2)
+    const isTop = leafNode.values?.stableHalf === STABLE_HALVES.TOP
+    return {
+      width: size.width,
+      height: isTop ? topHeight : size.height - topHeight,
+    }
+  }
   const pair = frenchDoorPairFor(tree, leafNode)
   if (!pair) {
     // A single door leaf: the opening less its own clearances.
@@ -453,6 +531,27 @@ export const FANLIGHT_SECTION_OFFSET_MM = 14 // per fanlight, on W + 2 x H
  * 175 so the two line up. One reading, from drawing 20.
  */
 export const DOOR_DEPTH_RAIL_MM = 150
+
+/**
+ * Step BF: which stock section a RAIL is cut from — the smallest one it
+ * fits in. The stock is 63x63, 63x96, 63x120 and 63x200, so:
+ *
+ *     a 62 fanlight rail      -> 63x63    (Nathan, difference 7a)
+ *     Integrate's 86 rail     -> 63x96
+ *     a 99 stable MEETING rail-> 63x120   (new: 96 is too narrow for 99)
+ *     a 163 / 170 door rail   -> 63x200
+ *     a 175 side light's rail -> 63x200
+ *
+ * which is every reading taken so far, from one rule rather than a list of
+ * thresholds that happened to fit.
+ */
+export function railSectionFor(depthMm, codes) {
+  const d = num(depthMm) ?? 0
+  if (d <= 63) return codes.fanlight
+  if (d <= 96) return codes.fanlightRail
+  if (d <= 120) return codes.leaf
+  return codes.cillAndBottom
+}
 /**
  * A leaf MID RAIL is cut from the cill-and-bottom-rail section at the leaf
  * width LESS 10 (Step BA). FD4: 2 x 652.5 on leaves 662.5 wide, which with
@@ -550,7 +649,11 @@ export function allocatedSectionParts(tree, { material = 'utile' } = {}) {
 
   for (const leaf of leaves) {
     const z = doorLeafSize(tree, leaf)
-    add(codes.cillAndBottom, z.width ?? 0, 'Door bottom rail')
+    // Step BF: the bottom rail from the smallest section it fits — a door's
+    // 170 from 63x200, a stable half's 99 MEETING rail from 63x120.
+    const bottomRail = num(leaf.values?.bottomHeight) ?? 0
+    add(railSectionFor(bottomRail, codes), z.width ?? 0,
+      `Door bottom rail ${bottomRail}`)
     // Each leaf's two stiles and its top rail. Step BD: an OPEN IN leaf
     // takes -20 (the three front-door drawings), an open-out one -6.
     const leafOffset = isOpenInLeaf(leaf)
@@ -606,8 +709,7 @@ export function allocatedSectionParts(tree, { material = 'utile' } = {}) {
     // (docs/integrate-differences.md 7a). Step BE: a 175 rail comes from the
     // same 63x200 as a door’s bottom rail, which is Integrate’s own
     // allocation on drawing 20.
-    const railCode = isSideLight ? codes.cillAndBottom
-      : (rail >= 80 ? codes.fanlightRail : codes.fanlight)
+    const railCode = railSectionFor(rail, codes)
     add(railCode, z.width,
       `${isSideLight ? 'Side light' : 'Fanlight'} bottom rail ${rail}`)
   }

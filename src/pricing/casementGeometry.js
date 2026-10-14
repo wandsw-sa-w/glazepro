@@ -183,8 +183,15 @@ export const FRENCH_DOOR_PAIR_PART = 'frenchDoorPart'
 // whole difference from a French door — so the frame's opening list has to
 // include it, or the leaf has no cell, no size, no glass and no weight.
 export const SINGLE_DOOR_LEAF_PART = 'doorLeafPart'
+// Step BF: a STABLE DOOR is an opening too — one container in the frame
+// holding a TOP and a BOTTOM half, each a door leaf with its own grid.
+// Integrate calls it a StableDoorPart with Top / Bottom StableDoorLeafParts;
+// GlazePro stores two ordinary doorLeafParts in it, so every count, loop,
+// label and rule that knows a door leaf already sees both halves.
+export const STABLE_DOOR_PART = 'stableDoorPart'
+
 export const OPENING_TYPES = ['casementSashPart', 'glassPart', FRENCH_PAIR_PART,
-  FRENCH_DOOR_PAIR_PART, SINGLE_DOOR_LEAF_PART]
+  FRENCH_DOOR_PAIR_PART, SINGLE_DOOR_LEAF_PART, STABLE_DOOR_PART]
 
 // A French casement pair and a French door pair have the SAME shape — one
 // opening, two leaves, no mullion, a master leaf — so the board treats them

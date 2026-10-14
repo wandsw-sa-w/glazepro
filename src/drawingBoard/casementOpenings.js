@@ -23,7 +23,7 @@ import { makeKey } from './gridActions.js'
 import { resolveJambTypeCode } from './applyOperationDefaults.js'
 import {
   frameCells, OPENING_TYPES, FRENCH_PAIR_PART, FRENCH_SASH_TYPES, CASEMENT_SASH_TYPES,
-  FRENCH_DOOR_PAIR_PART, SINGLE_DOOR_LEAF_PART, PAIR_PART_TYPES, PAIR_LEAF_TYPES, isPairPart, isLeftLeaf,
+  FRENCH_DOOR_PAIR_PART, SINGLE_DOOR_LEAF_PART, STABLE_DOOR_PART, PAIR_PART_TYPES, PAIR_LEAF_TYPES, isPairPart, isLeftLeaf,
   DOOR_LEAF_LIKE,
   frameOwning, itemFrames,
 } from '../pricing/casementGeometry.js'
@@ -824,6 +824,10 @@ export function openingTypeLabel(tree, node) {
   // Step BB: a SINGLE door leaf is an opening of its own — a plain
   // doorLeafPart in the frame, with no pair part.
   if (node?.part_type === SINGLE_DOOR_LEAF_PART) return 'Single Door'
+  // Step BF: a STABLE DOOR is one opening holding two halves — the
+  // container is what sits in the frame's cell, and the halves are named
+  // from it (partLabels).
+  if (node?.part_type === STABLE_DOOR_PART) return 'Stable Door'
   if (node?.part_type === 'leftFrenchDoorLeafPart') return 'French Door Leaf Left'
   if (node?.part_type === 'rightFrenchDoorLeafPart') return 'French Door Leaf Right'
   if (node?.part_type !== 'casementSashPart') return null

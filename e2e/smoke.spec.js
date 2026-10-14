@@ -87,6 +87,13 @@ const DELIBERATE = {
   FT4:  { cost: '21.60', price: '43.18' },
   FD4:  { cost: '-49.32', price: '-98.64' },
   C:    { cost: '7.37', price: '14.73' },
+  // Step BF part B: the STABLE DOORS. One difference each, and the same
+  // one: the two halves' timber, which Integrate allocates nothing for
+  // (7157 mm of 63x120 and 997 more of 63x200 than its cill alone).
+  //   ST1 / ST2 / ST3  +152.73
+  ST1:  { cost: '152.73', price: '305.46' },
+  ST2:  { cost: '152.73', price: '305.46' },
+  ST3:  { cost: '152.73', price: '305.46' },
 }
 
 // Step BD follow-up: the OPEN QUESTIONS on the page — over £1.00, so not

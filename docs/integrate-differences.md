@@ -731,8 +731,8 @@ FT1's 2,670 minutes had been unexplained since Step BD. The editor shows why:
 
 | Integrate fires | on FT1 | should be |
 |---|---|---|
-| 1240 "Additional for Flat Panel" 60 | 4 × 60 = 240 | — the panels are type 110, **raised and fielded** |
-| 1245 "Additional for R&F Panel" 120 | never | 4 × 120 = **480** |
+| 1240 "Additional for Flat Panel" 60 | 4 × 60 = 240 | **right** — type 110 is FLAT (corrected 14 Oct, difference 19) |
+| 1245 "Additional for R&F Panel" 120 | never | **never** — these panels are not raised and fielded |
 | 1235 "Door Muntin" 60 | 2 × 60 = 120 | 1 × 60 = **60** — the leaf has one muntin; Integrate counts its **mid rail** as a second |
 
 Two errors, and on a four-panel door they do not cancel. GlazePro charges
@@ -821,6 +821,87 @@ rail, so its panel must be 641 and its offset **1031**. Integrate's own drawing
 apart; the reviewer asked for the rails to meet, so that is what the template
 does and what the fixture (Integrate's tree) does not.
 
+
+---
+
+## 19. Integrate's panel type 110 is FLAT, and difference 16 was half wrong
+
+**Corrected by:** the reviewer, 14 Oct 2026, reading Integrate's own
+panel-type dialog (`docs/integrate-L31115-stable-doors.txt`):
+
+    110 = FLAT    112 = RAISED & FIELDED    114 = VTG    116 = HTG
+
+GlazePro mapped **110 to raised_and_fielded**. The id came from the
+French-door facts of Step BA, which label it that way; Steps BD and BE
+repeated it, and difference 16 called Integrate's "Additional for Flat Panel"
+60 an error on that basis. It was not an error: **every Integrate door read so
+far has FLAT panels**, and it is GlazePro that was charging R&F 120.
+
+**What stands of difference 16:** the other half of Nathan's decision d —
+"Door Muntin" is 60 per **real** muntin, and a leaf's **mid rail** is not one.
+Integrate counts it, so GlazePro is now 60 minutes CHEAPER per mid rail:
+
+| | GlazePro | Integrate | |
+|---|---|---|---|
+| **FT1** | 2,610 | 2,670 | −60, one mid rail |
+| **FT2** | 2,710 | 2,770 | −60 |
+| **FT3** | 3,230 | 3,290 | −60 |
+| **FT4** | 3,785 | 3,905 | −120, two mid rails |
+
+**Nathan (decision k):** GlazePro's door templates have **FLAT** panels, as
+Integrate's do. `sql/step-bf1` re-issues all four front-door templates;
+a drawing already saved with raised-and-fielded panels keeps them, which is
+correct — it is what somebody drew.
+
+**FD4 is the one row that cannot be settled from the facts.** Its panels read
+110, so they now price flat — but FD4 matched Integrate **to the penny** while
+GlazePro charged R&F 120 each, which it could only have done if Integrate
+charged the 240 itself. Either FD4's panels are really type **112** and the
+French-door facts' "110" is the same mislabel, or Integrate charged flat and
+the old agreement was a coincidence of two errors. The fixture keeps what the
+facts SAY and declares the −£49.32 as **PENDING a reading of FD4's panel
+ids**: changing 110 to 112 to keep a green row would be tuning a fixture to a
+guess.
+
+## 20. A stable door's two halves are charged for their timber
+
+**Decided by:** Nathan's standing rule — where Integrate omits door timber,
+GlazePro charges it — applied in Step BF to the stable door (decisions h–k,
+`docs/integrate-L31115-stable-doors.txt`).
+
+Integrate allocates **nothing** for either half of a stable door. On all three
+of the reviewer's drawings its only timber is the **cill** (63x200, 1099) and
+the **frame** (67x96, W + 2H). GlazePro charges the halves as it charges any
+door leaf:
+
+| Section | What it covers | mm |
+|---|---|---|
+| 63x120 | each half's two stiles and top rail (2H + W − 20, the open-in offset) **and the top half's 99 MEETING rail** at the leaf width | 7,157 |
+| 63x200 | Integrate's cill **plus the bottom half's 170 rail** | 2,096 (+997) |
+
+= **+£152.73** on ST1, ST2 and ST3 alike, and it is the ONLY difference on any
+of them: production, fitting, glass, the Tricoya panels and the ironmongery
+are Integrate's exactly.
+
+**A new rule came out of this, and it tidies three older readings.** A rail is
+cut from the **smallest stock section it fits in** (`railSectionFor`):
+
+| rail | section | |
+|---|---|---|
+| 62 (Nathan's fanlight) | 63x63 | difference 7a |
+| 86 (Integrate's fanlight) | 63x96 | |
+| **99 (a stable meeting rail)** | **63x120** | 96 is too narrow for 99 |
+| 163 / 170 (a door leaf) | 63x200 | |
+| 175 (a side light) | 63x200 | difference 18 |
+
+Before this, the rule was a pair of thresholds that happened to fit the
+readings taken; now it is one sentence that reproduces all of them, and the
+99 rail is the first one that needed it.
+
+**PROVISIONAL**, as every door-timber charge is: the sections are a door
+leaf's, and the workshop has to confirm what is actually cut for a stable
+door.
+
 # Open questions
 
 **Not parked, and not decided.** The parked table below is for differences
@@ -830,12 +911,13 @@ must not borrow the word "parked" (reviewer, 14 Oct). It is listed here with
 its amount, it is declared on its benchmark so the figure cannot drift, and
 the benchmark page says **OPEN QUESTION** on the row in as many words.
 
-**None open.** FT3’s shaped glass was the only one, and Nathan closed it on
+**One open**, below. FT3’s shaped glass was closed by Nathan on
 14 Oct — difference 17. The section stays because the next one belongs here
 rather than in the parked table.
 
 | Benchmark | Cost gap | Price gap | What is not understood | Opened |
 |---|---|---|---|---|
+| **FD4** | −£49.32 | −£98.64 | Its two panels read Integrate’s type **110**, which is FLAT, so they price 60 minutes each — and FD4 matched Integrate TO THE PENNY while GlazePro charged R&F 120 each. Integrate can only have reached that figure by charging the 240 itself. So either FD4’s panels are really **112** (R&F) and the French-door facts’ “110” is the mislabel that started all of this, or Integrate charged flat too and the old agreement was a coincidence of two errors. **Needed:** one reading of FD4’s panel-type ids in Integrate. Nothing has been tuned — the fixture keeps what the facts say. | 14 Oct 2026 |
 
 # Parked residuals
 
