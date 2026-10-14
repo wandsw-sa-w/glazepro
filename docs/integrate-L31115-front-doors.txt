@@ -150,3 +150,10 @@
 #    + 25% at the SQUARE glass rate (FT3: 799 x 1125 = 0.899 m2 -> 1.12 m2). Integrate's 0.62 (and its shaped rate 71.88) wrong.
 # f. Front-door template layout = Integrate's Balham (170 mid rail, 983 / 635), muntin centred — as the templates fix did.
 # g. Side light = a FIXED CASEMENT SASH in the door frame, as Nathan's drawing 20 (REPLACES decision c's "fixed door leaf").
+#
+# ── CORRECTION, 14 Oct (reviewer) ────────────────────────────────────────────────────────────────────────────────────
+# Panel type 110 is FLAT in Integrate (112 = R&F, 114 = VTG, 116 = HTG — read in the board's panel-type dialog). The
+# Balham / Bedford / Arched / drawing 20 panels are FLAT, so rule 1240 "Flat Panel" 60 was RIGHT, not an Integrate error;
+# lines above calling them "R&F" are wrong. Decision d's "R&F 120 per panel" rested on that mistake. NATHAN 14 Oct: door
+# templates have FLAT panels as Integrate's (decision k in the stable-door facts). "Door Muntin" per REAL muntin (not a mid
+# rail) stands.

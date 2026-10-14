@@ -1718,5 +1718,94 @@
       "production": 65.08,
       "labour": 18.0
     }
+  },
+  "benchmarkST1_stable_door": {
+    "source": "L31115 Item 10 Drawing 21 (template 'Stable Door', Cottage Doors, 1099 x 2207, two halves each with one flat panel, stored ironmongery). Read and priced 14 Oct 2026 via L31115 Quote 1 item 10. Facts: docs/integrate-L31115-stable-doors.txt.",
+    "total_cost": 2507.64,
+    "total_price": 5015.26,
+    "groups": {
+      "installation_materials": {
+        "cost": 134.73,
+        "price": 269.46
+      },
+      "manufacture": {
+        "cost": 1399.46,
+        "price": 2798.91
+      },
+      "labour": {
+        "cost": 603.15,
+        "price": 1206.3
+      },
+      "manufacture_materials": {
+        "cost": 370.3,
+        "price": 740.59
+      }
+    },
+    "hours": {
+      "production": 56.75,
+      "labour": 15.0
+    }
+  },
+  "benchmarkST2_stable_door_vision_panel": {
+    "source": "L31115 Item 10 Drawing 22 (template 'Template 44': ST1 with a 200 x 350 vision panel in the top panel, no stored ironmongery). Read and priced 14 Oct 2026 via L31115 Quote 1 item 10. Facts: docs/integrate-L31115-stable-doors.txt.",
+    "total_cost": 2446.14,
+    "total_price": 4892.28,
+    "groups": {
+      "glass_done": {
+        "cost": 18.57,
+        "price": 37.14
+      },
+      "installation_materials": {
+        "cost": 46.53,
+        "price": 93.06
+      },
+      "manufacture": {
+        "cost": 1407.59,
+        "price": 2815.19
+      },
+      "labour": {
+        "cost": 603.15,
+        "price": 1206.3
+      },
+      "manufacture_materials": {
+        "cost": 370.3,
+        "price": 740.59
+      }
+    },
+    "hours": {
+      "production": 57.08,
+      "labour": 15.0
+    }
+  },
+  "benchmarkST3_stable_door_glazed_top": {
+    "source": "L31115 Item 10 Drawing 23 (ST1 with the top panel replaced by glass 777 x 846, built by the reviewer). Read and priced 14 Oct 2026 via L31115 Quote 1 item 10. Facts: docs/integrate-L31115-stable-doors.txt.",
+    "total_cost": 2410.3,
+    "total_price": 4820.6,
+    "groups": {
+      "glass_done": {
+        "cost": 43.33,
+        "price": 86.66
+      },
+      "installation_materials": {
+        "cost": 134.73,
+        "price": 269.46
+      },
+      "manufacture": {
+        "cost": 1382.93,
+        "price": 2765.87
+      },
+      "labour": {
+        "cost": 603.15,
+        "price": 1206.3
+      },
+      "manufacture_materials": {
+        "cost": 246.16,
+        "price": 492.31
+      }
+    },
+    "hours": {
+      "production": 56.08,
+      "labour": 15.0
+    }
   }
 }

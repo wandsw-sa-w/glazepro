@@ -1,0 +1,59 @@
+# INTEGRATE — STABLE DOORS, read 14 Oct 2026 by the reviewer on L31115 item 10 (TEST lead).
+# Drawings 21, 22, 23 SAVED in Integrate (frame width +1 and back, Save Drawing), priced one at a time through L31115
+# Quote 1 item 10 (Nathan approved; restored to drawing 18 = 310641 afterwards, confirmed on reload).
+# PF30: workshop 24.66 / h, installation 40.21 / h, markup 2.00. Range open_in_doors, utile (44) frame / sash / cill.
+# Integrate's door templates, group "3. Cottage Doors": "Stable Door" (4553) and "Template 44" (6618). No glazed-top template.
+#
+# ── PANEL TYPE IDS (read 14 Oct in the drawing board's own panel-type dialog, quick_value attributes) ───────────────────
+#   110 = FLAT ; 112 = RAISED & FIELDED ; 114 = VERTICAL T&G ; 116 = HORIZONTAL T&G.
+#   Every Integrate door template read so far (Balham, Bedford, Arched, the stable doors, drawing 20) has 110 = FLAT panels.
+#   GlazePro's optionVocabulary maps 110 -> raised_and_fielded: WRONG (it came from the French-door facts, which also mislabel
+#   110 as R&F). Integrate's "Flat Panel" 60 on those doors was therefore NOT an error. See the front-door facts, correction.
+#   NATHAN 14 Oct: GlazePro's door templates have FLAT panels, as Integrate's.
+#
+# ── The stable door, as Integrate builds it ──────────────────────────────────────────────────────────────────────────
+# AssemblyFramePart 1099 x 2207 (47 jambs / head, cill 50, depth 96). One CillPart (height 50, depth 145, width 1005).
+# StableDoorPart (container) 997 x 2103, thickness 58, clearances top 4 / left 4 / right 4 / bottom 3, BETWEEN the halves 3.
+#   TopStableDoorLeafPart 997 x 1055, rails top 110 / stiles 110 / bottom 99, thickness 54 -> cell 777 x 846.
+#   BottomStableDoorLeafPart 997 x 1048, rails top 99 / stiles 110 / bottom 170, thickness 54 -> cell 777 x 779.
+#   (2103 = 1055 + 3 + 1048 ; 2207 - 47 - 50 - 4 - 3 = 2103.)
+# Finish: Teknos Clean White inside, outside and cill (SINGLE finish); isFrontDoor false; isDoorMpls false.
+#
+# ── ST1 = drawing 10/21 (310706), template "Stable Door" (4553): both halves one panel (110 flat) ──────────────────────
+# Integrate cost 2,507.64 / price 5,015.26 (+ quote-level InstallSure 36.12):
+#   Ironmongery 88.20 (stored set): 102mm Ball Bearing Hinges (Pair) PB 14.70 (set qty "2", one line) ; ERA Fortress 5 Lever
+#     Sash Lock PB 29.40 ; Era Fortress Deadlock PB 15.75 ; Trickle Vent XR16 Recessed Slot Vent Black 3.15 ; Victorian Scroll
+#     Door Lever Handle PB 25.20. Stored set ids: 102mm_hinges PB x2, era_5_lever_sashlock PB, era_deadlock PB,
+#     trickle_vent_xr16 Blk, victorian PB.
+#   Components Ogee Architrave MDF 2.85 x 4.60 = 13.11 + 2.85 x 1.20 = 3.42. Installation Consumables 30. LTW 25.
+#   Tricoya Panel 0.66 = 124.14 (777 x 846) ; 0.61 = 114.31 (777 x 779).
+#   Utile: 63x200 1.10 m = 31.87 (the CILL only, 1099) ; 67x96 5.51 m = 74.98 (W + 2H = 1099 + 4414). NOTHING for either
+#     leaf (no 63x120 / 63x63 / leaf bottom rail) — Integrate allocates no stable-leaf timber.
+#   Production 56.75 h = 3,405 min (Estimated Labour Time editor): 1200 Door Leaf 2 x 1035 (each half is a door leaf) ;
+#     1240 Flat Panel 2 x 60 ; 1300 Door Frame 855 ; 500 Door Frame Single Finish 180 ; 520 Door Leaf Single Finish 2 x 90.
+#   Labour 15.00 h = 603.15: Fitting Units fire ONLY rule 200 "Stable Door" (new_stable_door_pair_qty >= 1) 900.
+#   Groups: installation_materials 134.73 / 269.46 ; manufacture 1,399.46 / 2,798.91 ; labour 603.15 / 1,206.30 ;
+#     manufacture_materials 370.30 / 740.59 (no glass).
+#
+# ── ST2 = drawing 10/22 (310707), template "Template 44" (6618): as ST1 + a VISION PANEL in the top panel ──────────────
+# The top PanelPart (777 x 846, 110) holds a VisionPanelGlassPart 200 x 350 (glazingId 2). NO stored ironmongery.
+# Integrate cost 2,446.14 / price 4,892.28:
+#   Square Glass 0.30 (the minimum) x 58.50 = 17.55 ; Energy 6.00 kg 1.02. Components, consumables, LTW, Tricoya (the full
+#   0.66 + 0.61 — the vision panel is NOT deducted), Utile: all as ST1. No ironmongery.
+#   Production 57.08 h = 3,425 min = ST1 + 30 "Glazing a Sash" 20. Labour 15.00 h (Stable Door 900).
+#   Groups: glass_done 18.57 / 37.14 ; installation_materials 46.53 / 93.06 ; manufacture 1,407.59 / 2,815.19 ;
+#     labour 603.15 / 1,206.30 ; manufacture_materials 370.30 / 740.59.
+#
+# ── ST3 = drawing 10/23 (310708): "Stable Door" with the TOP panel removed and GLASS put in its cell (reviewer-built) ──
+# Top leaf GlassPart 777 x 846 (glazingId 2); bottom PanelPart 777 x 779 (110). Ironmongery as ST1 (stored set).
+# Integrate cost 2,410.30 / price 4,820.60:
+#   Square Glass 0.70 x 58.50 = 40.95 ; Energy 14.00 kg 2.38. Tricoya 0.61 = 114.31 only. Rest as ST1.
+#   Production 56.08 h = 3,365 min = ST1 - 60 (one flat panel fewer) + 20 (glazing). Labour 15.00 h.
+#   Groups: glass_done 43.33 / 86.66 ; installation_materials 134.73 / 269.46 ; manufacture 1,382.93 / 2,765.87 ;
+#     labour 603.15 / 1,206.30 ; manufacture_materials 246.16 / 492.31.
+#
+# ── Nathan's decisions, 14 Oct ───────────────────────────────────────────────────────────────────────────────────────
+# h. GlazePro sells all three: panelled both halves, glazed top half, small vision panel in the top half.
+# i. Default finish: Clean White both sides (single finish), as Integrate's template.
+# j. Default ironmongery: Integrate's stored list + a SECOND pair of hinges (each half on its own pair).
+# k. Door templates' panels are FLAT (type 110), as Integrate's (applies to the front-door templates too).
