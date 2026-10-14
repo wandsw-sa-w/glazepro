@@ -139,8 +139,8 @@ BEGIN
   END IF;
 
   UPDATE public.part_allocation_rules
-  SET    product_short_name = 'euro_cylinder_pull',
-         updated_at = now()
+  -- (reviewer, 14 Oct: part_allocation_rules has no updated_at column — removed)
+  SET    product_short_name = 'euro_cylinder_pull'
   WHERE  id = 'cb8eb0b9-056f-40a0-80b9-3b9f0b14f214'
     AND  rule_family = 'default_ironmongery'
     AND  product_short_name = 'hardwick_classic_euro_pull_set_back_to_back';
@@ -283,8 +283,7 @@ ORDER  BY p.short_name;
 --
 -- BEGIN;
 -- UPDATE public.part_allocation_rules
--- SET    product_short_name = 'hardwick_classic_euro_pull_set_back_to_back',
---        updated_at = now()
+-- SET    product_short_name = 'hardwick_classic_euro_pull_set_back_to_back'
 -- WHERE  id = 'cb8eb0b9-056f-40a0-80b9-3b9f0b14f214';
 -- COMMIT;
 --
