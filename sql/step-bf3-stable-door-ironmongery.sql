@@ -118,8 +118,10 @@ BEGIN
   END IF;
 
   -- 1. the first issue's hinge rule
-  DELETE FROM public.part_allocation_rules
-  WHERE  id = 'bf030001-0000-4000-8000-000000000001';
+  -- (reviewer, 14 Oct: deactivate, not DELETE — deletes need Nathan's yes each time; same effect, row kept)
+  UPDATE public.part_allocation_rules
+  SET    is_active = FALSE
+  WHERE  id = 'bf030001-0000-4000-8000-000000000001' AND is_active;
   GET DIAGNOSTICS _rows = ROW_COUNT;
   RAISE NOTICE 'Step BF-3: % duplicate hinge rule(s) removed', _rows;
 
