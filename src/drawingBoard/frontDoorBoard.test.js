@@ -63,7 +63,11 @@ describe('Step BD — a front door on the board', () => {
     const paint = tree.children.find(c => c.part_type === 'paintAndIronmongeryPart')
     expect(paint.values.isFrontDoor).toBe(true)
     expect(paint.values.internalFinish).toBe('clean_white')
-    expect(paint.values.externalFinish).toBe('custom_colour_tbc')
+    // the paint_finish option CODE for Integrate’s “Custom Colour TBC” is
+    // 'custom' (reviewer, 14 Oct) — 'custom_colour_tbc' is not an option
+    expect(paint.values.externalFinish).toBe('custom')
+    // what reaches a price is only that the two sides DIFFER
+    expect(paint.values.internalFinish).not.toBe(paint.values.externalFinish)
     expect(isFrontDoorTree(tree)).toBe(true)
     expect(isDoorTree(tree)).toBe(true)
     // the leaf opens IN, which is what the -20 section offset and the

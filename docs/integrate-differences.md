@@ -653,6 +653,76 @@ on a panelled door, or the workshop's panel build-up, settles it. The same
 change also counts the leaf's **muntins and mid rails** as timber, which is not
 a judgement at all — they are timber in the leaf, and they were missing.
 
+
+---
+
+## 15. A new front door's ironmongery, and the AV4 hand corrected
+
+**Decided by:** Nathan, 14 Oct 2026
+(`docs/integrate-L31115-front-doors.txt`, "Nathan's decisions, 14 Oct").
+Applied to the live data by `sql/step-bd4`; the figures live in
+`src/pricing/benchmarks/frontDoorIronmongery.js`, which the SQL, the tests and
+this entry all read.
+
+**a. What a NEW front door gets.** The imported default rules give a Hardwick
+back-to-back euro cylinder pull (HK4000PB, £25.20). Nathan wants Integrate's
+**Croft** pull (CRO1774PB, £29.40) — the one Integrate's own front-door
+template stores. The rest of the live set is what he wants already:
+
+| | Part | |
+|---|---|---|
+| 102mm_hinges PB × 2 | HHD681 | 14.70 |
+| hardwick_classic_sleeved_letterbox PB | HK4350PB | 94.50 |
+| **euro_cylinder_pull PB** | CRO1774PB | **29.40** |
+| av3_heritage_locking_system PC | the AV4 set | 176.40 |
+
+and there is **no letter tidy**, which is also what he asked for. A new front
+door is £4.20 dearer in ironmongery than before; no existing drawing moves,
+because a drawing holds its own stored list.
+
+**FT1–FT3 are not affected**: a benchmark carries Integrate's own stored
+template list (hinges, the AV4 system, the Croft pull, a premium letter tidy
+and a small letterplate = **£263.55**), because a benchmark's job is
+Integrate's figures.
+
+**b. The AV4 HAND is corrected, not copied.** Integrate prices RIGHT-hand AV4
+parts on a LEFT-hand door — on all three of the reviewer's drawings — and the
+import copied it: `av3_heritage_locking_system_lh` held the RH Heritage lock
+(RHZ2482) and the RH centre keep w dayswitch (RHZ3092). Nathan's standing rule
+is that GlazePro corrects Integrate's errors, so:
+
+| Variant | holds |
+|---|---|
+| `av3_heritage_locking_system_lh` | **RHZ2481** Heritage Lock LH, **RHZ3091** LH Centre Keep w Dayswitch |
+| `av3_heritage_locking_system_rh` | RHZ2482 Heritage Lock RH, RHZ3092 RH Centre Keep w Dayswitch |
+
+The pocket keep (RHZ2427) is handed neither way and stays in both.
+
+**NO PRICE MOVES.** `sql/step-bd1` gave both hands the same cost, so a front
+door's ironmongery is £263.55 before and after, and
+`src/pricing/frontDoorIronmongery.test.js` prices FT1 both ways to prove it
+rather than assume it. `sql/step-bd4` SECTION 1b refuses to run at all if the
+two hands ever cost different money.
+
+What differs from Integrate after this is the **name on the line**, not the
+money: a GlazePro quote lists the left-hand lock on a left-hand door and
+Integrate lists the right-hand one.
+
+---
+
+# Open questions
+
+**Not parked, and not decided.** The parked table below is for differences
+under **£1.00** — the small-differences policy in `docs/handover-pricing.md`.
+A difference OVER £1.00 that nobody has explained does not belong there, and
+must not borrow the word "parked" (reviewer, 14 Oct). It is listed here with
+its amount, it is declared on its benchmark so the figure cannot drift, and
+the benchmark page says **OPEN QUESTION** on the row in as many words.
+
+| Benchmark | Cost gap | Price gap | What is not understood | Opened |
+|---|---|---|---|---|
+| **FT3** | +£15.81 | +£31.62 | The arched leaf’s **shaped glass**. GlazePro prices 0.83 m², Integrate 0.62, on the same 777 × 1103 sightline with a 345.92 rise. GlazePro’s model — the sightline shape grown by the cover, arc concentric — reproduces benchmark **C** exactly, so the SHALLOW-arch case is right. This head is NEAR-SEMICIRCULAR: radius 391.12 against a 777 chord, so the head’s inner edge spans only 2 × (391.12 − 110) = 562 mm, the glass is **narrower than the leaf interior**, and the rail’s feet take the top corners. A rectangle 562 × 822 plus a semicircular head, grown by the cover, gives **0.624** — Integrate’s figure. **Needed:** one reading of Integrate’s glass sightline on an arched door. Nothing has been tuned, and no second model has been built on one reading. | 14 Oct 2026 |
+
 # Parked residuals
 
 Added by Step AT (12 Oct 2026), under the small-differences policy in
@@ -669,7 +739,6 @@ explained — never by editing a target.
 | **A50** | +£0.28 | +£0.42 | Top sash LEAD counterweight: GlazePro 17.6 kg against Integrate's 17.5 (before the Lead Weight rule's 15% wastage). `sashWeight.js` was calibrated to L34046 and the reviewer is obtaining Integrate's own weight calculation. Everything else on A50 matches. | 12 Oct 2026 |
 | **D** | +£0.54 | +£0.80 | Double-box STEEL counterweights, two lines +0.54 between them. Same weight model as A50; a double box divides its weight per pair, so the two are expected to share one cause. | 12 Oct 2026 |
 | **FD7** | +£0.62 | +£1.24 | A1’s GLASS AREA. FD7’s left panel is a direct glazed unit carrying Integrate’s hidden-0 template quirk: 588 x 2085 = 1.22598 m². GlazePro prices 1.23 (round half up, as every other glass line in every benchmark); Integrate prices 1.22 — and rounds its OWN D1 up, 1.29704 to 1.30, in the same drawing. 0.01 m² x 58.50 + 0.2 kg x 0.17 = 0.62. The reviewer to read Integrate’s glass panel for a hidden-0 unit; the FD5 A1 case was hidden by the 0.30 m² minimum. This is the ONLY unexplained figure in Step BB, and nothing has been tuned to close it. | 13 Oct 2026 |
-| **FT3** | +£15.81 | +£31.62 | The ARCHED LEAF'S SHAPED GLASS, and **not** a small difference — it is over £1.00 and is logged here because it is an open question with a named cause, not because the policy covers it. GlazePro prices 0.83 m² against Integrate's 0.62 on the same 777 × 1103 sightline with a 345.92 rise. GlazePro's model (the sightline shape grown by the cover, arc concentric) reproduces benchmark C exactly, so the SHALLOW-arch case is right. This head is NEAR-SEMICIRCULAR: radius 391.12 against a 777 chord, so the head's inner edge spans only 2 × (391.12 − 110) = 562 mm and the glass is NARROWER than the leaf interior, with the rail's feet taking the top corners. A rectangle 562 × 822 plus a semicircular head, grown by the cover, gives 0.624 — Integrate's 0.62. The reviewer to read Integrate's glass sightline on an arched door; nothing has been tuned, and the amount is on the row in the open. | 14 Oct 2026 |
 
 Not parked, and still reported every step because each is over £1.00 or has a known fix
 pending rather than an open question:

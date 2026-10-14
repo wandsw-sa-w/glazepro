@@ -421,13 +421,21 @@ export default function PricingBenchmark() {
             // single "expected" figure is how an unexplained gap becomes a
             // decision nobody made.
             const parked = benchmark.parkedResidual ?? null
+            // Step BD follow-up: an OPEN QUESTION. The parked table is for
+            // differences under GBP 1.00 — the small-differences policy in
+            // docs/handover-pricing.md. FT3’s shaped glass is 15.81, which is
+            // not small, and must not borrow the word "parked" (reviewer,
+            // 14 Oct). The amount is declared so the row cannot drift, and
+            // the cell says OPEN QUESTION in as many words.
+            const open = benchmark.openQuestion ?? null
             // Step BC: a decided difference can also be WAITING ON DATA — a
             // rule the reviewer has still to run. Both amounts are declared,
             // and the row reads BY DESIGN either way: which figure it shows
             // says whether the SQL has landed. Pinning one alone would mean a
             // red row today or a silent one afterwards.
             const pending = benchmark.pendingDecision ?? null
-            const expectedDiff = (deliberate?.cost ?? 0) + (parked?.cost ?? 0)
+            const expectedDiff = (deliberate?.cost ?? 0) + (parked?.cost ?? 0) +
+              (open?.cost ?? 0)
             const withPending  = expectedDiff + (pending?.cost ?? 0)
             const asExpected = deliberate != null &&
               (Math.abs((m.costDiff ?? 0) - expectedDiff) < 0.02 ||
@@ -474,6 +482,7 @@ export default function PricingBenchmark() {
                       {'BY DESIGN'} {'\u2014'} GlazePro is {'\u00A3'}{fmt(m.costDiff)} dearer:
                       {' '}{'\u00A3'}{fmt(deliberate.cost)} on purpose ({deliberate.reason})
                       {parked ? `, plus \u00A3${fmt(parked.cost)} PARKED and unexplained: ${parked.reason}` : ''}
+                      {open ? `. OPEN QUESTION, £${fmt(open.cost)} and nobody has explained it: ${open.reason}` : ''}
                       {pending ? (pendingLanded
                         ? ` (includes \u00A3${fmt(pending.cost)}: ${pending.reason})`
                         : `. STILL TO COME: \u00A3${fmt(pending.cost)} \u2014 ${pending.reason}`) : ''}

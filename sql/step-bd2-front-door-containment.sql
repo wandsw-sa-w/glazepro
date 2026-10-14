@@ -54,15 +54,18 @@ ORDER  BY code;
 -- 0d. Anything SAVED that would be affected by lifting the caps — i.e. a
 --     drawing whose leaf already holds more than one panel. Expect 0 rows:
 --     nothing could have saved one while the cap was 1.
-SELECT d.id AS drawing_id, count(*) AS panels_in_one_leaf
+--
+--     CORRECTED (reviewer, 14 Oct): the parent column is parent_part_id,
+--     not parent_id. The first version of this query joined on a column
+--     that does not exist.
+SELECT p.drawing_id, l.id AS leaf_part_id, count(*) AS panels_in_one_leaf
 FROM   public.drawing_parts p
-JOIN   public.drawing_parts l ON l.id = p.parent_id
-JOIN   public.drawings d      ON d.id = p.drawing_id
+JOIN   public.drawing_parts l ON l.id = p.parent_part_id
 WHERE  p.part_type = 'panelPart'
   AND  l.part_type IN ('doorLeafPart', 'leftFrenchDoorLeafPart', 'rightFrenchDoorLeafPart')
-GROUP  BY d.id, l.id
+GROUP  BY p.drawing_id, l.id
 HAVING count(*) > 1
-ORDER  BY d.id;
+ORDER  BY p.drawing_id;
 
 
 -- ═══════════════════════════════════════════════════════════════════════════

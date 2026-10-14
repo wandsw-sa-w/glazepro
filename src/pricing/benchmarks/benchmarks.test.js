@@ -13,6 +13,7 @@ import { runPricingOnTree, shapedGlassCutAreaM2 } from '../pricingEngine.js'
 import { applySashesReplaced } from '../../drawingBoard/sashesReplaced.js'
 import { computeDerived } from '../../drawingBoard/computeDerived.js'
 import { computeVariables } from '../computeVariables.js'
+import { withAv4Costs } from './frontDoorIronmongery.js'
 import { shortDividerSpanMm, isShortDivider, frameCells, frameGridSize, frameOpenings, casementSashSize, casementSashWeightKg, casementFrameTimberVolumeDm3, casementSashTimberVolumeDm3, casementGlassSightline, frameMuntinLengthM, frameColumns, frameRows, itemFrames, CASEMENT_SASH_TYPES, FRENCH_SASH_TYPES } from '../casementGeometry.js'
 import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_B_UNCORRECTED, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F, BENCHMARK_G, BENCHMARK_H, BENCHMARK_I, BENCHMARK_J, BENCHMARK_K, BENCHMARK_L, BENCHMARK_M, BENCHMARK_N, BENCHMARK_P, BENCHMARK_Q, BENCHMARK_R, BENCHMARK_S, BENCHMARK_SA, BENCHMARK_SB, BENCHMARK_SC, BENCHMARK_SD, BENCHMARK_SE, BENCHMARK_SF, BENCHMARK_TC1, BENCHMARK_TC2, BENCHMARK_TC3, BENCHMARK_FR1, BENCHMARK_FR2, BENCHMARK_FD1, BENCHMARK_FD2, BENCHMARK_FD3, BENCHMARK_FD3b, BENCHMARK_FD4, BENCHMARK_FD5, BENCHMARK_FD6, BENCHMARK_FD7, BENCHMARK_SD1, BENCHMARK_SD2, BENCHMARK_SD3, BENCHMARK_SD4, BENCHMARK_CD1, BENCHMARK_CD2, BENCHMARK_CD3, BENCHMARK_CD4, BENCHMARK_FT1, BENCHMARK_FT2, BENCHMARK_FT3 } from './index.js'
 import { resolveIronmongeryLines } from '../loadPricingContext.js'
@@ -3033,14 +3034,23 @@ describe('Step BD — front door benchmarks', () => {
     ['FT3', BENCHMARK_FT3, INTEGRATE.benchmarkFT3_front_door_arched,   54.83, 14.75],
   ]
 
+  // sql/step-bd1 was RUN LIVE on 14 Oct: the AV4 Heritage lock, the pocket
+  // keep and the centre keep have their costs. The captured snapshot
+  // pre-dates the run and still holds them at 0, so the FT rows are priced
+  // with the costs filled in — the same treatment the Kenrick gearbox parts
+  // had in Step BB while the capture lagged the live data. withAv4Costs
+  // never overwrites a cost the snapshot HAS, so a refreshed snapshot makes
+  // it a no-op.
+  const FT_SNAPSHOT = withAv4Costs(SNAPSHOT)
+
   function runFT(bm) {
-    return runPricingOnTree(bm.tree, SNAPSHOT.rules, SNAPSHOT.pfVariables, {
-      glassCatalogue: SNAPSHOT.glassCatalogue,
-      partAllocationRules: SNAPSHOT.partAllocationRules,
+    return runPricingOnTree(bm.tree, FT_SNAPSHOT.rules, FT_SNAPSHOT.pfVariables, {
+      glassCatalogue: FT_SNAPSHOT.glassCatalogue,
+      partAllocationRules: FT_SNAPSHOT.partAllocationRules,
       partCostMap: bm.partCostMap,
       ironmongeryLines: bm.ironmongeryLines,
-      ironmongeryCatalogue: SNAPSHOT.ironmongeryCatalogue,
-      profileValues: SNAPSHOT.profileValues,
+      ironmongeryCatalogue: FT_SNAPSHOT.ironmongeryCatalogue,
+      profileValues: FT_SNAPSHOT.profileValues,
       profileCode: bm.profileCode,
     })
   }
@@ -3072,7 +3082,8 @@ describe('Step BD — front door benchmarks', () => {
         got[l.group_name] = (got[l.group_name] ?? 0) + l.line_cost
       }
       const declared = (bm.deliberateDifference?.cost ?? 0) +
-        (bm.parkedResidual?.cost ?? 0) + (bm.pendingDecision?.cost ?? 0)
+        (bm.parkedResidual?.cost ?? 0) + (bm.openQuestion?.cost ?? 0) +
+        (bm.pendingDecision?.cost ?? 0)
       expect(r.price.total_cost, `${label} total`)
         .toBeCloseTo(target.total_cost + declared, 2)
       // labour (fitting) is Integrate's exactly on all three
@@ -3081,10 +3092,23 @@ describe('Step BD — front door benchmarks', () => {
       // and so is the glass, except FT3's parked shaped head
       if (target.groups.glass_done) {
         expect(got.glass_done ?? 0, `${label} glass`)
-          .toBeCloseTo(target.groups.glass_done.cost + (bm.parkedResidual?.cost ?? 0), 2)
+          .toBeCloseTo(target.groups.glass_done.cost + (bm.openQuestion?.cost ?? 0), 2)
       }
     })
   }
+
+  it('the ironmongery is Integrate’s own 263.55, since sql/step-bd1 ran', () => {
+    // The three AV4 parts at cost 0 were the whole 149.10 gap. With the
+    // costs the file wrote, every front door matches Integrate’s stored set
+    // to the penny: hinges 14.70, thumbturn 27.30, lock 112.35, pocket keep
+    // 5.25, centre keep 31.50, euro pull 29.40, letter tidy 27.30,
+    // letterplate 15.75.
+    for (const [label, bm] of FT_CASES) {
+      const iron = runFT(bm).price.lines
+        .filter(l => l.fires && l.name === 'Ironmongery Cost')
+      expect(iron.reduce((t, l) => t + l.line_cost, 0), label).toBeCloseTo(263.55, 2)
+    }
+  })
 
   it('the declared differences are the timber Integrate does not allocate', () => {
     // 1.788 m of 120 muntin, 1.005 m of 67x96 transom, 0.777 m of 120 mid

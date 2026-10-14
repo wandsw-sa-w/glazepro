@@ -1644,8 +1644,14 @@ export function buildFrontDoorFrame(profileValues, {
           values: {
             ...c.values,
             isFrontDoor: true,
+            // The DUAL finish Integrate’s front-door templates carry. The
+            // option CODES are reference_options category ‘paint_finish’:
+            // 'clean_white' and 'custom' (reviewer, 14 Oct). Only whether
+            // the two differ reaches a price — the three "- Dual Finish"
+            // door rules — but a code the board cannot show is a code a
+            // surveyor cannot correct.
             internalFinish: 'clean_white',
-            externalFinish: 'custom_colour_tbc',
+            externalFinish: 'custom',
           },
         }
       }

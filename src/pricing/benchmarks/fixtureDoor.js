@@ -1278,7 +1278,12 @@ export const BENCHMARK_FT1 = {
     cillHeight: 50,
     isFrontDoor: true,
     internalFinish: 'clean_white',
-    externalFinish: 'custom_colour_tbc',
+    // The paint_finish option code for Integrate's “Custom Colour TBC” is
+    // 'custom' (reviewer, 14 Oct): 'custom_colour_tbc' is not an option at
+    // all. No rule reads the VALUE — only whether the two sides differ — so
+    // this moves no money; it stops a drawing carrying a code the board
+    // cannot show.
+    externalFinish: 'custom',
     ironmongeryLines: FRONT_DOOR_IRONMONGERY,
   }),
   targets: { ...INTEGRATE_TARGETS.benchmarkFT1_front_door_balham },
@@ -1298,9 +1303,12 @@ export const BENCHMARK_FT1 = {
   // where Integrate charges 2670 (44.50 h). The 120 is UNEXPLAINED and the
   // reviewer settles it with Integrate — nothing here is tuned to it.
   //   -149.10 (the catalogue rows) + 49.32 (2 h of production) = -99.78
+  // sql/step-bd1 is RUN LIVE (14 Oct), so the three AV4 costs are there and
+  // only FT1's production is still open: 2790 minutes against Integrate's
+  // 2670. The reviewer settles the 120 with Integrate; nothing is tuned.
   pendingDecision: {
-    cost: -99.78,
-    reason: 'the three AV4 parts at cost 0 in the live catalogue (-149.10, sql/step-bd1) and FT1’s 120 unexplained production minutes (+49.32), which the reviewer settles with Integrate',
+    cost: 49.32,
+    reason: 'FT1’s 120 unexplained production minutes (2790 against Integrate’s 2670) — the reviewer settles it with Integrate',
   },
   partCostMap: DOOR_PART_COST_MAP,
   profileValues: OPEN_IN_PROFILE_VALUES,
@@ -1337,7 +1345,12 @@ export const BENCHMARK_FT2 = {
     cillHeight: 50,
     isFrontDoor: true,
     internalFinish: 'clean_white',
-    externalFinish: 'custom_colour_tbc',
+    // The paint_finish option code for Integrate's “Custom Colour TBC” is
+    // 'custom' (reviewer, 14 Oct): 'custom_colour_tbc' is not an option at
+    // all. No rule reads the VALUE — only whether the two sides differ — so
+    // this moves no money; it stops a drawing carrying a code the board
+    // cannot show.
+    externalFinish: 'custom',
     ironmongeryLines: FRONT_DOOR_IRONMONGERY,
   }),
   targets: { ...INTEGRATE_TARGETS.benchmarkFT2_front_door_fanlight },
@@ -1345,15 +1358,9 @@ export const BENCHMARK_FT2 = {
     cost: 13.67,
     reason: 'the frame transom, charged at Utile67x96 for the internal frame width (1005 mm) — Integrate allocates nothing for it (PROVISIONAL, as on SD2)',
   },
-  // The three AV4 parts the live catalogue holds at cost 0 — the Heritage
-  // lock (112.35), the pocket keep (5.25) and the centre keep w dayswitch
-  // (31.50), Integrate’s own prices. sql/step-bd1 gives the reviewer the
-  // rows; until it is run every front door is 149.10 light, and the row
-  // declares it rather than reading FAIL.
-  pendingDecision: {
-    cost: -149.10,
-    reason: 'the three AV4 parts at cost 0 in the live catalogue — sql/step-bd1 gives the reviewer the rows',
-  },
+  // sql/step-bd1 is RUN LIVE (14 Oct): the three AV4 parts have their costs
+  // and this row is Integrate’s own figure plus its declared timber, with
+  // nothing pending at all.
   partCostMap: DOOR_PART_COST_MAP,
   profileValues: OPEN_IN_PROFILE_VALUES,
   glassCatalogue: {},
@@ -1394,7 +1401,12 @@ export const BENCHMARK_FT3 = {
     cillHeight: 50,
     isFrontDoor: true,
     internalFinish: 'clean_white',
-    externalFinish: 'custom_colour_tbc',
+    // The paint_finish option code for Integrate's “Custom Colour TBC” is
+    // 'custom' (reviewer, 14 Oct): 'custom_colour_tbc' is not an option at
+    // all. No rule reads the VALUE — only whether the two sides differ — so
+    // this moves no money; it stops a drawing carrying a code the board
+    // cannot show.
+    externalFinish: 'custom',
     // The frame's own arch. curvedFrameHead fires both frame rules
     // ("Additional Frame Curved Head (Door)" and "Additional Frame Swept
     // Head (Door)", 240 each); archHead is deliberately NOT set, because on
@@ -1415,15 +1427,9 @@ export const BENCHMARK_FT3 = {
     cost: 13.45,
     reason: 'the leaf’s 120 mid rail, charged at Utile63x120 for the leaf’s interior width (777 mm) — Integrate allocates nothing for it (PROVISIONAL)',
   },
-  // The three AV4 parts the live catalogue holds at cost 0 — the Heritage
-  // lock (112.35), the pocket keep (5.25) and the centre keep w dayswitch
-  // (31.50), Integrate’s own prices. sql/step-bd1 gives the reviewer the
-  // rows; until it is run every front door is 149.10 light, and the row
-  // declares it rather than reading FAIL.
-  pendingDecision: {
-    cost: -149.10,
-    reason: 'the three AV4 parts at cost 0 in the live catalogue — sql/step-bd1 gives the reviewer the rows',
-  },
+  // sql/step-bd1 is RUN LIVE (14 Oct): the three AV4 parts have their costs
+  // and this row is Integrate’s own figure plus its declared timber, with
+  // nothing pending at all.
   // NOT a small difference, and NOT a decision: the arched leaf’s GLASS.
   // GlazePro prices 0.83 m2 of shaped glass, Integrate 0.62, on the same
   // 777 x 1103 sightline with a 345.92 rise. GlazePro’s model is the one
@@ -1434,11 +1440,15 @@ export const BENCHMARK_FT3 = {
   // the glass is narrower than the leaf interior and the rail’s feet eat
   // the top corners. A rectangle 562 x 822 plus a semicircular head,
   // grown by the cover, gives 0.624 — Integrate’s 0.62. One reading of
-  // Integrate’s glass sightline on an arched door settles it; until then
-  // the amount is parked, in the open, not hidden in a formula.
-  parkedResidual: {
+  // Integrate’s glass sightline on an arched door settles it.
+  //
+  // It is an OPEN QUESTION, not a parked residual: at £15.81 it is far over
+  // the £1.00 small-differences policy that the parked table exists for
+  // (reviewer, 14 Oct). The row declares the amount so it cannot drift, and
+  // says in the open that nobody has explained it.
+  openQuestion: {
     cost: 15.81,
-    reason: 'the arched leaf’s shaped glass: GlazePro 0.83 m2 against Integrate’s 0.62 — a near-semicircular head makes the glass narrower than the leaf interior, which the shallow-arch model does not capture',
+    reason: 'the arched leaf’s shaped glass: GlazePro 0.83 m2 against Integrate’s 0.62 — a near-semicircular head makes the glass narrower than the leaf interior, which the shallow-arch model does not capture. OVER £1.00, so not parked: pending an Integrate reading of an arched door’s glass sightline',
   },
   partCostMap: DOOR_PART_COST_MAP,
   profileValues: OPEN_IN_PROFILE_VALUES,

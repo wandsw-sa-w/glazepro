@@ -57,18 +57,26 @@ const DELIBERATE = {
   CD2:  { cost: '303.49', price: '606.97' },
   CD3:  { cost: '303.57', price: '607.14' },
   CD4:  { cost: '646.34', price: '1292.68' },
-  // Step BD: the FRONT DOORS. Each row is three figures in one: the
-  // timber GlazePro charges and Integrate does not (BY DESIGN), the three
-  // AV4 parts the live catalogue holds at cost 0 (-149.10, PENDING until
-  // sql/step-bd1 runs), and on FT1 the 120 production minutes nobody has
-  // explained (+49.32, the reviewer settles it with Integrate). FT3 also
-  // carries +15.81 of PARKED shaped glass on its near-semicircular head.
-  //   FT1  30.94 - 149.10 + 49.32 = -68.84
-  //   FT2  13.67 - 149.10         = -135.43
-  //   FT3  13.45 - 149.10 + 15.81 = -119.84
-  FT1:  { cost: '-68.84', price: '-137.70' },
-  FT2:  { cost: '-135.43', price: '-270.86' },
-  FT3:  { cost: '-119.84', price: '-239.72' },
+  // Step BD: the FRONT DOORS, with sql/step-bd1 RUN LIVE (14 Oct) — the
+  // three AV4 parts have their costs, so each row is Integrate’s own figure
+  // plus the door timber GlazePro charges and Integrate does not, and
+  // nothing else:
+  //   FT1  30.94 (the leaf’s 120 muntin) + 49.32 PENDING (the 120
+  //        production minutes nobody has explained) = 80.26
+  //   FT2  13.67 (the frame transom)               = 13.67
+  //   FT3  13.45 (the leaf’s 120 mid rail) + 15.81 OPEN (the arched leaf’s
+  //        shaped glass, over £1 and so NOT parked) = 29.26
+  FT1:  { cost: '80.26', price: '160.50' },
+  FT2:  { cost: '13.67', price: '27.34' },
+  FT3:  { cost: '29.26', price: '58.48' },
+}
+
+// Step BD follow-up: the one OPEN QUESTION on the page. Over £1.00, so it is
+// not a parked residual and does not belong in PARKED; the row says so in
+// as many words, and the amount is pinned here for the same reason as the
+// others — if it moves, something has changed that nobody decided.
+const OPEN_QUESTIONS = {
+  FT3: '15.81',
 }
 
 // NOTE on the Kenrick gearbox gap (J–P £14.70, Q/R/S £8.40): that is a gap in
@@ -152,6 +160,12 @@ test.describe('GlazePro live smoke (read only)', () => {
             'on purpose — has the transom or the 62 mm rail stopped being charged?')
         }
         continue
+      }
+
+      if (OPEN_QUESTIONS[key] && !(status === 'BY DESIGN')) {
+        unexpected.push(
+          `${key} carries an OPEN QUESTION of £${OPEN_QUESTIONS[key]} and should ` +
+          `read BY DESIGN with it declared, reads ${status}`)
       }
 
       if (PARKED[key]) {

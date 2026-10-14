@@ -4,6 +4,19 @@
 -- save_drawing_parts refuses a leaf that holds a muntin, so a drawing made
 -- from these templates could not be saved.
 --
+-- RE-ISSUED 14 Oct 2026 after the reviewer read it. Three things were wrong
+-- in the first version and are fixed here:
+--
+--   * drawing_templates has NO unique index on `name`, so ON CONFLICT (name)
+--     fails outright. It now UPDATEs where the name exists and INSERTs where
+--     it does not, which is sql/step-bc2's pattern.
+--   * 0a read default_profiles.name — there is no such column (code and
+--     is_active only).
+--   * the finishes are reference_options category 'paint_finish', and the
+--     code for Integrate's "Custom Colour TBC" is 'custom'. The trees said
+--     'custom_colour_tbc', which is not an option at all. FRONT_DOOR_TEMPLATES
+--     now writes 'custom' and these trees were regenerated from it.
+--
 -- Group "Open In Doors", product "Door", range open_in_doors — Integrate's
 -- own group 1 (docs/integrate-L31115-front-doors.txt). The three templates,
 -- with Integrate's template numbers:
@@ -38,10 +51,10 @@
 -- The finish is DUAL as Integrate's templates are — Clean White inside,
 -- Custom Colour TBC outside — which is what fires the three "- Dual Finish"
 -- door rules (240 + 180 + 45) instead of the single-finish ones. SECTION 0
--- checks that both finish options exist before anything is written.
+-- checks that both option codes exist before anything is written.
 --
 -- NO stored ironmongery and NO stored surround list: the live rules allocate
--- both (SECTION 0d of sql/step-bd1 shows what a front door is given).
+-- both (sql/step-bd4 is where Nathan's own default set is set).
 --
 -- The trees below were GENERATED from the board's own builders by
 -- scripts/build-step-bd-sql.mjs, from the specs in
@@ -59,15 +72,15 @@
 --     If there is none, STOP: a front door's leaf clearances (3/4/4/14), its
 --     170 bottom rail and its 50 cill all come from it, and no other profile
 --     has them.
-SELECT id, code, name, is_active
+SELECT id, code, is_active
 FROM   public.default_profiles
 WHERE  code = 'open_in_doors';
 
--- 0b. The two finish options the dual finish names. Expect both.
-SELECT category, code, label, is_active
+-- 0b. The two finish option CODES the dual finish names. Expect 'clean_white'
+--     and 'custom', both active, in category 'paint_finish'.
+SELECT category, code, label, sort_order, is_active
 FROM   public.reference_options
-WHERE  category = 'finish'
-  AND  (lower(label) LIKE '%clean white%' OR lower(label) LIKE '%custom colour%')
+WHERE  category = 'paint_finish'
 ORDER  BY sort_order;
 
 -- 0c. The product option. Expect one active row labelled "Door".
@@ -76,17 +89,21 @@ FROM   public.reference_options
 WHERE  category = 'product' AND lower(label) = 'door'
 ORDER  BY sort_order;
 
--- 0d. The templates as they stand. Expect 0 rows the first time.
+-- 0d. The templates as they stand. Expect 0 rows the first time; if the first
+--     version of this file was run and failed, expect 0 rows too — it is one
+--     transaction and nothing was written.
 SELECT id, name, family, group_name, window_type, sort_order, is_active
 FROM   public.drawing_templates
 WHERE  name IN ('Front Door', 'Front Door With Fanlight', 'Arched Front Door')
 ORDER  BY sort_order;
 
--- 0e. What sort_order is free. The flag-frame templates took 100-130, so
---     these take 200-220; expect nothing already there.
-SELECT name, group_name, sort_order
+-- 0e. What sort_order is free, and whether any name is duplicated — there is
+--     no unique index on name, which is why this file matches on it by hand.
+--     Expect every count to be 1.
+SELECT name, count(*) AS rows_with_this_name, min(sort_order) AS sort_order
 FROM   public.drawing_templates
-ORDER  BY sort_order;
+GROUP  BY name
+ORDER  BY min(sort_order);
 
 -- 0f. The leaf-grid containment, which sql/step-bd2 adds. Expect a
 --     doorLeafPart -> mullionPart row with max_count NULL. If it is not
@@ -108,10 +125,9 @@ DO $$
 DECLARE
   _profile_id bigint;
   _product    text;
-  _templates  jsonb := '[{"name":"Front Door","sort_order":200,"tree":{"key":"item_eszf91i","part_type":"drawingItemPart","values":{"typeOfWork":"complete_new","frameMaterialId":"utile","sashMaterialId":"utile","cillMaterialId":"utile","quantity":1},"children":[{"key":"paint_jfxdzo1","part_type":"paintAndIronmongeryPart","values":{"internalFinish":"clean_white","externalFinish":"custom_colour_tbc","cillFinish":"clean_white","cutOutBrickReveal":false,"ironmongeryFinish":"PB","isDoorMpls":true,"isFrontDoor":true},"children":[]},{"key":"notes_qoox584","part_type":"notesPart","values":{},"children":[]},{"key":"price_jq9xrzi","part_type":"pricePart","values":{},"children":[]},{"key":"frame_vlzb6ke","part_type":"assemblyFramePart","values":{"width":1099,"height":2182,"leftWidth":47,"rightWidth":47,"topHeight":47,"bottomHeight":50,"frameDepth":96,"jambType":"solid_profiled","frameHeadStopSize":20,"frameStileStopSize":20,"cillStopSize":26,"rakeFrame":false,"archHead":false,"toBeReplaced":true},"children":[{"key":"doorleaf_hgkxy30","part_type":"doorLeafPart","values":{"operation":"left_hand_hung","casementTypeId":"open_in","thickness":54,"topHeight":110,"leftWidth":110,"rightWidth":110,"bottomHeight":170,"bottomHeightExternal":170,"btmRailShapeId":"stepped","mechanicalClearanceTop":3,"mechanicalClearanceLeft":4,"mechanicalClearanceRight":4,"mechanicalClearanceBottom":14,"defaultMuntinThickness":120,"archHead":false,"toBeReplaced":true},"children":[{"key":"doorleaf_hgkxy30_muntin1","part_type":"mullionPart","values":{"isMuntin":true,"offset":329,"thicknessInFrame":120,"muntinThickness":120,"mullionStopSize":0,"startDivider":"0","endDivider":"0"},"children":[]},{"key":"doorleaf_hgkxy30_midrail1","part_type":"transomPart","values":{"isMidrail":true,"offset":809,"thicknessInFrame":170,"midrailThickness":170,"transomStopSize":18,"startDivider":"0","endDivider":"0"},"children":[]},{"key":"doorleaf_hgkxy30_panel1","part_type":"panelPart","values":{"internalPanelTypeId":"raised_and_fielded","externalPanelTypeId":"raised_and_fielded","internalPanelBeadId":"ovolo","externalPanelBeadId":"ovolo","insulationThickness":15,"createVisionPanel":true,"panelThickness":0,"toBeReplaced":true},"children":[]},{"key":"doorleaf_hgkxy30_panel2","part_type":"panelPart","values":{"internalPanelTypeId":"raised_and_fielded","externalPanelTypeId":"raised_and_fielded","internalPanelBeadId":"ovolo","externalPanelBeadId":"ovolo","insulationThickness":15,"createVisionPanel":true,"panelThickness":0,"toBeReplaced":true},"children":[]},{"key":"doorleaf_hgkxy30_panel3","part_type":"panelPart","values":{"internalPanelTypeId":"raised_and_fielded","externalPanelTypeId":"raised_and_fielded","internalPanelBeadId":"ovolo","externalPanelBeadId":"ovolo","insulationThickness":15,"createVisionPanel":true,"panelThickness":0,"toBeReplaced":true},"children":[]},{"key":"doorleaf_hgkxy30_panel4","part_type":"panelPart","values":{"internalPanelTypeId":"raised_and_fielded","externalPanelTypeId":"raised_and_fielded","internalPanelBeadId":"ovolo","externalPanelBeadId":"ovolo","insulationThickness":15,"createVisionPanel":true,"panelThickness":0,"toBeReplaced":true},"children":[]}]},{"key":"cill_8c2l3bb","part_type":"cillPart","values":{"height":50,"depth":145},"children":[]}]}]}},{"name":"Front Door With Fanlight","sort_order":210,"tree":{"key":"item_6feboop","part_type":"drawingItemPart","values":{"typeOfWork":"complete_new","frameMaterialId":"utile","sashMaterialId":"utile","cillMaterialId":"utile","quantity":1},"children":[{"key":"paint_b14hhw8","part_type":"paintAndIronmongeryPart","values":{"internalFinish":"clean_white","externalFinish":"custom_colour_tbc","cillFinish":"clean_white","cutOutBrickReveal":false,"ironmongeryFinish":"PB","isDoorMpls":true,"isFrontDoor":true},"children":[]},{"key":"notes_w972nq4","part_type":"notesPart","values":{},"children":[]},{"key":"price_15t61jj","part_type":"pricePart","values":{},"children":[]},{"key":"frame_s38vsuv","part_type":"assemblyFramePart","values":{"width":1099,"height":2595,"leftWidth":47,"rightWidth":47,"topHeight":47,"bottomHeight":50,"frameDepth":96,"jambType":"solid_profiled","frameHeadStopSize":20,"frameStileStopSize":20,"cillStopSize":26,"rakeFrame":false,"archHead":false,"toBeReplaced":true},"children":[{"key":"trans_lkaainl","part_type":"transomPart","values":{"offset":431,"thicknessInFrame":41,"transomStopSize":18,"startDivider":"0","endDivider":"0"},"children":[]},{"key":"dgu_ne03m0i","part_type":"glassPart","values":{"glazingId":"double_glazing","isIndividualPanes":false,"internalGlassPartNo":"GL100010","externalGlassPartNo":"GL100080","glazingRebateWidth":15,"glazingTolerance":3,"mechanicalClearanceTop":15,"mechanicalClearanceBottom":15,"mechanicalClearanceLeft":15,"mechanicalClearanceRight":15,"hiddenInRebateTop":15,"hiddenInRebateBottom":15,"hiddenInRebateLeft":15,"hiddenInRebateRight":15,"toBeReplaced":true},"children":[]},{"key":"doorleaf_344imee","part_type":"doorLeafPart","values":{"operation":"left_hand_hung","casementTypeId":"open_in","thickness":54,"topHeight":110,"leftWidth":110,"rightWidth":110,"bottomHeight":170,"bottomHeightExternal":170,"btmRailShapeId":"stepped","mechanicalClearanceTop":3,"mechanicalClearanceLeft":4,"mechanicalClearanceRight":4,"mechanicalClearanceBottom":14,"defaultMuntinThickness":120,"archHead":false,"toBeReplaced":true},"children":[{"key":"doorleaf_344imee_midrail1","part_type":"transomPart","values":{"isMidrail":true,"offset":780,"thicknessInFrame":170,"midrailThickness":170,"transomStopSize":18,"startDivider":"0","endDivider":"0"},"children":[]},{"key":"doorleaf_344imee_glass1","part_type":"glassPart","values":{"glazingId":"double_glazing","isIndividualPanes":false,"internalGlassPartNo":"GL100010","externalGlassPartNo":"GL100080","glazingRebateWidth":15,"glazingTolerance":3},"children":[]},{"key":"doorleaf_344imee_panel2","part_type":"panelPart","values":{"internalPanelTypeId":"raised_and_fielded","externalPanelTypeId":"raised_and_fielded","internalPanelBeadId":"ovolo","externalPanelBeadId":"ovolo","insulationThickness":15,"createVisionPanel":true,"panelThickness":0,"toBeReplaced":true},"children":[]}]},{"key":"cill_fza8ghh","part_type":"cillPart","values":{"height":50,"depth":145},"children":[]}]}]}},{"name":"Arched Front Door","sort_order":220,"tree":{"key":"item_5r7um2u","part_type":"drawingItemPart","values":{"typeOfWork":"complete_new","frameMaterialId":"utile","sashMaterialId":"utile","cillMaterialId":"utile","quantity":1},"children":[{"key":"paint_0mabmbz","part_type":"paintAndIronmongeryPart","values":{"internalFinish":"clean_white","externalFinish":"custom_colour_tbc","cillFinish":"clean_white","cutOutBrickReveal":false,"ironmongeryFinish":"PB","isDoorMpls":true,"isFrontDoor":true},"children":[]},{"key":"notes_tubnkaq","part_type":"notesPart","values":{},"children":[]},{"key":"price_t7dcn65","part_type":"pricePart","values":{},"children":[]},{"key":"frame_c6yxwz9","part_type":"assemblyFramePart","values":{"width":1099,"height":2199,"leftWidth":47,"rightWidth":47,"topHeight":47,"bottomHeight":50,"frameDepth":96,"jambType":"solid_profiled","frameHeadStopSize":20,"frameStileStopSize":20,"cillStopSize":26,"rakeFrame":false,"archHead":false,"toBeReplaced":true,"curvedFrameHead":true,"frameLevelArchHead":true,"frameLevelArchHeight":508.891,"frameLevelArchRadius":551.121,"archShoulderLeft":1690,"archShoulderRight":1690},"children":[{"key":"doorleaf_simyb4y","part_type":"doorLeafPart","values":{"operation":"left_hand_hung","casementTypeId":"open_in","thickness":54,"topHeight":110,"leftWidth":110,"rightWidth":110,"bottomHeight":170,"bottomHeightExternal":170,"btmRailShapeId":"stepped","mechanicalClearanceTop":3,"mechanicalClearanceLeft":4,"mechanicalClearanceRight":4,"mechanicalClearanceBottom":14,"defaultMuntinThickness":120,"archHead":true,"archHeight":345.92,"archRadius":391.12,"curvedSashHead":true,"shoulderHeight":1459.08,"toBeReplaced":true},"children":[{"key":"doorleaf_simyb4y_midrail1","part_type":"transomPart","values":{"isMidrail":true,"offset":843,"thicknessInFrame":120,"midrailThickness":120,"transomStopSize":18,"startDivider":"0","endDivider":"0"},"children":[]},{"key":"doorleaf_simyb4y_glass1","part_type":"glassPart","values":{"glazingId":"double_glazing","isIndividualPanes":false,"internalGlassPartNo":"GL100010","externalGlassPartNo":"GL100080","glazingRebateWidth":15,"glazingTolerance":3},"children":[]},{"key":"doorleaf_simyb4y_panel2","part_type":"panelPart","values":{"internalPanelTypeId":"raised_and_fielded","externalPanelTypeId":"raised_and_fielded","internalPanelBeadId":"ovolo","externalPanelBeadId":"ovolo","insulationThickness":15,"createVisionPanel":true,"panelThickness":0,"toBeReplaced":true},"children":[]}]},{"key":"cill_n2mvesm","part_type":"cillPart","values":{"height":50,"depth":145},"children":[]}]}]}}]'::jsonb;
+  _templates  jsonb := '[{"name":"Front Door","sort_order":200,"tree":{"key":"item_hudihhh","part_type":"drawingItemPart","values":{"typeOfWork":"complete_new","frameMaterialId":"utile","sashMaterialId":"utile","cillMaterialId":"utile","quantity":1},"children":[{"key":"paint_3mdvue8","part_type":"paintAndIronmongeryPart","values":{"internalFinish":"clean_white","externalFinish":"custom","cillFinish":"clean_white","cutOutBrickReveal":false,"ironmongeryFinish":"PB","isDoorMpls":true,"isFrontDoor":true},"children":[]},{"key":"notes_iftlwmi","part_type":"notesPart","values":{},"children":[]},{"key":"price_4t8rkuu","part_type":"pricePart","values":{},"children":[]},{"key":"frame_p10qns2","part_type":"assemblyFramePart","values":{"width":1099,"height":2182,"leftWidth":47,"rightWidth":47,"topHeight":47,"bottomHeight":50,"frameDepth":96,"jambType":"solid_profiled","frameHeadStopSize":20,"frameStileStopSize":20,"cillStopSize":26,"rakeFrame":false,"archHead":false,"toBeReplaced":true},"children":[{"key":"doorleaf_513s3dq","part_type":"doorLeafPart","values":{"operation":"left_hand_hung","casementTypeId":"open_in","thickness":54,"topHeight":110,"leftWidth":110,"rightWidth":110,"bottomHeight":170,"bottomHeightExternal":170,"btmRailShapeId":"stepped","mechanicalClearanceTop":3,"mechanicalClearanceLeft":4,"mechanicalClearanceRight":4,"mechanicalClearanceBottom":14,"defaultMuntinThickness":120,"archHead":false,"toBeReplaced":true},"children":[{"key":"doorleaf_513s3dq_muntin1","part_type":"mullionPart","values":{"isMuntin":true,"offset":329,"thicknessInFrame":120,"muntinThickness":120,"mullionStopSize":0,"startDivider":"0","endDivider":"0"},"children":[]},{"key":"doorleaf_513s3dq_midrail1","part_type":"transomPart","values":{"isMidrail":true,"offset":809,"thicknessInFrame":170,"midrailThickness":170,"transomStopSize":18,"startDivider":"0","endDivider":"0"},"children":[]},{"key":"doorleaf_513s3dq_panel1","part_type":"panelPart","values":{"internalPanelTypeId":"raised_and_fielded","externalPanelTypeId":"raised_and_fielded","internalPanelBeadId":"ovolo","externalPanelBeadId":"ovolo","insulationThickness":15,"createVisionPanel":true,"panelThickness":0,"toBeReplaced":true},"children":[]},{"key":"doorleaf_513s3dq_panel2","part_type":"panelPart","values":{"internalPanelTypeId":"raised_and_fielded","externalPanelTypeId":"raised_and_fielded","internalPanelBeadId":"ovolo","externalPanelBeadId":"ovolo","insulationThickness":15,"createVisionPanel":true,"panelThickness":0,"toBeReplaced":true},"children":[]},{"key":"doorleaf_513s3dq_panel3","part_type":"panelPart","values":{"internalPanelTypeId":"raised_and_fielded","externalPanelTypeId":"raised_and_fielded","internalPanelBeadId":"ovolo","externalPanelBeadId":"ovolo","insulationThickness":15,"createVisionPanel":true,"panelThickness":0,"toBeReplaced":true},"children":[]},{"key":"doorleaf_513s3dq_panel4","part_type":"panelPart","values":{"internalPanelTypeId":"raised_and_fielded","externalPanelTypeId":"raised_and_fielded","internalPanelBeadId":"ovolo","externalPanelBeadId":"ovolo","insulationThickness":15,"createVisionPanel":true,"panelThickness":0,"toBeReplaced":true},"children":[]}]},{"key":"cill_9ntoe5g","part_type":"cillPart","values":{"height":50,"depth":145},"children":[]}]}]}},{"name":"Front Door With Fanlight","sort_order":210,"tree":{"key":"item_k5l0f5w","part_type":"drawingItemPart","values":{"typeOfWork":"complete_new","frameMaterialId":"utile","sashMaterialId":"utile","cillMaterialId":"utile","quantity":1},"children":[{"key":"paint_87apgb3","part_type":"paintAndIronmongeryPart","values":{"internalFinish":"clean_white","externalFinish":"custom","cillFinish":"clean_white","cutOutBrickReveal":false,"ironmongeryFinish":"PB","isDoorMpls":true,"isFrontDoor":true},"children":[]},{"key":"notes_zn7zktr","part_type":"notesPart","values":{},"children":[]},{"key":"price_atqu7lw","part_type":"pricePart","values":{},"children":[]},{"key":"frame_3y4khil","part_type":"assemblyFramePart","values":{"width":1099,"height":2595,"leftWidth":47,"rightWidth":47,"topHeight":47,"bottomHeight":50,"frameDepth":96,"jambType":"solid_profiled","frameHeadStopSize":20,"frameStileStopSize":20,"cillStopSize":26,"rakeFrame":false,"archHead":false,"toBeReplaced":true},"children":[{"key":"trans_xtpm8nu","part_type":"transomPart","values":{"offset":431,"thicknessInFrame":41,"transomStopSize":18,"startDivider":"0","endDivider":"0"},"children":[]},{"key":"dgu_vocbei5","part_type":"glassPart","values":{"glazingId":"double_glazing","isIndividualPanes":false,"internalGlassPartNo":"GL100010","externalGlassPartNo":"GL100080","glazingRebateWidth":15,"glazingTolerance":3,"mechanicalClearanceTop":15,"mechanicalClearanceBottom":15,"mechanicalClearanceLeft":15,"mechanicalClearanceRight":15,"hiddenInRebateTop":15,"hiddenInRebateBottom":15,"hiddenInRebateLeft":15,"hiddenInRebateRight":15,"toBeReplaced":true},"children":[]},{"key":"doorleaf_pz4v0vp","part_type":"doorLeafPart","values":{"operation":"left_hand_hung","casementTypeId":"open_in","thickness":54,"topHeight":110,"leftWidth":110,"rightWidth":110,"bottomHeight":170,"bottomHeightExternal":170,"btmRailShapeId":"stepped","mechanicalClearanceTop":3,"mechanicalClearanceLeft":4,"mechanicalClearanceRight":4,"mechanicalClearanceBottom":14,"defaultMuntinThickness":120,"archHead":false,"toBeReplaced":true},"children":[{"key":"doorleaf_pz4v0vp_midrail1","part_type":"transomPart","values":{"isMidrail":true,"offset":780,"thicknessInFrame":170,"midrailThickness":170,"transomStopSize":18,"startDivider":"0","endDivider":"0"},"children":[]},{"key":"doorleaf_pz4v0vp_glass1","part_type":"glassPart","values":{"glazingId":"double_glazing","isIndividualPanes":false,"internalGlassPartNo":"GL100010","externalGlassPartNo":"GL100080","glazingRebateWidth":15,"glazingTolerance":3},"children":[]},{"key":"doorleaf_pz4v0vp_panel2","part_type":"panelPart","values":{"internalPanelTypeId":"raised_and_fielded","externalPanelTypeId":"raised_and_fielded","internalPanelBeadId":"ovolo","externalPanelBeadId":"ovolo","insulationThickness":15,"createVisionPanel":true,"panelThickness":0,"toBeReplaced":true},"children":[]}]},{"key":"cill_605w9nr","part_type":"cillPart","values":{"height":50,"depth":145},"children":[]}]}]}},{"name":"Arched Front Door","sort_order":220,"tree":{"key":"item_n2napat","part_type":"drawingItemPart","values":{"typeOfWork":"complete_new","frameMaterialId":"utile","sashMaterialId":"utile","cillMaterialId":"utile","quantity":1},"children":[{"key":"paint_awym1h0","part_type":"paintAndIronmongeryPart","values":{"internalFinish":"clean_white","externalFinish":"custom","cillFinish":"clean_white","cutOutBrickReveal":false,"ironmongeryFinish":"PB","isDoorMpls":true,"isFrontDoor":true},"children":[]},{"key":"notes_rswyi1j","part_type":"notesPart","values":{},"children":[]},{"key":"price_wto8rf0","part_type":"pricePart","values":{},"children":[]},{"key":"frame_zrtjt4d","part_type":"assemblyFramePart","values":{"width":1099,"height":2199,"leftWidth":47,"rightWidth":47,"topHeight":47,"bottomHeight":50,"frameDepth":96,"jambType":"solid_profiled","frameHeadStopSize":20,"frameStileStopSize":20,"cillStopSize":26,"rakeFrame":false,"archHead":false,"toBeReplaced":true,"curvedFrameHead":true,"frameLevelArchHead":true,"frameLevelArchHeight":508.891,"frameLevelArchRadius":551.121,"archShoulderLeft":1690,"archShoulderRight":1690},"children":[{"key":"doorleaf_wlqdydh","part_type":"doorLeafPart","values":{"operation":"left_hand_hung","casementTypeId":"open_in","thickness":54,"topHeight":110,"leftWidth":110,"rightWidth":110,"bottomHeight":170,"bottomHeightExternal":170,"btmRailShapeId":"stepped","mechanicalClearanceTop":3,"mechanicalClearanceLeft":4,"mechanicalClearanceRight":4,"mechanicalClearanceBottom":14,"defaultMuntinThickness":120,"archHead":true,"archHeight":345.92,"archRadius":391.12,"curvedSashHead":true,"shoulderHeight":1459.08,"toBeReplaced":true},"children":[{"key":"doorleaf_wlqdydh_midrail1","part_type":"transomPart","values":{"isMidrail":true,"offset":843,"thicknessInFrame":120,"midrailThickness":120,"transomStopSize":18,"startDivider":"0","endDivider":"0"},"children":[]},{"key":"doorleaf_wlqdydh_glass1","part_type":"glassPart","values":{"glazingId":"double_glazing","isIndividualPanes":false,"internalGlassPartNo":"GL100010","externalGlassPartNo":"GL100080","glazingRebateWidth":15,"glazingTolerance":3},"children":[]},{"key":"doorleaf_wlqdydh_panel2","part_type":"panelPart","values":{"internalPanelTypeId":"raised_and_fielded","externalPanelTypeId":"raised_and_fielded","internalPanelBeadId":"ovolo","externalPanelBeadId":"ovolo","insulationThickness":15,"createVisionPanel":true,"panelThickness":0,"toBeReplaced":true},"children":[]}]},{"key":"cill_h0eag1d","part_type":"cillPart","values":{"height":50,"depth":145},"children":[]}]}]}}]'::jsonb;
   _row        record;
   _tree       jsonb;
-  _rows       int;
 BEGIN
   SELECT id INTO _profile_id FROM public.default_profiles
   WHERE code = 'open_in_doors' AND is_active = TRUE;
@@ -124,6 +140,21 @@ BEGIN
   ORDER BY sort_order LIMIT 1;
   IF _product IS NULL THEN
     RAISE EXCEPTION 'No active reference_options row with category ''product'' and label ''Door''';
+  END IF;
+
+  -- The two finish codes the trees carry must BE options, or a surveyor opens
+  -- the drawing on a finish the board cannot show.
+  IF NOT EXISTS (
+    SELECT 1 FROM public.reference_options
+    WHERE category = 'paint_finish' AND code = 'clean_white' AND is_active
+  ) THEN
+    RAISE EXCEPTION 'No active paint_finish option ''clean_white''';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.reference_options
+    WHERE category = 'paint_finish' AND code = 'custom' AND is_active
+  ) THEN
+    RAISE EXCEPTION 'No active paint_finish option ''custom'' — SECTION 0b lists what there is';
   END IF;
 
   IF NOT EXISTS (
@@ -153,25 +184,24 @@ BEGIN
       RAISE EXCEPTION 'Template "%" has no OPEN IN leaf — do not run this file', _row.name;
     END IF;
 
-    INSERT INTO public.drawing_templates
-      (name, family, group_name, window_type, sort_order, tree, default_profile_id, is_active)
-    VALUES
-      (_row.name, 'door', 'Open In Doors', 'Door', _row.sort_order, _tree, _profile_id, TRUE)
-    ON CONFLICT (name) DO UPDATE
-      SET tree = EXCLUDED.tree,
-          family = EXCLUDED.family,
-          group_name = EXCLUDED.group_name,
-          window_type = EXCLUDED.window_type,
-          sort_order = EXCLUDED.sort_order,
-          default_profile_id = EXCLUDED.default_profile_id,
-          is_active = TRUE,
-          updated_at = now();
-
-    GET DIAGNOSTICS _rows = ROW_COUNT;
-    IF _rows <> 1 THEN
-      RAISE EXCEPTION 'Expected to write exactly 1 template for "%", wrote %', _row.name, _rows;
+    -- drawing_templates has NO unique index on name, so this matches by hand
+    -- rather than with ON CONFLICT (sql/step-bc2's pattern). If a name were
+    -- somehow duplicated, the UPDATE would write both rows the same tree,
+    -- which is why SECTION 0e counts them first.
+    IF EXISTS (SELECT 1 FROM public.drawing_templates WHERE name = _row.name) THEN
+      UPDATE public.drawing_templates
+      SET tree = _tree, default_profile_id = _profile_id, window_type = 'Door',
+          family = 'door', group_name = 'Open In Doors',
+          sort_order = _row.sort_order, is_active = TRUE, updated_at = now()
+      WHERE name = _row.name;
+      RAISE NOTICE 'Step BD-3: % updated in place', _row.name;
+    ELSE
+      INSERT INTO public.drawing_templates
+        (name, family, group_name, window_type, default_profile_id, tree, sort_order, is_active)
+      VALUES (_row.name, 'door', 'Open In Doors', 'Door',
+              _profile_id, _tree, _row.sort_order, TRUE);
+      RAISE NOTICE 'Step BD-3: % created', _row.name;
     END IF;
-    RAISE NOTICE 'Step BD-3: % written', _row.name;
   END LOOP;
 END $$;
 
@@ -207,10 +237,12 @@ WHERE  name IN ('Front Door', 'Front Door With Fanlight', 'Arched Front Door')
 ORDER  BY sort_order;
 
 -- 3. The things that drive the price: the front-door flag, the open-in leaf,
---    the dual finish, the 50 cill, and the arch on the arched one only.
+--    the dual finish (expect "custom" on the outside, not the old
+--    custom_colour_tbc), the 50 cill, and the arch on the arched one only.
 SELECT name,
        (SELECT jsonb_agg(v) FROM jsonb_path_query(tree, '$.**.values.isFrontDoor') v)       AS is_front_door,
        (SELECT jsonb_agg(v) FROM jsonb_path_query(tree, '$.**.values.casementTypeId') v)    AS leaf_type,
+       (SELECT jsonb_agg(v) FROM jsonb_path_query(tree, '$.**.values.internalFinish') v)    AS internal_finish,
        (SELECT jsonb_agg(v) FROM jsonb_path_query(tree, '$.**.values.externalFinish') v)    AS external_finish,
        (SELECT jsonb_agg(v) FROM jsonb_path_query(tree, '$.**.values ? (@.depth == 145).height') v) AS cill_height,
        (SELECT jsonb_agg(v) FROM jsonb_path_query(tree, '$.**.values.curvedFrameHead') v)   AS curved_frame_head,
@@ -227,6 +259,21 @@ SELECT name,
 FROM   public.drawing_templates
 WHERE  name IN ('Front Door', 'Front Door With Fanlight', 'Arched Front Door')
 ORDER  BY sort_order;
+
+-- 5. Every finish code any template carries IS an option. Expect 0 rows.
+SELECT t.name, f.finish_code
+FROM   public.drawing_templates t
+CROSS  JOIN LATERAL (
+  SELECT jsonb_array_elements_text(
+    coalesce((SELECT jsonb_agg(v) FROM jsonb_path_query(t.tree, '$.**.values.internalFinish') v), '[]'::jsonb) ||
+    coalesce((SELECT jsonb_agg(v) FROM jsonb_path_query(t.tree, '$.**.values.externalFinish') v), '[]'::jsonb)
+  ) AS finish_code
+) f
+WHERE  NOT EXISTS (
+  SELECT 1 FROM public.reference_options o
+  WHERE o.category = 'paint_finish' AND o.code = f.finish_code AND o.is_active
+)
+ORDER  BY t.name, f.finish_code;
 
 
 -- ---------------------------------------------------------------------------
