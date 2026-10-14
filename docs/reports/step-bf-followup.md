@@ -182,5 +182,25 @@ all outside the new branch); no touched file gained one.
 
 # e2e after the deploy
 
-Recorded below once the Vercel deploy was confirmed by decoding
-`/version.json`.
+Deploy confirmed by decoding `/version.json`: **12:08:37Z**, after the push
+(the local build stamp was 12:06:28Z).
+
+`npm run e2e` — **5 passed** (50.7s):
+
+| | |
+|---|---|
+| logs in | ok |
+| every benchmark passes except the parked residuals | ok |
+| the fanlight drawing shows Fanlight A1 and Casement Sash A2 | ok |
+| the validation panel loads without an error | ok |
+| every drawing card on the L507712 quote matrix shows a price | ok |
+
+The second one is the one that matters here: it carries the DELIBERATE pins,
+and **FD4's −49.32 is now one of them** — so the live benchmark page reads
+BY DESIGN on that row, and the figure cannot drift without the smoke suite
+saying so.
+
+**What the smoke suite cannot yet see**: the three stable-door prices. They
+will stay at 2,709.72 / 2,612.38 / 2,736.42 on drawings 50–52 until the
+re-issued `sql/step-bf3` is run; the offline test pins what they should be,
+and the next step should pin the live figures too, once the file has run.
