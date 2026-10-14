@@ -718,6 +718,109 @@ Integrate lists the right-hand one.
 
 ---
 
+
+---
+
+## 16. Integrate's own door-production errors are corrected, not copied
+
+**Decided by:** Nathan, 14 Oct 2026 (decision d), from the reviewer's reading
+of Integrate's **Estimated Labour Time editor** (Production > Lookup Editor >
+std_labour_time_new), which shows the rules it fires per item.
+
+FT1's 2,670 minutes had been unexplained since Step BD. The editor shows why:
+
+| Integrate fires | on FT1 | should be |
+|---|---|---|
+| 1240 "Additional for Flat Panel" 60 | 4 × 60 = 240 | — the panels are type 110, **raised and fielded** |
+| 1245 "Additional for R&F Panel" 120 | never | 4 × 120 = **480** |
+| 1235 "Door Muntin" 60 | 2 × 60 = 120 | 1 × 60 = **60** — the leaf has one muntin; Integrate counts its **mid rail** as a second |
+
+Two errors, and on a four-panel door they do not cancel. GlazePro charges
+**R&F 120 a panel** and **60 a REAL muntin** (''sash_muntin_to_be_replaced_qty''
+is now the door leaves' own ''mullionPart'' children; a mid rail is not one):
+
+- **FT1** 2,850 against Integrate's 2,670 — **+180 min, +£73.98**;
+- **FT4** 4,085 against 3,905 — the same **+180**, from five panels and two
+  mid rails;
+- **FT2 and FT3 do not move.** FT3 is the case where the two errors cancel:
+  Integrate's flat-panel 60 plus a mid-rail "muntin" 60 happens to equal
+  GlazePro's R&F 120, so its 3,290 was right for the wrong reason, and still
+  reads 3,290.
+
+A **sash window** keeps the variable at 0 — a box sash's real glazing bars are
+counted as ''gb_to_be_replaced_qty'', and the two "Real Glazing Bar" rules are
+gated on ''is_sw'' / ''not is_door'', so a door's muntins can never reach them.
+
+## 17. Shaped glass is billed on the sheet it is cut from
+
+**Decided by:** Nathan, 14 Oct 2026 (decision e) — **all** shaped glass, a
+door and an arched sash window alike.
+
+A shaped unit is priced on the **LARGEST RECTANGLE of its cut glass plus 25%**
+(the supplier's charge for cutting a shape out of a sheet), at the **SQUARE**
+glass rate. Integrate does two things differently, and both are wrong:
+
+- it prices the **exact shaped area** — and on FT3 even that is wrong, 0.62 m²
+  where the shape measures 0.79;
+- it moves the quarter onto the **RATE** (71.88 = the square rate's panes ×
+  1.25) instead of the area.
+
+| | was | now |
+|---|---|---|
+| **FT3**, the arched front door | 0.83 m² (GlazePro's exact shape) at 71.88 | **1.13 m²** (801 × 1127 of cut glass + 25%) at the square rate |
+| **C**, the arched-head box sash | 0.32 m² at 71.88 and the bar surcharge at 44 | **0.43 m²** (750 × 460.5 + 25%), both lines |
+
+The **energy surcharge is untouched**: its rule is
+''(rounded_area × (inner + outer thickness)) × 2.5'' at 0.17, so it reads the
+same billable area and follows it — FT3's 16.6 kg becomes 22.6, C's 6.4 becomes
+8.6. That is the rule working as written, not a change to it.
+
+The exact-shape model is **kept in the code** (''shapedGlassCutAreaM2'') and no
+longer prices anything: it is the measurement of the glass, and the difference
+between it and the bill is the supplier's charge.
+
+**Two halves on the page.** The AREA is GlazePro's own (the engine), so it is
+BY DESIGN today; the RATE is still Integrate's 71.88 until **''sql/step-be1''**
+makes the shaped rule read the square rule's own expression. Until it runs,
+each row carries the second half as PENDING — FT3 £15.11, C £5.75 — because
+the quarter must not be charged on the area AND the rate.
+
+## 18. A side light is a fixed casement sash, and its timber is a door's
+
+**Decided by:** Nathan, 14 Oct 2026 (decision g, from his drawing 20), which
+**replaces** decision c's "fixed door leaf".
+
+A front door's side light is a **fixed casement sash** in the door frame,
+holding the same grid a leaf does — a mid rail, glass above it and a
+raised-and-fielded panel below — with its rail **lining up with the door's**.
+
+Integrate allocates its timber like a **door's**, and GlazePro follows:
+
+- the stiles and top rail at **63x63**, W + 2H with **no fanlight offset**
+  (FT4: 4,517 mm, Integrate's own figure — a fanlight reads +14);
+- the **175 bottom rail** from the same **63x200** as a door's bottom rail
+  (359 mm), not from the 63x96 an 86 fanlight rail uses.
+
+The rail depth is what tells the two apart: a fanlight's is 62 or 86, a side
+light's is the door's 170-odd (''DOOR_DEPTH_RAIL_MM'').
+
+**What GlazePro charges on FT4 that Integrate does not** (difference 11 and
+13, recomputed): the frame **mullion** 2,085 mm at 67x96 = £28.36, the leaf's
+**120 muntin** 1,788 mm and its **120 mid rail** 672 mm at 63x120 = £42.56.
+Everything else on FT4 is Integrate's to the penny — its five Tricoya panels,
+its glass at the 0.30 m² minimum, its fitting (840 + 120 a mullion + 120 a
+fixed sash, and **no** "Combination Frame"), its ironmongery and its
+components.
+
+**The rails meet by arithmetic, not by a stored figure.** A divider's offset is
+the span before it, so what is stored is the glass above the rail. The door's
+rail stands ''bottom clearance + bottom rail + bottom panel'' above the opening
+(14 + 170 + 635 = 819 on the Balham template); the sash drops 3 and has a 175
+rail, so its panel must be 641 and its offset **1031**. Integrate's own drawing
+20 instead makes the two **panels** equal (834 each) and leaves the rails 6 mm
+apart; the reviewer asked for the rails to meet, so that is what the template
+does and what the fixture (Integrate's tree) does not.
+
 # Open questions
 
 **Not parked, and not decided.** The parked table below is for differences
@@ -727,9 +830,12 @@ must not borrow the word "parked" (reviewer, 14 Oct). It is listed here with
 its amount, it is declared on its benchmark so the figure cannot drift, and
 the benchmark page says **OPEN QUESTION** on the row in as many words.
 
+**None open.** FT3’s shaped glass was the only one, and Nathan closed it on
+14 Oct — difference 17. The section stays because the next one belongs here
+rather than in the parked table.
+
 | Benchmark | Cost gap | Price gap | What is not understood | Opened |
 |---|---|---|---|---|
-| **FT3** | +£15.81 | +£31.62 | The arched leaf’s **shaped glass**. GlazePro prices 0.83 m², Integrate 0.62, on the same 777 × 1103 sightline with a 345.92 rise. GlazePro’s model — the sightline shape grown by the cover, arc concentric — reproduces benchmark **C** exactly, so the SHALLOW-arch case is right. This head is NEAR-SEMICIRCULAR: radius 391.12 against a 777 chord, so the head’s inner edge spans only 2 × (391.12 − 110) = 562 mm, the glass is **narrower than the leaf interior**, and the rail’s feet take the top corners. A rectangle 562 × 822 plus a semicircular head, grown by the cover, gives **0.624** — Integrate’s figure. **Needed:** one reading of Integrate’s glass sightline on an arched door. Nothing has been tuned, and no second model has been built on one reading. | 14 Oct 2026 |
 
 # Parked residuals
 

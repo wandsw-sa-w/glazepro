@@ -14,7 +14,7 @@
 
 import { makeKey } from './gridActions.js'
 import { firstOf } from './casementOpenings.js'
-import { DOOR_LEAF_TYPES, leafInterior } from '../pricing/doorGeometry.js'
+import { DOOR_LEAF_TYPES, leafInterior, leafCells, doorPanelSize } from '../pricing/doorGeometry.js'
 import { itemFrames } from '../pricing/casementGeometry.js'
 
 /** The materials a door may be made of. Integrate's material 44 is utile. */
@@ -1602,6 +1602,7 @@ export function buildFrontDoorFrame(profileValues, {
   rowOffsets = null,
   fanlight = null,                 // { offset } — a direct glazed unit over a transom
   arch = null,                     // { frame: {...}, leaf: {...} }
+  sideLight = null,                // { side: 'left' | 'right' } — a fixed sash beside it
 } = {}) {
   const resolved = doorProfileDefaults(profileValues)
   if (resolved.missing.length > 0) return { tree: null, missing: resolved.missing }
@@ -1692,12 +1693,190 @@ export function buildFrontDoorFrame(profileValues, {
     }),
   }
 
+  const withGrid = setLeafGrid(tree, leaf.node.key, {
+    columns, rows, cells, midRailThickness, columnOffsets, rowOffsets,
+  }, profileValues)
+  if (!sideLight) return { tree: withGrid, missing: [] }
+
+  // Step BE: the side light goes on AFTER the grid, because where its own
+  // mid rail sits is worked out from the door’s bottom panel.
+  const frameKey = (withGrid.children ?? []).find(c => c.part_type === 'assemblyFramePart')?.key
+  const added = addSideLight(withGrid, frameKey, sideLight.side ?? 'right', profileValues)
+  return { tree: added.tree, missing: added.missing ?? [] }
+}
+
+/**
+ * Step BE (Nathan, decision g): a SIDE LIGHT.
+ *
+ * A fixed CASEMENT SASH beside the door — not a fixed door leaf, which is
+ * what decision c had guessed before Nathan drew one. It carries the same
+ * grid a leaf does, glass over a raised-and-fielded panel, and its mid rail
+ * LINES UP with the door’s.
+ *
+ * Lining up is arithmetic, not a stored figure. Measured from the bottom of
+ * the opening, the door’s mid rail sits at
+ *     leaf bottom clearance + bottom rail + panel
+ * and the sash’s at
+ *     sash bottom clearance + bottom rail + panel.
+ * The door’s bottom rail is 170 and its leaf drops 14 into the frame; the
+ * sash’s rail is 175 and it drops 3. So for the two rails to meet, the
+ * sash’s own offset (the GLASS above it, which is what a divider offset
+ * stores) is its interior height less the door’s panel less the 6 mm by
+ * which the two bottoms differ. On Nathan’s drawing 20 that is 888 above a
+ * 834 panel, against the door’s 834 — the same panel height both sides.
+ */
+/** A finite number, or null — the same helper the geometry modules use. */
+function num(v) {
+  const n = Number(v)
+  return isFinite(n) ? n : null
+}
+
+export const SIDE_LIGHT_DEFAULTS = {
+  width: 365,                 // the opening; the sash is 359 in it
+  rails: { top: 62, left: 62, right: 62, bottom: 175 },
+  clearance: 3,
+  midRailThickness: 170,
+}
+
+/** Where a side light’s mid rail goes so that it meets the door’s. */
+export function sideLightMidRailOffset({
+  sashInteriorHeight,
+  doorPanelHeight,
+  midRailThickness = SIDE_LIGHT_DEFAULTS.midRailThickness,
+  doorBottomDrop = FRONT_DOOR_CLEARANCES.bottom,
+  sashBottomDrop = SIDE_LIGHT_DEFAULTS.clearance,
+  doorBottomRail = FRONT_DOOR_LEAF_BOTTOM_RAIL_MM,
+  sashBottomRail = SIDE_LIGHT_DEFAULTS.rails.bottom,
+} = {}) {
+  if (!(sashInteriorHeight > 0) || !(doorPanelHeight > 0)) return null
+  // the height of the door’s mid rail above the bottom of the opening
+  const doorRailUp = doorBottomDrop + doorBottomRail + doorPanelHeight
+  // the sash’s panel, so that its rail reaches the same height
+  const sashPanel = doorRailUp - sashBottomDrop - sashBottomRail
+  // and the offset is the GLASS above the rail — the interior less the
+  // panel AND the rail itself, which is what a divider offset means
+  const offset = sashInteriorHeight - midRailThickness - sashPanel
+  return offset > 0 ? Math.round(offset) : null
+}
+
+/**
+ * A fixed side light: the sash, its mid rail, its glass and its panel.
+ */
+export function buildSideLight(profileValues, {
+  defaults = null,
+  bottomHeight = SIDE_LIGHT_DEFAULTS.rails.bottom,
+  midRailOffset = null,
+  midRailThickness = SIDE_LIGHT_DEFAULTS.midRailThickness,
+} = {}) {
+  const resolved = defaults ?? doorProfileDefaults(profileValues)
+  if (resolved.missing.length > 0) return { node: null, missing: resolved.missing }
+  const d = resolved.values
+  const key = makeKey('sidelight')
+  const dividers = midRailOffset == null ? [] : [midRailNode(`${key}_midrail`, {
+    offset: midRailOffset, thickness: midRailThickness,
+  })]
   return {
-    tree: setLeafGrid(tree, leaf.node.key, {
-      columns, rows, cells, midRailThickness, columnOffsets, rowOffsets,
-    }, profileValues),
+    node: {
+      key,
+      part_type: 'casementSashPart',
+      values: {
+        operation: 'fix',
+        casementTypeId: 'open_in',
+        thickness: d.doorThickness,
+        topHeight:  SIDE_LIGHT_DEFAULTS.rails.top,
+        leftWidth:  SIDE_LIGHT_DEFAULTS.rails.left,
+        rightWidth: SIDE_LIGHT_DEFAULTS.rails.right,
+        bottomHeight,
+        bottomHeightExternal: bottomHeight,
+        btmRailShapeId: 'stepped',
+        mechanicalClearanceTop:    SIDE_LIGHT_DEFAULTS.clearance,
+        mechanicalClearanceBottom: SIDE_LIGHT_DEFAULTS.clearance,
+        mechanicalClearanceLeft:   SIDE_LIGHT_DEFAULTS.clearance,
+        mechanicalClearanceRight:  SIDE_LIGHT_DEFAULTS.clearance,
+        toBeReplaced: true,
+      },
+      children: [
+        ...dividers,
+        leafGlassNode(`${key}_glass`, d),
+        leafPanelNode(`${key}_panel`),
+      ],
+    },
     missing: [],
   }
+}
+
+/**
+ * Add a SIDE LIGHT to a front door: a mullion in the frame and a fixed sash
+ * in the new column, with its mid rail meeting the door’s.
+ *
+ * This is the board’s action — one call for what a surveyor does.
+ */
+export function addSideLight(tree, frameKey, side = 'right', profileValues = {}) {
+  const resolved = doorProfileDefaults(profileValues)
+  if (resolved.missing.length > 0) return { tree, changed: false, missing: resolved.missing }
+  const d = resolved.values
+  const frame = itemFrames(tree).find(f => f.key === frameKey) ?? itemFrames(tree)[0]
+  if (!frame) return { tree, changed: false, missing: [] }
+  const leaf = (frame.children ?? []).find(c => DOOR_LEAF_TYPES.includes(c.part_type))
+  if (!leaf) return { tree, changed: false, missing: [] }
+
+  const fv = frame.values ?? {}
+  const width = num(fv.width) ?? 0
+  const interiorWidth = width - d.frameJambLeft - (d.frameJambRight ?? d.frameJambLeft)
+  const mullionT = d.transomThickness
+  const doorColumn = interiorWidth - SIDE_LIGHT_DEFAULTS.width - mullionT
+  if (!(doorColumn > 0)) return { tree, changed: false, missing: [] }
+
+  // The sash’s interior, worked out from the opening it will sit in.
+  const openingHeight = (num(fv.height) ?? 0) - d.frameHead - d.cillHeight
+  const sashHeight = openingHeight - 2 * SIDE_LIGHT_DEFAULTS.clearance
+  const sashInterior = sashHeight - SIDE_LIGHT_DEFAULTS.rails.top -
+    SIDE_LIGHT_DEFAULTS.rails.bottom
+  // The door’s BOTTOM row, which is the panel the side light lines up
+  // with. doorPanelSize is the first panel in the children, and on a
+  // four-panel door that is a TOP one.
+  const doorCells = leafCells(tree, leaf)
+  const bottomRow = doorCells.length
+    ? doorCells[doorCells.length - 1].height
+    : (doorPanelSize(tree, leaf).height ?? 0)
+  const midRailOffset = sideLightMidRailOffset({
+    sashInteriorHeight: sashInterior,
+    doorPanelHeight: bottomRow,
+  })
+
+  const sash = buildSideLight(profileValues, { defaults: resolved, midRailOffset })
+  if (!sash.node) return { tree, changed: false, missing: sash.missing }
+
+  // The mullion's offset is the span BEFORE it, so the DOOR keeps its
+  // column and the side light takes what is left — on the left, the sash
+  // comes first and the door after.
+  const mullionOffset = side === 'left' ? SIDE_LIGHT_DEFAULTS.width : doorColumn
+  const mull = mullionNode(makeKey('mull'), mullionOffset, d)
+  const others = (frame.children ?? []).filter(
+    c => c.part_type !== 'cillPart' && !DOOR_LEAF_TYPES.includes(c.part_type))
+  const cills = (frame.children ?? []).filter(c => c.part_type === 'cillPart')
+  const openings = side === 'left' ? [sash.node, leaf] : [leaf, sash.node]
+
+  const nextFrame = {
+    ...frame,
+    children: [...others, mull, ...openings, ...cills],
+  }
+  return {
+    tree: replaceFrame(tree, frame.key, nextFrame),
+    changed: true,
+    missing: [],
+  }
+}
+
+/** Put a rebuilt frame back in the tree, wherever it sits. */
+function replaceFrame(tree, frameKey, nextFrame) {
+  const walk = node => {
+    if (!node) return node
+    if (node.key === frameKey) return nextFrame
+    const children = (node.children ?? []).map(walk)
+    return children.length ? { ...node, children } : node
+  }
+  return walk(tree)
 }
 
 /** Is this drawing a FRONT door? The flag the paint part carries. */
@@ -1774,6 +1953,22 @@ export const FRONT_DOOR_TEMPLATES = [
           shoulderHeight: 1459.08,
         },
       },
+    },
+  },
+  {
+    // Step BE, Nathan’s decision g: the side light is a FIXED CASEMENT
+    // SASH. The DOOR keeps Integrate’s Balham layout (983 / 635, muntin
+    // centred — decision f), and the sash’s own mid rail is placed so that
+    // it MEETS the door’s: 1031 of glass over a 641 panel, both rails 819
+    // above the bottom of the opening.
+    name: 'Front Door With Side Light',
+    sort_order: 230,
+    integrate: 310688,          // drawing 20, Nathan’s own
+    options: {
+      width: 1400, height: 2182,
+      columns: 2, rows: 2,
+      rowOffsets: [983],
+      sideLight: { side: 'right' },
     },
   },
 ]

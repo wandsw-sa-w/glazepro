@@ -143,7 +143,7 @@ import {
 import {
   DOOR_LEAF_TYPES, FRENCH_DOOR_LEAF_TYPES, doorLeafSize, doorGlassSightline,
   frenchDoorPairFor, doorLeafWeightKg, allocatedSectionParts,
-  doorPanelSize, leafForPanel, panelSizeFor,
+  doorPanelSize, leafForPanel, panelSizeFor, leafCellOf,
 } from './doorGeometry.js'
 import { isFanlightSash } from './casementSashVariables.js'
 
@@ -276,6 +276,37 @@ function defaultMissingVars(exprs, vars) {
 // cover 12): R = 708.845 + 12 = 720.845, W = 750, rectangle 0.2665 m² +
 // segment 0.0533 m² = 0.3199 → rounded 0.32, Integrate's figure; energy
 // qty 0.32 × 20 = 6.40 follows from the same area.
+/**
+ * What a SHAPED unit is BILLED on (Step BE, Nathan’s decision e, 14 Oct).
+ *
+ * The glass supplier charges for the sheet it has to cut the shape out of,
+ * plus a quarter for the cutting: the LARGEST RECTANGLE of the cut glass
+ * (its bounding box) x 1.25, at the SQUARE glass rate. FT3: 801 x 1127 =
+ * 0.902727 m2 -> 1.128409, which rounds to the 1.13 the rule prices.
+ *
+ * Integrate instead prices the EXACT shaped area at a shaped rate (the
+ * square rate x 1.25 — the same quarter, moved from the area to the rate),
+ * and on FT3 its area is 0.62 where the shape is 0.79. Both figures are
+ * Integrate's; neither is what the supplier charges.
+ */
+export function shapedGlassBillableAreaM2(cutWidthMm, cutHeightMm) {
+  const w = Number(cutWidthMm), h = Number(cutHeightMm)
+  if (!(w > 0) || !(h > 0)) return null
+  return (w * h * SHAPED_GLASS_WASTE) / 1e6
+}
+
+/** The supplier’s quarter on a shaped unit (Nathan, 14 Oct). */
+export const SHAPED_GLASS_WASTE = 1.25
+
+/**
+ * The EXACT area of a shaped cut, kept for the record.
+ *
+ * Step BE: this is no longer what a shaped unit is PRICED on — see
+ * shapedGlassBillableAreaM2. It reproduced Integrate’s own figure on
+ * benchmark C to the penny (0.32 on a 726 chord with a 100 rise), which is
+ * why it is still here: it is the measurement of the glass, and the
+ * difference between it and the bill is the supplier’s charge.
+ */
 export function shapedGlassCutAreaM2(sightlineWidth, sightlineHeight, riseMm, coverMm) {
   const chord = Number(sightlineWidth)
   const h     = Number(riseMm)
@@ -582,15 +613,18 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
   // stored value: a panel is what is left of the leaf below its mid rail.
   if (pt === 'panelPart') {
     const is_complete_new = baseVars.is_complete_new ?? false
-    const leaf = leafForPanel(tree, partNode)
-    // Step BD: this panel’s OWN cell in the leaf’s grid. doorPanelSize is
+    // Step BD: this panel’s OWN cell in its holder’s grid. doorPanelSize is
     // one size for the whole leaf, so FT1’s four panels each priced
     // 777 x 635 (0.49 m2) instead of Integrate’s 0.37 / 0.28 / 0.24 / 0.18.
-    const size = leaf
-      ? (panelSizeFor(tree, partNode).width != null
-        ? panelSizeFor(tree, partNode)
-        : doorPanelSize(tree, leaf))
-      : { width: null, height: null }
+    //
+    // Step BE: the holder can be a CASEMENT SASH — Nathan’s side light is a
+    // fixed sash with glass over a panel, and leafForPanel only knew leaves,
+    // so its panel had no size at all.
+    const cellSize = panelSizeFor(tree, partNode)
+    const leaf = cellSize.width != null ? null : leafForPanel(tree, partNode)
+    const size = cellSize.width != null
+      ? cellSize
+      : (leaf ? doorPanelSize(tree, leaf) : { width: null, height: null })
     const internal = panelType(v.internalPanelTypeId)
     const external = panelType(v.externalPanelTypeId)
     const beadIn   = panelBead(v.internalPanelBeadId)
@@ -658,7 +692,12 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
       sightlineWidth  = vis.width  ?? 0
       sightlineHeight = vis.height ?? 0
     } else if (isCasementGlass) {
-      const sl = casementGlassSightline(tree, parentSash)
+      // Step BE: a sash with a GRID of its own — Nathan’s side light, glass
+      // over a panel — glazes only its own cell. Without this the side
+      // light’s glass ran the full 1842 interior instead of the 888 above
+      // its mid rail.
+      const cell = leafCellOf(tree, partNode)
+      const sl = cell ?? casementGlassSightline(tree, parentSash)
       sightlineWidth  = sl.width  ?? 0
       sightlineHeight = sl.height ?? 0
     } else {
@@ -713,8 +752,12 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
     // shape instead of the bounding rectangle; the weight keeps the
     // rectangular envelope (sashWeight.js is untouched — C's steel
     // weights 10.0/10.2 already equal Integrate's on that envelope).
+    // Step BE (Nathan, decision e): a SHAPED unit is billed on the largest
+    // rectangle of its cut glass + 25%, at the square rate — on EVERY
+    // product, a door or an arched sash alike. The exact shaped area is
+    // what the glass measures, not what the supplier charges for it.
     const shapedArea = parentArch.archHead && parentArch.archHeight > 0
-      ? shapedGlassCutAreaM2(sightlineWidth, sightlineHeight, parentArch.archHeight, cover)
+      ? shapedGlassBillableAreaM2(glassWidth, glassHeight)
       : null
     const rawAreaM2 = shapedArea != null
       ? shapedArea

@@ -66,17 +66,34 @@ const DELIBERATE = {
   //   FT2  13.67 (the frame transom)               = 13.67
   //   FT3  13.45 (the leaf’s 120 mid rail) + 15.81 OPEN (the arched leaf’s
   //        shaped glass, over £1 and so NOT parked) = 29.26
-  FT1:  { cost: '80.26', price: '160.50' },
+  // Step BE (Nathan’s decisions d and e, 14 Oct) moved three of these and
+  // added two more rows to the list:
+  //   FT1  30.94 timber + 73.98 production (R&F panels at 120 and 60 for
+  //        the ONE real muntin, where Integrate fires flat-panel 60 x 4 and
+  //        counts the mid rail as a second muntin)        = 104.92
+  //   FT2  13.67 the frame transom, unchanged             =  13.67
+  //   FT3  13.45 the 120 mid rail + 23.28 shaped glass + 15.11 PENDING on
+  //        the shaped RATE until sql/step-be1 runs        =  51.84
+  //   FT4  70.92 timber (the frame mullion, the muntin and the 120 mid
+  //        rail) + 73.98 production                       = 144.90
+  //   C    7.37 shaped glass + 5.75 PENDING on the rate   =  13.12
+  //        — C’s FIRST difference since Step AD, and it is a sash window:
+  //        decision e is every product, not only doors.
+  FT1:  { cost: '104.92', price: '209.82' },
   FT2:  { cost: '13.67', price: '27.34' },
-  FT3:  { cost: '29.26', price: '58.48' },
+  FT3:  { cost: '51.84', price: '103.65' },
+  FT4:  { cost: '144.90', price: '289.78' },
+  C:    { cost: '13.12', price: '26.23' },
 }
 
-// Step BD follow-up: the one OPEN QUESTION on the page. Over £1.00, so it is
-// not a parked residual and does not belong in PARKED; the row says so in
-// as many words, and the amount is pinned here for the same reason as the
-// others — if it moves, something has changed that nobody decided.
+// Step BD follow-up: the OPEN QUESTIONS on the page — over £1.00, so not
+// parked residuals, and the row says so in as many words.
+//
+// Step BE CLOSED the only one there was. FT3’s £15.81 of shaped glass was a
+// question about which of two models described the glass; Nathan’s answer
+// (decision e) is that a shaped unit is billed on the sheet it is cut from,
+// so the figure is a DECISION now and lives in DELIBERATE above.
 const OPEN_QUESTIONS = {
-  FT3: '15.81',
 }
 
 // NOTE on the Kenrick gearbox gap (J–P £14.70, Q/R/S £8.40): that is a gap in

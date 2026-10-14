@@ -175,9 +175,19 @@ export function leafMidRails(leafNode) {
 }
 
 /** What a divider in a leaf takes out of it. */
+/**
+ * What a divider in a leaf takes out of it: its DRAWN thickness.
+ *
+ * Step BE: `thicknessInFrame` first. Integrate’s drawing 20 stores a mid
+ * rail DRAWN at 120 with a midrailThickness PROPERTY of 170, and it is the
+ * drawn 120 that divides the leaf (834 + 120 + 834 = the 1788 interior) and
+ * the drawn 120 that decides the section — Integrate allocates nothing for
+ * a 120 rail, exactly as on FT3. The FT1-FT3 fixtures carry the same value
+ * in both fields, so nothing of theirs moves.
+ */
 function dividerThickness(node) {
   const v = node?.values ?? {}
-  return num(v.midrailThickness) ?? num(v.muntinThickness) ?? num(v.thicknessInFrame) ?? 0
+  return num(v.thicknessInFrame) ?? num(v.midrailThickness) ?? num(v.muntinThickness) ?? 0
 }
 
 /**
@@ -185,13 +195,34 @@ function dividerThickness(node) {
  * divides. FT1: 997 - 110 - 110 = 777 by 2068 - 110 - 170 = 1788.
  */
 export function leafInterior(tree, leafNode) {
-  const leaf = doorLeafSize(tree, leafNode)
+  const leaf = gridHolderSize(tree, leafNode)
   if (leaf.width == null || leaf.height == null) return { width: null, height: null }
   const v = leafNode?.values ?? {}
   return {
     width:  leaf.width  - (num(v.leftWidth) ?? 0) - (num(v.rightWidth) ?? 0),
     height: leaf.height - (num(v.topHeight) ?? 0) - (num(v.bottomHeight) ?? 0),
   }
+}
+
+/**
+ * Step BE: a grid is not only a DOOR LEAF’s.
+ *
+ * Nathan’s side light (decision g, drawing 20) is a FIXED CASEMENT SASH
+ * beside the door, and it holds the same thing a leaf does: a mid rail with
+ * glass above and a raised-and-fielded panel below, lining up with the
+ * door’s. So everything about the grid — the cells, which part sits in
+ * which, a panel’s visible size — asks the HOLDER for its own outer size
+ * and works inwards from there.
+ */
+export function canHoldGrid(node) {
+  return DOOR_LEAF_TYPES.includes(node?.part_type) ||
+    node?.part_type === 'casementSashPart'
+}
+
+/** The outer size of whatever holds a grid. */
+function gridHolderSize(tree, node) {
+  if (node?.part_type === 'casementSashPart') return casementSashSize(tree, node)
+  return doorLeafSize(tree, node)
 }
 
 /**
@@ -235,10 +266,21 @@ export function leafCellParts(leafNode) {
     .filter(c => c.part_type === 'panelPart' || c.part_type === 'glassPart')
 }
 
-/** The leaf a panel or a glass unit belongs to, or null. */
+/**
+ * The LEAF OR SASH a panel or a glass unit belongs to, or null.
+ *
+ * Step BE: a side light is a casement sash with a grid of its own, so this
+ * looks for any holder rather than only a door leaf — without it the side
+ * light's panel had no cell, and so no size and no Tricoya line at all.
+ */
 export function leafHolding(tree, node) {
-  return doorLeaves(tree)
-    .find(l => (l.children ?? []).some(c => c.key === node?.key)) ?? null
+  const holders = []
+  const walk = n => {
+    if (canHoldGrid(n)) holders.push(n)
+    for (const c of (n?.children ?? [])) walk(c)
+  }
+  walk(tree)
+  return holders.find(l => (l.children ?? []).some(c => c.key === node?.key)) ?? null
 }
 
 /** The cell a panel or a glass unit sits in, by its place among them. */
@@ -389,6 +431,13 @@ export const LEAF_SECTION_OFFSET_MM = -6     // per leaf, on 2 x H + W
 export const OPEN_IN_LEAF_SECTION_OFFSET_MM = -20
 export const FANLIGHT_SECTION_OFFSET_MM = 14 // per fanlight, on W + 2 x H
 /**
+ * Step BE: how deep a rail has to be to be a DOOR’s rail rather than a
+ * casement’s. A fanlight’s bottom rail is 62 (Nathan’s) or 86 (Integrate’s
+ * template); a door’s is 163-175, and Nathan’s side light carries the door’s
+ * 175 so the two line up. One reading, from drawing 20.
+ */
+export const DOOR_DEPTH_RAIL_MM = 150
+/**
  * A leaf MID RAIL is cut from the cill-and-bottom-rail section at the leaf
  * width LESS 10 (Step BA). FD4: 2 x 652.5 on leaves 662.5 wide, which with
  * the cill and the two bottom rails makes Integrate's 4029. A single
@@ -518,20 +567,33 @@ export function allocatedSectionParts(tree, { material = 'utile' } = {}) {
     }
   }
 
-  // A FANLIGHT over the pair: its top rail and stiles, and its bottom rail.
+  // A FANLIGHT over the pair, or a SIDE LIGHT beside the door: its top rail
+  // and stiles, and its bottom rail.
   for (const sash of findAll(tree, 'casementSashPart')) {
     const z = casementSashSize(tree, sash)
     if (z.width == null || z.height == null) continue
-    add(codes.fanlight, (z.width) + 2 * (z.height) + FANLIGHT_SECTION_OFFSET_MM,
-      'Fanlight top rail and stiles')
+    const rail = num(sash.values?.bottomHeight) ?? 0
+    // Step BE: a SIDE LIGHT is not a fanlight. Nathan’s drawing 20 has a
+    // full-height fixed sash with a 175 bottom rail — a DOOR-depth rail —
+    // and Integrate allocates it like a door’s: 63x200 for the rail, and the
+    // stiles and top rail at 63x63 with NO offset (4517 = W + 2H exactly,
+    // where a fanlight reads +14). The rail depth is what tells them apart:
+    // a fanlight’s is 62 or 86, a side light’s is the door’s 170-odd.
+    const isSideLight = rail >= DOOR_DEPTH_RAIL_MM
+    add(codes.fanlight,
+      z.width + 2 * z.height + (isSideLight ? 0 : FANLIGHT_SECTION_OFFSET_MM),
+      isSideLight ? 'Side light stiles and top rail' : 'Fanlight top rail and stiles')
     // The bottom rail's own section depends on how deep the rail is.
     // Integrate charges the 86 mm rail at 63x96 and charges NOTHING for a
     // 62 mm one. Nathan (13 Oct): GlazePro charges the 62 at 63x63 for the
     // sash width, as the 86 is charged at 63x96 — a deliberate difference
-    // (docs/integrate-differences.md 7a).
-    const rail = num(sash.values?.bottomHeight) ?? 0
-    add(rail >= 80 ? codes.fanlightRail : codes.fanlight, z.width,
-      `Fanlight bottom rail ${rail}`)
+    // (docs/integrate-differences.md 7a). Step BE: a 175 rail comes from the
+    // same 63x200 as a door’s bottom rail, which is Integrate’s own
+    // allocation on drawing 20.
+    const railCode = isSideLight ? codes.cillAndBottom
+      : (rail >= 80 ? codes.fanlightRail : codes.fanlight)
+    add(railCode, z.width,
+      `${isSideLight ? 'Side light' : 'Fanlight'} bottom rail ${rail}`)
   }
 
 

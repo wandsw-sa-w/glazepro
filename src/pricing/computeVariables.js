@@ -396,7 +396,22 @@ export function computeVariables(tree, derived = {}, pfVariables = {}, opts = {}
     const is_docl                          = is_doc_l  // Integrate alias (rules use is_docl)
     const is_casement_window_bay           = false  // NEEDS-DATA
     const is_varnished_or_stained          = false  // NEEDS-DATA: finish codes not defined yet
-    const sash_muntin_to_be_replaced_qty   = 0     // NEEDS-DATA: muntin data not yet captured
+    /**
+     * Step BE (Nathan, decision d): a leaf’s real MUNTINS — a mullionPart
+     * inside a door leaf. Integrate’s "Door Muntin" rule (1235, 60 each)
+     * reads sash_muntin_to_be_replaced_qty, and Integrate counts the leaf’s
+     * MID RAIL in it: its Estimated Labour Time editor fires the rule TWICE
+     * on FT1, which has one muntin and one mid rail, and once on FT3, which
+     * has no muntin at all. A mid rail is not a muntin.
+     */
+    const allLeafMuntins = allDoorLeaves.flatMap(
+      l => (l.children ?? []).filter(c => c.part_type === 'mullionPart'))
+    // Step BE: the door leaves’ real muntins. Integrate’s own variable name,
+    // and for a SASH window it stays 0 — a box sash’s real glazing bars are
+    // counted as gb_to_be_replaced_qty, which is what the sash rules read
+    // (the two "Real Glazing Bar" rules are gated on is_sw / not is_door, so
+    // a door’s muntins can never reach them).
+    const sash_muntin_to_be_replaced_qty   = allLeafMuntins.length
 
     const is_individually_glazed = allGlassParts.some(g => g.values?.isIndividualPanes === true)
     // Backwards compat alias

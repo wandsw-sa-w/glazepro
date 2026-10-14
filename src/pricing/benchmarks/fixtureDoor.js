@@ -1288,8 +1288,8 @@ export const BENCHMARK_FT1 = {
   }),
   targets: { ...INTEGRATE_TARGETS.benchmarkFT1_front_door_balham },
   deliberateDifference: {
-    cost: 30.94,
-    reason: 'the leaf’s 120 muntin, charged at Utile63x120 for the leaf’s interior height (1788 mm) — Integrate allocates nothing for it (PROVISIONAL)',
+    cost: 104.92,
+    reason: 'the leaf’s 120 muntin at Utile63x120 for its interior height (1788 mm, +30.94, PROVISIONAL — Integrate allocates nothing for it), and 180 production minutes (+73.98): GlazePro charges R&F panels 120 each and 60 for the ONE real muntin, where Integrate’s editor fires flat-panel 60 x 4 on type-110 R&F panels and counts the mid rail as a second muntin (Nathan, decision d)',
   },
   // The three AV4 parts the live catalogue holds at cost 0 — the Heritage
   // lock (112.35), the pocket keep (5.25) and the centre keep w dayswitch
@@ -1303,13 +1303,11 @@ export const BENCHMARK_FT1 = {
   // where Integrate charges 2670 (44.50 h). The 120 is UNEXPLAINED and the
   // reviewer settles it with Integrate — nothing here is tuned to it.
   //   -149.10 (the catalogue rows) + 49.32 (2 h of production) = -99.78
-  // sql/step-bd1 is RUN LIVE (14 Oct), so the three AV4 costs are there and
-  // only FT1's production is still open: 2790 minutes against Integrate's
-  // 2670. The reviewer settles the 120 with Integrate; nothing is tuned.
-  pendingDecision: {
-    cost: 49.32,
-    reason: 'FT1’s 120 unexplained production minutes (2790 against Integrate’s 2670) — the reviewer settles it with Integrate',
-  },
+  // RESOLVED 14 Oct (Step BE): the 120 minutes were two Integrate errors,
+  // read in its own Estimated Labour Time editor — rule 1240 flat-panel
+  // 60 x 4 on panels that ARE type-110 R&F, and rule 1235 Door Muntin
+  // twice on a leaf with one muntin and one mid rail. GlazePro corrects
+  // both, so the difference is a DECISION and no longer pending.
   partCostMap: DOOR_PART_COST_MAP,
   profileValues: OPEN_IN_PROFILE_VALUES,
   glassCatalogue: {},
@@ -1424,8 +1422,8 @@ export const BENCHMARK_FT3 = {
   }),
   targets: { ...INTEGRATE_TARGETS.benchmarkFT3_front_door_arched },
   deliberateDifference: {
-    cost: 13.45,
-    reason: 'the leaf’s 120 mid rail, charged at Utile63x120 for the leaf’s interior width (777 mm) — Integrate allocates nothing for it (PROVISIONAL)',
+    cost: 36.73,
+    reason: 'the leaf’s 120 mid rail at Utile63x120 for its interior width (777 mm, +13.45, PROVISIONAL), and the SHAPED GLASS (+23.28): 1.13 m2 at the square rate against Integrate’s 0.62 at its shaped rate — the largest rectangle of the cut glass (801 x 1127) plus the supplier’s quarter (Nathan, decision e), with the energy surcharge following the same area',
   },
   // sql/step-bd1 is RUN LIVE (14 Oct): the three AV4 parts have their costs
   // and this row is Integrate’s own figure plus its declared timber, with
@@ -1439,16 +1437,20 @@ export const BENCHMARK_FT3 = {
   // chord, the head’s inner edge spans only 2 x (391.12 - 110) = 562, so
   // the glass is narrower than the leaf interior and the rail’s feet eat
   // the top corners. A rectangle 562 x 822 plus a semicircular head,
-  // grown by the cover, gives 0.624 — Integrate’s 0.62. One reading of
-  // Integrate’s glass sightline on an arched door settles it.
-  //
-  // It is an OPEN QUESTION, not a parked residual: at £15.81 it is far over
-  // the £1.00 small-differences policy that the parked table exists for
-  // (reviewer, 14 Oct). The row declares the amount so it cannot drift, and
-  // says in the open that nobody has explained it.
-  openQuestion: {
-    cost: 15.81,
-    reason: 'the arched leaf’s shaped glass: GlazePro 0.83 m2 against Integrate’s 0.62 — a near-semicircular head makes the glass narrower than the leaf interior, which the shallow-arch model does not capture. OVER £1.00, so not parked: pending an Integrate reading of an arched door’s glass sightline',
+  // CLOSED 14 Oct (Step BE, Nathan’s decision e). The question was which of
+  // two models described the glass; the answer is NEITHER — a shaped unit is
+  // billed on the SHEET the supplier cuts it from. The largest rectangle of
+  // the cut glass (801 x 1127 = 0.902727 m2) plus a quarter = 1.13 m2, at
+  // the SQUARE rate, on every product. Integrate’s 0.62 at a shaped rate of
+  // 71.875 is wrong twice over, and GlazePro’s own exact-shape 0.83 was
+  // measuring the glass rather than the bill.
+  // The shaped RATE is still Integrate’s 71.875 ((inner + outer) x 1.25)
+  // until sql/step-be1 makes it the square rule’s own ((inner + outer) + 1
+  // = 58.50). Nathan puts the supplier’s quarter on the AREA, not on the
+  // rate, so the two must not both carry it.
+  pendingDecision: {
+    cost: 15.11,
+    reason: 'the shaped RATE: 1.13 m2 is priced at Integrate’s 71.875 until sql/step-be1 makes it the square rule’s 58.50 (1.13 x 13.375)',
   },
   partCostMap: DOOR_PART_COST_MAP,
   profileValues: OPEN_IN_PROFILE_VALUES,
@@ -1456,4 +1458,137 @@ export const BENCHMARK_FT3 = {
   ironmongeryLines: FRONT_DOOR_IRONMONGERY,
   profileCode: 'open_in_doors',
   assumptions: FRONT_DOOR_ASSUMPTIONS,
+}
+
+// ── FT4: the Balham with a FIXED SIDE LIGHT (Nathan's drawing 20) ───────────
+// One 1400 x 2182 frame with a 41 mullion at 900: the door in the left
+// column (900) and a FIXED CASEMENT SASH in the right (365). Nathan's
+// decision g, 14 Oct: a side light is a casement sash, not a fixed door leaf
+// — and it carries the same grid a leaf does, glass over a panel, its mid
+// rail lining up with the door's.
+//
+// Integrate's own tree, as read: the door's muntin and mid rail are CENTRED
+// (276 / 276 across, 834 / 834 down) because that is how Nathan drew it; the
+// TEMPLATE keeps Integrate's Balham layout (983 / 635), which is decision f.
+
+/**
+ * A FIXED SIDE LIGHT: a casement sash beside the door, holding a mid rail
+ * with glass above and a raised-and-fielded panel below.
+ *
+ * Integrate draws it 359 x 2079 in a 365 x 2085 opening, which is 3 mm of
+ * clearance on every edge. NOT VERIFIED (the facts give the drawn size, not
+ * the clearances) — but 3 / 3 / 3 / 3 reproduces both figures exactly, where
+ * a doorset fanlight's 1 / 1 / 1 / 2 gives 363 x 2082.
+ */
+function frontDoorSideLight(key, {
+  bottomHeight = 175,
+  midRailOffset = 888,
+  midRailThickness = 120,
+  midRailProperty = 170,
+} = {}) {
+  return {
+    key,
+    part_type: 'casementSashPart',
+    values: {
+      operation: 'fix',                 // Integrate operation 11
+      casementTypeId: 'open_in',
+      thickness: 54,
+      topHeight: 62, leftWidth: 62, rightWidth: 62,
+      bottomHeight,
+      bottomHeightExternal: bottomHeight,
+      btmRailShapeId: 'stepped',
+      mechanicalClearanceTop: 3,
+      mechanicalClearanceBottom: 3,
+      mechanicalClearanceLeft: 3,
+      mechanicalClearanceRight: 3,
+      toBeReplaced: true,
+    },
+    children: [
+      // The mid rail is DRAWN at 120 with a midrailThickness property of 170,
+      // which is what Integrate stores. The drawn figure is what divides the
+      // sash (888 + 120 + 834 = its 1842 interior) and what decides the
+      // section, so both are kept.
+      {
+        key: `${key}_midrail`,
+        part_type: 'transomPart',
+        values: {
+          isMidrail: true,
+          offset: midRailOffset,
+          thicknessInFrame: midRailThickness,
+          midrailThickness: midRailProperty,
+          transomStopSize: 18,
+          startDivider: '0', endDivider: '0',
+        },
+        children: [],
+      },
+      glassChild(key),
+      doorPanel(`${key}_panel`),
+    ],
+  }
+}
+
+export const BENCHMARK_FT4 = {
+  name: 'Benchmark FT4 — front door with a fixed side light (L31115 Item 10 Drawing 20)',
+  tree: doorTree({
+    width: 1400, height: 2182,
+    dividers: [mullion('ft4_mull', 900)],
+    openings: [
+      frontDoorLeaf('ft4_leaf', {
+        dividers: [
+          leafMuntin('ft4_muntin', { offset: 276 }),
+          // drawn 120, property 170 — Integrate's own drawing 20
+          {
+            key: 'ft4_midrail',
+            part_type: 'transomPart',
+            values: {
+              isMidrail: true,
+              offset: 834,
+              thicknessInFrame: 120,
+              midrailThickness: 170,
+              transomStopSize: 18,
+              startDivider: '0', endDivider: '0',
+            },
+            children: [],
+          },
+        ],
+        cells: [
+          frontDoorPanel('ft4_panel_a1'),
+          frontDoorPanel('ft4_panel_b1'),
+          frontDoorPanel('ft4_panel_a2'),
+          frontDoorPanel('ft4_panel_b2'),
+        ],
+      }),
+      frontDoorSideLight('ft4_side'),
+    ],
+    product: 'door',
+    frameBottomHeight: 50,
+    cillHeight: 50,
+    isFrontDoor: true,
+    internalFinish: 'clean_white',
+    externalFinish: 'custom',
+    ironmongeryLines: FRONT_DOOR_IRONMONGERY,
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkFT4_front_door_side_light },
+  // Three charges, each recomputed from a length and a per-metre cost:
+  //   the frame MULLION    2085 mm at Utile67x96  13.60/m = 28.36  (difference 11)
+  //   the leaf MUNTIN      1788 mm at Utile63x120 17.30/m = 30.93  (difference 13)
+  //   the leaf 120 MID RAIL 672 mm at Utile63x120 17.30/m = 11.63  (difference 13)
+  //                                                       = 70.92
+  // and 180 production minutes at 24.66/h = 73.98 — Integrate’s flat-panel
+  // error on five type-110 R&F panels (-300) and its mid-rail-as-muntin
+  // firings (+120 for two rails, against the one real muntin’s 60).
+  deliberateDifference: {
+    cost: 144.90,
+    reason: 'the frame mullion (2085 mm at Utile67x96, +28.36), the leaf’s 120 muntin (1788 mm) and its 120 mid rail (672 mm) at Utile63x120 (+42.56) — Integrate allocates nothing for any of the three (PROVISIONAL) — and 180 production minutes (+73.98): R&F panels at 120 each and 60 for the ONE real muntin (Nathan, decision d)',
+  },
+  partCostMap: DOOR_PART_COST_MAP,
+  profileValues: OPEN_IN_PROFILE_VALUES,
+  glassCatalogue: {},
+  ironmongeryLines: FRONT_DOOR_IRONMONGERY,
+  profileCode: 'open_in_doors',
+  assumptions: [
+    ...FRONT_DOOR_ASSUMPTIONS,
+    'The side light is a FIXED CASEMENT SASH (Nathan, decision g), with its own mid rail, glass and panel — not a fixed door leaf',
+    'Its clearances 3 / 3 / 3 / 3 are NOT VERIFIED: they are what reproduces Integrate\'s drawn 359 x 2079 in a 365 x 2085 opening',
+  ],
 }

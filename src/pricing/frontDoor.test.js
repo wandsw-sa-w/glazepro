@@ -121,14 +121,16 @@ describe('Step BD item 3 — pricing the leaf', () => {
     expect(tricoya.reduce((t, l) => t + l.line_cost, 0)).toBeCloseTo(200.75, 2)
   })
 
-  it('FT1’s production is the five rules that fire, and nothing is tuned', () => {
-    // The reading the brief asks for, pinned so it cannot drift while the
-    // reviewer settles Integrate's 2670 with Integrate:
+  it('FT1’s production is the rules that fire, and nothing is tuned', () => {
+    // The reading Step BD asked for, now RESOLVED (Step BE, Nathan’s
+    // decision d). Integrate's own Estimated Labour Time editor fires, on
+    // this drawing, flat-panel 60 x 4 on panels that ARE type-110 R&F and
+    // Door Muntin twice on a leaf with ONE muntin and one mid rail. GlazePro
+    // charges R&F 120 a panel and 60 for the real muntin:
     //   Door Leaf 1035 + Machining & Joining a Door Frame 855
     //   + Door Frame - Dual Finish 240 + Door Leaf - Dual Finish 180
-    //   + Additional for R&F Panel 120 x 4 = 2790 (46.50 h)
-    // Integrate charges 2670 (44.50 h). The 120 is UNEXPLAINED and the
-    // benchmark carries it as a pending decision, not as a fix.
+    //   + Additional for R&F Panel 120 x 4 + Door Muntin 60 = 2850 (47.50 h)
+    // against Integrate's 2670 (44.50 h) — a declared difference now.
     const r = run(BENCHMARK_FT1)
     const fired = (r.manufacture_labour.lines ?? [])
       .filter(l => (l.minutes ?? 0) > 0)
@@ -137,24 +139,28 @@ describe('Step BD item 3 — pricing the leaf', () => {
       'Door Frame - Dual Finish 240',
       'Door Leaf - Dual Finish 180',
       'Door Leaf 1035',
+      // Step BE: the Door Muntin line sits here, before the panels — the
+      // rules fire in the live file's own order
+      'Door Muntin 60',
       'Additional for R&F Panel 120',
       'Additional for R&F Panel 120',
       'Additional for R&F Panel 120',
       'Additional for R&F Panel 120',
       'Machining & Joining a Door Frame 855',
     ])
-    expect(r.manufacture_labour.total_minutes).toBe(2790)
+    expect(r.manufacture_labour.total_minutes).toBe(2850)
   })
 
-  it('no Door Muntin minutes: sash_muntin_to_be_replaced_qty is a SASH bar', () => {
-    // Integrate's "Door Muntin" rule (60 per muntin) reads
-    // sash_muntin_to_be_replaced_qty, which GlazePro holds at 0 (NEEDS-DATA).
-    // Giving it the leaf's muntins would make FT1 2850 — further from
-    // Integrate's 2670, not closer — so it stays 0 and the report says so.
+  it('Door Muntin fires 60 for the ONE real muntin', () => {
+    // Step BD left sash_muntin_to_be_replaced_qty at 0 because wiring it to
+    // the leaf's muntins moved FT1 AWAY from Integrate's 2670. Step BE has
+    // the reason: 2670 is wrong, and Integrate reaches it by counting the
+    // MID RAIL as a second muntin on top of a flat-panel error. GlazePro
+    // charges 60 for the real muntin and nothing for the mid rail.
     const r = run(BENCHMARK_FT1)
     const muntin = (r.manufacture_labour.lines ?? [])
-      .find(l => (l.rule_name ?? l.name) === 'Door Muntin')
-    expect(muntin?.minutes ?? 0).toBe(0)
+      .filter(l => (l.rule_name ?? l.name) === 'Door Muntin')
+    expect(muntin.reduce((t, l) => t + (l.minutes ?? 0), 0)).toBe(60)
   })
 })
 

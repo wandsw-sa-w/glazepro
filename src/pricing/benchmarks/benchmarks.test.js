@@ -14,8 +14,16 @@ import { applySashesReplaced } from '../../drawingBoard/sashesReplaced.js'
 import { computeDerived } from '../../drawingBoard/computeDerived.js'
 import { computeVariables } from '../computeVariables.js'
 import { withAv4Costs } from './frontDoorIronmongery.js'
+
+/**
+ * Step BE: what C’s shaped glass is dearer by, from the fixture’s own
+ * declaration — the decided part plus the part waiting on sql/step-be1, so
+ * this figure cannot drift away from the one the page shows.
+ */
+const C_SHAPED_GLASS = (BENCHMARK_C.deliberateDifference?.cost ?? 0) +
+  (BENCHMARK_C.pendingDecision?.cost ?? 0)
 import { shortDividerSpanMm, isShortDivider, frameCells, frameGridSize, frameOpenings, casementSashSize, casementSashWeightKg, casementFrameTimberVolumeDm3, casementSashTimberVolumeDm3, casementGlassSightline, frameMuntinLengthM, frameColumns, frameRows, itemFrames, CASEMENT_SASH_TYPES, FRENCH_SASH_TYPES } from '../casementGeometry.js'
-import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_B_UNCORRECTED, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F, BENCHMARK_G, BENCHMARK_H, BENCHMARK_I, BENCHMARK_J, BENCHMARK_K, BENCHMARK_L, BENCHMARK_M, BENCHMARK_N, BENCHMARK_P, BENCHMARK_Q, BENCHMARK_R, BENCHMARK_S, BENCHMARK_SA, BENCHMARK_SB, BENCHMARK_SC, BENCHMARK_SD, BENCHMARK_SE, BENCHMARK_SF, BENCHMARK_TC1, BENCHMARK_TC2, BENCHMARK_TC3, BENCHMARK_FR1, BENCHMARK_FR2, BENCHMARK_FD1, BENCHMARK_FD2, BENCHMARK_FD3, BENCHMARK_FD3b, BENCHMARK_FD4, BENCHMARK_FD5, BENCHMARK_FD6, BENCHMARK_FD7, BENCHMARK_SD1, BENCHMARK_SD2, BENCHMARK_SD3, BENCHMARK_SD4, BENCHMARK_CD1, BENCHMARK_CD2, BENCHMARK_CD3, BENCHMARK_CD4, BENCHMARK_FT1, BENCHMARK_FT2, BENCHMARK_FT3 } from './index.js'
+import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_B_UNCORRECTED, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F, BENCHMARK_G, BENCHMARK_H, BENCHMARK_I, BENCHMARK_J, BENCHMARK_K, BENCHMARK_L, BENCHMARK_M, BENCHMARK_N, BENCHMARK_P, BENCHMARK_Q, BENCHMARK_R, BENCHMARK_S, BENCHMARK_SA, BENCHMARK_SB, BENCHMARK_SC, BENCHMARK_SD, BENCHMARK_SE, BENCHMARK_SF, BENCHMARK_TC1, BENCHMARK_TC2, BENCHMARK_TC3, BENCHMARK_FR1, BENCHMARK_FR2, BENCHMARK_FD1, BENCHMARK_FD2, BENCHMARK_FD3, BENCHMARK_FD3b, BENCHMARK_FD4, BENCHMARK_FD5, BENCHMARK_FD6, BENCHMARK_FD7, BENCHMARK_SD1, BENCHMARK_SD2, BENCHMARK_SD3, BENCHMARK_SD4, BENCHMARK_CD1, BENCHMARK_CD2, BENCHMARK_CD3, BENCHMARK_CD4, BENCHMARK_FT1, BENCHMARK_FT2, BENCHMARK_FT3, BENCHMARK_FT4 } from './index.js'
 import { resolveIronmongeryLines } from '../loadPricingContext.js'
 import { allocatedSectionParts, doorLeaves, doorLeafSize, doorLeafWeightKg, doorGlassSightline, doorPanelSize } from '../doorGeometry.js'
 // The LIVE price-file snapshot (reviewer-checked, 8 Oct 2026) — the honest
@@ -517,13 +525,21 @@ function groupTotals(results) {
  * Helper: assert results against an integrate-targets.json entry
  * ({ total_cost, total_price, groups: { name: { cost, price } } }).
  */
-function expectMatchesIntegrate(results, target) {
-  expect(results.price.total_cost).toBeCloseTo(target.total_cost, 2)
-  expect(results.price.total).toBeCloseTo(target.total_price, 2)
+/**
+ * Step BE: `declared` is what GlazePro charges ON PURPOSE over Integrate,
+ * in the group it lands in — taken from the fixture’s own declaration rather
+ * than written again here. A benchmark with no declaration still has to
+ * match Integrate to the penny, which is most of them.
+ */
+function expectMatchesIntegrate(results, target, declared = {}) {
+  const extra = Object.values(declared).reduce((t, v) => t + v, 0)
+  expect(results.price.total_cost).toBeCloseTo(target.total_cost + extra, 2)
+  expect(results.price.total).toBeCloseTo(target.total_price + extra * 2, 1)
   const groups = groupTotals(results)
   for (const [group, t] of Object.entries(target.groups ?? {})) {
-    expect(groups[group]?.cost  ?? 0, `${group} cost`).toBeCloseTo(t.cost,  1)
-    expect(groups[group]?.price ?? 0, `${group} price`).toBeCloseTo(t.price, 1)
+    const d = declared[group] ?? 0
+    expect(groups[group]?.cost  ?? 0, `${group} cost`).toBeCloseTo(t.cost + d,  1)
+    expect(groups[group]?.price ?? 0, `${group} price`).toBeCloseTo(t.price + d * 2, 1)
   }
 }
 
@@ -575,8 +591,13 @@ describe('Honest benchmarks — live snapshot, real is_active flags', () => {
   // labour is not in the snapshot's install_labour rules, and the weight
   // model runs 0.1 kg/sash heavy on the 738-wide double-box sashes
   // (steel 9.3/10.0 vs Integrate 9.2/9.9) — reported, not tuned.
-  it('Benchmark C (arched) matches the Integrate targets', () => {
-    expectMatchesIntegrate(runFromSnapshot(BENCHMARK_C.tree), INTEGRATE.benchmarkC_arched)
+  it('Benchmark C (arched) matches Integrate, plus the shaped glass', () => {
+    // Step BE: C’s two arched units are billed on the largest rectangle of
+    // their cut glass + 25% at the square rate (Nathan, decision e) — +13.12
+    // in glass_done while the shaped RATE waits on sql/step-be1. The fixture
+    // declares both halves and the page reads BY DESIGN.
+    expectMatchesIntegrate(runFromSnapshot(BENCHMARK_C.tree), INTEGRATE.benchmarkC_arched,
+      { glass_done: C_SHAPED_GLASS })
   })
 
   it('Benchmark D (double box) matches the Integrate targets', () => {
@@ -808,12 +829,12 @@ describe('Step AJ — board-shaped trees price like Integrate', () => {
   it('complete_new: storing true moves no benchmark', () => {
     const CASES = [
       [BENCHMARK_L34046, INTEGRATE.L34046],
-      [BENCHMARK_C,      INTEGRATE.benchmarkC_arched],
+      [BENCHMARK_C,      INTEGRATE.benchmarkC_arched, { glass_done: C_SHAPED_GLASS }],
     ]
-    for (const [bm, target] of CASES) {
+    for (const [bm, target, declared] of CASES) {
       const { tree } = applySashesReplaced(bm.tree)
       expect(sashValues(tree).every(v => v === true), bm.name).toBe(true)
-      expectMatchesIntegrate(runFromSnapshot(tree), target)
+      expectMatchesIntegrate(runFromSnapshot(tree), target, declared)
     }
     // D is a truthful failure on its steel weights (step-ad findings), so
     // assert it is unchanged by the path rather than exact.
@@ -3029,9 +3050,17 @@ describe('Step BC — coupled flag-frame benchmarks', () => {
 // ══════════════════════════════════════════════════════════════════════════════
 describe('Step BD — front door benchmarks', () => {
   const FT_CASES = [
-    ['FT1', BENCHMARK_FT1, INTEGRATE.benchmarkFT1_front_door_balham,   46.50, 14.00],
+    // Step BE: FT1 is 2,850 minutes — Integrate’s 2,670 plus the 180 of its
+    // own two errors, which GlazePro corrects (Nathan, decision d).
+    ['FT1', BENCHMARK_FT1, INTEGRATE.benchmarkFT1_front_door_balham,   47.50, 14.00],
     ['FT2', BENCHMARK_FT2, INTEGRATE.benchmarkFT2_front_door_fanlight, 46.17, 18.17],
     ['FT3', BENCHMARK_FT3, INTEGRATE.benchmarkFT3_front_door_arched,   54.83, 14.75],
+    // Step BE: the side light. 4,085 production minutes against Integrate’s
+    // 3,905 — the same 180 of its own two errors — and its fitting to the
+    // minute: Front Door and Frame 840 + 120 a frame mullion + 120 a fixed
+    // casement sash, and NO "Combination Frame" (the side light is a sash,
+    // not a leaf).
+    ['FT4', BENCHMARK_FT4, INTEGRATE.benchmarkFT4_front_door_side_light, 68.08, 18.00],
   ]
 
   // sql/step-bd1 was RUN LIVE on 14 Oct: the AV4 Heritage lock, the pocket
@@ -3062,9 +3091,11 @@ describe('Step BD — front door benchmarks', () => {
         .toBeCloseTo(production, 2)
       // FT2 and FT3 are Integrate's production EXACTLY; FT1 is 2 h over, and
       // that is the figure the reviewer settles with Integrate.
-      if (label === 'FT1') {
-        expect(production - target.hours.production, 'FT1 is 2 h over Integrate')
-          .toBeCloseTo(2, 2)
+      if (label === 'FT1' || label === 'FT4') {
+        // Integrate’s two errors, on a door with panels: flat-panel 60 where
+        // the panel is type-110 R&F, and the mid rail counted as a muntin.
+        expect(production - target.hours.production, `${label} is 3 h over Integrate`)
+          .toBeCloseTo(3, 2)
       } else {
         expect(production, `${label} is Integrate's own production`)
           .toBeCloseTo(target.hours.production, 2)
@@ -3090,9 +3121,16 @@ describe('Step BD — front door benchmarks', () => {
       expect(got.labour ?? 0, `${label} labour group`)
         .toBeCloseTo(target.groups.labour.cost, 2)
       // and so is the glass, except FT3's parked shaped head
+      // Step BE: FT3’s glass is Integrate’s plus the shaped-glass decision
+      // (23.28) and the rate still pending (15.11); FT2’s is Integrate’s
+      // exactly. Spelled out per benchmark rather than derived, because the
+      // split is the thing a reader checks.
+      // FT4’s one glass unit is 0.236 m2 of cut glass and prices at the
+      // 0.30 m2 MINIMUM — Integrate’s own 17.55, to the penny.
+      const GLASS = { FT1: 0, FT2: 0, FT3: 23.28 + 15.11, FT4: 0 }
       if (target.groups.glass_done) {
         expect(got.glass_done ?? 0, `${label} glass`)
-          .toBeCloseTo(target.groups.glass_done.cost + (bm.openQuestion?.cost ?? 0), 2)
+          .toBeCloseTo(target.groups.glass_done.cost + GLASS[label], 2)
       }
     })
   }
@@ -3116,9 +3154,36 @@ describe('Step BD — front door benchmarks', () => {
     expect(Math.round(1.788 * 17.30 * 100) / 100).toBe(30.93)
     expect(Math.round(1.005 * 13.60 * 100) / 100).toBe(13.67)
     expect(Math.round(0.777 * 17.30 * 100) / 100).toBe(13.44)
-    expect(BENCHMARK_FT1.deliberateDifference.cost).toBeCloseTo(30.94, 2)
+    // Step BE: FT1 and FT3 declare their timber AND one of Nathan’s
+    // corrections — FT1 the 180 production minutes (73.98 at 24.66/h), FT3
+    // the shaped glass (23.28 at the square rate, energy included).
+    expect(BENCHMARK_FT1.deliberateDifference.cost).toBeCloseTo(30.94 + 73.98, 2)
     expect(BENCHMARK_FT2.deliberateDifference.cost).toBeCloseTo(13.67, 2)
-    expect(BENCHMARK_FT3.deliberateDifference.cost).toBeCloseTo(13.45, 2)
+    expect(BENCHMARK_FT3.deliberateDifference.cost).toBeCloseTo(13.45 + 23.28, 2)
+    expect(Math.round((2850 - 2670) / 60 * 24.66 * 100) / 100,
+      '180 minutes at the workshop rate').toBe(73.98)
+  })
+
+  it('FT4’s side light is a SASH with a grid, and its lines are Integrate’s', () => {
+    const r = runFT(BENCHMARK_FT4)
+    // five Tricoya panels: the door’s four 276 x 834 and the side light’s
+    // 235 x 834, which are Integrate’s 43.47 x 4 and 37.01
+    const tricoya = r.price.lines.filter(l => l.fires && l.name === 'Tricoya Panel')
+    expect(tricoya.map(l => l.line_cost)).toEqual([43.47, 43.47, 43.47, 43.47, 37.01])
+    // its glass stops at its own mid rail (235 x 888 of sightline, 0.236 m2
+    // of cut glass) and prices at the 0.30 m2 minimum, as Integrate does
+    const glass = r.price.lines.filter(l => l.fires && /Glass Cost/.test(l.name ?? ''))
+    expect(glass.length).toBe(1)
+    expect(glass[0].quantity).toBeCloseTo(0.30, 2)
+    expect(glass[0].line_cost).toBeCloseTo(17.55, 2)
+    // the sash is a SIDE LIGHT, not a fanlight: its stiles and top rail come
+    // to W + 2H with no fanlight offset, and its 175 rail from the same
+    // 63x200 as a door’s bottom rail — both Integrate’s own allocations
+    const sections = Object.fromEntries(
+      allocatedSectionParts(BENCHMARK_FT4.tree).map(x => [x.part_code, x.length_mm]))
+    expect(sections.Utile63x63).toBe(4517)
+    expect(sections.Utile63x200).toBe(1400 + 892 + 359)
+    expect(sections.Utile63x96).toBeUndefined()
   })
 
   it('a front door prices no timber VOLUME, as the other doors do not', () => {

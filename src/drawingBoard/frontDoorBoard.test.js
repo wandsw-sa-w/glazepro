@@ -12,6 +12,7 @@ import { describe, it, expect } from 'vitest'
 import {
   buildFrontDoorFrame, buildSingleDoorFrame, setLeafGrid, setLeafCellKind,
   isFrontDoorTree, isDoorTree, FRONT_DOOR_TEMPLATES, FRONT_DOOR_DEFAULTS,
+  addSideLight,
 } from './doorOpenings.js'
 import { leafCells, leafInterior, doorLeaves, allocatedSectionParts, isOpenInLeaf } from '../pricing/doorGeometry.js'
 import { assertSaveable, duplicateKeys } from './containment.js'
@@ -179,6 +180,8 @@ describe('Step BD — a front door on the board', () => {
       'Front Door 200',
       'Front Door With Fanlight 210',
       'Arched Front Door 220',
+      // Step BE, decision g
+      'Front Door With Side Light 230',
     ])
     // each builds, and at Integrate's own template size
     for (const t of FRONT_DOOR_TEMPLATES) {
@@ -244,5 +247,90 @@ describe('Step BD templates fix — Integrate’s own mid rails', () => {
       // for every divider: `offset` is the span BEFORE it.
       expect(rail.values.offset, t.name).toBe(rows(tree)[0])
     }
+  })
+})
+
+describe('Step BE — the side light (Nathan’s decision g)', () => {
+  const frameOf = tree => tree.children.find(c => c.part_type === 'assemblyFramePart')
+  const sashOf = tree => frameOf(tree).children.find(c => c.part_type === 'casementSashPart')
+
+  it('a surveyor adds one to a front door, and it is a fixed SASH', () => {
+    // Decision g replaces decision c: a side light is a casement sash, not a
+    // fixed door leaf — which is what Integrate's own drawing 20 has.
+    const base = buildFrontDoorFrame(PV, { width: 1400, height: 2182 }).tree
+    const { tree, changed, missing } = addSideLight(base, frameOf(base).key, 'right', PV)
+    expect({ changed, missing }).toEqual({ changed: true, missing: [] })
+    const frame = frameOf(tree)
+    // a 41 mullion, the door, then the sash
+    expect(frame.children.filter(c => c.part_type === 'mullionPart').length).toBe(1)
+    expect(frame.children.filter(c => c.part_type === 'doorLeafPart').length).toBe(1)
+    const sash = sashOf(tree)
+    expect(sash.values.operation).toBe('fix')
+    // glass over a panel, under its own mid rail
+    expect((sash.children ?? []).map(c => c.part_type))
+      .toEqual(['transomPart', 'glassPart', 'panelPart'])
+    expect(() => assertSaveable(tree)).not.toThrow()
+    expect(duplicateKeys(tree)).toEqual([])
+  })
+
+  it('the mullion leaves the side light Integrate’s 365 column', () => {
+    const base = buildFrontDoorFrame(PV, { width: 1400, height: 2182 }).tree
+    const { tree } = addSideLight(base, frameOf(base).key, 'right', PV)
+    const mull = frameOf(tree).children.find(c => c.part_type === 'mullionPart')
+    // interior 1306 = 900 (the door) + 41 (the mullion) + 365 (the light)
+    expect(mull.values.offset).toBe(900)
+    expect(leafCells(tree, sashOf(tree)).map(c => `${c.width}x${c.height}`))
+      // This door is the BOARD default (an even 2 x 2 grid, bottom row 809),
+      // so the sash’s rail has to reach 14 + 170 + 809 = 993 above the bottom
+      // of the opening; its own 3 + 175 leaves an 815 panel and 857 of glass.
+      // The TEMPLATE is Integrate’s Balham (635 bottom row) and reads 1031 /
+      // 641 — the test below pins the invariant rather than either pair.
+      .toEqual(['235x857', '235x815'])
+  })
+
+  it('its mid rail MEETS the door’s — the same height off the cill', () => {
+    // The door drops 14 into the frame and has a 170 bottom rail; the sash
+    // drops 3 and has 175. So the rails meet when the sash's panel is 6 mm
+    // shorter measured from its own bottom — which on Integrate's drawing is
+    // 834 both sides, the figure the arithmetic has to produce.
+    const base = buildFrontDoorFrame(PV, { width: 1400, height: 2182 }).tree
+    const { tree } = addSideLight(base, frameOf(base).key, 'right', PV)
+    const door = doorLeaves(tree)[0]
+    const doorRows = leafCells(tree, door).filter(c => c.col === 0).map(c => c.height)
+    const sashRows = leafCells(tree, sashOf(tree)).filter(c => c.col === 0).map(c => c.height)
+    const railHeight = (bottomDrop, bottomRail, panel) => bottomDrop + bottomRail + panel
+    expect(railHeight(14, 170, doorRows[1]))
+      .toBe(railHeight(3, 175, sashRows[1]))
+    // and the stored offset is the GLASS above it, as every divider's is
+    const rail = sashOf(tree).children.find(c => c.part_type === 'transomPart')
+    expect(rail.values.offset).toBe(sashRows[0])
+  })
+
+  it('on the LEFT it is the sash that comes first', () => {
+    const base = buildFrontDoorFrame(PV, { width: 1400, height: 2182 }).tree
+    const { tree } = addSideLight(base, frameOf(base).key, 'left', PV)
+    const kinds = frameOf(tree).children
+      .filter(c => c.part_type === 'casementSashPart' || c.part_type === 'doorLeafPart')
+      .map(c => c.part_type)
+    expect(kinds).toEqual(['casementSashPart', 'doorLeafPart'])
+    expect(frameOf(tree).children.find(c => c.part_type === 'mullionPart').values.offset)
+      .toBe(365)
+  })
+
+  it('the template is Integrate’s Balham with a side light', () => {
+    const t = FRONT_DOOR_TEMPLATES.find(x => x.name === 'Front Door With Side Light')
+    expect(t.sort_order).toBe(230)
+    const { tree, missing } = buildFrontDoorFrame(PV, t.options)
+    expect(missing).toEqual([])
+    const frame = frameOf(tree)
+    expect(`${frame.values.width}x${frame.values.height}`).toBe('1400x2182')
+    // the door keeps Integrate's Balham layout (decision f): 983 / 635
+    const door = doorLeaves(tree)[0]
+    expect(leafCells(tree, door).filter(c => c.col === 0).map(c => c.height))
+      .toEqual([983, 635])
+    // and the side light's rail meets it
+    const sashRows = leafCells(tree, sashOf(tree)).filter(c => c.col === 0).map(c => c.height)
+    expect(14 + 170 + 635).toBe(3 + 175 + sashRows[1])
+    expect(() => assertSaveable(tree)).not.toThrow()
   })
 })

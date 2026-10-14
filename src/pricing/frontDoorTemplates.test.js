@@ -57,10 +57,20 @@ function priceTemplate(options) {
 const byName = name => FRONT_DOOR_TEMPLATES.find(t => t.name === name).options
 
 describe('Step BD templates fix — what each template prices', () => {
+  // Step BE moves two of the three. The reviewer’s live drawings 44-46
+  // (2,580.01 / 2,697.97 / 2,717.65) were priced BEFORE it:
+  //   Front Door  +24.66  the ONE real muntin, 60 minutes at 24.66/h
+  //                       (Nathan’s decision d)
+  //   Arched      +22.58  the shaped glass: 1.13 m2 (the largest rectangle
+  //                       of the cut glass + 25%) where the exact shape was
+  //                       0.83, plus the energy surcharge following it.
+  //                       Still at Integrate’s shaped RATE — sql/step-be1
+  //                       takes another 15.11 off it (1.13 x 13.375).
+  //   With Fanlight        unchanged: no muntin and no shaped glass.
   const EXPECTED = [
-    ['Front Door',               2580.01],
+    ['Front Door',               2604.67],
     ['Front Door With Fanlight', 2697.97],
-    ['Arched Front Door',        2717.65],
+    ['Arched Front Door',        2740.23],
   ]
 
   for (const [name, cost] of EXPECTED) {
@@ -108,7 +118,8 @@ describe('Step BD templates fix — what each template prices', () => {
     }
     expect(bedford.live.results.price.total_cost)
       .toBeGreaterThan(bedford.centred.results.price.total_cost)
-    // the reviewer's drawing 42, made from the centred template
+    // the reviewer's drawing 42, made from the centred template — no
+    // shaped glass and no muntin on it, so Step BE leaves it where it was
     expect(bedford.centred.results.price.total_cost).toBeCloseTo(2683.39, 1)
     // 45 minutes of "Any Door Overweight" come back with the longer glass
     const mins = r => r.results.install_labour.total_minutes
@@ -118,7 +129,8 @@ describe('Step BD templates fix — what each template prices', () => {
       centred: priceTemplate({ ...byName('Arched Front Door'), rowOffsets: null }),
       live:    priceTemplate(byName('Arched Front Door')),
     }
-    expect(arched.centred.results.price.total_cost).toBeCloseTo(2740.74, 1)
+    // the reviewer’s drawing 43 figure plus Step BE’s shaped glass
+    expect(arched.centred.results.price.total_cost).toBeCloseTo(2758.81, 1)
     expect(arched.live.results.price.total_cost)
       .toBeLessThan(arched.centred.results.price.total_cost)
   })

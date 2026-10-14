@@ -105,6 +105,15 @@ export const ALLOWED_PAIRS = new Set([
   'doorLeafPart->mullionPart',
   'leftFrenchDoorLeafPart->mullionPart',
   'rightFrenchDoorLeafPart->mullionPart',
+
+  // Step BE: a SIDE LIGHT is a fixed casement sash with the same grid a
+  // leaf has — a mid rail, glass above it and a raised-and-fielded panel
+  // below (Nathan’s decision g, his drawing 20). The sash already holds
+  // glass; the mid rail, the panel and a muntin are new.
+  // sql/step-be2 adds these three live.
+  'casementSashPart->transomPart',
+  'casementSashPart->panelPart',
+  'casementSashPart->mullionPart',
 ])
 
 /** Every parent->child edge in a tree, as "parentType->childType" strings. */
