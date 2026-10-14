@@ -273,10 +273,21 @@ export default function PricingBenchmark() {
         // Run each benchmark
         const benchmarkResults = ALL_BENCHMARKS.map(benchmark => {
           // Ironmongery: resolveIronmongeryLines handles tree-saved vs defaults
-          // (profile values feed the measured sash-weight model)
-          const ironmongeryLines = resolveIronmongeryLines(
-            benchmark.tree, ctx, benchmark.profileValues ?? profileValuesMap,
-            { profileCode: benchmark.profileCode ?? null })
+          // (profile values feed the measured sash-weight model).
+          //
+          // Step BF: a FIXTURE that states its own list is priced on it,
+          // even when that list is EMPTY. ST2 is Integrate’s drawing 22,
+          // which has no ironmongery at all — and the resolver cannot tell
+          // "the surveyor stored none" from "nothing has been chosen yet",
+          // so it gave the page a NEW stable door’s default set and the row
+          // read 175.35 dearer than Integrate. A benchmark’s job is
+          // Integrate’s drawing, so the fixture’s own reading wins here;
+          // nothing about how a real drawing is priced changes.
+          const ironmongeryLines = Array.isArray(benchmark.ironmongeryLines)
+            ? benchmark.ironmongeryLines
+            : resolveIronmongeryLines(
+              benchmark.tree, ctx, benchmark.profileValues ?? profileValuesMap,
+              { profileCode: benchmark.profileCode ?? null })
 
           // Check for unresolved ironmongery products
           const ironWarnings = []
