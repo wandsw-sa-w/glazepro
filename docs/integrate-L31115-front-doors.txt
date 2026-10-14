@@ -105,3 +105,48 @@
 #    so no price moves.
 # c. Front-door SIDE LIGHTS are built as a FIXED DOOR LEAF (so the side light's rails, including the 170 mid rail, match
 #    the door). Integrate reading still to take (Balham + a fixed-leaf side light), then its own step.
+#
+# ── Read 14 Oct 2026 (reviewer), Estimated Labour Time editor (Production > Lookup Editor > std_labour_time_new) ──────────
+# Test record L31115 Quote 1 (Quote 1 holds ONLY item 10). Nathan approved switching item 10 to drawing 16 and 20; restored
+# to drawing 18 (310641) afterwards, confirmed on reload. Lead numbers in the editor's Test Record need the "L" prefix.
+# FT1 production RESOLVED — the editor fires (drawing 16):
+#   1200 Door Leaf 1035 ; 1235 Door Muntin 2 x 60 = 120 (sash_muntin_to_be_replaced_qty = 2: the muntin AND the mid rail) ;
+#   1240 Additional for Flat Panel 4 x 60 = 240 (NOT 1245 R&F 120 — the panels ARE type 110 R&F both sides: an Integrate
+#   error, its R&F test does not fire for type 110) ; 1300 Door Frame 855 ; 505 Door Frame Dual Finish 240 ;
+#   520 Door Leaf Dual Finish 180. = 2,670 exactly.
+# FT3 (drawing 18): the same two errors, cancelling — 1240 Flat Panel 60 on a type-110 panel + 1235 Door Muntin 1 x 60 for a
+#   leaf with NO muntin (the mid rail counted) — so GlazePro's 3,290 matched for the wrong reason.
+# NATHAN 14 Oct: GlazePro charges R&F panels 120 each (rule 1245 as written) and Door Muntin 60 per REAL muntin only (a mid
+#   rail is not a muntin). Balham = 1035 + 60 + 480 + 855 + 240 + 180 = 2,850 min (GlazePro today 2,790; Integrate 2,670).
+#   FT3 = 3,290 - 60 (Integrate's flat) + 120 (R&F) - 60 (its muntin) = 3,290 unchanged. FT2 to recompute the same way.
+#
+# ── Shaped glass — NATHAN 14 Oct ──────────────────────────────────────────────────────────────────────────────────────────
+# Integrate's 0.62 m2 on FT3 is wrong. A shaped unit is priced on its LARGEST RECTANGLE (cut size) + 25% (the supplier's
+# charge), at the SQUARE glass rate: FT3 799 x 1125 = 0.899 m2 x 1.25 = 1.12 m2 x 58.50 (square rate) = 65.52 (Integrate 44.56
+# at 0.62 x 71.88; GlazePro today 0.83 x 71.88). Scope (doors only, or all shaped glass incl. arched sashes) NOT yet asked.
+#
+# ── Drawing 20 (310688) — Nathan's Balham with a FIXED SIDE LIGHT, read and priced 14 Oct ──────────────────────────────────
+# Frame 1400 x 2182 (47 jambs/head, cill 50), frame MullionPart 41 at offset 900 (full height, 2085). Two CillParts (900, 365).
+# Door leaf 892 x 2068 (rails 110/110/110/170), muntin 120 at offset 276, mid rail drawn 120 (midrailThickness prop 170) at
+#   offset 834; four R&F panels 276 x 834 (centred — Nathan's drawing; the TEMPLATE stays on Integrate's Balham, Nathan 14 Oct).
+# Side light = a CasementSashPart (NOT a door leaf), fixed, 359 x 2079, rails 62/62/62, bottom 175; transom 120 (midrailThickness
+#   170) at offset 888; GlassPart 235 x 888 over a type-110 PanelPart 235 x 834.
+# Integrate cost 3,174.81 / price 6,349.62 (+ quote-level InstallSure 36.12 -> quote 6,421.86):
+#   Square Glass 0.30 x 58.50 = 17.55 ; Energy 6.00 kg 1.02. Ironmongery 263.55 (stored Balham list). Components 2.85 x 4.60 =
+#   13.11 + 2.85 x 1.50 = 4.28. Consumables 30. Tricoya 4 x 0.23 = 43.47 each + 0.20 = 37.01. LTW 25.
+#   Utile 63x120 5.01 m = 86.64 ; 63x200 2.65 = 76.88 ; 63x63 4.52 = 38.85 ; 67x96 5.76 = 78.39.
+#   Production 65.08 h (3,905 min) = 1,604.87: 1105 frame mullion 180 ; 1200 Door Leaf 1035 ; 1201 Sidelights in Doorsets 780 ;
+#     1235 Door Muntin 3 x 60 = 180 ; 1240 Flat Panel 5 x 60 = 300 ; 1300 Door Frame 855 ; 30 Glazing a Sash 20 ;
+#     205 Casement Sash Dual Finish 90 ; 505 Door Frame Dual Finish 240 ; 506 per mullion 45 ; 520 Door Leaf Dual Finish 180.
+#   Labour 18.00 h = 723.78: Front Door and Frame 840 + per frame mullion 120 + Fixed Fanlight (per fixed casement sash) 120.
+#     "Combination Frame" 660 does NOT fire (the side light is a casement sash, not a door leaf).
+#   Groups: glass_done 18.57 ; installation_materials 310.94 ; manufacture 1,604.87 ; labour 723.78 ;
+#     manufacture_materials 516.65.
+#
+# ── Nathan's decisions, 14 Oct (late morning) ────────────────────────────────────────────────────────────────────────────
+# d. Door production: R&F panel 120 each (rule 1245 as written) ; Door Muntin 60 per REAL muntin only (a mid rail is not one).
+#    Integrate's flat-panel and mid-rail-as-muntin firings are Integrate errors, corrected not copied.
+# e. Shaped glass, ALL shaped glass (doors AND arched sash / casement windows): price the LARGEST RECTANGLE of the cut glass
+#    + 25% at the SQUARE glass rate (FT3: 799 x 1125 = 0.899 m2 -> 1.12 m2). Integrate's 0.62 (and its shaped rate 71.88) wrong.
+# f. Front-door template layout = Integrate's Balham (170 mid rail, 983 / 635), muntin centred — as the templates fix did.
+# g. Side light = a FIXED CASEMENT SASH in the door frame, as Nathan's drawing 20 (REPLACES decision c's "fixed door leaf").

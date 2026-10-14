@@ -1687,5 +1687,36 @@
       "production": 54.83,
       "labour": 14.75
     }
+  },
+  "benchmarkFT4_front_door_side_light": {
+    "source": "L31115 Item 10 Drawing 20 (Nathan's: Balham door 892 x 2068 with a FIXED CASEMENT SASH side light 359 x 2079 - glass 235 x 888 over a R&F panel, 120 mid rail - in one 1400 x 2182 frame, 41 frame mullion at 900, two cills). Read and priced 14 Oct 2026 via L31115 Quote 1 item 10 (restored to drawing 18). Facts: docs/integrate-L31115-front-doors.txt.",
+    "total_cost": 3174.81,
+    "total_price": 6349.62,
+    "groups": {
+      "glass_done": {
+        "cost": 18.57,
+        "price": 37.14
+      },
+      "installation_materials": {
+        "cost": 310.94,
+        "price": 621.87
+      },
+      "manufacture": {
+        "cost": 1604.87,
+        "price": 3209.75
+      },
+      "labour": {
+        "cost": 723.78,
+        "price": 1447.56
+      },
+      "manufacture_materials": {
+        "cost": 516.65,
+        "price": 1033.3
+      }
+    },
+    "hours": {
+      "production": 65.08,
+      "labour": 18.0
+    }
   }
 }
