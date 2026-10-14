@@ -359,5 +359,20 @@ And to try item 1 by hand, on any door drawing:
 
 # e2e after the deploy
 
-Recorded below once the Vercel deploy was confirmed by decoding
-`/version.json`.
+Deploy confirmed by decoding `/version.json`: **14:10:55Z**, just after the
+commit.
+
+`npm run e2e` — **5 passed** (27.5s): logs in; every benchmark passes except
+the parked residuals; the fanlight drawing; the validation panel; every
+drawing card on the L507712 matrix priced.
+
+The benchmark test matters here as a NEGATIVE: this step changed the divider
+actions, the doorset builders and one fixture profile value, and all 61
+benchmark rows are where Step BG left them. Nothing in the pricing engine
+moved.
+
+**What the smoke suite cannot see yet**: the five templates, because neither
+`sql/step-bh1` nor `sql/step-bh2` has run. Once they have, the five drawings
+listed above are worth pinning in the suite the way the benchmark rows are —
+and the fastest check of bh1 is the pair of front doors at £6,634.49 rather
+than £6,741.59.
