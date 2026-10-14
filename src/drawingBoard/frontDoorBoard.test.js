@@ -12,12 +12,13 @@ import { describe, it, expect } from 'vitest'
 import {
   buildFrontDoorFrame, buildSingleDoorFrame, setLeafGrid, setLeafCellKind,
   isFrontDoorTree, isDoorTree, FRONT_DOOR_TEMPLATES, FRONT_DOOR_DEFAULTS,
-  addSideLight,
+  addSideLight, recentreGridsAfterResize,
 } from './doorOpenings.js'
 import {
   leafCells, leafInterior, doorLeaves, allocatedSectionParts, isOpenInLeaf, gridRectsFor,
 } from '../pricing/doorGeometry.js'
 import { assertSaveable, duplicateKeys } from './containment.js'
+import { resizeCasementFrame } from './casementOpenings.js'
 import { partLabel } from './partLabels.js'
 
 /** The open_in_doors profile, as the FT fixtures hold it. */
@@ -416,5 +417,91 @@ describe('Step BE follow-up — the board DRAWS a sash’s own grid', () => {
     expect(rects[0].kind).toBe('glass')
     // and a part that cannot hold a grid at all answers with nothing
     expect(gridRectsFor(tree, frameOf(tree), 0, 0)).toEqual([])
+  })
+})
+
+describe('Step BE resize — a frame resize re-centres the grids it widens', () => {
+  const frameOf = tree => tree.children.find(c => c.part_type === 'assemblyFramePart')
+  const sashOf = tree => frameOf(tree).children.find(c => c.part_type === 'casementSashPart')
+  const muntinOf = node => (node.children ?? []).find(c => c.part_type === 'mullionPart')
+  const railOf = node => (node.children ?? []).find(c => c.part_type === 'transomPart')
+  /** What the board does on a size edit: resize, then re-centre. */
+  const resize = (tree, sizes) => {
+    const { tree: resized } = resizeCasementFrame(tree, sizes, frameOf(tree).key)
+    return recentreGridsAfterResize(tree, resized, PV)
+  }
+
+  it('a WIDER front door keeps its muntin centred, and its lock rail still', () => {
+    const base = buildFrontDoorFrame(PV, { width: 1099, height: 2182, rowOffsets: [983] }).tree
+    const leaf0 = doorLeaves(base)[0]
+    expect(leafInterior(base, leaf0).width).toBe(777)
+    expect(muntinOf(leaf0).values.offset).toBe(329)
+
+    const next = resize(base, { width: 1399 })
+    const leaf = doorLeaves(next)[0]
+    // 777 + 300 of frame = a 1077 interior, so the muntin is (1077 - 120) / 2
+    expect(leafInterior(next, leaf).width).toBe(1077)
+    expect(muntinOf(leaf).values.offset).toBe(479)
+    expect(leafCells(next, leaf).filter(c => c.row === 0).map(c => c.width))
+      .toEqual([479, 478])
+    // the lock rail does not move because the door got wider
+    expect(railOf(leaf).values.offset).toBe(983)
+  })
+
+  it('without the re-centring the panels would be 329 / 628', () => {
+    // The defect this wiring closes, stated as a test: resizeCasementFrame on
+    // its own leaves the muntin where it was.
+    const base = buildFrontDoorFrame(PV, { width: 1099, height: 2182, rowOffsets: [983] }).tree
+    const { tree: resizedOnly } = resizeCasementFrame(base, { width: 1399 }, frameOf(base).key)
+    const leaf = doorLeaves(resizedOnly)[0]
+    expect(muntinOf(leaf).values.offset).toBe(329)
+    expect(leafCells(resizedOnly, leaf).filter(c => c.row === 0).map(c => c.width))
+      .toEqual([329, 628])
+  })
+
+  it('a muntin the surveyor has MOVED stays put through a resize', () => {
+    // Nobody's decision is undone by a size edit: only an EVEN run is
+    // re-evened, and 600 of a 777 interior is not even.
+    const base = buildFrontDoorFrame(PV, { width: 1099, height: 2182, rowOffsets: [983] }).tree
+    const moved = setLeafGrid(base, doorLeaves(base)[0].key, {
+      columns: 2, rows: 2, columnOffsets: [600], rowOffsets: [983],
+    }, PV)
+    expect(muntinOf(doorLeaves(moved)[0]).values.offset).toBe(600)
+    const next = resize(moved, { width: 1399 })
+    expect(muntinOf(doorLeaves(next)[0]).values.offset).toBe(600)
+  })
+
+  it('a TALLER door re-evens an even grid and leaves a chosen rail alone', () => {
+    // An even 2 x 2 grid is a proportion both ways.
+    const even = buildFrontDoorFrame(PV, { width: 1099, height: 2182 }).tree
+    expect(railOf(doorLeaves(even)[0]).values.offset).toBe(809)
+    const taller = resize(even, { height: 2382 })
+    expect(railOf(doorLeaves(taller)[0]).values.offset).toBe(909)
+
+    // but Integrate's Balham rail is a decision, and it stays
+    const balham = buildFrontDoorFrame(PV, { width: 1099, height: 2182, rowOffsets: [983] }).tree
+    const tallerBalham = resize(balham, { height: 2382 })
+    expect(railOf(doorLeaves(tallerBalham)[0]).values.offset).toBe(983)
+  })
+
+  it('the SIDE LIGHT’s own grid follows the same rule', () => {
+    const t = FRONT_DOOR_TEMPLATES.find(x => x.name === 'Front Door With Side Light')
+    const base = buildFrontDoorFrame(PV, t.options).tree
+    const sashRail = railOf(sashOf(base))
+    expect(sashRail.values.offset).toBe(1031)
+    // taller frame: the sash's single rail is a chosen height (1031 is not the
+    // even split of its interior), so it stays and the glass takes the change
+    const taller = resize(base, { height: 2382 })
+    expect(railOf(sashOf(taller)).values.offset).toBe(1031)
+    expect(leafCells(taller, sashOf(taller)).map(c => c.height)).toEqual([1031, 841])
+  })
+
+  it('a casement WINDOW is untouched: no leaf, no sash grid, no change', () => {
+    // The hook runs on every commit, so the thing that matters most is that
+    // it does nothing to a drawing with no grid in it.
+    const base = buildSingleDoorFrame(PV, { width: 1099, height: 2199 }).tree
+    const { tree: resized } = resizeCasementFrame(base, { width: 1399 }, frameOf(base).key)
+    const next = recentreGridsAfterResize(base, resized, PV)
+    expect(next).toEqual(resized)
   })
 })

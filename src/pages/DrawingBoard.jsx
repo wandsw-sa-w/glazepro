@@ -39,7 +39,7 @@ import { setStormproof } from '../drawingBoard/stormproof.js'
 import {
   setLeafMidRail, leafMidRailOf, leafMidRailOffsetFor, DEFAULT_LEAF_PANEL_HEIGHT_MM,
   changeOpeningToSingleDoor, addFlagFrame, removeFrame, isDoorTree,
-  setLeafGrid, setLeafCellKind,
+  setLeafGrid, setLeafCellKind, recentreGridsAfterResize,
 } from '../drawingBoard/doorOpenings.js'
 import { DOOR_LEAF_TYPES, doorLeafSize, doorPanelSize, leafCells, leafHolding } from '../pricing/doorGeometry.js'
 import { computeSashWeight } from '../pricing/sashWeight.js'
@@ -1860,10 +1860,27 @@ function DrawingBoard() {
   }
 
   function commit(newTree) {
+    // Step BE resize: a leaf or a sash whose INTERIOR has just changed gets
+    // its own grid re-centred — the live bug was a front door whose muntin
+    // stayed where it was when the leaf narrowed, leaving 479 / 73 panels.
+    //
+    // It belongs HERE rather than in each handler because the list of things
+    // that change a leaf’s interior is longer than the obvious two: the
+    // frame’s width and height, typing an internal size, the divider picker,
+    // splitting an opening, removing a divider, evening dividers up, a cill
+    // height, a bottom rail. recentreGridsAfterResize only acts when an
+    // interior actually moved AND the dividers in it were EVEN, so every
+    // other commit passes through it untouched — and a muntin the surveyor
+    // has moved on purpose is never re-evened, whatever the edit was.
+    //
+    // A MID RAIL at a chosen height stays: a lock rail does not move because
+    // the door got wider. undo() and redo() set the tree directly, so they
+    // restore exactly what was there.
+    const next = recentreGridsAfterResize(tree, newTree, profileValues)
     undoStack.current = [...undoStack.current.slice(-49), tree]
     redoStack.current = []
-    setTree(newTree)
-    setDirty(isDirtyVsSaved(newTree))
+    setTree(next)
+    setDirty(isDirtyVsSaved(next))
   }
 
   function undo() {
