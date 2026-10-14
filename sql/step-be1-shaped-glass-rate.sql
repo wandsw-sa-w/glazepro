@@ -74,7 +74,7 @@ BEGIN;
 
 DO $$
 DECLARE
-  _price_file bigint;
+  _price_file uuid;     -- (reviewer, 14 Oct: price_files.id is uuid, not bigint)
   _square     text;
   _rows       int;
 BEGIN
