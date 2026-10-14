@@ -6,12 +6,21 @@ Facts: the 14 Oct FD4 re-reading, appended by the reviewer to
 `docs/integrate-L31115-front-doors.txt`.
 
 Commits: `0c4bff7` (item 0 — the reviewer's `bf1` / `bf4` edits and the new
-`strict $.**` rule) and this one (items 1–3, the re-issued `sql/step-bf3`, and
-this report).
+`strict $.**` rule), `be2411d` (items 1–3, the re-issued `sql/step-bf3` and
+this report), `ecb9ab5` (the deploy and the e2e run) and `ac93e29` (the
+reviewer's edit to bf3, unchanged, with this note).
 
-**SQL waiting, not run:** **`sql/step-bf3`, RE-ISSUED** — the only file in this
-step. Its first issue has already run, so the re-issue both deletes what that
-added and leaves the rest alone; it is safe to run twice.
+**SQL: none waiting.** **`sql/step-bf3`, RE-ISSUED — RAN LIVE 14 Oct 2026**
+(reviewer, SHA `c9b7483d…`), with one edit of their own: the duplicate hinge
+rule `bf030001` is **deactivated, not DELETEd** — a delete needs Nathan’s yes
+each time, and with the row kept the effect on every price is the same.
+Committed unchanged as `ac93e29`.
+
+It did what it was written to do: **drawings 50 / 51 / 52 on L507712 now read
+2,675.07 / 2,577.73 / 2,701.77**, each £34.65 less than before and each equal
+to the figure `src/pricing/stableDoorTemplates.test.js` had already pinned
+offline. The offline test and the site agree, which is the whole point of
+running it on the live rule set.
 
 Offline suite: **1,801 passing, 8 failing** — the standing eight (six Step W
 sash-weight rows, benchmarks A50 and D). `npm run e2e`: recorded at the end.
@@ -64,10 +73,16 @@ changing — the fix is entirely in the rule rows.
 
 ## `sql/step-bf3`, re-issued
 
-- **DELETEs** its own hinge rule `bf030001-…` (the row its first issue
-  inserted), after a guard that refuses to run at all if the per-leaf
-  `102mm_hinges` rule has gone — otherwise removing this one would leave a
-  stable door with no hinges.
+- **Stands down** its own hinge rule `bf030001-…` (the row its first issue
+  inserted) — as written a DELETE, as run an `is_active = FALSE`, which is
+  the reviewer’s edit and the better of the two: an inactive rule is still
+  readable, and the allocator ignores it either way. Either form is guarded
+  by a check that refuses to run at all if the per-leaf `102mm_hinges` rule
+  has gone — otherwise standing this one down would leave a stable door with
+  no hinges. **One thing to know:** the DO-NOT-RUN rollback was written
+  against the DELETE, so it re-inserts Nathan’s four rules but does not
+  re-activate `bf030001`; undoing this step by hand means flipping that row
+  back to TRUE as well.
 - **Appends** ` and new_stable_door_pair_qty < 1` to the two Trickle Vent
   rules, by id and only where it is not already there. Appending rather than
   rewriting: both rules stay **active** and keep everything else they band on,
@@ -200,7 +215,8 @@ and **FD4's −49.32 is now one of them** — so the live benchmark page reads
 BY DESIGN on that row, and the figure cannot drift without the smoke suite
 saying so.
 
-**What the smoke suite cannot yet see**: the three stable-door prices. They
-will stay at 2,709.72 / 2,612.38 / 2,736.42 on drawings 50–52 until the
-re-issued `sql/step-bf3` is run; the offline test pins what they should be,
-and the next step should pin the live figures too, once the file has run.
+**What the smoke suite does not yet see**: the three stable-door prices. The
+re-issued file has since run, and drawings 50–52 read 2,675.07 / 2,577.73 /
+2,701.77 — but that was read by hand, and only the offline test holds the
+figures. The next step should pin those three live, the way the benchmark
+rows are pinned, so a rule change cannot move them quietly.
