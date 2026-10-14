@@ -1435,9 +1435,18 @@ function leafGlassNode(key, d) {
  * its glass — a leaf with no grid is a glazed door, which is what every
  * garden door is.
  *
- * The dividers are spaced EVENLY, because that is what a surveyor wants from
- * a layout button and Integrate's own 373 / 284 split on the Balham template
- * is its template's accident, not a design (brief item 8).
+ * The dividers are spaced EVENLY unless the caller gives their positions.
+ * That is what a surveyor wants from a layout button — and it is what the
+ * MUNTIN gets, because Integrate’s 373 / 284 split on the Balham template is
+ * its template’s accident, not a design.
+ *
+ * A MID RAIL is not an accident. A front door’s lock rail sits LOW — long
+ * panels or glass above, a short panel below (Balham 983 / 635, Bedford
+ * 941 / 618, the arched door 1103 / 582) — and the first templates centred
+ * it, which is a door nobody sells. `rowOffsets` and `columnOffsets` carry
+ * those positions, in the board’s own convention: a divider’s OFFSET is the
+ * span BEFORE it, so a mid rail’s offset is the height of the cells ABOVE
+ * it. Anything not given is still spaced evenly.
  */
 export function setLeafGrid(tree, leafKey, {
   columns = 1,
@@ -1445,6 +1454,8 @@ export function setLeafGrid(tree, leafKey, {
   cells = null,
   muntinThickness = FRONT_DOOR_MUNTIN_MM,
   midRailThickness = FRONT_DOOR_MID_RAIL_MM,
+  columnOffsets = null,
+  rowOffsets = null,
 } = {}, profileValues = {}) {
   const resolved = doorProfileDefaults(profileValues)
   const d = resolved.values
@@ -1457,18 +1468,21 @@ export function setLeafGrid(tree, leafKey, {
       const interior = leafInterior(tree, node)
       if (interior.width == null || interior.height == null) return node
       const dividers = []
-      // Evenly spaced muntins: each offset is the span BEFORE it.
+      // Evenly spaced unless the caller says where. Each offset is the span
+      // BEFORE that divider, which is how every divider on the board works.
       const colSpan = (interior.width - (cols - 1) * muntinThickness) / cols
       for (let i = 1; i < cols; i++) {
         dividers.push(leafMuntinNode(`${node.key}_muntin${i}`, {
-          offset: Math.round((colSpan + muntinThickness) * (i - 1) + colSpan),
+          offset: columnOffsets?.[i - 1] ??
+            Math.round((colSpan + muntinThickness) * (i - 1) + colSpan),
           thickness: muntinThickness,
         }))
       }
       const rowSpan = (interior.height - (rws - 1) * midRailThickness) / rws
       for (let i = 1; i < rws; i++) {
         dividers.push(midRailNode(`${node.key}_midrail${i}`, {
-          offset: Math.round((rowSpan + midRailThickness) * (i - 1) + rowSpan),
+          offset: rowOffsets?.[i - 1] ??
+            Math.round((rowSpan + midRailThickness) * (i - 1) + rowSpan),
           thickness: midRailThickness,
         }))
       }
@@ -1584,6 +1598,8 @@ export function buildFrontDoorFrame(profileValues, {
   rows = 2,
   cells = null,
   midRailThickness = FRONT_DOOR_MID_RAIL_MM,
+  columnOffsets = null,
+  rowOffsets = null,
   fanlight = null,                 // { offset } — a direct glazed unit over a transom
   arch = null,                     // { frame: {...}, leaf: {...} }
 } = {}) {
@@ -1677,7 +1693,9 @@ export function buildFrontDoorFrame(profileValues, {
   }
 
   return {
-    tree: setLeafGrid(tree, leaf.node.key, { columns, rows, cells, midRailThickness }, profileValues),
+    tree: setLeafGrid(tree, leaf.node.key, {
+      columns, rows, cells, midRailThickness, columnOffsets, rowOffsets,
+    }, profileValues),
     missing: [],
   }
 }
@@ -1701,9 +1719,14 @@ export const FRONT_DOOR_TEMPLATES = [
     options: {
       width: 1099, height: 2182,
       columns: 2, rows: 2,
-      // Integrate's own template puts the muntin at 373 / 284 — not centred.
-      // GlazePro CENTRES it: the brief calls Integrate's split its template's
-      // accident, and an even layout is what a four-panel door is drawn as.
+      // The MUNTIN is centred (329 / 328 of a 777 interior): Integrate’s
+      // 373 / 284 is its own template’s accident.
+      //
+      // The MID RAIL is Integrate’s, at 983 — a front door’s lock rail sits
+      // LOW, two long panels over two short ones (983 / 635 of the 1788
+      // interior, with the 170 rail between). Centring it gave 809 / 809,
+      // which is a door nobody sells.
+      rowOffsets: [983],
     },
   },
   {
@@ -1714,6 +1737,8 @@ export const FRONT_DOOR_TEMPLATES = [
       width: 1099, height: 2595,
       columns: 1, rows: 2,
       cells: ['glass', 'panel'],
+      // Integrate’s Bedford: glass 941 over a 618 panel, of a 1729 interior.
+      rowOffsets: [941],
       fanlight: { offset: 431 },
     },
   },
@@ -1726,6 +1751,9 @@ export const FRONT_DOOR_TEMPLATES = [
       columns: 1, rows: 2,
       cells: ['glass', 'panel'],
       midRailThickness: 120,
+      // Integrate’s Arched Door: shaped glass 1103 over a 582 panel, of a
+      // 1805 interior, with its own 120 rail.
+      rowOffsets: [1103],
       // Integrate's own arched door is glass over a 120 mid rail and ONE
       // panel, and it is kept that way: a four-panel arched door would need
       // shaped top panels, which no rule prices and no drawing holds.

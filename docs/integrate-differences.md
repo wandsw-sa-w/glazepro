@@ -676,9 +676,17 @@ template stores. The rest of the live set is what he wants already:
 | **euro_cylinder_pull PB** | CRO1774PB | **29.40** |
 | av3_heritage_locking_system PC | the AV4 set | 176.40 |
 
-and there is **no letter tidy**, which is also what he asked for. A new front
-door is £4.20 dearer in ironmongery than before; no existing drawing moves,
-because a drawing holds its own stored list.
+and there is **no letter tidy**, which is also what he asked for.
+
+**What the £4.20 is against** (reviewer, 14 Oct): GlazePro’s PREVIOUS
+default — the Hardwick back-to-back pull at £25.20 against the Croft one at
+£29.40. It is **not** the difference from Integrate. A new GlazePro front
+door’s ironmongery is **£315.00** where Integrate’s stored template list is
+**£263.55**: **+£51.45** cost (+£102.90 price), and the whole of it is the
+Hardwick sleeved **letterbox** (£94.50) standing where Integrate has a
+premium letter tidy (£27.30) and a small letterplate (£15.75). That is the
+decision, not a difference to be chased. No existing drawing moves, because
+a drawing holds its own stored list.
 
 **FT1–FT3 are not affected**: a benchmark carries Integrate's own stored
 template list (hinges, the AV4 system, the Croft pull, a premium letter tidy

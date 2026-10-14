@@ -26,8 +26,17 @@
 -- ONE ROW CHANGES: rule cb8eb0b9-056f-40a0-80b9-3b9f0b14f214 ("Front Door
 -- Euro Cylinder Pull", default_ironmongery), product_short_name
 -- hardwick_classic_euro_pull_set_back_to_back -> euro_cylinder_pull. A new
--- front door becomes GBP 4.20 dearer in ironmongery; no existing drawing
--- moves, because a drawing holds its own stored list.
+-- front door becomes GBP 4.20 dearer in ironmongery than it was; no
+-- existing drawing moves, because a drawing holds its own stored list.
+--
+-- WHAT "+4.20" IS AGAINST (reviewer, 14 Oct). The 4.20 is the difference
+-- from GlazePro's PREVIOUS default — the Hardwick back-to-back pull (25.20)
+-- against the Croft one (29.40). It is NOT the difference from Integrate.
+-- A new GlazePro front door's ironmongery comes to 315.00 where Integrate's
+-- stored template list is 263.55: +51.45 cost, +102.90 price, and the whole
+-- of it is the Hardwick sleeved LETTERBOX (94.50) standing where Integrate
+-- has a premium letter tidy (27.30) and a small letterplate (15.75). That is
+-- Nathan's decision (a), not a difference to be chased.
 --
 -- BENCHMARKS FT1-FT3 ARE UNAFFECTED: they carry Integrate's own stored
 -- template list (hinges, the AV4 system, the Croft pull, a premium letter

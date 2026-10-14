@@ -75,10 +75,20 @@ euro_cylinder_pull PB                    CRO1774PB   29.40
 av3_heritage_locking_system PC           the AV4 set 176.40
 ```
 
-and no letter tidy, which is what Nathan asked for. **+£4.20** on a new door;
-nothing on an existing drawing, which holds its own stored list. The file
-refuses to run if there is no `euro_cylinder_pull:PB` variant, because a rule
-pointing at a product with no variant loses the line in silence.
+and no letter tidy, which is what Nathan asked for. Nothing on an existing
+drawing, which holds its own stored list. The file refuses to run if there is
+no `euro_cylinder_pull:PB` variant, because a rule pointing at a product with
+no variant loses the line in silence.
+
+**CORRECTED 14 Oct, after the reviewer priced a real one:** the **+£4.20**
+above is against GlazePro’s PREVIOUS default (the Hardwick back-to-back pull,
+£25.20, against the Croft one, £29.40). It is **not** the difference from
+Integrate. A new GlazePro front door’s ironmongery is **£315.00** against
+Integrate’s stored list of **£263.55** — **+£51.45** cost, +£102.90 price —
+and all of it is the Hardwick sleeved **letterbox** (£94.50) where Integrate
+has a premium letter tidy (£27.30) and a small letterplate (£15.75). That is
+decision (a) working as asked, and it is what the reviewer measured on
+drawings 41–43.
 
 **b. The AV4 hand, corrected.** `av3_heritage_locking_system_lh` now holds the
 **LH** Heritage lock (RHZ2481) and the **LH** centre keep w dayswitch

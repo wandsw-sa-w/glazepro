@@ -13,7 +13,7 @@ import {
   buildFrontDoorFrame, buildSingleDoorFrame, setLeafGrid, setLeafCellKind,
   isFrontDoorTree, isDoorTree, FRONT_DOOR_TEMPLATES, FRONT_DOOR_DEFAULTS,
 } from './doorOpenings.js'
-import { leafCells, doorLeaves, allocatedSectionParts, isOpenInLeaf } from '../pricing/doorGeometry.js'
+import { leafCells, leafInterior, doorLeaves, allocatedSectionParts, isOpenInLeaf } from '../pricing/doorGeometry.js'
 import { assertSaveable, duplicateKeys } from './containment.js'
 import { partLabel } from './partLabels.js'
 
@@ -190,5 +190,59 @@ describe('Step BD — a front door on the board', () => {
       expect(() => assertSaveable(tree), t.name).not.toThrow()
     }
     expect(FRONT_DOOR_DEFAULTS.frameBottom).toBe(50)
+  })
+})
+
+describe('Step BD templates fix — Integrate’s own mid rails', () => {
+  const leafOf2 = tree => doorLeaves(tree)[0]
+  /** The leaf's cell heights, top row first — what a lock rail's height is. */
+  const rows = tree => {
+    const cells = leafCells(tree, leafOf2(tree))
+    return cells.filter(c => c.col === 0).map(c => c.height)
+  }
+  const cols = tree => {
+    const cells = leafCells(tree, leafOf2(tree))
+    return cells.filter(c => c.row === 0).map(c => c.width)
+  }
+  const byName = name => FRONT_DOOR_TEMPLATES.find(t => t.name === name)
+
+  it('the Balham’s rail sits LOW: 983 over 635, muntin 329 / 328', () => {
+    // A front door's lock rail is low — long panels over a short one. The
+    // first templates centred it (809 / 809), which is the door nobody sells.
+    // The MUNTIN stays centred: Integrate's 373 / 284 is its own accident.
+    const { tree } = buildFrontDoorFrame(PV, byName('Front Door').options)
+    expect(rows(tree)).toEqual([983, 635])
+    expect(cols(tree)).toEqual([329, 328])
+  })
+
+  it('the Bedford’s glass is 941 over a 618 panel', () => {
+    const { tree } = buildFrontDoorFrame(PV, byName('Front Door With Fanlight').options)
+    expect(rows(tree)).toEqual([941, 618])
+    expect(cellKinds(tree)).toEqual(['glass', 'panel'])
+  })
+
+  it('the arched door’s shaped glass is 1103 over a 582 panel', () => {
+    const { tree } = buildFrontDoorFrame(PV, byName('Arched Front Door').options)
+    expect(rows(tree)).toEqual([1103, 582])
+    // and its rail is Integrate's 120, not the 170 of a square door
+    const rail = leafOf2(tree).children.find(c => c.part_type === 'transomPart')
+    expect(rail.values.midrailThickness ?? rail.values.thicknessInFrame).toBe(120)
+  })
+
+  it('every template’s rows add up to the leaf interior', () => {
+    // top + rail + bottom = the interior height, which is the arithmetic a
+    // stored offset has to satisfy however it is written down.
+    for (const t of FRONT_DOOR_TEMPLATES) {
+      const { tree } = buildFrontDoorFrame(PV, t.options)
+      const leaf = leafOf2(tree)
+      const rail = leaf.children.find(c => c.part_type === 'transomPart')
+      const thickness = rail.values.midrailThickness ?? rail.values.thicknessInFrame
+      const interior = leafInterior(tree, leaf)
+      expect(rows(tree).reduce((a, b) => a + b, 0) + thickness, t.name)
+        .toBe(interior.height)
+      // the stored offset IS the top cell, which is the board's convention
+      // for every divider: `offset` is the span BEFORE it.
+      expect(rail.values.offset, t.name).toBe(rows(tree)[0])
+    }
   })
 })
