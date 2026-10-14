@@ -1571,7 +1571,10 @@ export function buildFrontDoorLeaf(profileValues, {
         rightWidth: d.leafStileRight,
         bottomHeight,
         bottomHeightExternal: bottomHeight,
-        btmRailShapeId: 'stepped',
+        // Step BG: an OPEN-IN leaf takes the square rail (Integrate 99);
+        // 101 stepped is the open-out one. Nothing prices it, and the
+        // direction switch writes whichever the direction calls for.
+        btmRailShapeId: 'square',
         mechanicalClearanceTop:    FRONT_DOOR_CLEARANCES.top,
         mechanicalClearanceLeft:   FRONT_DOOR_CLEARANCES.left,
         mechanicalClearanceRight:  FRONT_DOOR_CLEARANCES.right,

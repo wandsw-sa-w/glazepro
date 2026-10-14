@@ -94,6 +94,18 @@ const DELIBERATE = {
   ST1:  { cost: '152.73', price: '305.46' },
   ST2:  { cost: '152.73', price: '305.46' },
   ST3:  { cost: '152.73', price: '305.46' },
+  // Step BG: OPENING DIRECTION. OI1 and OI2 are Integrate TO THE PENNY and
+  // are not here at all — they must read PASS. The two that differ do so
+  // for reasons that are already decided:
+  //   SO1  +153.66  the stable door’s two halves’ timber, as ST1 — 7211 mm
+  //        of 63x120 at the open-OUT -6 offset (the bottom half is 1061
+  //        because the cill is 37) and 997 more of 63x200
+  //   OI3  + 16.94 = 17.08 the transom (BY DESIGN, difference 7) less 0.14
+  //        PARKED: Integrate allocates 2050 of 63x63 for a fanlight whose
+  //        sash is 385 — the 8 mm its own range switch took off the rail,
+  //        counted twice. The page reads the two apart; this is the row.
+  SO1:  { cost: '153.66', price: '307.33' },
+  OI3:  { cost: '16.94', price: '33.88' },
 }
 
 // Step BD follow-up: the OPEN QUESTIONS on the page — over £1.00, so not
@@ -230,7 +242,11 @@ test.describe('GlazePro live smoke (read only)', () => {
     expect(seen).toContain('Q')
     // Step AZ / BA: all seven door benchmarks are on the page
     for (const fd of ['FD1', 'FD2', 'FD3', 'FD3b', 'FD4', 'FD5', 'FD6', 'FD7',
-      'SD1', 'SD2', 'SD3', 'SD4', 'CD1', 'CD2', 'CD3', 'CD4']) expect(seen).toContain(fd)
+      'SD1', 'SD2', 'SD3', 'SD4', 'CD1', 'CD2', 'CD3', 'CD4',
+      // Step BF: the stable doors. Step BG: both directions — OI1 and OI2
+      // are the pennies-exact pair, so their being here and PASSing is the
+      // check that nothing in the engine needed a direction flag.
+      'ST1', 'ST2', 'ST3', 'OI1', 'OI2', 'OI3', 'SO1']) expect(seen).toContain(fd)
     expect(unexpected, unexpected.join('\n')).toEqual([])
   })
 

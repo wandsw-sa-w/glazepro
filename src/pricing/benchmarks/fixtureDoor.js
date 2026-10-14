@@ -45,6 +45,12 @@ const GLASS_CODES = {
  * so 0.1 means whole pounds:
  *   RJZ2382  Winkhaus Thunderbolt Master Multipoint Lock  50.83 -> 51 -> 53.55
  *   RHZ1648  Winkhaus Flushbolt LH                        89.47 -> 89 -> 93.45
+ *   RHZ1649  Winkhaus Flushbolt RH                        89.47 -> 89 -> 93.45
+ *            (Step BG: the SAME part the other way round. The allocator
+ *            picks one or the other by the leaf’s direction, at the same
+ *            cost, so an open-in French pair’s ironmongery is FD1’s to the
+ *            penny — and it is already in the live catalogue, so no file
+ *            was needed for it.)
  *   RHZ1653  Winkhaus FAB Shootbolt 399                   34.92 -> 35 -> 36.75
  *   RHZ1667  Adj Single Shootbolt Keep                     5.61 ->  6 ->  6.30
  * Those four lines are Integrate's, by name and to the penny
@@ -62,6 +68,7 @@ export const DOOR_PART_COST_MAP = {
   TP68: 2.85,
   RJZ2382: 50.83,
   RHZ1648: 89.47,
+  RHZ1649: 89.47,
   RHZ1653: 34.92,
   RHZ1667: 5.61,
 }
@@ -106,6 +113,46 @@ export const DOOR_PROFILE_VALUES = {
   'glassPart.defaultDoubleGlazingTolerance': 3,
 }
 
+// ── Step BG: opening direction ───────────────────────────────────────────────
+//
+// docs/integrate-L31115-door-direction.txt, drawings 24-27 read 14 Oct 2026.
+//
+// OPENING DIRECTION IS THE DRAWING’S RANGE, not a property of a leaf: Integrate
+// switches "Standard Open Out Doors" (single_and_french_doors) to "Standard
+// Open In Doors" (open_in_doors) and re-applies the range’s values. What
+// reaches a price is all in the TREE — the cill, the leaf clearances, the
+// bottom rail and typeId 7 / 8 — which is why these fixtures carry Integrate’s
+// own stored values and nothing in the engine needed a flag.
+
+export const OPEN_OUT = 'open_out'   // Integrate typeId 7
+export const OPEN_IN  = 'open_in'    // Integrate typeId 8
+
+/**
+ * A door leaf’s bottom rail, by direction.
+ *
+ * OUT: 163 internal / 170 external, STEPPED (Integrate btmRailShapeId 101) —
+ *      the rail is cut back inside so the door clears the cill.
+ * IN:  170 both sides, SQUARE (99). The interior (and so the glass or the
+ *      panel) is measured from the INTERNAL rail, so an open-in leaf’s cell
+ *      is 7 mm shorter than the same leaf opening out.
+ */
+export const LEAF_BOTTOM_RAIL = {
+  [OPEN_OUT]: { bottomHeight: 163, bottomHeightExternal: 170, btmRailShapeId: 'stepped' },
+  [OPEN_IN]:  { bottomHeight: 170, bottomHeightExternal: 170, btmRailShapeId: 'square' },
+}
+
+/** A French PAIR part’s clearances, by direction (Integrate’s own, per edge). */
+export const PAIR_CLEARANCES = {
+  [OPEN_OUT]: { mechanicalClearanceTop: 3, mechanicalClearanceBottom: 3, mechanicalClearanceLeft: 1, mechanicalClearanceRight: 1 },
+  [OPEN_IN]:  { mechanicalClearanceTop: 3, mechanicalClearanceBottom: 14, mechanicalClearanceLeft: 3, mechanicalClearanceRight: 3 },
+}
+
+/** A SINGLE leaf’s own clearances, by direction. */
+export const LEAF_CLEARANCES = {
+  [OPEN_OUT]: { mechanicalClearanceTop: 2, mechanicalClearanceBottom: 3, mechanicalClearanceLeft: 3, mechanicalClearanceRight: 3 },
+  [OPEN_IN]:  { mechanicalClearanceTop: 3, mechanicalClearanceBottom: 14, mechanicalClearanceLeft: 4, mechanicalClearanceRight: 4 },
+}
+
 // ── Tree builders ────────────────────────────────────────────────────────────
 
 function glassChild(key) {
@@ -124,20 +171,19 @@ function glassChild(key) {
  * leaf wider than half the opening — the opposite of a French casement,
  * whose sashes are narrower than half by the gap.
  */
-function frenchDoorPair(key, { masterLeaf = 'right' } = {}) {
+function frenchDoorPair(key, { masterLeaf = 'right', direction = OPEN_OUT } = {}) {
   const leaf = (side, operation) => ({
     key: `${key}_${side}`,
     part_type: side === 'left' ? 'leftFrenchDoorLeafPart' : 'rightFrenchDoorLeafPart',
     values: {
       operation,
-      casementTypeId: 'open_out',      // Integrate typeId 7
+      casementTypeId: direction,       // Integrate typeId 7 out / 8 in
       thickness:     54,
       topHeight:     110,
       leftWidth:     110,
       rightWidth:    110,
-      bottomHeight:  163,              // from the template, not the profile
-      bottomHeightExternal: 170,
-      btmRailShapeId: 'stepped',
+      // from the TEMPLATE, not the profile — and it follows the direction
+      ...LEAF_BOTTOM_RAIL[direction],
       stormProofOverlap: 7,
       isMasterLeaf: masterLeaf === side,
       toBeReplaced: true,
@@ -148,24 +194,28 @@ function frenchDoorPair(key, { masterLeaf = 'right' } = {}) {
     key,
     part_type: 'frenchDoorPart',
     values: {
-      casementTypeId: 'open_out',
+      casementTypeId: direction,
       thickness: 54,
       midRail: 198,
       gapBetweenMeetingStiles: 5,
       meetingStileOverlap: 27,
       mullionThickness: 83,
-      mechanicalClearanceTop: 3,
-      mechanicalClearanceBottom: 3,
-      mechanicalClearanceLeft: 1,
-      mechanicalClearanceRight: 1,
+      ...PAIR_CLEARANCES[direction],
       masterLeaf,
     },
     children: [leaf('left', 'left_hand_hung'), leaf('right', 'right_hand_hung')],
   }
 }
 
-/** The top-hung fanlight over the pair on FD3 / FD3b. */
-function doorFanlight(key, { bottomHeight, bottomHeightExternal }) {
+/**
+ * The top-hung fanlight over the pair on FD3 / FD3b / OI3.
+ *
+ * Step BG: a fanlight in a door frame KEEPS ITS OWN DIRECTION when the doors
+ * are switched to open in — Integrate leaves it typeId 7 and so does GlazePro
+ * (Nathan, 14 Oct). Only its CLEARANCES follow the range, which is why OI3’s
+ * are 3 all round against FD3’s 1 / 1 / 1 / 2.
+ */
+function doorFanlight(key, { bottomHeight, bottomHeightExternal, clearances = null }) {
   return {
     key,
     part_type: 'casementSashPart',
@@ -177,10 +227,12 @@ function doorFanlight(key, { bottomHeight, bottomHeightExternal }) {
       bottomHeight, bottomHeightExternal,
       btmRailShapeId: 'stepped',
       // Integrate stores a different clearance per edge on this sash
-      mechanicalClearanceTop: 1,
-      mechanicalClearanceLeft: 1,
-      mechanicalClearanceRight: 1,
-      mechanicalClearanceBottom: 2,
+      ...(clearances ?? {
+        mechanicalClearanceTop: 1,
+        mechanicalClearanceLeft: 1,
+        mechanicalClearanceRight: 1,
+        mechanicalClearanceBottom: 2,
+      }),
       toBeReplaced: true,
     },
     children: [glassChild(key)],
@@ -214,7 +266,8 @@ function transom(key, offset) {
  */
 function doorTree({
   width, height, dividers = [], openings, ironmongeryLines, product = 'french_door',
-  frameBottomHeight = 37, cillHeight = 37, isFrontDoor = false, isDoorMpls = true,
+  frameBottomHeight = 37, cillHeight = 37, cillStopSize = 26,
+  isFrontDoor = false, isDoorMpls = true,
   internalFinish = 'clean_white', externalFinish = 'clean_white',
   frameArch = null,
 }) {
@@ -267,7 +320,7 @@ function doorTree({
           width, height,
           leftWidth: 47, rightWidth: 47, topHeight: 47, bottomHeight: frameBottomHeight,
           frameDepth: 96, jambType: 'solid_profiled',
-          frameHeadStopSize: 20, frameStileStopSize: 20, cillStopSize: 26,
+          frameHeadStopSize: 20, frameStileStopSize: 20, cillStopSize,
           rakeFrame: false, archHead: false,
           ...(frameArch ?? {}),
           toBeReplaced: true,
@@ -693,24 +746,19 @@ export const BENCHMARK_FD6 = {
  * 1005 x 2115 opening is 999 x 2110, which `doorLeafSize` already works out
  * for a leaf with no pair.
  */
-function singleDoorLeaf(key, { operation = 'left_hand_hung' } = {}) {
+function singleDoorLeaf(key, { operation = 'left_hand_hung', direction = OPEN_OUT } = {}) {
   return {
     key,
     part_type: 'doorLeafPart',
     values: {
       operation,                        // Integrate 17 LH / 18 RH / 11 Fix
-      casementTypeId: 'open_out',       // typeId 7
+      casementTypeId: direction,        // typeId 7 out / 8 in
       thickness: 54,
       topHeight: 110,
       leftWidth: 110,
       rightWidth: 110,
-      bottomHeight: 163,
-      bottomHeightExternal: 170,
-      btmRailShapeId: 'stepped',
-      mechanicalClearanceTop: 2,
-      mechanicalClearanceLeft: 3,
-      mechanicalClearanceRight: 3,
-      mechanicalClearanceBottom: 3,
+      ...LEAF_BOTTOM_RAIL[direction],
+      ...LEAF_CLEARANCES[direction],
       // Integrate's board gave this leaf an ARCH HEAD when it was dropped
       // into an opening (archHeight 389.5), which priced shaped glass and
       // 240 minutes of swept-head work. The reviewer unticked it and
@@ -1192,6 +1240,21 @@ export const OPEN_IN_PROFILE_VALUES = {
   'doorLeafPart.mechanicalClearanceBottom': 14,
   'doorLeafPart.defaultMuntinThickness': 120,
   'doorLeafPart.midrailThickness': 170,
+  // Step BG: the FRENCH pair's own open-in values. The range sets these too
+  // (docs/integrate-L31115-door-direction.txt): the pair's clearances go
+  // 3 / 3 / 1 / 1 -> 3 / 14 / 3 / 3 and both leaves take the square 170 rail.
+  'frenchDoorPart.mechanicalClearanceTop': 3,
+  'frenchDoorPart.mechanicalClearanceBottom': 14,
+  'frenchDoorPart.mechanicalClearanceLeft': 3,
+  'frenchDoorPart.mechanicalClearanceRight': 3,
+  'leftFrenchDoorLeafPart.bottomHeight': 170,
+  'rightFrenchDoorLeafPart.bottomHeight': 170,
+  // a casement light in an open-in door frame: 3 all round, not the
+  // open-out range's 1 / 1 / 1 / 2 (OI3's fanlight, as stored)
+  'casementSashPart.mechanicalClearanceTop': 3,
+  'casementSashPart.mechanicalClearanceBottom': 3,
+  'casementSashPart.mechanicalClearanceLeft': 3,
+  'casementSashPart.mechanicalClearanceRight': 3,
 }
 
 /** A muntin INSIDE a leaf: a vertical divider of the leaf's own grid. */
@@ -1242,7 +1305,10 @@ function frontDoorLeaf(key, {
       rightWidth: 110,
       bottomHeight,
       bottomHeightExternal: bottomHeight,
-      btmRailShapeId: 'stepped',
+      // Step BG: 99 is SQUARE and 101 is STEPPED — the door-direction facts
+      // settle what Step BD could not verify. An open-in leaf's rail is
+      // square, and nothing prices it either way.
+      btmRailShapeId: 'square',
       // open IN: Integrate's own clearances, which are not a garden door's
       mechanicalClearanceTop: 3,
       mechanicalClearanceLeft: 4,
@@ -1277,7 +1343,7 @@ const FRONT_DOOR_IRONMONGERY = [
 const FRONT_DOOR_ASSUMPTIONS = [
   'Every FT drawing is SAVED in Integrate — a door recomputes its allocated sections on save',
   'The leaf grid is stored as the leaf\'s OWN dividers (a 120 mullionPart muntin and a transomPart mid rail) with a panel or a glass unit per cell, which is how Integrate stores it',
-  'btmRailShapeId 99 on Integrate\'s front door leaf is mapped to GlazePro\'s "stepped": NOT VERIFIED, and no rule reads it',
+  'btmRailShapeId 99 on Integrate\'s front door leaf is GlazePro\'s "square", and 101 is "stepped" — read in the door-direction facts (Step BG), which is what the opens-in / opens-out switch writes. No rule reads it either way',
   'The open-in clearances 3 / 4 / 4 / 14 and the 50 cill are single readings from drawings 16-18, consistent across all three',
 ]
 
@@ -1658,21 +1724,26 @@ export const STABLE_DOOR_CLEARANCES = { top: 4, left: 4, right: 4, bottom: 3, be
 export const STABLE_TOP_SPLIT_MM = 1055
 
 /** One half of a stable door: a door leaf with its own rails and one cell. */
-function stableHalf(key, half, { cells = [], bottomHeight, topHeight }) {
+function stableHalf(key, half, {
+  cells = [], bottomHeight, topHeight, direction = OPEN_IN,
+  bottomHeightExternal = null, btmRailShapeId = null,
+}) {
   return {
     key,
     part_type: 'doorLeafPart',
     values: {
       stableHalf: half,
       operation: 'left_hand_hung',
-      casementTypeId: 'open_in',
+      casementTypeId: direction,
       thickness: 54,
       topHeight,
       leftWidth: 110,
       rightWidth: 110,
       bottomHeight,
-      bottomHeightExternal: bottomHeight,
-      btmRailShapeId: 'stepped',
+      bottomHeightExternal: bottomHeightExternal ?? bottomHeight,
+      // Step BG: the shape follows the direction — 101 stepped opening out,
+      // 99 square opening in. Nothing prices it; it is what Integrate stores.
+      btmRailShapeId: btmRailShapeId ?? (direction === OPEN_OUT ? 'stepped' : 'square'),
       archHead: false,
       toBeReplaced: true,
     },
@@ -1687,11 +1758,15 @@ function stableHalf(key, half, { cells = [], bottomHeight, topHeight }) {
  * a French pair's), and `splitOffset` is the top half's height — the same
  * "offset is the span before it" convention every divider follows.
  */
-function stableDoor(key, { top, bottom, splitOffset = STABLE_TOP_SPLIT_MM }) {
+function stableDoor(key, { top, bottom, splitOffset = STABLE_TOP_SPLIT_MM, direction = OPEN_IN }) {
   return {
     key,
     part_type: 'stableDoorPart',
     values: {
+      // Step BG: typeId 7 / 8 on the CONTAINER, as Integrate stores it; its
+      // clearances are 4 / 4 / 4 / 3 BOTH WAYS, the one door part the range
+      // switch leaves alone.
+      casementTypeId: direction,
       thickness: 58,
       splitOffset,
       mechanicalClearanceTop:    STABLE_DOOR_CLEARANCES.top,
@@ -1740,20 +1815,35 @@ const STABLE_DOOR_ASSUMPTIONS = [
   'Integrate allocates NO timber for either half (only the cill and the frame); GlazePro charges the halves as it charges a door leaf (Nathan\'s standing rule), declared on each row',
 ]
 
-function stableDoorTree({ cells, ironmongeryLines }) {
+/**
+ * A stable-door drawing, either way round.
+ *
+ * Step BG item 3, from drawing 26: opening OUT the frame bottom and the cill
+ * are 37 instead of 50, so the container gains 13 mm — and ALL 13 go to the
+ * BOTTOM half, because the split (1055) is the TOP half's stored height. The
+ * bottom half is 1061 against 1048, and its rail is the stepped 163 internal /
+ * 170 external, so its panel is 1061 - 99 - 163 = 799 against 779. The top
+ * half, its cell and the 3 mm between the halves are untouched.
+ */
+function stableDoorTree({ cells, ironmongeryLines, direction = OPEN_IN }) {
+  const out = direction === OPEN_OUT
   return doorTree({
     width: 1099, height: 2207,
     openings: [stableDoor('st_pair', {
+      direction,
       top: stableHalf('st_top', 'top', {
-        topHeight: 110, bottomHeight: 99, cells: cells.top,
+        direction, topHeight: 110, bottomHeight: 99, cells: cells.top,
       }),
       bottom: stableHalf('st_bottom', 'bottom', {
-        topHeight: 99, bottomHeight: 170, cells: cells.bottom,
+        direction, topHeight: 99, cells: cells.bottom,
+        ...(out
+          ? { bottomHeight: 163, bottomHeightExternal: 170 }
+          : { bottomHeight: 170 }),
       }),
     })],
     product: 'door',
-    frameBottomHeight: 50,
-    cillHeight: 50,
+    frameBottomHeight: out ? 37 : 50,
+    cillHeight: out ? 37 : 50,
     isFrontDoor: false,
     isDoorMpls: false,
     // Nathan's decision i: Clean White both sides, a SINGLE finish, as
@@ -1898,4 +1988,166 @@ export const BENCHMARK_ST3 = {
   ironmongeryLines: STABLE_DOOR_IRONMONGERY,
   profileCode: 'open_in_doors',
   assumptions: STABLE_DOOR_ASSUMPTIONS,
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Step BG — OPENING DIRECTION: OI1, OI2, OI3 (open in) and SO1 (open out)
+// docs/integrate-L31115-door-direction.txt, L31115 item 10 drawings 24-27,
+// read and priced 14 Oct 2026. All four SAVED, each created from an Integrate
+// template and then switched with the item's RANGE.
+//
+// Each one is the SAME DRAWING as a benchmark already here, the other way
+// round, which is what makes them worth having:
+//   OI1 is FD1 opening in   (2,814.71 against FD1's 2,819.53)
+//   OI2 is SD1 opening in   (1,864.68 against SD1's 1,867.12)
+//   SO1 is ST1 opening out  (2,510.57 against ST1's 2,507.64)
+//   OI3 is FD3 opening in, as Integrate stored it after the switch
+//
+// NOTHING in the engine reads a direction FLAG: every penny of the difference
+// is in the tree the range writes — the cill, the clearances, the bottom rail
+// and typeId 7 / 8. The one thing that follows the drawing's PROFILE is which
+// of the two door ranges it is in, and the only live rule that bands on them
+// ("Utile Section Part") fires on either.
+// ═════════════════════════════════════════════════════════════════════════════
+
+const OPEN_IN_DOOR_ASSUMPTIONS = [
+  ...DOOR_ASSUMPTIONS,
+  'Opening direction is the drawing\u2019s RANGE in Integrate, not a property of a leaf: these trees carry the values the range wrote, as read after the switch and the save',
+  'An opening fanlight or casement light in an open-in door frame STILL OPENS OUT (Nathan, 14 Oct), which is why rule 245 "Frame with inward opening and outward opening" fires on OI3 and on no other door here',
+]
+
+// ── OI1: FD1 opening in (drawing 24) ───────────────────────────────────────
+// 1899 x 2199, internal 1805 x 2102 (the cill is 50, not 37). The pair's
+// clearances 3 / 14 / 3 / 3 make each leaf 910.5 x 2085, and the square 170
+// rail leaves 690.5 x 1805 of glass. Production 3,325 and fitting 870 are
+// FD1's exactly: Integrate charges nothing for the direction.
+
+export const BENCHMARK_OI1 = {
+  name: 'Benchmark OI1 — French doors opening IN (L31115 Item 10 Drawing 24)',
+  tree: doorTree({
+    width: 1899, height: 2199,
+    openings: [frenchDoorPair('oi1', { direction: OPEN_IN })],
+    frameBottomHeight: 50, cillHeight: 50, cillStopSize: 0,
+    ironmongeryLines: DOOR_IRONMONGERY,
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkOI1_french_doors_open_in },
+  partCostMap: DOOR_PART_COST_MAP,
+  profileValues: OPEN_IN_PROFILE_VALUES,
+  glassCatalogue: {},
+  ironmongeryLines: DOOR_IRONMONGERY,
+  profileCode: 'open_in_doors',
+  assumptions: OPEN_IN_DOOR_ASSUMPTIONS,
+}
+
+// ── OI2: SD1 opening in (drawing 25) ───────────────────────────────────────
+// 1099 x 2199, internal 1005 x 2102; the leaf's own clearances 3 / 14 / 4 / 4
+// make it 997 x 2085 and the glass 777 x 1805.
+
+export const BENCHMARK_OI2 = {
+  name: 'Benchmark OI2 — single garden door opening IN (L31115 Item 10 Drawing 25)',
+  tree: doorTree({
+    width: 1099, height: 2199,
+    openings: [singleDoorLeaf('oi2_leaf', { direction: OPEN_IN })],
+    product: 'door',
+    frameBottomHeight: 50, cillHeight: 50, cillStopSize: 0,
+    ironmongeryLines: SINGLE_DOOR_IRONMONGERY,
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkOI2_single_door_open_in },
+  partCostMap: DOOR_PART_COST_MAP,
+  profileValues: OPEN_IN_PROFILE_VALUES,
+  glassCatalogue: {},
+  ironmongeryLines: SINGLE_DOOR_IRONMONGERY,
+  profileCode: 'open_in_doors',
+  assumptions: [
+    ...OPEN_IN_DOOR_ASSUMPTIONS,
+    'A single door leaf is a plain doorLeafPart in the frame opening, with its OWN clearances — 2 / 3 / 3 / 3 opening out, 3 / 14 / 4 / 4 opening in',
+  ],
+}
+
+// ── SO1: ST1 opening out (drawing 26) ──────────────────────────────────────
+// 1099 x 2207 with the 37 cill, so the container is 997 x 2116 and the BOTTOM
+// half takes all 13 of the extra: 1061 against 1048, panel 777 x 799. Its
+// rail is the stepped 163 / 170. Production 3,405 and fitting 900 are ST1's.
+
+export const BENCHMARK_SO1 = {
+  name: 'Benchmark SO1 — stable door opening OUT (L31115 Item 10 Drawing 26)',
+  tree: stableDoorTree({
+    direction: OPEN_OUT,
+    cells: {
+      top:    [doorPanel('so1_panel_top')],
+      bottom: [doorPanel('so1_panel_bottom')],
+    },
+    ironmongeryLines: STABLE_DOOR_IRONMONGERY,
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkSO1_stable_door_open_out },
+  // The two halves’ timber, as ST1 — recomputed for the taller bottom half
+  // and the OPEN-OUT section offset (-6 a leaf, not the open-in -20):
+  //   Utile63x120  7211 mm at 17.30/m = 124.75
+  //        = (2 x 1055 + 997 - 6) + (2 x 1061 + 997 - 6) + the top half’s
+  //          99 meeting rail at 997
+  //   Utile63x200  2096 against Integrate’s 1099 = +28.91 (the bottom
+  //          half’s 163 / 170 rail at 997)
+  //                                              = 153.66, ST1’s + 0.93
+  deliberateDifference: {
+    cost: 153.66,
+    reason: 'the two halves\u2019 timber, which Integrate allocates nothing for: 7211 mm of Utile63x120 (their stiles, top rails and the top half\u2019s 99 meeting rail, at the open-OUT -6 offset) = 124.75, and 997 mm more Utile63x200 than its cill alone (the bottom half\u2019s stepped 163 / 170 rail) = 28.91. ST1\u2019s 152.73 plus 0.93, and PROVISIONAL in the same way',
+  },
+  partCostMap: DOOR_PART_COST_MAP,
+  profileValues: DOOR_PROFILE_VALUES,
+  glassCatalogue: {},
+  ironmongeryLines: STABLE_DOOR_IRONMONGERY,
+  profileCode: 'open_out_doors',
+  assumptions: [
+    ...STABLE_DOOR_ASSUMPTIONS,
+    'Opening OUT, the 13 mm the lower cill gives all go to the BOTTOM half: the split 1055 is the TOP half\u2019s stored height, so the bottom half is 1061 and the top half is untouched',
+  ],
+}
+
+// ── OI3: FD3 opening in, AS STORED after the switch (drawing 27) ───────────
+// 1350 x 2591 — Integrate's own range switch SHRANK the frame by 8 mm and
+// took the same 8 off the fanlight's bottom rail (86 -> 78). Neither is
+// copied (a surveyor's measured frame must not move when the direction
+// changes); the fixture is the drawing Integrate SAVED, so the benchmark
+// prices what Integrate priced.
+//
+// Interior 1256 x 2494 = 391 + 41 + 2062. The fanlight is 1250 x 385 and
+// STILL OPENS OUT, which is what fires rule 245 (300 min): 4,270 against
+// FD3's 3,970.
+
+export const BENCHMARK_OI3 = {
+  name: 'Benchmark OI3 — French doors with a fanlight, opening IN (L31115 Item 10 Drawing 27)',
+  tree: doorTree({
+    width: 1350, height: 2591,
+    dividers: [transom('oi3_trans', 391)],
+    openings: [
+      doorFanlight('oi3_fan', {
+        bottomHeight: 78, bottomHeightExternal: 93,
+        clearances: {
+          mechanicalClearanceTop: 3, mechanicalClearanceLeft: 3,
+          mechanicalClearanceRight: 3, mechanicalClearanceBottom: 3,
+        },
+      }),
+      frenchDoorPair('oi3', { direction: OPEN_IN }),
+    ],
+    frameBottomHeight: 50, cillHeight: 50, cillStopSize: 0,
+    ironmongeryLines: [...DOOR_IRONMONGERY, ...FANLIGHT_IRONMONGERY],
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkOI3_french_doors_fanlight_open_in },
+  deliberateDifference: {
+    cost: 17.08,
+    reason: 'the transom, charged at Utile67x96 for the internal frame width (1256 mm) \u2014 Integrate allocates nothing for it, as on FD3 (difference 7, PROVISIONAL)',
+  },
+  parkedResidual: {
+    cost: -0.14,
+    reason: 'Integrate\u2019s 63x63 fanlight length is 2050 and GlazePro\u2019s is 2034 (1250 + 2 x 385 + 14). The 16 mm are the 8 its own range switch took off the fanlight rail, counted twice \u2014 the frame and the rail shrank but the ALLOCATED length did not. GlazePro charges the sash it draws, which is 14p less',
+  },
+  partCostMap: DOOR_PART_COST_MAP,
+  profileValues: OPEN_IN_PROFILE_VALUES,
+  glassCatalogue: {},
+  ironmongeryLines: [...DOOR_IRONMONGERY, ...FANLIGHT_IRONMONGERY],
+  profileCode: 'open_in_doors',
+  assumptions: [
+    ...OPEN_IN_DOOR_ASSUMPTIONS,
+    'The frame is 2591 and the fanlight rail 78 because that is what Integrate STORED after its own range switch; GlazePro\u2019s switch changes neither, so a GlazePro drawing of the same doors would be 2599 with an 86 rail',
+  ],
 }

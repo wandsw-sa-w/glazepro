@@ -37,6 +37,10 @@ import { applyFanlightBottomRails, isStormproofWindow,
 } from '../drawingBoard/casementOpenings.js'
 import { setStormproof } from '../drawingBoard/stormproof.js'
 import {
+  setOpeningDirection, drawingDirection, profileCodeForDirection,
+  OPEN_IN, OPEN_OUT,
+} from '../drawingBoard/openingDirection.js'
+import {
   setLeafMidRail, leafMidRailOf, leafMidRailOffsetFor, DEFAULT_LEAF_PANEL_HEIGHT_MM,
   changeOpeningToSingleDoor, addFlagFrame, removeFrame, isDoorTree,
   setLeafGrid, setLeafCellKind, recentreGridsAfterResize,
@@ -1780,6 +1784,10 @@ function DrawingBoard() {
   const [profile, setProfile] = useState(null)
   // Step AU: shown when a stormproof conversion cannot be made
   const [stormproofError, setStormproofError] = useState(null)
+  // Step BG: the same, for the opening-direction switch, and the two door
+  // profiles once they have been loaded (keyed by code)
+  const [directionError, setDirectionError] = useState(null)
+  const doorProfiles = useRef({})
   const [containment, setContainment]   = useState([])
   const [visibilityMap, setVisibilityMap] = useState({})  // { fieldKey: 'shown'|'hidden_sales'|... }
   const [boardMode, setBoardMode] = useState(() => {
@@ -1859,7 +1867,12 @@ function DrawingBoard() {
     return JSON.stringify(candidate) !== JSON.stringify(savedTreeRef.current)
   }
 
-  function commit(newTree) {
+  // Step BG: `pv` is the profile values to re-centre with. It is the state’s
+  // own on every ordinary edit, and the TARGET range’s when the direction
+  // switch calls it — setProfileValues has not landed yet at that point, and
+  // re-centring a just-turned leaf against the old range would use the wrong
+  // muntin thickness.
+  function commit(newTree, pv = profileValues) {
     // Step BE resize: a leaf or a sash whose INTERIOR has just changed gets
     // its own grid re-centred — the live bug was a front door whose muntin
     // stayed where it was when the leaf narrowed, leaving 479 / 73 panels.
@@ -1876,7 +1889,7 @@ function DrawingBoard() {
     // A MID RAIL at a chosen height stays: a lock rail does not move because
     // the door got wider. undo() and redo() set the tree directly, so they
     // restore exactly what was there.
-    const next = recentreGridsAfterResize(tree, newTree, profileValues)
+    const next = recentreGridsAfterResize(tree, newTree, pv)
     undoStack.current = [...undoStack.current.slice(-49), tree]
     redoStack.current = []
     setTree(next)
@@ -1890,6 +1903,7 @@ function DrawingBoard() {
     undoStack.current = undoStack.current.slice(0, -1)
     setTree(prev)
     setDirty(isDirtyVsSaved(prev))
+    syncDirectionProfile(prev)
   }
 
   function redo() {
@@ -1899,6 +1913,19 @@ function DrawingBoard() {
     redoStack.current = redoStack.current.slice(0, -1)
     setTree(next)
     setDirty(isDirtyVsSaved(next))
+    syncDirectionProfile(next)
+  }
+
+  // Step BG: undoing a direction switch has to undo the RANGE as well, or
+  // the next part the board builds takes the other range’s defaults. Only
+  // profiles already loaded are used — nothing is fetched on an undo.
+  function syncDirectionProfile(restored) {
+    const want = profileCodeForDirection(drawingDirection(restored))
+    if (!want || want === profile?.code) return
+    const cached = doorProfiles.current[want]
+    if (!cached) return
+    setProfile(cached.profile)
+    setProfileValues(cached.values)
   }
 
   // Profile values keyed by short field name (numbers parsed) — the measured
@@ -2072,6 +2099,10 @@ function DrawingBoard() {
         setProfileValues(pVals)
         setProfile(profile)
         setContainment(cont)
+        // Step BG: the drawing’s OWN range, cached under its code, so
+        // turning a door round and back again (or undoing it) needs one
+        // fetch rather than two.
+        doorProfiles.current = { [profile.code]: { profile, values: pVals } }
 
         // Load field visibility for this profile
         const { data: visRows, error: visErr } = await supabase
@@ -2154,6 +2185,28 @@ function DrawingBoard() {
     try {
       const previousTree = savedTreeRef.current
       await saveDrawingParts(Number(drawingId), tree)
+      // Step BG: a door drawing’s RANGE is its profile, so a drawing that
+      // has been turned round carries a new default_profile_id. It is
+      // written from the TREE, not from the board’s state, so an undone
+      // switch saves the range the drawing is actually in. The tree is
+      // already saved by here: a failure to write the range must not lose a
+      // surveyor’s work, so it warns rather than throwing.
+      const wantCode = profileCodeForDirection(drawingDirection(tree))
+      const wantProfile = wantCode ? doorProfiles.current[wantCode]?.profile : null
+      if (wantProfile && wantProfile.id !== drawingMeta?.default_profile_id) {
+        const { error: profErr } = await supabase
+          .from('drawings')
+          .update({ default_profile_id: wantProfile.id })
+          .eq('id', Number(drawingId))
+        if (profErr) {
+          console.warn('default_profile_id update failed:', profErr.message)
+          setHistoryWarning('Saved, but the drawing\u2019s range could not be ' +
+            'updated — reload and switch the direction again')
+          setTimeout(() => setHistoryWarning(null), 8000)
+        } else {
+          setDrawingMeta(m => (m ? { ...m, default_profile_id: wantProfile.id } : m))
+        }
+      }
       savedTreeRef.current = tree   // new clean baseline
       setDirty(false)
       setSaveStatus('saved')
@@ -2405,6 +2458,52 @@ function DrawingBoard() {
   }, [tree, profileValues, refOptions])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // Step BD item 2: the leaf’s panel layout, and one cell’s kind.
+  // ── Step BG: which way the doors open ──────────────────────────────────
+  // Integrate makes this the item’s RANGE, so the switch does two things:
+  // it re-applies the other range’s values to the door parts and the cill,
+  // and it makes that range the drawing’s own profile. The frame SIZE, the
+  // layout, the panels, the glass, the finish and the ironmongery list are
+  // not its business (Integrate’s own switch shrank a frame by 8 mm; that is
+  // a quirk, and not copied).
+  const handleSetOpeningDirection = useCallback(async (direction) => {
+    if (!tree) return
+    const code = profileCodeForDirection(direction)
+    if (!code) return
+    setDirectionError(null)
+    try {
+      let entry = doorProfiles.current[code]
+      if (!entry) {
+        const prof = await loadProfile(code)
+        if (!prof) {
+          setDirectionError(`There is no active profile with code “${code}”, ` +
+            'so the drawing cannot be turned round. Nothing was changed.')
+          return
+        }
+        entry = { profile: prof, values: await loadProfileValues(prof.id) }
+        doorProfiles.current[code] = entry
+      }
+      const { tree: next, missing, sashClearancesLeft } =
+        setOpeningDirection(tree, direction, entry.values)
+      if (missing.length > 0) {
+        setDirectionError(`The ${code} profile is missing ` +
+          `${missing.join('; ')} — nothing was changed.`)
+        return
+      }
+      // the TARGET range’s values: commit re-centres the grids with them
+      commit(next, entry.values)
+      setProfile(entry.profile)
+      setProfileValues(entry.values)
+      if (sashClearancesLeft) {
+        setDirectionError('The doors were turned round. The fanlight and any ' +
+          'casement light kept their clearances: this profile holds none, so ' +
+          'nothing was guessed at.')
+      }
+    } catch (e) {
+      setDirectionError(`The profile could not be loaded (${e.message}), ` +
+        'so nothing was changed.')
+    }
+  }, [tree, profile, profileValues])  // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleSetLeafGrid = useCallback((leafKey, layout) => {
     if (!tree) return
     commit(setLeafGrid(tree, leafKey, layout, profileValues ?? {}))
@@ -3175,6 +3274,36 @@ function DrawingBoard() {
                 Remove
               </button>
 
+              {/* Step BG: which way the doors open. A WHOLE-DRAWING choice,
+                  as Integrate makes it (the item’s range), and placed and
+                  styled like the Flush / Stormproof switch. */}
+              {isDoorDrawing && (
+                <>
+                  <div style={{ width: 1, height: 20, background: '#e8e6e0', flexShrink: 0, margin: '0 2px' }} />
+                  <span style={{ fontSize: 11, color: '#888', flexShrink: 0 }}>opens:</span>
+                  {[['Opens in', OPEN_IN], ['Opens out', OPEN_OUT]].map(([label, dir]) => {
+                    const active = drawingDirection(tree) === dir
+                    return (
+                      <button
+                        key={dir}
+                        onClick={() => handleSetOpeningDirection(dir)}
+                        disabled={active}
+                        title={dir === OPEN_IN
+                          ? 'Every door in this drawing opens IN (Integrate\u2019s Standard Open In Doors): the 50 cill, the leaf clearances and the square 170 bottom rail. The frame size, the panels, the glass, the finish and the ironmongery list do not change.'
+                          : 'Every door in this drawing opens OUT (Standard Open Out Doors): the 37 cill with its 26 stop, and the stepped 163 / 170 bottom rail.'}
+                        style={{
+                          fontSize: 11, padding: '3px 10px', borderRadius: 6, flexShrink: 0,
+                          cursor: active ? 'default' : 'pointer',
+                          border: `1px solid ${active ? '#3d35a8' : '#d8d5cf'}`,
+                          background: active ? '#f0eefc' : '#fff',
+                          color: active ? '#3d35a8' : '#555',
+                        }}
+                      >{label}</button>
+                    )
+                  })}
+                </>
+              )}
+
               {/* Step BC board: flag frames, in place of the old stub */}
               {isDoorDrawing && (
                 <>
@@ -3290,6 +3419,16 @@ function DrawingBoard() {
             {historyWarning && (
               <div style={{ padding: '4px 14px', fontSize: 11, color: '#b45309', background: '#fffbeb', borderTop: '1px solid #fcd34d' }}>
                 {historyWarning}
+              </div>
+            )}
+            {/* Step BG: what the direction switch did, or why it did nothing */}
+            {directionError && (
+              <div style={{ padding: '4px 14px', fontSize: 11, color: '#b45309', background: '#fffbeb', borderTop: '1px solid #fcd34d' }}>
+                {directionError}
+                <button onClick={() => setDirectionError(null)}
+                  style={{ marginLeft: 8, fontSize: 10, border: 'none', background: 'none', color: '#92400e', cursor: 'pointer', textDecoration: 'underline' }}>
+                  dismiss
+                </button>
               </div>
             )}
           </div>

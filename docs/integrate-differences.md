@@ -902,6 +902,61 @@ readings taken; now it is one sentence that reproduces all of them, and the
 leaf's, and the workshop has to confirm what is actually cut for a stable
 door.
 
+## 21. Opening direction changes the drawing, never the frame size
+
+**Decided by:** Nathan, 14 Oct 2026 (Step BG,
+`docs/integrate-L31115-door-direction.txt`). French doors and single garden
+doors are sold opening **in** as well as out, stable doors either way, front
+doors in.
+
+Integrate makes direction the item’s **range** and re-applies the range’s
+values when it is switched: the cill (37 ↔ 50) and its stop (26 ↔ 0), the
+leaf and pair clearances, the bottom rail (stepped 163 / 170 ↔ square 170),
+and typeId 7 ↔ 8 on a leaf, a French pair and a stable-door container.
+GlazePro’s switch writes exactly those, from the two profiles, and **nothing
+else** — and that is enough to reprice the drawing, because every rule that
+knows a direction reads the tree.
+
+**Two of Integrate’s own quirks are NOT copied**, and they are the whole of
+this difference:
+
+| | Integrate’s switch | GlazePro’s |
+|---|---|---|
+| the frame | shrank a fanlight door 2599 → **2591** | the frame keeps the size the surveyor measured |
+| the fanlight rail | took the same 8 mm off it, 86 → **78** | a fanlight keeps its own rail |
+
+A surveyor’s measured opening does not change because the door now opens the
+other way. So a GlazePro drawing of OI3 would be 2,599 high with an 86 rail,
+where Integrate’s stored one is 2,591 with 78 — and the **OI3 benchmark is
+Integrate’s stored drawing**, so the benchmark still prices what Integrate
+priced. The figure this costs is **nothing**: it is a different drawing, not a
+different price for the same drawing.
+
+**What follows from the direction, and is Integrate’s exactly:**
+
+- an **opening fanlight or casement light keeps opening OUT** when the doors
+  are turned in (Nathan) — so Integrate’s production rule 245 "Frame with
+  inward opening and outward opening" (300 min) fires, which is the whole of
+  OI3’s 4,270 minutes against FD3’s 3,970;
+- the multipoint-lock parts follow the leaf: the slave’s flushbolt is
+  **RHZ1649** opening in where it is RHZ1648 opening out, at the same 89.47,
+  so an open-in pair’s ironmongery is FD1’s to the penny;
+- a **stable door opening out** gains the 13 mm its lower cill gives, and all
+  13 go to the **bottom half** (the stored split is the top half’s height):
+  1,061 against 1,048, so its panel is 799 and its timber is difference 20’s
+  recomputed at the open-out −6 offset — **+£153.66** against ST1’s 152.73.
+
+OI1 and OI2 are Integrate **to the penny**, which is the useful part: nothing
+in the engine needed a direction flag.
+
+**One cosmetic residual.** `btmRailShapeId` 99 is SQUARE and 101 is STEPPED —
+read here, and it settles what Step BD left as "NOT VERIFIED". The fixtures
+and the board now write the right one, and the switch writes whichever the
+direction calls for. The three front-door TEMPLATES (`sql/step-bd3`) still
+store "stepped" on an open-in leaf; no rule reads the field, so it is logged
+here rather than given a file of its own — the next template SQL should carry
+it.
+
 # Open questions
 
 **Not parked, and not decided.** The parked table below is for differences
@@ -934,6 +989,7 @@ explained — never by editing a target.
 |---|---|---|---|---|
 | **A50** | +£0.28 | +£0.42 | Top sash LEAD counterweight: GlazePro 17.6 kg against Integrate's 17.5 (before the Lead Weight rule's 15% wastage). `sashWeight.js` was calibrated to L34046 and the reviewer is obtaining Integrate's own weight calculation. Everything else on A50 matches. | 12 Oct 2026 |
 | **D** | +£0.54 | +£0.80 | Double-box STEEL counterweights, two lines +0.54 between them. Same weight model as A50; a double box divides its weight per pair, so the two are expected to share one cause. | 12 Oct 2026 |
+| **OI3** | −£0.14 | −£0.28 | The 63x63 FANLIGHT length. Integrate allocates **2,050** mm (1250 + 2 x 393 + 14) for a fanlight sash that its own range switch left **385** high; GlazePro allocates 2,034 for the sash it draws. The 16 mm are the 8 the switch took off the rail, counted on both stiles — Integrate’s length did not follow its own change. GlazePro is **14p cheaper**, and the cause is named rather than chased. | 14 Oct 2026 |
 | **FD7** | +£0.62 | +£1.24 | A1’s GLASS AREA. FD7’s left panel is a direct glazed unit carrying Integrate’s hidden-0 template quirk: 588 x 2085 = 1.22598 m². GlazePro prices 1.23 (round half up, as every other glass line in every benchmark); Integrate prices 1.22 — and rounds its OWN D1 up, 1.29704 to 1.30, in the same drawing. 0.01 m² x 58.50 + 0.2 kg x 0.17 = 0.62. The reviewer to read Integrate’s glass panel for a hidden-0 unit; the FD5 A1 case was hidden by the 0.30 m² minimum. This is the ONLY unexplained figure in Step BB, and nothing has been tuned to close it. | 13 Oct 2026 |
 
 Not parked, and still reported every step because each is over £1.00 or has a known fix

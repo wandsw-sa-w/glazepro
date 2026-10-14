@@ -35,7 +35,7 @@ const SNAPSHOT_LIVE = withShapedGlassRate(SNAPSHOT)
 /** The same, with the AV4 costs: what the stable-door block prices from. */
 const FT_SNAPSHOT_ST = withShapedGlassRate(withAv4Costs(SNAPSHOT))
 import { shortDividerSpanMm, isShortDivider, frameCells, frameGridSize, frameOpenings, casementSashSize, casementSashWeightKg, casementFrameTimberVolumeDm3, casementSashTimberVolumeDm3, casementGlassSightline, frameMuntinLengthM, frameColumns, frameRows, itemFrames, CASEMENT_SASH_TYPES, FRENCH_SASH_TYPES } from '../casementGeometry.js'
-import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_B_UNCORRECTED, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F, BENCHMARK_G, BENCHMARK_H, BENCHMARK_I, BENCHMARK_J, BENCHMARK_K, BENCHMARK_L, BENCHMARK_M, BENCHMARK_N, BENCHMARK_P, BENCHMARK_Q, BENCHMARK_R, BENCHMARK_S, BENCHMARK_SA, BENCHMARK_SB, BENCHMARK_SC, BENCHMARK_SD, BENCHMARK_SE, BENCHMARK_SF, BENCHMARK_TC1, BENCHMARK_TC2, BENCHMARK_TC3, BENCHMARK_FR1, BENCHMARK_FR2, BENCHMARK_FD1, BENCHMARK_FD2, BENCHMARK_FD3, BENCHMARK_FD3b, BENCHMARK_FD4, BENCHMARK_FD5, BENCHMARK_FD6, BENCHMARK_FD7, BENCHMARK_SD1, BENCHMARK_SD2, BENCHMARK_SD3, BENCHMARK_SD4, BENCHMARK_CD1, BENCHMARK_CD2, BENCHMARK_CD3, BENCHMARK_CD4, BENCHMARK_FT1, BENCHMARK_FT2, BENCHMARK_FT3, BENCHMARK_FT4, BENCHMARK_ST1, BENCHMARK_ST2, BENCHMARK_ST3 } from './index.js'
+import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_B_UNCORRECTED, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F, BENCHMARK_G, BENCHMARK_H, BENCHMARK_I, BENCHMARK_J, BENCHMARK_K, BENCHMARK_L, BENCHMARK_M, BENCHMARK_N, BENCHMARK_P, BENCHMARK_Q, BENCHMARK_R, BENCHMARK_S, BENCHMARK_SA, BENCHMARK_SB, BENCHMARK_SC, BENCHMARK_SD, BENCHMARK_SE, BENCHMARK_SF, BENCHMARK_TC1, BENCHMARK_TC2, BENCHMARK_TC3, BENCHMARK_FR1, BENCHMARK_FR2, BENCHMARK_FD1, BENCHMARK_FD2, BENCHMARK_FD3, BENCHMARK_FD3b, BENCHMARK_FD4, BENCHMARK_FD5, BENCHMARK_FD6, BENCHMARK_FD7, BENCHMARK_SD1, BENCHMARK_SD2, BENCHMARK_SD3, BENCHMARK_SD4, BENCHMARK_CD1, BENCHMARK_CD2, BENCHMARK_CD3, BENCHMARK_CD4, BENCHMARK_FT1, BENCHMARK_FT2, BENCHMARK_FT3, BENCHMARK_FT4, BENCHMARK_ST1, BENCHMARK_ST2, BENCHMARK_ST3, BENCHMARK_OI1, BENCHMARK_OI2, BENCHMARK_OI3, BENCHMARK_SO1 } from './index.js'
 import { resolveIronmongeryLines } from '../loadPricingContext.js'
 import { allocatedSectionParts, doorLeaves, doorLeafSize, doorLeafWeightKg, doorGlassSightline, doorPanelSize, leafCells } from '../doorGeometry.js'
 // The LIVE price-file snapshot (reviewer-checked, 8 Oct 2026) — the honest
@@ -3352,5 +3352,230 @@ describe('Step BF — stable door benchmarks', () => {
     const extra = Math.round((7157 / 1000 * 17.30 + 997 / 1000 * 29) * 100) / 100
     expect(extra).toBeCloseTo(152.73, 2)
     expect(BENCHMARK_ST1.deliberateDifference.cost).toBeCloseTo(152.73, 2)
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step BG — OPENING DIRECTION: OI1, OI2, OI3 (open in) and SO1 (open out)
+// docs/integrate-L31115-door-direction.txt, drawings 24-27 read 14 Oct 2026.
+//
+// Four drawings that already exist here the other way round. The point of the
+// group is that NOTHING in the engine reads a direction flag: the range writes
+// the cill, the clearances, the bottom rail and typeId 7 / 8 into the TREE,
+// and every figure follows from those.
+// ══════════════════════════════════════════════════════════════════════════════
+describe('Step BG — opening direction', () => {
+  const BG_SNAPSHOT = withShapedGlassRate(withAv4Costs(SNAPSHOT))
+  const BG_CASES = [
+    ['OI1', BENCHMARK_OI1, INTEGRATE.benchmarkOI1_french_doors_open_in,          3325, 870],
+    ['OI2', BENCHMARK_OI2, INTEGRATE.benchmarkOI2_single_door_open_in,           2180, 705],
+    ['SO1', BENCHMARK_SO1, INTEGRATE.benchmarkSO1_stable_door_open_out,          3405, 900],
+    ['OI3', BENCHMARK_OI3, INTEGRATE.benchmarkOI3_french_doors_fanlight_open_in, 4270, 870],
+  ]
+  const runBG = bm => runPricingOnTree(bm.tree, BG_SNAPSHOT.rules, BG_SNAPSHOT.pfVariables, {
+    glassCatalogue: BG_SNAPSHOT.glassCatalogue,
+    partAllocationRules: BG_SNAPSHOT.partAllocationRules,
+    partCostMap: bm.partCostMap,
+    ironmongeryLines: bm.ironmongeryLines,
+    ironmongeryCatalogue: BG_SNAPSHOT.ironmongeryCatalogue,
+    profileValues: BG_SNAPSHOT.profileValues,
+    profileCode: bm.profileCode,
+  })
+
+  for (const [label, bm, target, production, fitting] of BG_CASES) {
+    it(`${label}: production ${production} min and fitting ${fitting}, exactly`, () => {
+      const r = runBG(bm)
+      expect(r.manufacture_labour.total_minutes, `${label} production`).toBe(production)
+      expect(r.install_labour.total_minutes, `${label} fitting`).toBe(fitting)
+      // and those ARE Integrate’s own hours, to 2 dp
+      expect(r.manufacture_labour.total_minutes / 60, `${label} production h`)
+        .toBeCloseTo(target.hours.production, 2)
+      expect(r.install_labour.total_minutes / 60, `${label} fitting h`)
+        .toBeCloseTo(target.hours.labour, 2)
+    })
+
+    it(`${label}: every group is Integrate plus what is declared`, () => {
+      const r = runBG(bm)
+      const got = {}
+      for (const l of r.price.lines) {
+        if (!l.fires || l.error) continue
+        got[l.group_name] = (got[l.group_name] ?? 0) + l.line_cost
+      }
+      const declared = (bm.deliberateDifference?.cost ?? 0) +
+        (bm.parkedResidual?.cost ?? 0) + (bm.openQuestion?.cost ?? 0) +
+        (bm.pendingDecision?.cost ?? 0)
+      // the DECLARED amounts are all in manufacture_materials (timber), so
+      // every other group is Integrate’s exactly
+      for (const [group, t] of Object.entries(target.groups)) {
+        const expected = group === 'manufacture_materials' ? t.cost + declared : t.cost
+        expect(got[group] ?? 0, `${label} ${group}`).toBeCloseTo(expected, 2)
+      }
+      expect(r.price.total_cost, `${label} total`)
+        .toBeCloseTo(target.total_cost + declared, 2)
+      // the PRICE at 1 dp: a declared cost doubles at markup 2.00, and a
+      // half-penny in the cost can land a penny out in the doubled price
+      // (SO1: 5,328.45 against 5,328.44). The COST above is exact.
+      expect(r.price.total, `${label} price`)
+        .toBeCloseTo(target.total_price + declared * 2, 1)
+    })
+  }
+
+  it('rule 245 fires on OI3 — and on NO other door, either way round', () => {
+    // Nathan, 14 Oct: an opening fanlight in an open-in door frame still
+    // opens OUT, which is one inward and one outward opening in the same
+    // frame — Integrate’s 300 minutes, and the whole of OI3’s 4,270
+    // against FD3’s 3,970.
+    const name = 'Frame with inward opening and outward opening'
+    const fired = bm => (runBG(bm).manufacture_labour.lines ?? [])
+      .some(l => (l.rule_name ?? l.name) === name && (l.minutes ?? 0) > 0)
+    expect(fired(BENCHMARK_OI3), 'OI3').toBe(true)
+    for (const [label, bm] of BG_CASES) {
+      if (label === 'OI3') continue
+      expect(fired(bm), label).toBe(false)
+    }
+    // nor on the open-out drawings it is the twin of
+    for (const [label, bm] of [['FD1', BENCHMARK_FD1], ['FD3', BENCHMARK_FD3],
+      ['SD1', BENCHMARK_SD1], ['ST1', BENCHMARK_ST1], ['FT1', BENCHMARK_FT1]]) {
+      expect(fired(bm), label).toBe(false)
+    }
+    expect(runBG(BENCHMARK_OI3).manufacture_labour.total_minutes -
+      runBG(BENCHMARK_FD3).manufacture_labour.total_minutes).toBe(300)
+  })
+
+  it('the direction variables count the leaves, not the profile', () => {
+    const vars = bm => computeVariables(bm.tree, computeDerived(bm.tree),
+      PF_VARIABLES, { profileCode: bm.profileCode })
+    const oi1 = vars(BENCHMARK_OI1)
+    expect([oi1.opening_in_door_leaf_qty, oi1.opening_out_door_leaf_qty]).toEqual([2, 0])
+    expect(oi1.is_open_in_doors_range).toBe(true)
+    expect(oi1.is_single_and_french_doors_range).toBe(false)
+    const oi3 = vars(BENCHMARK_OI3)
+    expect([oi3.opening_in_door_leaf_qty, oi3.opening_out_door_leaf_qty]).toEqual([2, 0])
+    expect(oi3.opening_out_casement_sash_qty).toBe(1)
+    const so1 = vars(BENCHMARK_SO1)
+    expect([so1.opening_in_door_leaf_qty, so1.opening_out_door_leaf_qty]).toEqual([0, 2])
+    expect(so1.is_single_and_french_doors_range).toBe(true)
+    expect(so1.new_stable_door_pair_qty).toBe(1)
+  })
+
+  it('OI1 is FD1 with the cill, the clearances and the rail moved', () => {
+    const leaves = doorLeaves(BENCHMARK_OI1.tree)
+    // (1805 - 3 - 3 - 5 + 27) / 2 by 2102 - 3 - 14
+    expect(leaves.map(l => doorLeafSize(BENCHMARK_OI1.tree, l)))
+      .toEqual([{ width: 910.5, height: 2085 }, { width: 910.5, height: 2085 }])
+    // the square 170 rail leaves 690.5 x 1805 of glass
+    expect(doorGlassSightline(BENCHMARK_OI1.tree, leaves[0]))
+      .toEqual({ width: 690.5, height: 1805 })
+    // against FD1 opening out: a 37 cill, 912.5 x 2109 leaves
+    const fd1 = doorLeaves(BENCHMARK_FD1.tree)
+    expect(doorLeafSize(BENCHMARK_FD1.tree, fd1[0]))
+      .toEqual({ width: 912.5, height: 2109 })
+  })
+
+  it('OI2 is SD1 with its own clearances: 997 x 2085', () => {
+    const [leaf] = doorLeaves(BENCHMARK_OI2.tree)
+    expect(doorLeafSize(BENCHMARK_OI2.tree, leaf)).toEqual({ width: 997, height: 2085 })
+    expect(doorGlassSightline(BENCHMARK_OI2.tree, leaf))
+      .toEqual({ width: 777, height: 1805 })
+    const [sd1] = doorLeaves(BENCHMARK_SD1.tree)
+    expect(doorLeafSize(BENCHMARK_SD1.tree, sd1)).toEqual({ width: 999, height: 2110 })
+  })
+
+  it('SO1: the 13 mm of lower cill all go to the BOTTOM half', () => {
+    const halves = doorLeaves(BENCHMARK_SO1.tree)
+    expect(halves.map(h => h.values.stableHalf)).toEqual(['top', 'bottom'])
+    // the container is 997 x 2116, and the split 1055 is the TOP half’s
+    expect(halves.map(h => doorLeafSize(BENCHMARK_SO1.tree, h)))
+      .toEqual([{ width: 997, height: 1055 }, { width: 997, height: 1061 }])
+    // so the top cell is ST1’s and the bottom one is 20 taller
+    expect(halves.flatMap(h => leafCells(BENCHMARK_SO1.tree, h).map(c => `${c.width}x${c.height}`)))
+      .toEqual(['777x846', '777x799'])
+    // and the bottom half carries the STEPPED rail, 163 internal / 170 external
+    expect(halves[1].values.bottomHeight).toBe(163)
+    expect(halves[1].values.bottomHeightExternal).toBe(170)
+    expect(halves[1].values.btmRailShapeId).toBe('stepped')
+    // ST1, opening in: 1048 and a square 170 both sides
+    const st = doorLeaves(BENCHMARK_ST1.tree)
+    expect(doorLeafSize(BENCHMARK_ST1.tree, st[1])).toEqual({ width: 997, height: 1048 })
+    expect(st[1].values.btmRailShapeId).toBe('square')
+  })
+
+  it('OI3’s fanlight is 1250 x 385 and still opens OUT', () => {
+    const firstOfType = (node, type) => (node.part_type === type ? node
+      : (node.children ?? []).map(c => firstOfType(c, type)).find(Boolean) ?? null)
+    const fan = firstOfType(BENCHMARK_OI3.tree, 'casementSashPart')
+    expect(casementSashSize(BENCHMARK_OI3.tree, fan)).toEqual({ width: 1250, height: 385 })
+    expect(fan.values.casementTypeId).toBe('open_out')
+    expect(fan.values.bottomHeight).toBe(78)
+    // the pair below it, opening in
+    const leaves = doorLeaves(BENCHMARK_OI3.tree)
+    expect(leaves.map(l => doorLeafSize(BENCHMARK_OI3.tree, l)))
+      .toEqual([{ width: 636, height: 2045 }, { width: 636, height: 2045 }])
+    expect(leaves.every(l => l.values.casementTypeId === 'open_in')).toBe(true)
+  })
+
+  it('the allocator follows the direction: RHZ1649 in, RHZ1648 out', () => {
+    // The slave leaf’s flushbolt. Both cost 89.47, so the LINE is the same
+    // 93.45 either way — but it must be the right part, and the live rules
+    // already have both (2035 / 2045).
+    const codes = bm => runBG(bm).price.lines
+      .filter(l => l.fires && l.name === 'Ironmongery Cost')
+      .map(l => l.alloc_iron_part_code)
+    expect(codes(BENCHMARK_OI1)).toContain('RHZ1649')
+    expect(codes(BENCHMARK_OI1)).not.toContain('RHZ1648')
+    expect(codes(BENCHMARK_FD1)).toContain('RHZ1648')
+    // and the whole stored set is Integrate’s 260.40, as FD1’s is
+    const total = bm => runBG(bm).price.lines
+      .filter(l => l.fires && l.name === 'Ironmongery Cost')
+      .reduce((t, l) => t + l.line_cost, 0)
+    expect(total(BENCHMARK_OI1)).toBeCloseTo(260.40, 2)
+    expect(total(BENCHMARK_OI2)).toBeCloseTo(109.20, 2)
+    expect(total(BENCHMARK_SO1)).toBeCloseTo(88.20, 2)
+    expect(total(BENCHMARK_OI3)).toBeCloseTo(287.70, 2)
+  })
+
+  it('the timber lengths are Integrate’s, at the open-in -20 offset', () => {
+    const sections = bm => Object.fromEntries(
+      allocatedSectionParts(bm.tree).map(x => [x.part_code, x.length_mm]))
+    const oi1 = sections(BENCHMARK_OI1)
+    expect(oi1.Utile63x120).toBe(2 * (2 * 2085 + 910.5 - 20))   // 10121
+    expect(oi1.Utile63x200).toBe(1899 + 2 * 910.5)              // 3720
+    expect(oi1.Utile67x96).toBe(1899 + 2 * 2199)                // 6297
+    const oi2 = sections(BENCHMARK_OI2)
+    expect(oi2.Utile63x120).toBe(2 * 2085 + 997 - 20)           // 5147
+    expect(oi2.Utile63x200).toBe(1099 + 997)                    // 2096
+    expect(oi2.Utile67x96).toBe(1099 + 2 * 2199)                // 5497
+    // SO1: the OPEN-OUT -6 offset, and the taller bottom half
+    const so1 = sections(BENCHMARK_SO1)
+    expect(so1.Utile63x120).toBe((2 * 1055 + 997 - 6) + (2 * 1061 + 997 - 6) + 997)
+    expect(so1.Utile63x200).toBe(1099 + 997)
+    expect(so1.Utile67x96).toBe(1099 + 2 * 2207)                // 5513
+    // OI3: Integrate’s own 2050 of 63x63 against GlazePro’s 2034
+    const oi3 = sections(BENCHMARK_OI3)
+    expect(oi3.Utile63x120).toBe(2 * (2 * 2045 + 636 - 20))     // 9412
+    expect(oi3.Utile63x200).toBe(1350 + 2 * 636)                // 2622
+    expect(oi3.Utile63x63).toBe(1250 + 2 * 385 + 14)            // 2034, not 2050
+    expect(oi3.Utile63x96).toBe(1250)                           // the 78 rail
+    expect(oi3.Utile67x96).toBe(1350 + 2 * 2591 + 1256)         // the frame + the transom
+  })
+
+  it('the declared amounts are arithmetic on those lengths', () => {
+    // SO1: ST1’s timber recomputed — 7211 of 63x120 and 997 more of 63x200
+    const so1 = Math.round((7211 / 1000 * 17.30 + 997 / 1000 * 29) * 100) / 100
+    expect(so1).toBeCloseTo(153.66, 2)
+    expect(BENCHMARK_SO1.deliberateDifference.cost).toBeCloseTo(153.66, 2)
+    // and it is ST1’s 152.73 plus the 0.93 the taller bottom half costs
+    expect(so1 - BENCHMARK_ST1.deliberateDifference.cost).toBeCloseTo(0.93, 2)
+    // OI3: the transom at 67x96 for the internal width, as FD3
+    expect(Math.round(1.256 * 13.60 * 100) / 100).toBe(17.08)
+    expect(BENCHMARK_OI3.deliberateDifference.cost).toBeCloseTo(17.08, 2)
+    // and the parked 14p: 16 mm of 63x63 at 8.60/m
+    expect(Math.round(-16 / 1000 * 8.60 * 100) / 100).toBeCloseTo(-0.14, 2)
+    expect(BENCHMARK_OI3.parkedResidual.cost).toBeCloseTo(-0.14, 2)
+    // OI1 and OI2 declare NOTHING: they are Integrate to the penny
+    expect(BENCHMARK_OI1.deliberateDifference).toBeUndefined()
+    expect(BENCHMARK_OI1.parkedResidual).toBeUndefined()
+    expect(BENCHMARK_OI2.deliberateDifference).toBeUndefined()
+    expect(BENCHMARK_OI2.parkedResidual).toBeUndefined()
   })
 })
