@@ -11,6 +11,30 @@ import {
   frameCells, frameInterior, sortedDividers, OPENING_TYPES,
 } from '../pricing/casementGeometry.js'
 
+/**
+ * Step BH: the section a SOLID divider is cut from.
+ *
+ * A casement profile holds `thicknessInFrameSolid` (27). A DOOR profile
+ * does not: it keys its divider as `transomPart.thicknessInFrame`, which is
+ * 41 — Integrate’s own doorset mullion and transom (template 29’s are 41,
+ * and so are the ones in Nathan’s doorsets). Before this, every divider
+ * action on a door drawing threw "Missing profile value
+ * thicknessInFrameSolid" and a door could not be divided at all.
+ *
+ * The order matters: a casement drawing still resolves its own key first,
+ * so nothing about a window changes. A profile with NEITHER key still
+ * refuses to guess — a divider of 0 would silently reprice the frame.
+ */
+const SOLID_DIVIDER_KEYS = ['thicknessInFrameSolid', 'thicknessInFrame']
+
+export function solidDividerThickness(profileValues) {
+  for (const key of SOLID_DIVIDER_KEYS) {
+    const v = Number(profileValues?.[key])
+    if (isFinite(v) && v > 0) return v
+  }
+  return null
+}
+
 export function makeKey(prefix) {
   return prefix + '_' + Math.random().toString(36).slice(2, 9)
 }
@@ -54,7 +78,16 @@ export function cloneWithNewKeys(node) {
 // new openings copy the FIRST OPENING (a casement sash or direct glazed
 // unit) rather than a sash pair, and transoms are out of scope for this
 // step — the picker offers columns only.
-export function applyDividers(tree, frameKey, cols, rows, iW, iH, profileValues = null, mullionKind = 'hollow') {
+/**
+ * `newOpeningFor` (Step BH): what a new cell gets when the opening it was
+ * split from cannot sensibly be copied. Given the SOURCE node, it returns a
+ * node to use instead, or null to copy as before. The board passes the
+ * doorset one (`newDoorsetOpeningFor`), which turns a door into a direct
+ * glazed light — a second stable door beside the first is not a thing
+ * anyone sells. Injected rather than imported: the door vocabulary lives in
+ * doorOpenings.js, which imports THIS module.
+ */
+export function applyDividers(tree, frameKey, cols, rows, iW, iH, profileValues = null, mullionKind = 'hollow', { newOpeningFor = null } = {}) {
   // Step AE item 1: a new MULLION on a BOX SASH frame is HOLLOW (it houses
   // the weights); on a CASEMENT frame it is SOLID (Step AP). Either way its
   // thickness comes from the drawing's profile — thicknessInFrameHollow or
@@ -77,11 +110,13 @@ export function applyDividers(tree, frameKey, cols, rows, iW, iH, profileValues 
   const nTransoms = Math.max(0, rows - 1)
   let mullionT = 0
   if (nMullions > 0) {
-    const key = solid ? 'thicknessInFrameSolid' : 'thicknessInFrameHollow'
-    mullionT = Number(profileValues?.[key])
+    mullionT = solid
+      ? solidDividerThickness(profileValues)
+      : Number(profileValues?.thicknessInFrameHollow)
     if (!isFinite(mullionT) || mullionT <= 0) {
+      const key = solid ? SOLID_DIVIDER_KEYS.join(' or ') : 'thicknessInFrameHollow'
       throw new Error(
-        `Missing profile value ${key} — a ${solid ? 'casement mullion is solid' : 'box sash mullion is hollow'} and takes its thickness from the profile. No mullions were added; check the drawing's profile values.`)
+        `Missing profile value ${key} — a ${solid ? 'casement or door mullion is solid' : 'box sash mullion is hollow'} and takes its thickness from the profile. No mullions were added; check the drawing's profile values.`)
     }
   }
   const openingW = (iW - nMullions * mullionT) / (nMullions + 1)
@@ -110,14 +145,18 @@ export function applyDividers(tree, frameKey, cols, rows, iW, iH, profileValues 
     }
 
     // What an opening is depends on the frame: a sash pair on a box sash
-    // frame, or a casement sash / direct glazed unit on a casement frame.
-    const OPENING_TYPES = solid
-      ? ['casementSashPart', 'glassPart']
-      : ['sashPairPart']
-    const existingOpenings = (node.children ?? []).filter(c => OPENING_TYPES.includes(c.part_type))
+    // frame, or anything in OPENING_TYPES on a casement or DOOR frame.
+    //
+    // Step BH: the list used to be [casementSashPart, glassPart], so a DOOR
+    // was not an opening here — the whole-frame grid put its dividers in,
+    // left the door as an "other" child and gave the new cells nothing at
+    // all. The shared OPENING_TYPES (which knows a pair, a leaf and a
+    // stable-door container) is the same list splitOpening has always used.
+    const openingTypes = solid ? OPENING_TYPES : ['sashPairPart']
+    const existingOpenings = (node.children ?? []).filter(c => openingTypes.includes(c.part_type))
     const others = (node.children ?? []).filter(
       c => c.part_type !== 'mullionPart' && c.part_type !== 'transomPart' &&
-           !OPENING_TYPES.includes(c.part_type)
+           !openingTypes.includes(c.part_type)
     )
     // The columns the frame is on NOW, so a new ROW copies the opening in
     // its own column rather than always copying the first one.
@@ -171,14 +210,24 @@ export function applyDividers(tree, frameKey, cols, rows, iW, iH, profileValues 
 
     // New openings COPY the opening they split, with fresh keys, and come out
     // in Integrate's matrix order — A1, B1, … across the top row, then down.
+    // Step BH: unless `newOpeningFor` says the source cannot be copied, in
+    // which case the new cell gets what it returns (a doorset light).
     const openings = []
     if (existingOpenings.length > 0) {
+      // Where the ORIGINAL opening ends up. Normally the top-left cell, as
+      // it always has. Step BH: when the policy REPLACES it rather than
+      // copying it — a door — it keeps the BOTTOM-left cell instead,
+      // because a door meets the cill and a light goes above it, never
+      // under it.
+      const replaced = newOpeningFor?.(existingOpenings[0]) != null
+      const keepsRow = replaced ? rows - 1 : 0
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
           // The opening this cell comes from: the one in the same column of
           // the frame's existing top row, falling back to the first.
           const source = existingOpenings[Math.min(c, prevCols - 1)] ?? existingOpenings[0]
-          openings.push(r === 0 && c === 0 ? existingOpenings[0] : cloneWithNewKeys(source))
+          if (r === keepsRow && c === 0) { openings.push(existingOpenings[0]); continue }
+          openings.push(newOpeningFor?.(source) ?? cloneWithNewKeys(source))
         }
       }
     }
@@ -359,7 +408,7 @@ export function addDividerInCell(tree, frameKey, {
  * @returns {Object} the new tree, or the tree unchanged if the opening is not
  *   an opening of that frame
  */
-export function splitOpening(tree, frameKey, openingKey, axis, profileValues = null) {
+export function splitOpening(tree, frameKey, openingKey, axis, profileValues = null, { newOpeningFor = null } = {}) {
   const frame = findFrame(tree, frameKey)
   if (!frame) return tree
 
@@ -376,11 +425,13 @@ export function splitOpening(tree, frameKey, openingKey, axis, profileValues = n
   if (!cell) return tree
 
   const isTransom = axis === 'transom'
-  const thickness = Number(profileValues?.thicknessInFrameSolid)
+  // Step BH: a DOOR frame’s divider is the profile’s transom section (41)
+  const thickness = solidDividerThickness(profileValues)
   if (!isFinite(thickness) || thickness <= 0) {
     throw new Error(
-      'Missing profile value thicknessInFrameSolid — a casement divider is solid and takes its ' +
-      'thickness from the profile. Nothing was added; check the drawing’s profile values.')
+      `Missing profile value ${SOLID_DIVIDER_KEYS.join(' or ')} — a casement or door ` +
+      'divider is solid and takes its thickness from the profile. Nothing was added; ' +
+      'check the drawing’s profile values.')
   }
   const stop = Number(profileValues?.mullionStopSize) ||
     Number(profileValues?.frameStileStopSize) || 0
@@ -402,7 +453,7 @@ export function splitOpening(tree, frameKey, openingKey, axis, profileValues = n
 
   return insertBoundedDivider(tree, frame, {
     axis, offset, thickness, stop, startDivider, endDivider,
-    sourceIndex: idx,
+    sourceIndex: idx, newOpeningFor,
   })
 }
 
@@ -420,6 +471,7 @@ export function splitOpening(tree, frameKey, openingKey, axis, profileValues = n
  */
 function insertBoundedDivider(tree, frame, {
   axis, offset, thickness, stop, startDivider, endDivider, sourceIndex = null,
+  newOpeningFor = null,
 }) {
   const isTransom = axis === 'transom'
   const divider = {
@@ -463,6 +515,19 @@ function insertBoundedDivider(tree, frame, {
   // list after Undo, and a save would have stored the duplicate.
   //
   // Keying on the node makes that impossible however the cells line up.
+  // Step BH: when the opening being split is one the policy REPLACES rather
+  // than copies — a door — the new light goes in the FIRST of its two cells
+  // and the door keeps the second. On a TRANSOM that is the fanlight above
+  // the door, which is the only way round a doorset is built; on a MULLION
+  // the two cells are side by side, so the door keeps the left one and the
+  // light sits to its right, which is what a surveyor then drags where they
+  // want it. Only the SPLIT opening is affected: every other opening in the
+  // frame maps to its own cell as before.
+  const splitSource = sourceIndex != null ? openings[sourceIndex] : null
+  const lightFirst = axis === 'transom' && splitSource != null
+    ? (newOpeningFor?.(splitSource) ?? null)
+    : null
+  const pending = new Map(lightFirst ? [[splitSource.key, lightFirst]] : [])
   const used = new Set()
   const placed = newCells.map(c => {
     let oldIdx = oldCells.findIndex(o =>
@@ -470,7 +535,16 @@ function insertBoundedDivider(tree, frame, {
     if (oldIdx < 0) oldIdx = sourceIndex ?? 0
     const source = openings[oldIdx] ?? openings[sourceIndex ?? 0] ?? openings[0]
     if (!source) return null
-    if (used.has(source.key)) return cloneWithNewKeys(source)
+    // the light takes the TOP cell, and the door the one below it
+    if (pending.has(source.key)) {
+      const node = pending.get(source.key)
+      pending.delete(source.key)
+      return node
+    }
+    // Step BH: the second cell of a split DOOR opening is a light, not a
+    // second door — `newOpeningFor` decides, and says null for anything it
+    // is happy to see copied.
+    if (used.has(source.key)) return newOpeningFor?.(source) ?? cloneWithNewKeys(source)
     used.add(source.key)
     return source
   }).filter(Boolean)

@@ -14,8 +14,12 @@
 
 import { makeKey } from './gridActions.js'
 import { firstOf } from './casementOpenings.js'
-import { DOOR_LEAF_TYPES, leafInterior, leafCells, doorPanelSize } from '../pricing/doorGeometry.js'
+import { DOOR_LEAF_TYPES, leafInterior, leafCells, doorPanelSize, doorLeaves } from '../pricing/doorGeometry.js'
 import { itemFrames } from '../pricing/casementGeometry.js'
+// Step BH: a PAIR OF FRONT DOORS is the open-in French pair with front-door
+// leaves, so it is built by turning a pair round with Step BG's own switch
+// rather than by a second description of what "open in" means.
+import { setOpeningDirection, OPEN_IN } from './openingDirection.js'
 
 /** The materials a door may be made of. Integrate's material 44 is utile. */
 export const DOOR_MATERIALS = ['utile', 'accoya']
@@ -483,6 +487,87 @@ export const DOORSET_DEFAULTS = {
 }
 
 /**
+ * A doorset DIRECT GLAZED UNIT — Integrate’s own: 15 mm of mechanical
+ * clearance each side, 12 hidden in the rebate, and the rebate and
+ * tolerance from the drawing’s profile.
+ *
+ * Step BH pulled this out of the two doorset builders that had it inline,
+ * so the light the BOARD adds beside a door is the same light a template
+ * carries. `glass` carries another unit’s glass CODES over.
+ */
+export function doorsetDirectGlazedUnit(profileValues, { glass = null, defaults = null } = {}) {
+  const d = (defaults ?? doorProfileDefaults(profileValues)).values
+  return {
+    key: makeKey('dgu'),
+    part_type: 'glassPart',
+    values: {
+      ...DEFAULT_GLASS,
+      ...(glass ?? {}),
+      glazingRebateWidth: d.glassRebate,
+      glazingTolerance:   d.glassTolerance,
+      mechanicalClearanceTop: DOORSET_DEFAULTS.directGlazedClearance,
+      mechanicalClearanceBottom: DOORSET_DEFAULTS.directGlazedClearance,
+      mechanicalClearanceLeft: DOORSET_DEFAULTS.directGlazedClearance,
+      mechanicalClearanceRight: DOORSET_DEFAULTS.directGlazedClearance,
+      hiddenInRebateTop: DOORSET_DEFAULTS.directGlazedHidden,
+      hiddenInRebateBottom: DOORSET_DEFAULTS.directGlazedHidden,
+      hiddenInRebateLeft: DOORSET_DEFAULTS.directGlazedHidden,
+      hiddenInRebateRight: DOORSET_DEFAULTS.directGlazedHidden,
+      toBeReplaced: true,
+    },
+    children: [],
+  }
+}
+
+/** A door part: the thing a new cell must NOT be a copy of. */
+export const DOOR_OPENING_TYPES = [...DOOR_LEAF_TYPES, 'frenchDoorPart', 'stableDoorPart']
+
+export function isDoorOpening(node) {
+  return DOOR_OPENING_TYPES.includes(node?.part_type)
+}
+
+/**
+ * What a new cell gets when a DOOR opening is divided (Step BH).
+ *
+ * Nathan: every doorset can have side lights, top lights and flag windows.
+ * So dividing a door frame has to give the new cell a LIGHT — a direct
+ * glazed unit, which the surveyor then changes to a fixed or an opening
+ * casement if that is what it is. Copying the door (which is what the
+ * divider actions do for every other opening, on purpose, so a surveyor’s
+ * own sections survive) would give a drawing two doors.
+ *
+ * The door’s own GLASS CODES carry over, as they do on every other change
+ * of opening: the glazing a surveyor has chosen is a choice, not a default.
+ *
+ * Returns null for anything that is not a door, which the divider actions
+ * read as "copy it as you always have".
+ */
+export function newDoorsetOpeningFor(profileValues) {
+  const defaults = doorProfileDefaults(profileValues)
+  return source => {
+    if (!isDoorOpening(source)) return null
+    return doorsetDirectGlazedUnit(profileValues, {
+      glass: glassCodesOfDoor(source), defaults,
+    })
+  }
+}
+
+/** The glass CODES on a door, wherever it keeps its glass. */
+function glassCodesOfDoor(node) {
+  const findGlass = n => (n?.part_type === 'glassPart' ? n
+    : (n?.children ?? []).map(findGlass).find(Boolean) ?? null)
+  const g = findGlass(node)
+  if (!g) return null
+  const v = g.values ?? {}
+  return {
+    ...(v.glazingId != null ? { glazingId: v.glazingId } : {}),
+    ...(v.isIndividualPanes != null ? { isIndividualPanes: v.isIndividualPanes } : {}),
+    ...(v.internalGlassPartNo != null ? { internalGlassPartNo: v.internalGlassPartNo } : {}),
+    ...(v.externalGlassPartNo != null ? { externalGlassPartNo: v.externalGlassPartNo } : {}),
+  }
+}
+
+/**
  * Where the two full-height mullions go, so the side lights MATCH.
  *
  * Integrate's template 29 has 648 and 651 — a 3 mm difference nobody drew on
@@ -579,17 +664,8 @@ export function buildFrenchDoorSetFrame(profileValues, {
     }
   }
 
-  const directGlazed = () => glass({
-    mechanicalClearanceTop: DOORSET_DEFAULTS.directGlazedClearance,
-    mechanicalClearanceBottom: DOORSET_DEFAULTS.directGlazedClearance,
-    mechanicalClearanceLeft: DOORSET_DEFAULTS.directGlazedClearance,
-    mechanicalClearanceRight: DOORSET_DEFAULTS.directGlazedClearance,
-    hiddenInRebateTop: DOORSET_DEFAULTS.directGlazedHidden,
-    hiddenInRebateBottom: DOORSET_DEFAULTS.directGlazedHidden,
-    hiddenInRebateLeft: DOORSET_DEFAULTS.directGlazedHidden,
-    hiddenInRebateRight: DOORSET_DEFAULTS.directGlazedHidden,
-    toBeReplaced: true,
-  })
+  // Step BH: one definition, shared with the light the board adds
+  const directGlazed = () => doorsetDirectGlazedUnit(profileValues, { defaults: resolved })
 
   const topLight = () => topRow === 'casement'
     ? sash({ bottomHeight: fanlightBottomRail, bottomHeightExternal: fanlightBottomRailExternal })
@@ -982,25 +1058,8 @@ export function buildFrenchDoorSidePanelFrame(profileValues, {
     mullionThickness: d.transomThickness, middleColumn,
   })
 
-  const panel = () => ({
-    key: makeKey('dgu'),
-    part_type: 'glassPart',
-    values: {
-      ...DEFAULT_GLASS,
-      glazingRebateWidth: d.glassRebate,
-      glazingTolerance:   d.glassTolerance,
-      mechanicalClearanceTop: DOORSET_DEFAULTS.directGlazedClearance,
-      mechanicalClearanceBottom: DOORSET_DEFAULTS.directGlazedClearance,
-      mechanicalClearanceLeft: DOORSET_DEFAULTS.directGlazedClearance,
-      mechanicalClearanceRight: DOORSET_DEFAULTS.directGlazedClearance,
-      hiddenInRebateTop: DOORSET_DEFAULTS.directGlazedHidden,
-      hiddenInRebateBottom: DOORSET_DEFAULTS.directGlazedHidden,
-      hiddenInRebateLeft: DOORSET_DEFAULTS.directGlazedHidden,
-      hiddenInRebateRight: DOORSET_DEFAULTS.directGlazedHidden,
-      toBeReplaced: true,
-    },
-    children: [],
-  })
+  // Step BH: one definition (it is a direct glazed PANEL beside the pair)
+  const panel = () => doorsetDirectGlazedUnit(profileValues, { defaults: resolved })
 
   const dividers = [
     mullionNode(makeKey('mull'), side, d),
@@ -2277,3 +2336,412 @@ export const STABLE_DOOR_TEMPLATES = [
     },
   },
 ]
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Step BH — DOORSETS WITH LIGHTS, and a PAIR OF FRONT DOORS
+// Nathan, 14 Oct 2026. docs/step-bh-brief.md.
+//
+// EVERY doorset can have side lights, top lights and flag windows, and the
+// board builds any of them from any door (see doorsetLights.test.js). These
+// are the five Nathan sells as TEMPLATES, so a surveyor starts from the
+// drawing rather than assembling it:
+//
+//   Pair Of Front Doors                             1500 x 2182
+//   Front Door With Side Lights And Fanlight        1806 x 2654
+//   Front Door With Side Lights And Fanlight Over Door   1806 x 2654
+//   Stable Door With Fanlight                       1099 x 2679
+//   Stable Door With Side Light                     1505 x 2207
+//
+// Integrate has no template for any of them and building them by hand on its
+// board is impractical, so NONE of these is a reading: each is a composition
+// of parts already matched penny for penny (the open-in pair OI1, the
+// panelled leaves FD4, the front door and its fanlight FT1 / FT2, the side
+// light FT4, the doorset FD5, the stable doors ST1-ST3 and SO1), and
+// Integrate’s rules for them are general. Every fired rule is listed in
+// docs/reports/step-bh.md for the reviewer to check by hand.
+// ═════════════════════════════════════════════════════════════════════════════
+
+/** Integrate’s own front-door lock rail, which every front door here uses. */
+export const FRONT_DOOR_PAIR_DEFAULTS = {
+  width: 1500,
+  height: 2182,
+  /** The glass or panel ABOVE the mid rail — Integrate’s Balham 983. */
+  midRailOffset: 983,
+  midRailThickness: FRONT_DOOR_MID_RAIL_MM,
+}
+
+/**
+ * A PAIR OF FRONT DOORS (Nathan 2): two open-in leaves, each with a 170 mid
+ * rail and ONE FLAT PANEL above and below it. No muntin.
+ *
+ * It is a FRONT door, not a French door: `isFrontDoor` true and the dual
+ * finish, which is what makes fitting rule "Front Door and Frame (Base)" 840
+ * fire and "French Doors" 780 not fire (both band on `is_front_door`), and
+ * what fires the three "- Dual Finish" rules.
+ *
+ * Built by turning an ordinary French pair IN with Step BG’s switch, so
+ * there is one definition of the open-in cill, clearances and square rail.
+ */
+export function buildFrontDoorPairFrame(profileValues, {
+  width = FRONT_DOOR_PAIR_DEFAULTS.width,
+  height = FRONT_DOOR_PAIR_DEFAULTS.height,
+  material = DEFAULT_DOOR_MATERIAL,
+  product = null,
+  quantity = 1,
+  masterLeaf = DEFAULT_DOOR_MASTER_LEAF,
+  midRailOffset = FRONT_DOOR_PAIR_DEFAULTS.midRailOffset,
+  midRailThickness = FRONT_DOOR_PAIR_DEFAULTS.midRailThickness,
+} = {}) {
+  const base = buildFrenchDoorFrame(profileValues, {
+    width, height, material, product, quantity, masterLeaf,
+  })
+  if (!base.tree) return base
+
+  // open IN: the 50 cill and stop 0, the pair’s 3 / 14 / 3 / 3 and the
+  // square 170 rail, all from the open_in_doors profile (Step BG)
+  const turned = setOpeningDirection(base.tree, OPEN_IN, profileValues)
+  if (turned.missing.length > 0) return { tree: null, missing: turned.missing }
+
+  // a FRONT door: the flag and the dual finish
+  let tree = {
+    ...turned.tree,
+    children: turned.tree.children.map(c => (c.part_type !== 'paintAndIronmongeryPart'
+      ? c
+      : {
+        ...c,
+        values: {
+          ...c.values,
+          isFrontDoor: true,
+          internalFinish: 'clean_white',
+          externalFinish: 'custom',
+        },
+      })),
+  }
+
+  // each leaf: the mid rail, a flat panel above and a flat panel below
+  for (const leaf of doorLeaves(tree)) {
+    tree = setLeafGrid(tree, leaf.key, {
+      columns: 1, rows: 2, cells: ['panel', 'panel'],
+      midRailThickness, rowOffsets: [midRailOffset],
+    }, profileValues)
+  }
+  return { tree, missing: [] }
+}
+
+/** The openings of Nathan’s doorsets: a 365 side light each side of the door. */
+export const FRONT_DOOR_SET_DEFAULTS = {
+  width: 1806,                 // 94 + 365 + 41 + 900 + 41 + 365
+  height: 2654,                // 2182 + 431 + 41
+  sideLightWidth: SIDE_LIGHT_DEFAULTS.width,
+  doorColumn: 900,
+  fanlightHeight: 431,
+  midRailOffset: FRONT_DOOR_PAIR_DEFAULTS.midRailOffset,
+}
+
+/**
+ * A FRONT DOOR WITH SIDE LIGHTS AND A FANLIGHT — both constructions Nathan
+ * sells (brief item 3):
+ *
+ *   fanlight: 'full_width'  the transom runs the whole width and the two
+ *                           mullions run through it, so there are THREE
+ *                           direct glazed fanlights over (as FD5);
+ *   fanlight: 'over_door'   the side lights run FULL HEIGHT and the transom
+ *                           is bounded by the mullions, so there is ONE
+ *                           fanlight, over the door.
+ *
+ * Either way the side lights’ own mid rails line up with the door’s, which
+ * is `sideLightMidRailOffset` doing the arithmetic from the door’s bottom
+ * panel — the same call `addSideLight` makes, so a template and a
+ * hand-built drawing cannot drift.
+ */
+export function buildFrontDoorSetFrame(profileValues, {
+  width = FRONT_DOOR_SET_DEFAULTS.width,
+  height = FRONT_DOOR_SET_DEFAULTS.height,
+  material = DEFAULT_DOOR_MATERIAL,
+  product = null,
+  quantity = 1,
+  operation = DEFAULT_FRONT_DOOR_OPERATION,
+  fanlight = 'full_width',     // 'full_width' | 'over_door'
+  sideLightWidth = FRONT_DOOR_SET_DEFAULTS.sideLightWidth,
+  doorColumn = FRONT_DOOR_SET_DEFAULTS.doorColumn,
+  fanlightHeight = FRONT_DOOR_SET_DEFAULTS.fanlightHeight,
+  midRailOffset = FRONT_DOOR_SET_DEFAULTS.midRailOffset,
+} = {}) {
+  const resolved = doorProfileDefaults(profileValues)
+  if (resolved.missing.length > 0) return { tree: null, missing: resolved.missing }
+  const d = resolved.values
+
+  // the door itself, with Integrate’s Balham grid, in its own column
+  const base = buildFrontDoorFrame(profileValues, {
+    width, height, material, product, quantity, operation,
+    columns: 2, rows: 2, rowOffsets: [midRailOffset],
+  })
+  if (!base.tree) return base
+
+  const frame = itemFrames(base.tree)[0]
+  // the fanlight row and its transom come off the interior; the door and the
+  // side lights share what is left (pass two reads the actual cells)
+
+  const overDoor = fanlight === 'over_door'
+  const mullA = mullionNode(makeKey('mull'), sideLightWidth, d)
+  const mullB = mullionNode(makeKey('mull'),
+    sideLightWidth + d.transomThickness + doorColumn, d)
+  const transom = {
+    key: makeKey('trans'),
+    part_type: 'transomPart',
+    values: {
+      offset: fanlightHeight,
+      thicknessInFrame: d.transomThickness,
+      transomStopSize: 18,
+      // 'over_door': the transom STOPS at the two mullions, which is what
+      // leaves the side lights full height (Step AV’s short dividers)
+      startDivider: overDoor ? mullA.key : '0',
+      endDivider:   overDoor ? mullB.key : '0',
+    },
+    children: [],
+  }
+
+  const leaf = doorLeaves(base.tree)[0]
+  const fanlightUnit = () => doorsetDirectGlazedUnit(profileValues, { defaults: resolved })
+
+  // TWO PASSES, and the reason is worth stating: where a side light’s mid
+  // rail goes depends on the DOOR’s bottom panel, and the door’s bottom
+  // panel is not known until the frame has been divided — the leaf in the
+  // undivided frame is 2540 tall with a 1107 bottom panel, and in its own
+  // cell it is 2068 with a 635 one. Reading it too early put both rails 472
+  // mm out, which is the fanlight and its transom.
+  //
+  // So: the lights go in WITHOUT their mid rails, the door is measured in
+  // the frame it is actually in, and then each sash gets its rail.
+  const bare = () => buildSideLight(profileValues, {
+    defaults: resolved, midRailOffset: null,
+  }).node
+  const left = bare()
+  const right = bare()
+  if (!left || !right) return { tree: null, missing: ['side light'] }
+
+  // ROW-MAJOR order, which is what frameCells and every label read
+  const openings = overDoor
+    ? [left, fanlightUnit(), right, leaf]
+    : [fanlightUnit(), fanlightUnit(), fanlightUnit(), left, leaf, right]
+
+  const staged = replaceFrame(base.tree, frame.key, {
+    ...frame,
+    children: [
+      mullA, mullB, transom,
+      ...openings,
+      ...(frame.children ?? []).filter(c => c.part_type === 'cillPart'),
+    ],
+  })
+  // the leaf has just lost the two side lights’ columns and the fanlight’s
+  // row, so its own grid is re-centred against the leaf it is now (Step BE
+  // follow-up); its MID RAIL stays at Integrate’s 983.
+  const sized = recentreGridsAfterResize(base.tree, staged, profileValues)
+
+  // pass two: the door’s bottom panel, and the rail that meets it
+  const placedLeaf = doorLeaves(sized).find(l => l.key === leaf.key) ?? leaf
+  const doorCells = leafCells(sized, placedLeaf)
+  const bottomRow = doorCells.length
+    ? doorCells[doorCells.length - 1].height
+    : (doorPanelSize(sized, placedLeaf).height ?? 0)
+
+  const withRails = (node) => {
+    if (node.key !== left.key && node.key !== right.key) {
+      return { ...node, children: (node.children ?? []).map(withRails) }
+    }
+    const interior = leafInterior(sized, node)
+    const offset = sideLightMidRailOffset({
+      sashInteriorHeight: interior.height ?? 0,
+      doorPanelHeight: bottomRow,
+    })
+    if (offset == null) return node
+    return {
+      ...node,
+      children: [
+        midRailNode(`${node.key}_midrail`, {
+          offset, thickness: SIDE_LIGHT_DEFAULTS.midRailThickness,
+        }),
+        ...(node.children ?? []),
+      ],
+    }
+  }
+  return { tree: withRails(sized), missing: [] }
+}
+
+/**
+ * Where a STABLE DOOR’s side light carries its mid rail, so that the rail is
+ * LEVEL with the stable door’s meeting rails.
+ *
+ * A stable door’s join is not one rail but three bands: the top half’s 99
+ * bottom rail, the 3 mm between the halves and the bottom half’s 99 top rail
+ * — 201 mm in all. The side light’s mid rail is 170. Two rails of different
+ * depths cannot align on both edges, so they are aligned on their CENTRES,
+ * which is what the eye reads as level.
+ *
+ * Measured from the top of the frame’s interior:
+ *   the join’s centre   = container top clearance + split + (3 / 2)
+ *   the rail’s centre   = sash top clearance + sash head + offset + 170 / 2
+ * and the offset is the GLASS above the rail, which is what a divider offset
+ * means everywhere on this board.
+ */
+export function stableSideLightMidRailOffset({
+  splitOffset = STABLE_DOOR_DEFAULTS.splitOffset,
+  containerTopClearance = STABLE_DOOR_DEFAULTS.clearances.top,
+  betweenHalves = STABLE_DOOR_DEFAULTS.clearances.between,
+  sashTopClearance = SIDE_LIGHT_DEFAULTS.clearance,
+  sashHead = SIDE_LIGHT_DEFAULTS.rails.top,
+  midRailThickness = SIDE_LIGHT_DEFAULTS.midRailThickness,
+} = {}) {
+  const joinCentre = containerTopClearance + splitOffset + betweenHalves / 2
+  const offset = joinCentre - sashTopClearance - sashHead - midRailThickness / 2
+  return offset > 0 ? Math.round(offset) : null
+}
+
+/** A stable door with a fanlight over it, or a side light beside it. */
+export const STABLE_DOOR_SET_DEFAULTS = {
+  fanlightHeight: 431,
+  /** 2207 + 431 + 41 */
+  fanlightFrameHeight: 2679,
+  sideLightWidth: SIDE_LIGHT_DEFAULTS.width,
+  /** 1099 + 41 + 365 */
+  sideLightFrameWidth: 1505,
+}
+
+/**
+ * A STABLE DOOR with a top light or a side light (brief item 3d / 3e).
+ *
+ * The stable door itself is untouched: with the frame made taller by the
+ * fanlight and its transom, the door’s own cell is the 2110 it always was,
+ * so the container is 2103 and the halves 1055 / 1048 — the ST1 figures. A
+ * side light takes a column of its own and the door keeps its 1005 opening.
+ */
+export function buildStableDoorSetFrame(profileValues, {
+  fanlight = false,
+  sideLight = null,            // { side: 'left' | 'right' }
+  width = null,
+  height = null,
+  fanlightHeight = STABLE_DOOR_SET_DEFAULTS.fanlightHeight,
+  sideLightWidth = STABLE_DOOR_SET_DEFAULTS.sideLightWidth,
+  ...rest
+} = {}) {
+  const resolved = doorProfileDefaults(profileValues)
+  if (resolved.missing.length > 0) return { tree: null, missing: resolved.missing }
+  const d = resolved.values
+
+  const base = buildStableDoorFrame(profileValues, {
+    ...rest,
+    width: width ?? (sideLight
+      ? STABLE_DOOR_SET_DEFAULTS.sideLightFrameWidth
+      : STABLE_DOOR_DEFAULTS.width),
+    height: height ?? (fanlight
+      ? STABLE_DOOR_SET_DEFAULTS.fanlightFrameHeight
+      : STABLE_DOOR_DEFAULTS.height),
+  })
+  if (!base.tree) return base
+
+  const frame = itemFrames(base.tree)[0]
+  const container = (frame.children ?? []).find(c => c.part_type === 'stableDoorPart')
+  const cills = (frame.children ?? []).filter(c => c.part_type === 'cillPart')
+  const dividers = []
+  let openings = [container]
+
+  if (fanlight) {
+    dividers.push({
+      key: makeKey('trans'),
+      part_type: 'transomPart',
+      values: {
+        offset: fanlightHeight,
+        thicknessInFrame: d.transomThickness,
+        transomStopSize: 18,
+        startDivider: '0', endDivider: '0',
+      },
+      children: [],
+    })
+    // the light goes ABOVE the door, which is the only way round a doorset
+    // is built — row-major order puts it first
+    openings = [doorsetDirectGlazedUnit(profileValues, { defaults: resolved }), container]
+  }
+
+  if (sideLight) {
+    const side = sideLight.side ?? 'right'
+    const doorColumn = STABLE_DOOR_DEFAULTS.width - d.frameJambLeft -
+      (d.frameJambRight ?? d.frameJambLeft)
+    dividers.push(mullionNode(makeKey('mull'),
+      side === 'left' ? sideLightWidth : doorColumn, d))
+    const sash = buildSideLight(profileValues, {
+      defaults: resolved,
+      midRailOffset: stableSideLightMidRailOffset({
+        splitOffset: num(container.values?.splitOffset) ??
+          STABLE_DOOR_DEFAULTS.splitOffset,
+      }),
+    })
+    if (!sash.node) return { tree: null, missing: sash.missing }
+    openings = side === 'left'
+      ? [sash.node, ...openings]
+      : [...openings, sash.node]
+  }
+
+  return {
+    tree: replaceFrame(base.tree, frame.key, {
+      ...frame,
+      children: [...dividers, ...openings, ...cills],
+    }),
+    missing: [],
+  }
+}
+
+/**
+ * The five Step BH templates, as code — one definition for the SQL, the
+ * tests and the board, as every template list here is.
+ */
+export const DOORSET_TEMPLATES = [
+  {
+    name: 'Pair Of Front Doors',
+    sort_order: 240,
+    group_name: 'Open In Doors',
+    builder: 'frontDoorPair',
+    integrate: null,
+    options: { width: 1500, height: 2182 },
+  },
+  {
+    name: 'Front Door With Side Lights And Fanlight',
+    sort_order: 250,
+    group_name: 'Open In Doors',
+    builder: 'frontDoorSet',
+    integrate: null,
+    options: { fanlight: 'full_width' },
+  },
+  {
+    name: 'Front Door With Side Lights And Fanlight Over Door',
+    sort_order: 260,
+    group_name: 'Open In Doors',
+    builder: 'frontDoorSet',
+    integrate: null,
+    options: { fanlight: 'over_door' },
+  },
+  {
+    name: 'Stable Door With Fanlight',
+    sort_order: 330,
+    group_name: 'Cottage Doors',
+    builder: 'stableDoorSet',
+    integrate: null,
+    options: { fanlight: true },
+  },
+  {
+    name: 'Stable Door With Side Light',
+    sort_order: 340,
+    group_name: 'Cottage Doors',
+    builder: 'stableDoorSet',
+    integrate: null,
+    options: { sideLight: { side: 'right' } },
+  },
+]
+
+/** Build one of the five by name — what the SQL generator and the tests use. */
+export function buildDoorsetTemplate(template, profileValues) {
+  const opts = template.options ?? {}
+  if (template.builder === 'frontDoorPair') return buildFrontDoorPairFrame(profileValues, opts)
+  if (template.builder === 'frontDoorSet')  return buildFrontDoorSetFrame(profileValues, opts)
+  if (template.builder === 'stableDoorSet') return buildStableDoorSetFrame(profileValues, opts)
+  return { tree: null, missing: [`unknown builder ${template.builder}`] }
+}

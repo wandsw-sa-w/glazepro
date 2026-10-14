@@ -1225,8 +1225,12 @@ export const BENCHMARK_CD4 = {
  */
 export const OPEN_IN_PROFILE_VALUES = {
   ...DOOR_PROFILE_VALUES,
-  // the frame: a 50 bottom and a 50 cill, not the garden door's 37
+  // the frame: a 50 bottom and a 50 cill, not the garden door's 37 — and
+  // NO cill stop, where the open-out range has 26 (Step BG's facts: the
+  // range writes cill 37 / 50 and stop 26 / 0). Step BH found the 26 still
+  // here, which is what a board-built open-in door was carrying.
   'assemblyFramePart.bottomHeight': 50,
+  'assemblyFramePart.cillStopSize': 0,
   'cillPart.height': 50,
   // the leaf
   'doorLeafPart.thickness': 54,

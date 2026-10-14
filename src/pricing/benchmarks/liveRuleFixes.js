@@ -93,6 +93,37 @@ export const STABLE_DOOR_NO_VENT = 'new_stable_door_pair_qty < 1'
  * the trickle vents come from, so a test that cannot see them cannot catch a
  * double. Idempotent.
  */
+/**
+ * `sql/step-bh1`, NOT YET RUN: the French master’s multipoint lock does not
+ * belong on a PAIR OF FRONT DOORS.
+ *
+ * Step BH found it: a pair of front doors (two open-in leaves, master right)
+ * fires allocator rule `cebdd8b5` "MPLS master or tall – shootbolt", which
+ * gives the master leaf a Winkhaus Thunderbolt (RJZ2382, £53.55) on top of
+ * the AV3 Heritage locking system the default set already gives it. The
+ * master’s lock IS the heritage set (Nathan 2 / decision a); the Thunderbolt
+ * is a FRENCH door’s lock.
+ *
+ * Every other rule in that family already carries `not is_front_door`
+ * (`1b55d5a5`, `36d8eb57`, `c2ed4405`) — this one never was, because
+ * Integrate has no pair of front doors to catch it. The file appends the
+ * same clause, so a FRENCH pair keeps its Thunderbolt and a front-door pair
+ * does not. The SLAVE bolts and keeps are untouched: Nathan 2 asks for them.
+ *
+ * Idempotent, and a no-op on a snapshot where the clause is already there.
+ */
+export const FRENCH_MASTER_LOCK_RULE = 'cebdd8b5'
+export const FRONT_DOOR_NOT = 'not is_front_door'
+
+export function withFrontDoorPairLock(snapshot) {
+  const rules = (snapshot.partAllocationRules ?? []).map(r => (
+    String(r.id ?? '').startsWith(FRENCH_MASTER_LOCK_RULE) &&
+      !String(r.condition).includes(FRONT_DOOR_NOT)
+      ? { ...r, condition: `${r.condition} and ${FRONT_DOOR_NOT}` }
+      : r))
+  return { ...snapshot, partAllocationRules: rules }
+}
+
 export function withStableDoorIronmongery(snapshot) {
   const rules = (snapshot.ironmongeryRules ?? []).map(r => {
     if (STABLE_DOOR_IMPORTED_RULES.includes(r.id)) return { ...r, is_active: false }

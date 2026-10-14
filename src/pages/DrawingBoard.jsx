@@ -44,6 +44,7 @@ import {
   setLeafMidRail, leafMidRailOf, leafMidRailOffsetFor, DEFAULT_LEAF_PANEL_HEIGHT_MM,
   changeOpeningToSingleDoor, addFlagFrame, removeFrame, isDoorTree,
   setLeafGrid, setLeafCellKind, recentreGridsAfterResize,
+  newDoorsetOpeningFor,
 } from '../drawingBoard/doorOpenings.js'
 import { DOOR_LEAF_TYPES, doorLeafSize, doorPanelSize, leafCells, leafHolding } from '../pricing/doorGeometry.js'
 import { computeSashWeight } from '../pricing/sashWeight.js'
@@ -2606,7 +2607,8 @@ function DrawingBoard() {
       // frame's is solid (thicknessInFrameSolid), a box sash frame's is
       // hollow. Decided from the drawing, not guessed from the tree.
       const mullionKind = isCasementFrameTree(tree) ? 'solid' : 'hollow'
-      let newTree = applyDividers(tree, frame.key, cols, rows, iW, iH, profileValueMap, mullionKind)
+      let newTree = applyDividers(tree, frame.key, cols, rows, iW, iH, profileValueMap, mullionKind,
+        { newOpeningFor: doorsetOpening })
       // Step AS item 3: the picker MOVES sashes between positions, so the
       // sash that lands in the top row becomes a fanlight (62 mm bottom
       // rail) and an old fanlight that loses its transom becomes ordinary
@@ -2634,7 +2636,8 @@ function DrawingBoard() {
     // "1x2" is one column and two rows, so it is a transom; "2x1" a mullion.
     const axis = rows > cols ? 'transom' : 'mullion'
     try {
-      let newTree = splitOpening(tree, frame.key, splitTarget.key, axis, profileValueMap)
+      let newTree = splitOpening(tree, frame.key, splitTarget.key, axis, profileValueMap,
+        { newOpeningFor: doorsetOpening })
       // A new top-row opening is a fanlight and takes the fanlight bottom
       // rail, as the whole-frame palette's does. The raw profile rows, not
       // profileValueMap — see Step AR item 3.
@@ -2813,6 +2816,15 @@ function DrawingBoard() {
   // else in GlazePro is sold with flag lights — and they act on the frame the
   // selection is in, which is what their label says.
   const isDoorDrawing = tree ? isDoorTree(tree) : false
+  // Step BH: a divider beside or above a DOOR gives the new cell a LIGHT —
+  // a direct glazed unit the surveyor can then change to a fixed or an
+  // opening casement. Without this the divider actions would copy the door,
+  // which is how every other opening is split (on purpose: a surveyor’s own
+  // sections survive a split) but gives a doorset two doors. Null on a
+  // window, where nothing changes.
+  const doorsetOpening = isDoorDrawing && profileValues?.length
+    ? newDoorsetOpeningFor(profileValues)
+    : null
   const selectedFrameNode = tree ? findNodeByKey(tree, actionFrameKey(tree, selectedKey)) : null
   const selectedFrameLabel = selectedFrameNode ? partLabel(selectedFrameNode, tree) : 'Frame'
   // removeFrame refuses the door's frame and the last frame; the button says
