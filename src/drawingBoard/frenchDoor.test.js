@@ -400,7 +400,9 @@ describe('Step BA — the board builds the French door variants', () => {
       expect(doorGlassSightline(tree, leaf)).toEqual({ width: 442.5, height: 1241 })
       expect(doorPanelSize(tree, leaf)).toEqual({ width: 442.5, height: 425 })
       const panel = leaf.children.find(c => c.part_type === 'panelPart')
-      expect(panel.values.internalPanelTypeId).toBe('raised_and_fielded')
+      // Step BF: FLAT, as every Integrate door template is (Nathan,
+    // decision k) — type 110, which GlazePro had mapped to R&F.
+    expect(panel.values.internalPanelTypeId).toBe('flat')
       expect(panel.values.internalPanelBeadId).toBe('ovolo')
     }
     expect(() => assertSaveable(tree)).not.toThrow()

@@ -339,10 +339,17 @@ export function isFrenchDoorTree(tree) {
 export const DEFAULT_LEAF_MID_RAIL_MM = 170
 export const DEFAULT_LEAF_PANEL_HEIGHT_MM = 425
 
-/** The panel options a new panelled leaf starts with (Integrate's defaults). */
+/**
+ * The panel options a new panelled leaf starts with.
+ *
+ * Step BF (Nathan, decision k): FLAT, as every Integrate door template is.
+ * Its id 110 had been mapped to raised_and_fielded, so GlazePro’s templates
+ * were built R&F and charged 120 a panel where Integrate charges 60.
+ * sql/step-bf3 re-issues templates 29-32 with flat panels.
+ */
 export const DEFAULT_PANEL_VALUES = {
-  internalPanelTypeId: 'raised_and_fielded',
-  externalPanelTypeId: 'raised_and_fielded',
+  internalPanelTypeId: 'flat',
+  externalPanelTypeId: 'flat',
   internalPanelBeadId: 'ovolo',
   externalPanelBeadId: 'ovolo',
   insulationThickness: 15,

@@ -73,12 +73,17 @@ describe('Step BD templates fix — what each template prices', () => {
   //
   // Step BE follow-up: sql/step-be1 is RUN, so the arched door is 2,725.12
   // and not the 2,740.23 it read while the rate still carried the quarter.
+  // Step BF: every template’s panels are FLAT (Nathan, decision k), which
+  // is 60 a panel instead of 120 — so each one drops by 24.66 per panel:
+  //   Front Door      -98.64  (four panels)
+  //   With Fanlight   -24.66  (one)
+  //   Arched          -24.66  (one)
+  //   With Side Light -123.30 (five: four in the door, one in the sash)
   const EXPECTED = [
-    ['Front Door',               2604.67],
-    ['Front Door With Fanlight', 2697.97],
-    ['Arched Front Door',        2725.12],
-    // Step BE follow-up: the side light, with its muntin re-centred
-    ['Front Door With Side Light', 3371.35],
+    ['Front Door',               2506.03],
+    ['Front Door With Fanlight', 2673.31],
+    ['Arched Front Door',        2700.46],
+    ['Front Door With Side Light', 3248.05],
   ]
 
   for (const [name, cost] of EXPECTED) {
@@ -126,9 +131,9 @@ describe('Step BD templates fix — what each template prices', () => {
     }
     expect(bedford.live.results.price.total_cost)
       .toBeGreaterThan(bedford.centred.results.price.total_cost)
-    // the reviewer's drawing 42, made from the centred template — no
-    // shaped glass and no muntin on it, so Step BE leaves it where it was
-    expect(bedford.centred.results.price.total_cost).toBeCloseTo(2683.39, 1)
+    // the reviewer's drawing 42, made from the centred template, less the
+    // 24.66 its one panel drops by now that it is flat
+    expect(bedford.centred.results.price.total_cost).toBeCloseTo(2658.73, 1)
     // 45 minutes of "Any Door Overweight" come back with the longer glass
     const mins = r => r.results.install_labour.total_minutes
     expect(mins(bedford.live) - mins(bedford.centred)).toBe(45)
@@ -138,9 +143,9 @@ describe('Step BD templates fix — what each template prices', () => {
       live:    priceTemplate(byName('Arched Front Door')),
     }
     // the reviewer’s drawing 43 figure plus Step BE’s shaped glass, at the
-    // square rate: 2,740.74 + 6.44 (a centred rail makes a taller glass cell,
-    // so its billable rectangle grows more than the arched one's)
-    expect(arched.centred.results.price.total_cost).toBeCloseTo(2747.18, 1)
+    // square rate and its flat panel: 2,740.74 + 6.44 - 24.66 (a centred rail
+    // makes a taller glass cell, so its billable rectangle grows more)
+    expect(arched.centred.results.price.total_cost).toBeCloseTo(2722.52, 1)
     expect(arched.live.results.price.total_cost)
       .toBeLessThan(arched.centred.results.price.total_cost)
   })

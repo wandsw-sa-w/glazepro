@@ -208,8 +208,28 @@ export function isWarmEdgeSpacerColour(spacerColourId) {
 // under these codes — SECTION 0 of sql/step-ba2 asks for the rows. A code
 // outside this set is never a silent false; collectVocabularyWarnings names
 // it, as it does every other option.
+//
+// STEP BF, 14 Oct 2026 — THE IDS, READ IN INTEGRATE’S OWN DIALOG:
+//
+//     110 = FLAT   112 = RAISED & FIELDED   114 = VERTICAL T&G
+//                                           116 = HORIZONTAL T&G
+//
+// 110 was mapped to raised_and_fielded. The id came from the French-door
+// facts of Step BA, which label it "Raised & Fielded", and Steps BD and BE
+// repeated it — so EVERY Integrate door read so far (the Balham, the
+// Bedford, the Arched, drawing 20, the stable doors) was priced as
+// raised-and-fielded when its panels are flat.
+//
+// That means Integrate’s rule 1240 "Additional for Flat Panel" 60 was RIGHT
+// on all of them, and GlazePro’s R&F 120 was the error — the opposite way
+// round from what Step BE concluded from the same figures. The other half of
+// Nathan’s decision d stands: "Door Muntin" is 60 per REAL muntin, and a mid
+// rail is not one.
 export const PANEL_TYPES = {
-  110:                 'raised_and_fielded',
+  110:                 'flat',
+  112:                 'raised_and_fielded',
+  114:                 'vertical_tongue_and_groove',
+  116:                 'horizontal_tongue_and_groove',
   raised_and_fielded:  'raised_and_fielded',
   flat:                'flat',
   vertical_tongue_and_groove:   'vertical_tongue_and_groove',

@@ -2345,7 +2345,9 @@ describe('Step AZ — French door benchmarks', () => {
 // No new pricing rule: every figure comes out of rules GlazePro already had.
 describe('Step BA — French door variant benchmarks', () => {
   const CASES = [
-    ['FD4', BENCHMARK_FD4, INTEGRATE.benchmarkFD4_french_doors_with_panels,                 59.42, 13.00],
+    // Step BF: FD4’s two panels are FLAT (type 110), so they cost 60 each
+    // and not 120 — its production is 120 minutes under Integrate’s 59.42 h.
+    ['FD4', BENCHMARK_FD4, INTEGRATE.benchmarkFD4_french_doors_with_panels,                 57.42, 13.00],
     ['FD5', BENCHMARK_FD5, INTEGRATE.benchmarkFD5_french_doorset_sidelights_toplights,      99.58, 24.25],
     ['FD6', BENCHMARK_FD6, INTEGRATE.benchmarkFD6_french_doorset_casement_lights,          116.33, 24.50],
   ]
@@ -2353,7 +2355,13 @@ describe('Step BA — French door variant benchmarks', () => {
   // The mullions and transom GlazePro charges and Integrate does not
   // (difference 11): 2 x 2626 + 2720 = 7972 mm of Utile67x96 at 13.60.
   const DOORSET_SECTIONS = Math.round((7972 / 1000) * 13.60 * 100) / 100   // 108.42
-  const EXTRA = { FD4: 0, FD5: DOORSET_SECTIONS, FD6: DOORSET_SECTIONS }
+  // Step BF: FD4 is 120 production minutes (49.32) CHEAPER than Integrate,
+  // declared on the fixture while the reviewer reads its panel-type ids.
+  const EXTRA = {
+    FD4: BENCHMARK_FD4.pendingDecision?.cost ?? 0,
+    FD5: DOORSET_SECTIONS,
+    FD6: DOORSET_SECTIONS,
+  }
 
   function runFD(bm) {
     return runPricingOnTree(bm.tree, SNAPSHOT.rules, SNAPSHOT.pfVariables, {
@@ -2374,7 +2382,7 @@ describe('Step BA — French door variant benchmarks', () => {
       expect(r.install_labour.total_minutes / 60, label).toBeCloseTo(labour, 2)
     })
 
-    it(`${label}: every group matches Integrate${EXTRA[label] ? ', bar the mullions and transom' : ', exactly'}`, () => {
+    it(`${label}: every group matches Integrate${EXTRA[label] ? ', bar what is declared' : ', exactly'}`, () => {
       const r = runFD(bm)
       const got = {}
       for (const l of r.price.lines) {
@@ -2382,18 +2390,29 @@ describe('Step BA — French door variant benchmarks', () => {
         got[l.group_name] = (got[l.group_name] ?? 0) + l.line_cost
       }
       for (const [group, t] of Object.entries(target.groups)) {
-        const expected = group === 'manufacture_materials' ? t.cost + EXTRA[label] : t.cost
+        // Step BF: FD4's difference is in MANUFACTURE (production minutes,
+        // its two FLAT panels at 60 where GlazePro charged R&F 120); the two
+        // doorsets' is in manufacture_materials (the mullions and transom).
+        const declaredIn = label === 'FD4' ? 'manufacture' : 'manufacture_materials'
+        const expected = group === declaredIn ? t.cost + EXTRA[label] : t.cost
         expect(got[group] ?? 0, `${label} ${group}`).toBeCloseTo(expected, 2)
       }
       expect(r.price.total_cost, `${label} total`).toBeCloseTo(target.total_cost + EXTRA[label], 2)
     })
   }
 
-  it('FD4 matches Integrate on EVERY line — a panelled leaf adds nothing of its own', () => {
+  // Step BF: FD4 no longer matches, and nothing has been tuned to keep it.
+  // Its panels read Integrate’s type 110, which is FLAT, so they price 60
+  // each where they priced R&F 120 — and FD4 was penny-exact BEFORE, which
+  // it could only have been if Integrate charged the 240 itself. The fixture
+  // declares the -49.32 and the reviewer is to read FD4’s panel ids; see the
+  // comment on BENCHMARK_FD4.
+  it('FD4 matches Integrate on every line but its panel minutes', () => {
     const r = runFD(BENCHMARK_FD4)
     const t = INTEGRATE.benchmarkFD4_french_doors_with_panels
-    expect(r.price.total_cost).toBeCloseTo(t.total_cost, 2)
-    expect(r.price.total).toBeCloseTo(t.total_price, 2)
+    const declared = BENCHMARK_FD4.pendingDecision.cost
+    expect(r.price.total_cost).toBeCloseTo(t.total_cost + declared, 2)
+    expect(r.price.total).toBeCloseTo(t.total_price + declared * 2, 2)
   })
 
   // ── FD4: the leaf mid rail, the glass above it and the panel below ────────
@@ -2442,7 +2461,7 @@ describe('Step BA — French door variant benchmarks', () => {
     const panelLines = [...r.price.lines, ...r.manufacture_labour.lines]
       .filter(l => l.fires && !l.error && l.loop_target === 'panel')
       .map(l => l.name)
-    expect([...new Set(panelLines)].sort()).toEqual(['Additional for R&F Panel', 'Tricoya Panel'])
+    expect([...new Set(panelLines)].sort()).toEqual(['Additional for Flat Panel', 'Tricoya Panel'])
     // Tricoya Panel is the panel's VISIBLE area, unrounded: 442.5 x 425 =
     // 0.1880625 m2 x 188.85 = 35.52 a panel.
     const tricoya = r.price.lines.filter(l => l.fires && l.name === 'Tricoya Panel')
@@ -2451,9 +2470,10 @@ describe('Step BA — French door variant benchmarks', () => {
     expect(tricoya[0].line_cost).toBeCloseTo(35.52, 2)
     // and 120 minutes a panel of R&F work, which is all FD4 adds to FD1's
     // production
-    const rf = r.manufacture_labour.lines.filter(l => l.fires && l.name === 'Additional for R&F Panel')
+    // Step BF: 60 a panel, not 120 — type 110 is FLAT.
+    const rf = r.manufacture_labour.lines.filter(l => l.fires && l.name === 'Additional for Flat Panel')
     expect(rf.length).toBe(2)
-    expect(rf.reduce((t, l) => t + l.minutes, 0)).toBe(240)
+    expect(rf.reduce((t, l) => t + l.minutes, 0)).toBe(120)
   })
 
   it('FD4: the mid rails are cut from Utile63x200 at leaf width − 10', () => {
@@ -3060,17 +3080,20 @@ describe('Step BC — coupled flag-frame benchmarks', () => {
 // ══════════════════════════════════════════════════════════════════════════════
 describe('Step BD — front door benchmarks', () => {
   const FT_CASES = [
-    // Step BE: FT1 is 2,850 minutes — Integrate’s 2,670 plus the 180 of its
-    // own two errors, which GlazePro corrects (Nathan, decision d).
-    ['FT1', BENCHMARK_FT1, INTEGRATE.benchmarkFT1_front_door_balham,   47.50, 14.00],
-    ['FT2', BENCHMARK_FT2, INTEGRATE.benchmarkFT2_front_door_fanlight, 46.17, 18.17],
-    ['FT3', BENCHMARK_FT3, INTEGRATE.benchmarkFT3_front_door_arched,   54.83, 14.75],
+    // Step BF: the panels are FLAT, so Integrate’s flat 60 was right. What is
+    // left of decision d makes GlazePro 60 minutes CHEAPER per mid rail —
+    // Integrate counts one as a muntin and GlazePro does not:
+    //   FT1 2,610 against 2,670   FT2 2,710 against 2,770
+    //   FT3 3,230 against 3,290   FT4 3,785 against 3,905 (two mid rails)
+    ['FT1', BENCHMARK_FT1, INTEGRATE.benchmarkFT1_front_door_balham,   43.50, 14.00],
+    ['FT2', BENCHMARK_FT2, INTEGRATE.benchmarkFT2_front_door_fanlight, 45.17, 18.17],
+    ['FT3', BENCHMARK_FT3, INTEGRATE.benchmarkFT3_front_door_arched,   53.83, 14.75],
     // Step BE: the side light. 4,085 production minutes against Integrate’s
     // 3,905 — the same 180 of its own two errors — and its fitting to the
     // minute: Front Door and Frame 840 + 120 a frame mullion + 120 a fixed
     // casement sash, and NO "Combination Frame" (the side light is a sash,
     // not a leaf).
-    ['FT4', BENCHMARK_FT4, INTEGRATE.benchmarkFT4_front_door_side_light, 68.08, 18.00],
+    ['FT4', BENCHMARK_FT4, INTEGRATE.benchmarkFT4_front_door_side_light, 63.08, 18.00],
   ]
 
   // sql/step-bd1 was RUN LIVE on 14 Oct: the AV4 Heritage lock, the pocket
@@ -3101,15 +3124,14 @@ describe('Step BD — front door benchmarks', () => {
         .toBeCloseTo(production, 2)
       // FT2 and FT3 are Integrate's production EXACTLY; FT1 is 2 h over, and
       // that is the figure the reviewer settles with Integrate.
-      if (label === 'FT1' || label === 'FT4') {
-        // Integrate’s two errors, on a door with panels: flat-panel 60 where
-        // the panel is type-110 R&F, and the mid rail counted as a muntin.
-        expect(production - target.hours.production, `${label} is 3 h over Integrate`)
-          .toBeCloseTo(3, 2)
-      } else {
-        expect(production, `${label} is Integrate's own production`)
-          .toBeCloseTo(target.hours.production, 2)
-      }
+      // Step BF: every FT row is UNDER Integrate now, by 60 minutes per MID
+      // RAIL — Integrate fires "Door Muntin" for one and GlazePro charges 60
+      // per real muntin only (Nathan’s decision d, the half that survived the
+      // panel-type correction). FT4 has two mid rails.
+      const midRails = label === 'FT4' ? 2 : 1
+      expect(target.hours.production - production,
+        `${label} is ${midRails} mid rail(s) under Integrate`)
+        .toBeCloseTo(midRails * 60 / 60, 2)
       // Fitting is Integrate's on all three, to the minute.
       expect(r.install_labour.total_minutes / 60, `${label} labour`)
         .toBeCloseTo(target.hours.labour, 2)
@@ -3166,14 +3188,14 @@ describe('Step BD — front door benchmarks', () => {
     expect(Math.round(1.788 * 17.30 * 100) / 100).toBe(30.93)
     expect(Math.round(1.005 * 13.60 * 100) / 100).toBe(13.67)
     expect(Math.round(0.777 * 17.30 * 100) / 100).toBe(13.44)
-    // Step BE: FT1 and FT3 declare their timber AND one of Nathan’s
-    // corrections — FT1 the 180 production minutes (73.98 at 24.66/h), FT3
-    // the shaped glass (23.28 at the square rate, energy included).
-    expect(BENCHMARK_FT1.deliberateDifference.cost).toBeCloseTo(30.94 + 73.98, 2)
-    expect(BENCHMARK_FT2.deliberateDifference.cost).toBeCloseTo(13.67, 2)
-    expect(BENCHMARK_FT3.deliberateDifference.cost).toBeCloseTo(13.45 + 23.28, 2)
-    expect(Math.round((2850 - 2670) / 60 * 24.66 * 100) / 100,
-      '180 minutes at the workshop rate').toBe(73.98)
+    // Step BF: each row is its timber (and FT3’s glass) LESS the mid-rail
+    // minutes Integrate charges and GlazePro does not — 24.66 an hour.
+    const MID_RAIL = Math.round(60 / 60 * 24.66 * 100) / 100   // 24.66
+    expect(MID_RAIL).toBe(24.66)
+    expect(BENCHMARK_FT1.deliberateDifference.cost).toBeCloseTo(30.94 - MID_RAIL, 2)
+    expect(BENCHMARK_FT2.deliberateDifference.cost).toBeCloseTo(13.67 - MID_RAIL, 2)
+    expect(BENCHMARK_FT3.deliberateDifference.cost).toBeCloseTo(13.45 + 23.28 - MID_RAIL, 2)
+    expect(BENCHMARK_FT4.deliberateDifference.cost).toBeCloseTo(70.92 - 2 * MID_RAIL, 2)
   })
 
   it('FT4’s side light is a SASH with a grid, and its lines are Integrate’s', () => {

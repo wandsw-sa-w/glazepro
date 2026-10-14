@@ -440,25 +440,32 @@ function leafMidRail(key, { offset, thickness = 170 }) {
 }
 
 /**
- * The Tricoya panel under a leaf's mid rail: raised and fielded BOTH sides,
- * ovolo bead both sides.
+ * The Tricoya panel in a leaf's cell: FLAT both sides, ovolo bead both
+ * sides — which is what every Integrate door stores.
  *
- * Integrate stores the four option ids as numbers (internalPanelTypeId 110 =
- * Raised & Fielded, internalPanelBeadId 120 = Ovolo — its own defaults, in
- * docs/integrate-drawingboard-schema.txt). GlazePro stores CODES, as it does
- * for every other option, and the id-to-code mapping lives in
- * optionVocabulary.js so a tree imported from Integrate prices the same.
+ * Step BF: the ids are Integrate’s own, 110 = FLAT and 120 = Ovolo (read in
+ * its panel-type dialog, 14 Oct). A FIXTURE keeps the id rather than
+ * GlazePro’s code, because a fixture’s job is Integrate’s drawing and that
+ * makes the id-to-code mapping part of what the benchmark proves. The BOARD
+ * stores codes, as it does for every other option.
+ *
+ * Until this step 110 was mapped to raised_and_fielded (from the
+ * French-door facts, which mislabel it), so every one of these panels was
+ * priced R&F 120 where Integrate charges flat 60.
  *
  * NOT VERIFIED: that the live `reference_options` hold these two categories
  * under these codes. SECTION 0 of sql/step-ba2 asks for the rows.
  */
+export const INTEGRATE_PANEL_FLAT = 110
+export const INTEGRATE_PANEL_BEAD_OVOLO = 120
+
 function doorPanel(key) {
   return {
     key,
     part_type: 'panelPart',
     values: {
-      internalPanelTypeId: 'raised_and_fielded',
-      externalPanelTypeId: 'raised_and_fielded',
+      internalPanelTypeId: INTEGRATE_PANEL_FLAT,
+      externalPanelTypeId: INTEGRATE_PANEL_FLAT,
       internalPanelBeadId: 'ovolo',
       externalPanelBeadId: 'ovolo',
       insulationThickness: 15,
@@ -566,6 +573,29 @@ export const BENCHMARK_FD4 = {
     ironmongeryLines: DOOR_IRONMONGERY,
   }),
   targets: { ...INTEGRATE_TARGETS.benchmarkFD4_french_doors_with_panels },
+  // Step BF: FD4 MOVED, and nothing has been tuned to stop it.
+  //
+  // Its two panels read Integrate’s type 110, which is FLAT — so they now
+  // price flat 60 each where they used to price R&F 120, and FD4 is 120
+  // minutes (49.32) CHEAPER than Integrate. But FD4 matched Integrate TO
+  // THE PENNY before this step, which it could only have done if Integrate
+  // itself charged 240 of panel minutes on it — i.e. the R&F rule.
+  //
+  // So one of two things is true, and a single reading settles which:
+  //   * FD4’s panels are really type 112 (R&F) and the French-door facts’
+  //     "110" is the same mislabel that started all of this — in which case
+  //     the FIXTURE should carry 112 and FD4 goes back to exact; or
+  //   * Integrate charged flat 60 on FD4 too, and the old agreement was a
+  //     coincidence of two errors.
+  //
+  // The first is far likelier (a penny-exact match is not a coincidence),
+  // but the fixture keeps what the facts SAY until the reviewer reads
+  // FD4’s panel-type ids in Integrate. Changing 110 to 112 here to keep a
+  // green row would be tuning a fixture to a guess.
+  pendingDecision: {
+    cost: -49.32,
+    reason: 'FD4’s two panels: the facts record type 110 (FLAT, 60 min each) and FD4 matched Integrate exactly while GlazePro charged R&F 120 each — so either its panels are really 112 or Integrate charged flat and the old match was a coincidence. The reviewer to read FD4’s panel-type ids; nothing is tuned either way',
+  },
   partCostMap: DOOR_PART_COST_MAP,
   profileValues: DOOR_PROFILE_VALUES,
   glassCatalogue: {},
@@ -1287,9 +1317,17 @@ export const BENCHMARK_FT1 = {
     ironmongeryLines: FRONT_DOOR_IRONMONGERY,
   }),
   targets: { ...INTEGRATE_TARGETS.benchmarkFT1_front_door_balham },
+  // Step BF: the panels are FLAT (type 110), so Integrate’s flat-panel 60
+  // was right and GlazePro’s R&F 120 was the error. What is left of
+  // decision d is the muntin, and it makes GlazePro CHEAPER:
+  //   +30.94  the leaf’s 120 muntin at Utile63x120 (1788 mm), PROVISIONAL
+  //   and 60 production minutes LESS than Integrate (-24.66):
+  //   Integrate counts a leaf’s MID RAIL as a muntin and fires "Door Muntin"
+  //   60 for it; GlazePro charges 60 per REAL muntin only, which is the half
+  //   of Nathan’s decision d that survived the panel-type correction.
   deliberateDifference: {
-    cost: 104.92,
-    reason: 'the leaf’s 120 muntin at Utile63x120 for its interior height (1788 mm, +30.94, PROVISIONAL — Integrate allocates nothing for it), and 180 production minutes (+73.98): GlazePro charges R&F panels 120 each and 60 for the ONE real muntin, where Integrate’s editor fires flat-panel 60 x 4 on type-110 R&F panels and counts the mid rail as a second muntin (Nathan, decision d)',
+    cost: 6.28,
+    reason: 'the leaf’s 120 muntin at Utile63x120 for its interior height (1788 mm, +30.94, PROVISIONAL — Integrate allocates nothing for it), LESS 60 production minutes (-24.66): Integrate counts the leaf’s mid rail as a second muntin and GlazePro charges 60 per REAL muntin only (Nathan, decision d)',
   },
   // The three AV4 parts the live catalogue holds at cost 0 — the Heritage
   // lock (112.35), the pocket keep (5.25) and the centre keep w dayswitch
@@ -1352,9 +1390,11 @@ export const BENCHMARK_FT2 = {
     ironmongeryLines: FRONT_DOOR_IRONMONGERY,
   }),
   targets: { ...INTEGRATE_TARGETS.benchmarkFT2_front_door_fanlight },
+  // Step BF: +13.67 of transom, less 60 production minutes (-24.66) for the
+  // mid rail Integrate counts as a muntin. The panels are FLAT either way.
   deliberateDifference: {
-    cost: 13.67,
-    reason: 'the frame transom, charged at Utile67x96 for the internal frame width (1005 mm) — Integrate allocates nothing for it (PROVISIONAL, as on SD2)',
+    cost: -10.99,
+    reason: 'the frame transom at Utile67x96 for the internal frame width (1005 mm, +13.67, PROVISIONAL — Integrate allocates nothing for it), LESS 60 production minutes (-24.66) for the mid rail Integrate counts as a muntin (Nathan, decision d)',
   },
   // sql/step-bd1 is RUN LIVE (14 Oct): the three AV4 parts have their costs
   // and this row is Integrate’s own figure plus its declared timber, with
@@ -1421,9 +1461,12 @@ export const BENCHMARK_FT3 = {
     ironmongeryLines: FRONT_DOOR_IRONMONGERY,
   }),
   targets: { ...INTEGRATE_TARGETS.benchmarkFT3_front_door_arched },
+  // Step BF: +13.45 of mid-rail timber +23.28 of shaped glass, less 60
+  // production minutes (-24.66) for the mid rail Integrate counts as a
+  // muntin. Its one panel is FLAT, as Integrate has it.
   deliberateDifference: {
-    cost: 36.73,   // 13.45 of mid rail + 23.28 of shaped glass
-    reason: 'the leaf’s 120 mid rail at Utile63x120 for its interior width (777 mm, +13.45, PROVISIONAL), and the SHAPED GLASS (+23.28): 1.13 m2 at the square rate against Integrate’s 0.62 at its shaped rate — the largest rectangle of the cut glass (801 x 1127) plus the supplier’s quarter (Nathan, decision e), with the energy surcharge following the same area',
+    cost: 12.07,   // 13.45 mid rail + 23.28 shaped glass - 24.66 production
+    reason: 'the leaf’s 120 mid rail at Utile63x120 for its interior width (777 mm, +13.45, PROVISIONAL), the SHAPED GLASS (+23.28): 1.13 m2 at the square rate against Integrate’s 0.62 at its shaped rate — the largest rectangle of the cut glass (801 x 1127) plus the supplier’s quarter (Nathan, decision e) with the energy surcharge following it — LESS 60 production minutes (-24.66) for the mid rail Integrate counts as a muntin',
   },
   // sql/step-bd1 is RUN LIVE (14 Oct): the three AV4 parts have their costs
   // and this row is Integrate’s own figure plus its declared timber, with
@@ -1573,9 +1616,11 @@ export const BENCHMARK_FT4 = {
   // and 180 production minutes at 24.66/h = 73.98 — Integrate’s flat-panel
   // error on five type-110 R&F panels (-300) and its mid-rail-as-muntin
   // firings (+120 for two rails, against the one real muntin’s 60).
+  // Step BF: the five panels are FLAT, so what is left is the timber and
+  // TWO mid rails Integrate counts as muntins (-120 min, -49.32).
   deliberateDifference: {
-    cost: 144.90,
-    reason: 'the frame mullion (2085 mm at Utile67x96, +28.36), the leaf’s 120 muntin (1788 mm) and its 120 mid rail (672 mm) at Utile63x120 (+42.56) — Integrate allocates nothing for any of the three (PROVISIONAL) — and 180 production minutes (+73.98): R&F panels at 120 each and 60 for the ONE real muntin (Nathan, decision d)',
+    cost: 21.60,
+    reason: 'the frame mullion (2085 mm at Utile67x96, +28.36), the leaf’s 120 muntin (1788 mm) and its 120 mid rail (672 mm) at Utile63x120 (+42.56) — Integrate allocates nothing for any of the three (PROVISIONAL) — LESS 120 production minutes (-49.32) for the TWO mid rails Integrate counts as muntins (Nathan, decision d)',
   },
   partCostMap: DOOR_PART_COST_MAP,
   profileValues: OPEN_IN_PROFILE_VALUES,

@@ -66,23 +66,26 @@ const DELIBERATE = {
   //   FT2  13.67 (the frame transom)               = 13.67
   //   FT3  13.45 (the leaf’s 120 mid rail) + 15.81 OPEN (the arched leaf’s
   //        shaped glass, over £1 and so NOT parked) = 29.26
-  // Step BE (Nathan’s decisions d and e, 14 Oct) moved three of these and
-  // added two more rows to the list:
-  //   FT1  30.94 timber + 73.98 production (R&F panels at 120 and 60 for
-  //        the ONE real muntin, where Integrate fires flat-panel 60 x 4 and
-  //        counts the mid rail as a second muntin)        = 104.92
-  //   FT2  13.67 the frame transom, unchanged             =  13.67
-  //   FT3  13.45 the 120 mid rail + 23.28 shaped glass    =  36.73
-  //        (sql/step-be1 is RUN, so the rate carries no quarter)
-  //   FT4  70.92 timber (the frame mullion, the muntin and the 120 mid
-  //        rail) + 73.98 production                       = 144.90
-  //   C    7.37 shaped glass                              =   7.37
-  //        — C’s FIRST difference since Step AD, and it is a sash window:
-  //        decision e is every product, not only doors.
-  FT1:  { cost: '104.92', price: '209.82' },
-  FT2:  { cost: '13.67', price: '27.34' },
-  FT3:  { cost: '36.73', price: '73.42' },
-  FT4:  { cost: '144.90', price: '289.78' },
+  // Step BF, 14 Oct: Integrate’s panel type 110 is FLAT, not raised and
+  // fielded (read in its own dialog), so its flat-panel 60 was right and
+  // GlazePro’s R&F 120 was the error. Each FT row loses 24.66 a panel, and
+  // what is left of Nathan’s decision d makes GlazePro CHEAPER: Integrate
+  // counts a leaf’s MID RAIL as a muntin (60 min) and GlazePro does not.
+  //
+  //   FT1  +30.94 the leaf’s muntin − 24.66 (one mid rail)  =   6.28
+  //   FT2  +13.67 the frame transom − 24.66                 = -10.99
+  //   FT3  +13.45 mid rail +23.28 shaped glass − 24.66      =  12.07
+  //   FT4  +70.92 timber − 49.32 (TWO mid rails)            =  21.60
+  //   FD4  − 49.32: its two panels are FLAT, and it matched Integrate
+  //        exactly while GlazePro charged R&F — so either its panels are
+  //        really type 112 or Integrate charged flat too. PENDING a reading
+  //        of its panel ids; nothing is tuned to keep the old match.
+  //   C    +7.37 shaped glass (no panels on a sash window)  =   7.37
+  FT1:  { cost: '6.28', price: '12.54' },
+  FT2:  { cost: '-10.99', price: '-21.98' },
+  FT3:  { cost: '12.07', price: '24.10' },
+  FT4:  { cost: '21.60', price: '43.18' },
+  FD4:  { cost: '-49.32', price: '-98.64' },
   C:    { cost: '7.37', price: '14.73' },
 }
 

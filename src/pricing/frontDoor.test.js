@@ -122,15 +122,16 @@ describe('Step BD item 3 — pricing the leaf', () => {
   })
 
   it('FT1’s production is the rules that fire, and nothing is tuned', () => {
-    // The reading Step BD asked for, now RESOLVED (Step BE, Nathan’s
-    // decision d). Integrate's own Estimated Labour Time editor fires, on
-    // this drawing, flat-panel 60 x 4 on panels that ARE type-110 R&F and
-    // Door Muntin twice on a leaf with ONE muntin and one mid rail. GlazePro
-    // charges R&F 120 a panel and 60 for the real muntin:
+    // The reading Step BD asked for, resolved in two steps. Integrate’s own
+    // Estimated Labour Time editor fires flat-panel 60 x 4 and Door Muntin
+    // TWICE on a leaf with one muntin and one mid rail. Step BE took the
+    // panels to be R&F; Step BF read the ids in Integrate’s dialog and they
+    // are FLAT (110), so only the muntin half of decision d survives:
     //   Door Leaf 1035 + Machining & Joining a Door Frame 855
     //   + Door Frame - Dual Finish 240 + Door Leaf - Dual Finish 180
-    //   + Additional for R&F Panel 120 x 4 + Door Muntin 60 = 2850 (47.50 h)
-    // against Integrate's 2670 (44.50 h) — a declared difference now.
+    //   + Additional for Flat Panel 60 x 4 + Door Muntin 60 = 2610 (43.50 h)
+    // against Integrate’s 2670 — 60 minutes LESS, for the mid rail it
+    // counts as a muntin.
     const r = run(BENCHMARK_FT1)
     const fired = (r.manufacture_labour.lines ?? [])
       .filter(l => (l.minutes ?? 0) > 0)
@@ -139,16 +140,16 @@ describe('Step BD item 3 — pricing the leaf', () => {
       'Door Frame - Dual Finish 240',
       'Door Leaf - Dual Finish 180',
       'Door Leaf 1035',
-      // Step BE: the Door Muntin line sits here, before the panels — the
-      // rules fire in the live file's own order
+      // the Door Muntin line sits here, before the panels — the rules fire
+      // in the live file's own order
       'Door Muntin 60',
-      'Additional for R&F Panel 120',
-      'Additional for R&F Panel 120',
-      'Additional for R&F Panel 120',
-      'Additional for R&F Panel 120',
+      'Additional for Flat Panel 60',
+      'Additional for Flat Panel 60',
+      'Additional for Flat Panel 60',
+      'Additional for Flat Panel 60',
       'Machining & Joining a Door Frame 855',
     ])
-    expect(r.manufacture_labour.total_minutes).toBe(2850)
+    expect(r.manufacture_labour.total_minutes).toBe(2610)
   })
 
   it('Door Muntin fires 60 for the ONE real muntin', () => {

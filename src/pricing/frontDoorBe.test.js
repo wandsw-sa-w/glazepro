@@ -45,22 +45,23 @@ const vars = bm => computeVariables(bm.tree, computeDerived(bm.tree), LIVE.pfVar
   { profileCode: bm.profileCode })
 
 describe('Step BE A — Door Muntin, 60 a REAL muntin', () => {
-  it('FT1’s one muntin is 60 minutes, and its production is 2,850', () => {
-    // Integrate charges 2,670 by two errors that do not cancel on a
-    // four-panel door: 4 x flat panel 60 (its R&F test does not fire on a
-    // type-110 panel) and 2 x Door Muntin (the mid rail counted as one).
-    // Nathan: R&F 120 a panel, and 60 a REAL muntin.
+  it('FT1’s one muntin is 60 minutes, and its production is 2,610', () => {
+    // Step BF: the panels are FLAT (type 110 read in Integrate’s dialog), so
+    // its flat-panel 60 x 4 was right. What is left is the muntin: Integrate
+    // fires Door Muntin TWICE, counting the mid rail, and GlazePro once.
     expect(vars(BENCHMARK_FT1).sash_muntin_to_be_replaced_qty).toBe(1)
     const r = run(BENCHMARK_FT1)
     expect(minutes(r, 'Door Muntin')).toBe(60)
-    expect(r.manufacture_labour.total_minutes).toBe(2850)
-    expect(r.manufacture_labour.total_minutes / 60).toBeCloseTo(47.50, 2)
+    expect(r.manufacture_labour.total_minutes).toBe(2610)
+    expect(r.manufacture_labour.total_minutes / 60).toBeCloseTo(43.50, 2)
   })
 
   it('a MID RAIL is not a muntin: FT2, FT3 and FD4 do not move', () => {
     for (const [label, bm, production] of [
-      ['FT2', BENCHMARK_FT2, 2770],
-      ['FT3', BENCHMARK_FT3, 3290],
+      // Step BF: 60 less than Integrate’s 2,770 and 3,290 — the mid rail it
+      // counts as a muntin — and their panels are FLAT.
+      ['FT2', BENCHMARK_FT2, 2710],
+      ['FT3', BENCHMARK_FT3, 3230],
     ]) {
       expect(vars(bm).sash_muntin_to_be_replaced_qty, label).toBe(0)
       const r = run(bm)
