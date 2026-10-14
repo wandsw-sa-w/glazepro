@@ -20,7 +20,7 @@ import {
 } from '../pricing/casementGeometry.js'
 import { columnCount, isCasementFrameTree, matrixIndexOf, matrixLabel } from './casementOpenings.js'
 import { itemFrames, isMultiFrame } from '../pricing/casementGeometry.js'
-import { DOOR_LEAF_TYPES, leafCellRects } from '../pricing/doorGeometry.js'
+import { gridRectsFor } from '../pricing/doorGeometry.js'
 
 // ── Tree helpers ──────────────────────────────────────────────────────────────
 
@@ -1139,9 +1139,10 @@ export function CasementElevation({
     // each cell cut out of it, which is what makes a four-panel front door
     // look like one. A leaf with a single glass cell and no dividers falls
     // through to the drawing below, unchanged.
-    const leafGrid = DOOR_LEAF_TYPES.includes(node.part_type)
-      ? leafCellRects(tree, node, gx, gy)
-      : []
+    // Step BE follow-up: a CASEMENT SASH can hold one too — the side light
+    // is a fixed sash with glass over a panel, and the board drew it as
+    // one pane. gridRectsFor is the gate, with the geometry.
+    const leafGrid = gridRectsFor(tree, node, gx, gy)
     if (leafGrid.length > 1 || leafGrid.some(c => c.kind === 'panel')) {
       return {
         idx, slot, size: { width: w, height: h }, label,

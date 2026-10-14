@@ -1806,6 +1806,96 @@ export function buildSideLight(profileValues, {
 }
 
 /**
+ * Step BE follow-up: re-centre the grids of every leaf and sash whose SIZE
+ * has just changed.
+ *
+ * THE LIVE BUG (template 32, drawing 47): the side-light template stored
+ * the door’s muntin at 479 — centred for the 1298-wide leaf the door had
+ * before the side light took 465 mm of the frame — so its panels came out
+ * 479 / 73 of a 672 interior. The grid was built first and the leaf was
+ * narrowed afterwards, and nothing re-read it.
+ *
+ * Only an EVEN run of dividers is re-evened. A grid a surveyor has moved on
+ * purpose is a decision and stays; so does a MID RAIL at a chosen height —
+ * a lock rail does not move because the door got narrower, which is why
+ * Integrate’s 983 on the Balham survives this and the muntin does not.
+ */
+export function recentreGridsAfterResize(before, after, profileValues = {}) {
+  const holders = tree => {
+    const out = []
+    const walk = n => {
+      if (DOOR_LEAF_TYPES.includes(n?.part_type) || n?.part_type === 'casementSashPart') out.push(n)
+      for (const c of (n?.children ?? [])) walk(c)
+    }
+    walk(tree)
+    return out
+  }
+  const old = new Map(holders(before).map(h => [h.key, h]))
+  let tree = after
+
+  for (const holder of holders(after)) {
+    const was = old.get(holder.key)
+    if (!was) continue
+    const oldInterior = leafInterior(before, was)
+    const newInterior = leafInterior(tree, holder)
+    if (oldInterior.width == null || newInterior.width == null) continue
+
+    const dividers = kind => (holder.children ?? []).filter(c => c.part_type === kind)
+    const muntins = dividers('mullionPart')
+    const rails = dividers('transomPart')
+    const widthChanged  = oldInterior.width  !== newInterior.width
+    const heightChanged = oldInterior.height !== newInterior.height
+
+    const columnOffsets = widthChanged && wasEven(muntins, oldInterior.width)
+      ? evenOffsets(newInterior.width, muntins)
+      : null
+    const rowOffsets = heightChanged && wasEven(rails, oldInterior.height)
+      ? evenOffsets(newInterior.height, rails)
+      : null
+    if (!columnOffsets && !rowOffsets) continue
+
+    tree = setLeafGrid(tree, holder.key, {
+      columns: muntins.length + 1,
+      rows: rails.length + 1,
+      cells: leafCellKinds(holder),
+      muntinThickness: dividerThicknessOf(muntins[0]) ?? FRONT_DOOR_MUNTIN_MM,
+      midRailThickness: dividerThicknessOf(rails[0]) ?? FRONT_DOOR_MID_RAIL_MM,
+      columnOffsets: columnOffsets ?? muntins.map(m => num(m.values?.offset) ?? 0),
+      rowOffsets: rowOffsets ?? rails.map(r => num(r.values?.offset) ?? 0),
+    }, profileValues)
+  }
+  return tree
+}
+
+/** What sits in each cell now, so a re-centred grid keeps it. */
+function leafCellKinds(holder) {
+  return (holder.children ?? [])
+    .filter(c => c.part_type === 'panelPart' || c.part_type === 'glassPart')
+    .map(c => (c.part_type === 'panelPart' ? 'panel' : 'glass'))
+}
+
+function dividerThicknessOf(node) {
+  const v = node?.values ?? {}
+  return num(v.thicknessInFrame) ?? num(v.midrailThickness) ?? num(v.muntinThickness)
+}
+
+/** Were these dividers evenly spaced across that total? (within 1 mm) */
+function wasEven(dividers, total) {
+  if (!dividers.length || !(total > 0)) return false
+  const thickness = dividerThicknessOf(dividers[0]) ?? 0
+  const want = evenOffsets(total, dividers, thickness)
+  return dividers.every((d, i) => Math.abs((num(d.values?.offset) ?? 0) - want[i]) <= 1)
+}
+
+/** Evenly spaced offsets for this many dividers across a total. */
+function evenOffsets(total, dividers, thickness = null) {
+  const t = thickness ?? dividerThicknessOf(dividers[0]) ?? 0
+  const n = dividers.length + 1
+  const span = (total - (n - 1) * t) / n
+  return dividers.map((_, i) => Math.round((span + t) * i + span))
+}
+
+/**
  * Add a SIDE LIGHT to a front door: a mullion in the frame and a fixed sash
  * in the new column, with its mid rail meeting the door’s.
  *
@@ -1861,8 +1951,11 @@ export function addSideLight(tree, frameKey, side = 'right', profileValues = {})
     ...frame,
     children: [...others, mull, ...openings, ...cills],
   }
+  // Step BE follow-up: the door leaf has just lost 465 mm to the side
+  // light, so its own grid is re-centred against the leaf it is now.
+  const withSash = replaceFrame(tree, frame.key, nextFrame)
   return {
-    tree: replaceFrame(tree, frame.key, nextFrame),
+    tree: recentreGridsAfterResize(tree, withSash, profileValues),
     changed: true,
     missing: [],
   }

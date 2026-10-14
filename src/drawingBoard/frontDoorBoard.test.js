@@ -14,7 +14,9 @@ import {
   isFrontDoorTree, isDoorTree, FRONT_DOOR_TEMPLATES, FRONT_DOOR_DEFAULTS,
   addSideLight,
 } from './doorOpenings.js'
-import { leafCells, leafInterior, doorLeaves, allocatedSectionParts, isOpenInLeaf } from '../pricing/doorGeometry.js'
+import {
+  leafCells, leafInterior, doorLeaves, allocatedSectionParts, isOpenInLeaf, gridRectsFor,
+} from '../pricing/doorGeometry.js'
 import { assertSaveable, duplicateKeys } from './containment.js'
 import { partLabel } from './partLabels.js'
 
@@ -332,5 +334,87 @@ describe('Step BE — the side light (Nathan’s decision g)', () => {
     const sashRows = leafCells(tree, sashOf(tree)).filter(c => c.col === 0).map(c => c.height)
     expect(14 + 170 + 635).toBe(3 + 175 + sashRows[1])
     expect(() => assertSaveable(tree)).not.toThrow()
+  })
+})
+
+describe('Step BE follow-up — a resized leaf re-centres its grid', () => {
+  const frameOf = tree => tree.children.find(c => c.part_type === 'assemblyFramePart')
+  const sashOf = tree => frameOf(tree).children.find(c => c.part_type === 'casementSashPart')
+  const muntinOf = node => (node.children ?? []).find(c => c.part_type === 'mullionPart')
+
+  it('the template’s muntin is centred in its OWN leaf: 276 / 276', () => {
+    // THE LIVE BUG (template 32, drawing 47): the muntin was stored at 479,
+    // centred for the 1298-wide leaf the door had BEFORE the side light took
+    // 465 mm of the frame. The leaf is 892 wide, its interior 672, so the
+    // panels came out 479 / 73.
+    const t = FRONT_DOOR_TEMPLATES.find(x => x.name === 'Front Door With Side Light')
+    const { tree } = buildFrontDoorFrame(PV, t.options)
+    const leaf = doorLeaves(tree)[0]
+    expect(leafInterior(tree, leaf).width).toBe(672)
+    expect(muntinOf(leaf).values.offset).toBe(276)
+    expect(leafCells(tree, leaf).filter(c => c.row === 0).map(c => c.width))
+      .toEqual([276, 276])
+  })
+
+  it('adding a side light re-centres the muntin, and only the muntin', () => {
+    // The mid rail is a LOCK RAIL: its height is a decision (Integrate's 983
+    // on the Balham), and a lock rail does not move because the door got
+    // narrower. The muntin is a proportion, and it does.
+    const base = buildFrontDoorFrame(PV, { width: 1400, height: 2182, rowOffsets: [983] }).tree
+    const leafBefore = doorLeaves(base)[0]
+    expect(muntinOf(leafBefore).values.offset).toBe(479)
+    const { tree } = addSideLight(base, frameOf(base).key, 'right', PV)
+    const leaf = doorLeaves(tree)[0]
+    expect(muntinOf(leaf).values.offset).toBe(276)
+    const rail = (leaf.children ?? []).find(c => c.part_type === 'transomPart')
+    expect(rail.values.offset).toBe(983)
+    // and the cells still hold what they held: four panels, in order
+    expect((leaf.children ?? []).filter(c => c.part_type === 'panelPart').length).toBe(4)
+  })
+
+  it('a grid that was NOT even is left alone', () => {
+    // A surveyor who has moved a muntin on purpose keeps it: only an EVEN
+    // grid is re-evened, because only an even grid was a proportion.
+    const base = buildFrontDoorFrame(PV, { width: 1400, height: 2182 }).tree
+    const leafKey = doorLeaves(base)[0].key
+    const moved = setLeafGrid(base, leafKey, {
+      columns: 2, rows: 2, columnOffsets: [700],
+    }, PV)
+    const { tree } = addSideLight(moved, frameOf(moved).key, 'right', PV)
+    expect(muntinOf(doorLeaves(tree)[0]).values.offset).toBe(700)
+  })
+})
+
+describe('Step BE follow-up — the board DRAWS a sash’s own grid', () => {
+  const frameOf = tree => tree.children.find(c => c.part_type === 'assemblyFramePart')
+  const sashOf = tree => frameOf(tree).children.find(c => c.part_type === 'casementSashPart')
+
+  it('the side light’s mid rail, glass and panel are rects to draw', () => {
+    // THE LIVE BUG: the three parts were in the tree and priced, and the
+    // board drew the sash as one pane of glass — gridRectsFor only answered
+    // for a DOOR LEAF.
+    const t = FRONT_DOOR_TEMPLATES.find(x => x.name === 'Front Door With Side Light')
+    const { tree } = buildFrontDoorFrame(PV, t.options)
+    const sash = sashOf(tree)
+    const rects = gridRectsFor(tree, sash, 100, 50)
+    expect(rects.map(r => `${r.kind} ${r.width}x${r.height}`))
+      .toEqual(['glass 235x1031', 'panel 235x641'])
+    // offset from the interior's top-left corner, which is where the sash's
+    // own stiles and rails put it
+    expect(rects.map(r => `${r.x},${r.y}`)).toEqual(['100,50', '100,1251'])
+    // the nodes come with them, so a click can select one
+    expect(rects.map(r => r.node.part_type)).toEqual(['glassPart', 'panelPart'])
+  })
+
+  it('a plain fanlight sash has nothing extra to draw', () => {
+    // One glass cell and no divider: the renderer must fall through to the
+    // drawing it has always done, or every casement window changes.
+    const { tree } = buildFrontDoorFrame(PV, { width: 1099, height: 2595, columns: 1, rows: 1 })
+    const leaf = doorLeaves(tree)[0]
+    const rects = gridRectsFor(tree, leaf, 0, 0)
+    expect(rects.length).toBe(1)
+    expect(rects[0].kind).toBe('glass')
+    // and a part that cannot hold a grid at all answers with nothing
+    expect(gridRectsFor(tree, frameOf(tree), 0, 0)).toEqual([])
   })
 })

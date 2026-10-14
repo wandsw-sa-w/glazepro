@@ -315,6 +315,22 @@ export function leafCellRects(tree, leafNode, gx = 0, gy = 0) {
   }))
 }
 
+/**
+ * Step BE follow-up: the rects the BOARD draws for one opening, or none.
+ *
+ * The elevation asked leafCellRects only about a DOOR LEAF, so the side
+ * light — a casement sash with a mid rail, glass and a panel in the tree,
+ * all three priced — was drawn as one pane of full-height glass. The gate
+ * belongs with the geometry, where it is testable, rather than in the SVG:
+ * anything that CAN hold a grid answers with its cells, and anything else
+ * with nothing.
+ */
+export function gridRectsFor(tree, node, gx = 0, gy = 0) {
+  if (!canHoldGrid(node)) return []
+  return leafCellRects(tree, node, gx, gy)
+}
+
+
 /** A PANEL’s visible size: its own cell. */
 export function panelSizeFor(tree, panelNode) {
   const cell = leafCellOf(tree, panelNode)
