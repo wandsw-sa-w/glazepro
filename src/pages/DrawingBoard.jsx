@@ -39,8 +39,9 @@ import { setStormproof } from '../drawingBoard/stormproof.js'
 import {
   setLeafMidRail, leafMidRailOf, leafMidRailOffsetFor, DEFAULT_LEAF_PANEL_HEIGHT_MM,
   changeOpeningToSingleDoor, addFlagFrame, removeFrame, isDoorTree,
+  setLeafGrid, setLeafCellKind,
 } from '../drawingBoard/doorOpenings.js'
-import { DOOR_LEAF_TYPES, doorLeafSize, doorPanelSize } from '../pricing/doorGeometry.js'
+import { DOOR_LEAF_TYPES, doorLeafSize, doorPanelSize, leafCells, leafHolding } from '../pricing/doorGeometry.js'
 import { computeSashWeight } from '../pricing/sashWeight.js'
 import { loadDrawingRunPrices } from '../quotes/drawingRunPrice.js'
 import { SashElevation } from '../drawingBoard/renderElevation.jsx'
@@ -642,7 +643,7 @@ export function IronmongeryPanel({ node, tree, derived, refOptions, onChangeFiel
 
 // ── PropertyEditor ────────────────────────────────────────────────────────────
 
-function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, onAutoApplyDefaults, onPrev, onNext, prevDisabled, nextDisabled, prevLabel, nextLabel, visibilityMap, boardMode, showHidden, tree, ironmongeryRules, ironmongeryProducts, onShowPriceBreakdown, profileValueMap, onSetCompleteNewThickness, onSetSashesReplaced, onChangeInternalSize, onMakeDividersEqual, onSetFrenchMasterLeaf, onSetLeafMidRail, profileCode = null }) {
+function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, onAutoApplyDefaults, onPrev, onNext, prevDisabled, nextDisabled, prevLabel, nextLabel, visibilityMap, boardMode, showHidden, tree, ironmongeryRules, ironmongeryProducts, onShowPriceBreakdown, profileValueMap, onSetCompleteNewThickness, onSetSashesReplaced, onChangeInternalSize, onMakeDividersEqual, onSetFrenchMasterLeaf, onSetLeafMidRail, onSetLeafGrid, onSetLeafCellKind, profileCode = null }) {
   if (!node) {
     return (
       <div style={{ padding: 16, color: '#aaa', fontSize: 12, textAlign: 'center', paddingTop: 48 }}>
@@ -740,6 +741,29 @@ function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, o
     return { has: true, panelHeight: doorPanelSize(tree, node).height }
   })()
 
+  // Step BD item 2: the LEAF GRID. A front door leaf is divided like a
+  // little frame — a 120 muntin and a mid rail, with a Tricoya panel or a
+  // glass unit in each cell — and the surveyor sets that layout here. The
+  // mid-rail control above is the one-rail case Step BA built for a French
+  // door and is left alone; this is the whole grid.
+  const leafGrid = (() => {
+    if (!onSetLeafGrid || !tree || !DOOR_LEAF_TYPES.includes(node.part_type)) return null
+    const cells = leafCells(tree, node)
+    if (cells.length === 0) return null
+    const columns = cells.filter(c => c.row === 0).length
+    const rows = cells.filter(c => c.col === 0).length
+    return { columns, rows, cells: cells.length }
+  })()
+
+  // A CELL of that grid: a panel or a glass unit, and which it is.
+  const leafCell = (() => {
+    if (!onSetLeafCellKind || !tree) return null
+    if (node.part_type !== 'panelPart' && node.part_type !== 'glassPart') return null
+    const leaf = leafHolding(tree, node)
+    if (!leaf) return null
+    return { kind: node.part_type === 'panelPart' ? 'panel' : 'glass' }
+  })()
+
   const dividerSpacing = (() => {
     if (!tree || !onMakeDividersEqual || !isCasementFrameTree(tree)) return null
     // Step AY item 3: Integrate shows Divider Spacing on a French LEAF's
@@ -828,6 +852,49 @@ function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, o
                 style={{ width: '100%', fontSize: 11, padding: '5px 0', borderRadius: 6, fontFamily: 'inherit', cursor: 'pointer', border: '1px solid #d8d5cf', background: '#fff', color: '#555' }}
               >Add mid rail and panel</button>
             )}
+          </div>
+        )}
+        {/* Step BD: the leaf’s panel layout */}
+        {leafGrid && (
+          <div style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #e8e6e0' }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#555', marginBottom: 6 }}>Panel layout</div>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              {[["columns", "Across", leafGrid.columns], ["rows", "Down", leafGrid.rows]].map(([axis, label, value]) => (
+                <label key={axis} style={{ fontSize: 11, color: '#555' }}>{label}
+                  <input
+                    type="number" min={1} max={6}
+                    value={value}
+                    onChange={e => onSetLeafGrid(node.key, {
+                      columns: leafGrid.columns, rows: leafGrid.rows,
+                      [axis]: Math.max(1, Math.min(6, Number(e.target.value) || 1)),
+                    })}
+                    style={{ width: 52, marginLeft: 6, fontSize: 11, padding: '3px 4px', border: '1px solid #d8d5cf', borderRadius: 4 }}
+                  />
+                </label>
+              ))}
+              <span style={{ fontSize: 11, color: '#888' }}>{leafGrid.cells} cells</span>
+            </div>
+          </div>
+        )}
+        {/* Step BD: what sits in this cell */}
+        {leafCell && (
+          <div style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #e8e6e0' }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#555', marginBottom: 6 }}>This cell</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {[['panel', 'Tricoya panel'], ['glass', 'Glass']].map(([kind, label]) => (
+                <button key={kind}
+                  onClick={() => onSetLeafCellKind(node.key, kind)}
+                  disabled={leafCell.kind === kind}
+                  style={{
+                    flex: 1, fontSize: 11, padding: '5px 0', borderRadius: 6, fontFamily: 'inherit',
+                    cursor: leafCell.kind === kind ? 'default' : 'pointer',
+                    border: `1px solid ${leafCell.kind === kind ? '#3d35a8' : '#d8d5cf'}`,
+                    background: leafCell.kind === kind ? '#f0eefc' : '#fff',
+                    color: leafCell.kind === kind ? '#3d35a8' : '#555',
+                  }}
+                >{label}</button>
+              ))}
+            </div>
           </div>
         )}
         {/* Step AW: Divider Spacing, on an opening of a casement frame */}
@@ -2320,6 +2387,17 @@ function DrawingBoard() {
     if (changed.length > 0) commit(next)
   }, [tree, profileValues, refOptions])  // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Step BD item 2: the leaf’s panel layout, and one cell’s kind.
+  const handleSetLeafGrid = useCallback((leafKey, layout) => {
+    if (!tree) return
+    commit(setLeafGrid(tree, leafKey, layout, profileValues ?? {}))
+  }, [tree, profileValues])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSetLeafCellKind = useCallback((cellKey, kind) => {
+    if (!tree) return
+    commit(setLeafCellKind(tree, cellKey, kind, profileValues ?? {}))
+  }, [tree, profileValues])  // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleSetCasementOperation = useCallback((operation) => {
     if (!tree || !selectedKey) return
     const { tree: next, changed } = setCasementOperation(tree, selectedKey, operation)
@@ -2939,6 +3017,8 @@ function DrawingBoard() {
               onMakeDividersEqual={handleMakeDividersEqual}
               onSetFrenchMasterLeaf={handleSetFrenchMasterLeaf}
               onSetLeafMidRail={handleSetLeafMidRail}
+              onSetLeafGrid={handleSetLeafGrid}
+              onSetLeafCellKind={handleSetLeafCellKind}
               profileCode={profile?.code ?? null}
             />
           </div>

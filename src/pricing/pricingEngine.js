@@ -541,6 +541,12 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
       to_be_replaced:  is_complete_new || v.toBeReplaced === true,
       is_item_a_door:  true,
       is_raked:        v.rakeFrame === true,
+      // Step BD item 6: the leaf’s OWN head. "Additional for Curved Head
+      // (Door)" (360) and "Additional for Swept Head (Door)" (240) are
+      // door_leaf rules, and neither could fire on an arched front door.
+      is_curved_head_sash: v.curvedSashHead === true,
+      is_square_top_with_arched_sightline:
+        v.archHead === true && v.curvedSashHead !== true,
       is_fixed_casement_sash: casementIsFixed(partNode),
       is_opening:      !casementIsFixed(partNode),
       is_opening_out:  casementOpensOut(partNode),

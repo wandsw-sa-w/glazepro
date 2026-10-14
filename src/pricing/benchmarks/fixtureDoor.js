@@ -1282,6 +1282,164 @@ export const BENCHMARK_FT1 = {
     ironmongeryLines: FRONT_DOOR_IRONMONGERY,
   }),
   targets: { ...INTEGRATE_TARGETS.benchmarkFT1_front_door_balham },
+  deliberateDifference: {
+    cost: 30.94,
+    reason: 'the leaf’s 120 muntin, charged at Utile63x120 for the leaf’s interior height (1788 mm) — Integrate allocates nothing for it (PROVISIONAL)',
+  },
+  // The three AV4 parts the live catalogue holds at cost 0 — the Heritage
+  // lock (112.35), the pocket keep (5.25) and the centre keep w dayswitch
+  // (31.50), Integrate’s own prices. sql/step-bd1 gives the reviewer the
+  // rows; until it is run every front door is 149.10 light, and the row
+  // declares it rather than reading FAIL.
+  //
+  // AND FT1’s production: GlazePro fires Door Leaf 1035 + Machining &
+  // Joining a Door Frame 855 + Door Frame Dual Finish 240 + Door Leaf Dual
+  // Finish 180 + 4 x Additional for R&F Panel 120 = 2790 min (46.50 h),
+  // where Integrate charges 2670 (44.50 h). The 120 is UNEXPLAINED and the
+  // reviewer settles it with Integrate — nothing here is tuned to it.
+  //   -149.10 (the catalogue rows) + 49.32 (2 h of production) = -99.78
+  pendingDecision: {
+    cost: -99.78,
+    reason: 'the three AV4 parts at cost 0 in the live catalogue (-149.10, sql/step-bd1) and FT1’s 120 unexplained production minutes (+49.32), which the reviewer settles with Integrate',
+  },
+  partCostMap: DOOR_PART_COST_MAP,
+  profileValues: OPEN_IN_PROFILE_VALUES,
+  glassCatalogue: {},
+  ironmongeryLines: FRONT_DOOR_IRONMONGERY,
+  profileCode: 'open_in_doors',
+  assumptions: FRONT_DOOR_ASSUMPTIONS,
+}
+
+// ── FT2: the Balham leaf under a direct glazed fanlight (template 22253) ─────
+// 1099 x 2595, a 41 transom at 431. The FANLIGHT IS A DIRECT GLAZED UNIT —
+// a glassPart straight in the frame, not a casement sash — and the leaf is
+// 997 x 2009 with glass above a 170 mid rail and one panel below.
+
+export const BENCHMARK_FT2 = {
+  name: 'Benchmark FT2 — front door with a direct glazed fanlight (L31115 Item 10 Drawing 17)',
+  tree: doorTree({
+    width: 1099, height: 2595,
+    dividers: [transom('ft2_trans', 431)],
+    openings: [
+      // Integrate stores 15 clearance all round and 15 hidden in the rebate,
+      // so the cut glass is the opening itself: 1005 x 431 = 0.43 m2.
+      doorsetDirectGlazed('ft2_fan', { hidden: 15 }),
+      frontDoorLeaf('ft2_leaf', {
+        dividers: [leafMidRail('ft2_midrail', { offset: 941, thickness: 170 })],
+        cells: [
+          glassChild('ft2_leaf'),          // the glass, above the rail
+          frontDoorPanel('ft2_panel'),     // the panel, below it
+        ],
+      }),
+    ],
+    product: 'door',
+    frameBottomHeight: 50,
+    cillHeight: 50,
+    isFrontDoor: true,
+    internalFinish: 'clean_white',
+    externalFinish: 'custom_colour_tbc',
+    ironmongeryLines: FRONT_DOOR_IRONMONGERY,
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkFT2_front_door_fanlight },
+  deliberateDifference: {
+    cost: 13.67,
+    reason: 'the frame transom, charged at Utile67x96 for the internal frame width (1005 mm) — Integrate allocates nothing for it (PROVISIONAL, as on SD2)',
+  },
+  // The three AV4 parts the live catalogue holds at cost 0 — the Heritage
+  // lock (112.35), the pocket keep (5.25) and the centre keep w dayswitch
+  // (31.50), Integrate’s own prices. sql/step-bd1 gives the reviewer the
+  // rows; until it is run every front door is 149.10 light, and the row
+  // declares it rather than reading FAIL.
+  pendingDecision: {
+    cost: -149.10,
+    reason: 'the three AV4 parts at cost 0 in the live catalogue — sql/step-bd1 gives the reviewer the rows',
+  },
+  partCostMap: DOOR_PART_COST_MAP,
+  profileValues: OPEN_IN_PROFILE_VALUES,
+  glassCatalogue: {},
+  ironmongeryLines: FRONT_DOOR_IRONMONGERY,
+  profileCode: 'open_in_doors',
+  assumptions: FRONT_DOOR_ASSUMPTIONS,
+}
+
+// ── FT3: the arched front door (Integrate template 6619) ─────────────────────
+// 1099 x 2199 with a segmental arch at FRAME level (rise 508.891, radius
+// 551.121, shoulders 1690) and an arched leaf (rise 345.92, radius 391.12,
+// shoulder 1459.08). Shaped glass over a 120 mid rail and one panel.
+
+export const BENCHMARK_FT3 = {
+  name: 'Benchmark FT3 — arched front door (L31115 Item 10 Drawing 18)',
+  tree: doorTree({
+    width: 1099, height: 2199,
+    openings: [
+      frontDoorLeaf('ft3_leaf', {
+        // curvedSashHead is what fires "Additional for Curved Head (Door)"
+        // 360; archHead + archHeight are what make the GLASS shaped.
+        arch: {
+          archHead: true,
+          archHeight: 345.92,
+          archRadius: 391.12,
+          curvedSashHead: true,
+          shoulderHeight: 1459.08,
+        },
+        dividers: [leafMidRail('ft3_midrail', { offset: 1103, thickness: 120 })],
+        cells: [
+          glassChild('ft3_leaf'),
+          frontDoorPanel('ft3_panel'),
+        ],
+      }),
+    ],
+    product: 'door',
+    frameBottomHeight: 50,
+    cillHeight: 50,
+    isFrontDoor: true,
+    internalFinish: 'clean_white',
+    externalFinish: 'custom_colour_tbc',
+    // The frame's own arch. curvedFrameHead fires both frame rules
+    // ("Additional Frame Curved Head (Door)" and "Additional Frame Swept
+    // Head (Door)", 240 each); archHead is deliberately NOT set, because on
+    // a frame that is GlazePro's legacy spelling for a top-sash arch and it
+    // would fire the 240 swept-head sash rule instead of the 360 curved one.
+    frameArch: {
+      curvedFrameHead: true,
+      frameLevelArchHead: true,
+      frameLevelArchHeight: 508.891,
+      frameLevelArchRadius: 551.121,
+      archShoulderLeft: 1690,
+      archShoulderRight: 1690,
+    },
+    ironmongeryLines: FRONT_DOOR_IRONMONGERY,
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkFT3_front_door_arched },
+  deliberateDifference: {
+    cost: 13.45,
+    reason: 'the leaf’s 120 mid rail, charged at Utile63x120 for the leaf’s interior width (777 mm) — Integrate allocates nothing for it (PROVISIONAL)',
+  },
+  // The three AV4 parts the live catalogue holds at cost 0 — the Heritage
+  // lock (112.35), the pocket keep (5.25) and the centre keep w dayswitch
+  // (31.50), Integrate’s own prices. sql/step-bd1 gives the reviewer the
+  // rows; until it is run every front door is 149.10 light, and the row
+  // declares it rather than reading FAIL.
+  pendingDecision: {
+    cost: -149.10,
+    reason: 'the three AV4 parts at cost 0 in the live catalogue — sql/step-bd1 gives the reviewer the rows',
+  },
+  // NOT a small difference, and NOT a decision: the arched leaf’s GLASS.
+  // GlazePro prices 0.83 m2 of shaped glass, Integrate 0.62, on the same
+  // 777 x 1103 sightline with a 345.92 rise. GlazePro’s model is the one
+  // that reproduces benchmark C exactly (the sightline shape grown by the
+  // cover, arc concentric), so the shallow-arch case is right and this
+  // NEAR-SEMICIRCULAR head is not: with radius 391.12 against a 777
+  // chord, the head’s inner edge spans only 2 x (391.12 - 110) = 562, so
+  // the glass is narrower than the leaf interior and the rail’s feet eat
+  // the top corners. A rectangle 562 x 822 plus a semicircular head,
+  // grown by the cover, gives 0.624 — Integrate’s 0.62. One reading of
+  // Integrate’s glass sightline on an arched door settles it; until then
+  // the amount is parked, in the open, not hidden in a formula.
+  parkedResidual: {
+    cost: 15.81,
+    reason: 'the arched leaf’s shaped glass: GlazePro 0.83 m2 against Integrate’s 0.62 — a near-semicircular head makes the glass narrower than the leaf interior, which the shallow-arch model does not capture',
+  },
   partCostMap: DOOR_PART_COST_MAP,
   profileValues: OPEN_IN_PROFILE_VALUES,
   glassCatalogue: {},

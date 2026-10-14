@@ -250,6 +250,29 @@ export function leafCellOf(tree, node) {
   return leafCells(tree, leaf)[idx] ?? null
 }
 
+/**
+ * Where to DRAW a leaf’s cells: one rect per cell, offset from the
+ * interior’s top-left corner, with the node that sits in it.
+ *
+ * The elevation drew a leaf as one timber rect with ONE glass rect cut out
+ * of it, so a panelled leaf — Step BA’s French door as well as a front
+ * door — was drawn as a fully glazed one. The geometry is here, where it
+ * is testable; the SVG only maps over it.
+ *
+ * @param {number} gx  the interior’s left edge in drawing units
+ * @param {number} gy  the interior’s top edge
+ */
+export function leafCellRects(tree, leafNode, gx = 0, gy = 0) {
+  const cells = leafCells(tree, leafNode)
+  const parts = leafCellParts(leafNode)
+  return cells.map((c, i) => ({
+    node: parts[i] ?? null,
+    kind: parts[i]?.part_type === 'panelPart' ? 'panel' : 'glass',
+    x: gx + c.x, y: gy + c.y, width: c.width, height: c.height,
+    col: c.col, row: c.row,
+  }))
+}
+
 /** A PANEL’s visible size: its own cell. */
 export function panelSizeFor(tree, panelNode) {
   const cell = leafCellOf(tree, panelNode)
@@ -257,11 +280,6 @@ export function panelSizeFor(tree, panelNode) {
   return { width: cell.width, height: cell.height }
 }
 
-/** A mid rail's own thickness in the leaf. */
-function midRailThickness(rail) {
-  const v = rail?.values ?? {}
-  return num(v.midrailThickness) ?? num(v.thicknessInFrame) ?? 0
-}
 
 /**
  * A door leaf's glass sightline: the leaf less its stiles and rails.
@@ -377,6 +395,30 @@ export const FANLIGHT_SECTION_OFFSET_MM = 14 // per fanlight, on W + 2 x H
  * reading, like the two above — one drawing, not a derivation.
  */
 export const MID_RAIL_SECTION_OFFSET_MM = -10
+
+/**
+ * A Tricoya panel’s weight, per m2 of panel.
+ *
+ * Step BD: a panelled leaf’s panels are part of what the installers lift,
+ * and "Any Door Overweight" (45 install minutes a leaf over 50 kg) turns on
+ * it. A panel is two TRICOYA SKINS over an insulation core, not a solid
+ * board — a solid 56 would put FT1’s leaf at 65 kg, and Integrate charges
+ * FT1 no overweight at all.
+ *
+ * The three front-door readings BRACKET the figure: FT1 (1.063 m2 of panel,
+ * 42.93 kg of timber) must stay UNDER 50, so a panel is at most 6.65 kg/m2;
+ * FT2 (0.48 m2, 48.81 kg) must go OVER, so it is at least 2.5. Two 6 mm
+ * Tricoya skins at 510 kg/m3 — a standard sheet — give 6.1, inside the
+ * bracket and physically what the workshop builds. The insulation core is
+ * ignored (about 0.5 kg/m2).
+ *
+ * PROVISIONAL: a reading of Integrate’s own item weight on a panelled door,
+ * or the workshop’s panel build-up, settles it. FT1 then sits at 49.4 kg,
+ * 0.6 under the line, which is the figure to re-check first.
+ */
+export const TRICOYA_DENSITY_KG_M3 = 510
+export const PANEL_SKIN_THICKNESS_MM = 6
+export const PANEL_KG_PER_M2 = 2 * PANEL_SKIN_THICKNESS_MM * TRICOYA_DENSITY_KG_M3 / 1e6 * 1000
 
 /**
  * The lengths of stock section a door drawing uses, for the
@@ -552,25 +594,49 @@ export function doorLeafWeightKg(tree, leafNode, glassCatalogue = {}) {
   // any FD drawing's overweight minutes, but would on a leaf near the 50 kg
   // line. (A casement SASH's rails are measured across the full sash; the
   // two conventions differ and both are Integrate's.)
-  const railWidth = doorGlassSightline(tree, leafNode).width ?? leaf.width
+  // Step BD: the leaf’s INTERIOR width, which is what "the glass
+  // sightline" meant here — a leaf with a grid has several glass cells and
+  // the first of them is not the rail length. On FD1 the two are the same
+  // 692.5 that Integrate’s own 35.26 dm3 is built from; on FT1 the first
+  // cell is 373 wide and the rails are still 777.
+  const railWidth = leafInterior(tree, leafNode).width ?? leaf.width
+  // Step BD: a leaf’s OWN DIVIDERS are timber in the leaf — a 120 muntin
+  // runs its interior height and a mid rail its interior width. Without
+  // them FT1’s leaf weighed 14 kg less than its timber.
+  const interior = leafInterior(tree, leafNode)
+  let dividerMm3 = 0
+  for (const m of leafMuntins(leafNode)) {
+    dividerMm3 += (interior.height ?? 0) * dividerThickness(m) * thickness
+  }
+  for (const r of leafMidRails(leafNode)) {
+    dividerMm3 += (interior.width ?? 0) * dividerThickness(r) * thickness
+  }
   const timberMm3 =
-    (leaf.height * (stile + other) + railWidth * head + railWidth * bottom) * thickness
+    (leaf.height * (stile + other) + railWidth * head + railWidth * bottom) * thickness +
+    dividerMm3
   const family  = timberFamily(item?.values?.sashMaterialId)
   const density = TIMBER_FAMILY_DENSITIES[family] ?? TIMBER_FAMILY_DENSITIES.redwood
   const timberKg = (timberMm3 / 1e9) * density
 
-  const glass = (leafNode.children ?? []).find(c => c.part_type === 'glassPart')
+  // Step BD: EVERY glass unit in the leaf, each on its own cell.
   let glassKg = 0
-  if (glass) {
+  for (const glass of (leafNode.children ?? []).filter(c => c.part_type === 'glassPart')) {
     const gv = glass.values ?? {}
     const cover = (num(gv.glazingRebateWidth) ?? 0) - (num(gv.glazingTolerance) ?? 0)
-    const sl = doorGlassSightline(tree, leafNode)
-    if (sl.width != null && sl.height != null) {
-      const areaM2 = (sl.width + 2 * cover) * (sl.height + 2 * cover) / 1e6
-      const inner = glassCatalogue[gv.internalGlassPartNo]?.thickness_mm ?? 4
-      const outer = glassCatalogue[gv.externalGlassPartNo]?.thickness_mm ?? 4
-      glassKg = areaM2 * (inner + outer) * KG_PER_M2_PER_MM
-    }
+    const sl = doorGlassSightline(tree, leafNode, glass)
+    if (sl.width == null || sl.height == null) continue
+    const areaM2 = (sl.width + 2 * cover) * (sl.height + 2 * cover) / 1e6
+    const inner = glassCatalogue[gv.internalGlassPartNo]?.thickness_mm ?? 4
+    const outer = glassCatalogue[gv.externalGlassPartNo]?.thickness_mm ?? 4
+    glassKg += areaM2 * (inner + outer) * KG_PER_M2_PER_MM
   }
-  return timberKg + glassKg
+  // Step BD: and the PANELS, each on its own cell.
+  let panelKg = 0
+  for (const panel of (leafNode.children ?? []).filter(c => c.part_type === 'panelPart')) {
+    const size = panelSizeFor(tree, panel)
+    if (size.width == null || size.height == null) continue
+    panelKg += (size.width * size.height / 1e6) * PANEL_KG_PER_M2
+  }
+
+  return timberKg + glassKg + panelKg
 }

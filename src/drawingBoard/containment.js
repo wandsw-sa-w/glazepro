@@ -96,6 +96,15 @@ export const ALLOWED_PAIRS = new Set([
   'doorLeafPart->transomPart',
   'doorLeafPart->panelPart',
   'rightFrenchDoorLeafPart->panelPart',
+
+  // Step BD: a FRONT DOOR leaf carries its own GRID — a 120 muntin
+  // (mullionPart) as well as a mid rail, with a panel or a glass unit in
+  // each cell. The mid rail, the panel and the glass are already allowed
+  // above; the muntin is the new pair.
+  // sql/step-bd3-front-door-containment.sql adds these three live.
+  'doorLeafPart->mullionPart',
+  'leftFrenchDoorLeafPart->mullionPart',
+  'rightFrenchDoorLeafPart->mullionPart',
 ])
 
 /** Every parent->child edge in a tree, as "parentType->childType" strings. */

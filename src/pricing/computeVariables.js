@@ -357,8 +357,13 @@ export function computeVariables(tree, derived = {}, pfVariables = {}, opts = {}
     const is_sash_arched                   = allTopSashes.some(s => s.values?.archHead === true) ||
                                              allBotSashes.some(s => s.values?.archHead === true) ||
                                              legacyFrameArch
+    // Step BD item 6: a DOOR LEAF can have a curved head too — the arched
+    // front door. Only the box-sash parts were asked, so FT3’s leaf missed
+    // "Additional for Curved Head (Door)" (360) and the two frame rules
+    // only fired because the FRAME carries its own curvedFrameHead.
     const is_curved_head_sash              = allTopSashes.some(s => s.values?.curvedSashHead === true) ||
-                                             allBotSashes.some(s => s.values?.curvedSashHead === true)
+                                             allBotSashes.some(s => s.values?.curvedSashHead === true) ||
+                                             allDoorLeaves.some(l => l.values?.curvedSashHead === true)
     const has_curved_inner_head            = frame?.values?.curvedFrameHead === true || is_curved_head_sash
     const has_curved_outer_head            = frame?.values?.curvedFrameHead === true
     const has_arched_outer_jamb            = frame?.values?.archedOuterJamb === true ||

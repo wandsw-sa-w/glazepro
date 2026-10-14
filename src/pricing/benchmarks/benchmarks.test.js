@@ -14,7 +14,7 @@ import { applySashesReplaced } from '../../drawingBoard/sashesReplaced.js'
 import { computeDerived } from '../../drawingBoard/computeDerived.js'
 import { computeVariables } from '../computeVariables.js'
 import { shortDividerSpanMm, isShortDivider, frameCells, frameGridSize, frameOpenings, casementSashSize, casementSashWeightKg, casementFrameTimberVolumeDm3, casementSashTimberVolumeDm3, casementGlassSightline, frameMuntinLengthM, frameColumns, frameRows, itemFrames, CASEMENT_SASH_TYPES, FRENCH_SASH_TYPES } from '../casementGeometry.js'
-import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_B_UNCORRECTED, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F, BENCHMARK_G, BENCHMARK_H, BENCHMARK_I, BENCHMARK_J, BENCHMARK_K, BENCHMARK_L, BENCHMARK_M, BENCHMARK_N, BENCHMARK_P, BENCHMARK_Q, BENCHMARK_R, BENCHMARK_S, BENCHMARK_SA, BENCHMARK_SB, BENCHMARK_SC, BENCHMARK_SD, BENCHMARK_SE, BENCHMARK_SF, BENCHMARK_TC1, BENCHMARK_TC2, BENCHMARK_TC3, BENCHMARK_FR1, BENCHMARK_FR2, BENCHMARK_FD1, BENCHMARK_FD2, BENCHMARK_FD3, BENCHMARK_FD3b, BENCHMARK_FD4, BENCHMARK_FD5, BENCHMARK_FD6, BENCHMARK_FD7, BENCHMARK_SD1, BENCHMARK_SD2, BENCHMARK_SD3, BENCHMARK_SD4, BENCHMARK_CD1, BENCHMARK_CD2, BENCHMARK_CD3, BENCHMARK_CD4 } from './index.js'
+import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_B_UNCORRECTED, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F, BENCHMARK_G, BENCHMARK_H, BENCHMARK_I, BENCHMARK_J, BENCHMARK_K, BENCHMARK_L, BENCHMARK_M, BENCHMARK_N, BENCHMARK_P, BENCHMARK_Q, BENCHMARK_R, BENCHMARK_S, BENCHMARK_SA, BENCHMARK_SB, BENCHMARK_SC, BENCHMARK_SD, BENCHMARK_SE, BENCHMARK_SF, BENCHMARK_TC1, BENCHMARK_TC2, BENCHMARK_TC3, BENCHMARK_FR1, BENCHMARK_FR2, BENCHMARK_FD1, BENCHMARK_FD2, BENCHMARK_FD3, BENCHMARK_FD3b, BENCHMARK_FD4, BENCHMARK_FD5, BENCHMARK_FD6, BENCHMARK_FD7, BENCHMARK_SD1, BENCHMARK_SD2, BENCHMARK_SD3, BENCHMARK_SD4, BENCHMARK_CD1, BENCHMARK_CD2, BENCHMARK_CD3, BENCHMARK_CD4, BENCHMARK_FT1, BENCHMARK_FT2, BENCHMARK_FT3 } from './index.js'
 import { resolveIronmongeryLines } from '../loadPricingContext.js'
 import { allocatedSectionParts, doorLeaves, doorLeafSize, doorLeafWeightKg, doorGlassSightline, doorPanelSize } from '../doorGeometry.js'
 // The LIVE price-file snapshot (reviewer-checked, 8 Oct 2026) — the honest
@@ -3009,5 +3009,101 @@ describe('Step BC — coupled flag-frame benchmarks', () => {
       .filter(l => l.fires && !l.error && l.name === 'Ironmongery Cost')
       .reduce((t, l) => t + l.line_cost, 0)
     expect(iron).toBeCloseTo(152.25, 2)
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step BD — FRONT DOORS (open in, panelled): FT1-FT3
+// docs/integrate-L31115-front-doors.txt, drawings 16-18 read 13 Oct 2026.
+//
+// Each row is Integrate's own figure plus exactly what is declared on the
+// fixture, and the three declarations are different KINDS of thing:
+//   BY DESIGN  the door timber Integrate allocates nothing for (Nathan's
+//              standing rule) — FT1's muntin, FT2's transom, FT3's mid rail;
+//   PENDING    the three AV4 parts the live catalogue holds at cost 0
+//              (-149.10 on all three, sql/step-bd1), and FT1's 120
+//              unexplained production minutes (+49.32);
+//   PARKED     FT3's shaped glass (+15.81), a near-semicircular head the
+//              shallow-arch model does not describe.
+// ══════════════════════════════════════════════════════════════════════════════
+describe('Step BD — front door benchmarks', () => {
+  const FT_CASES = [
+    ['FT1', BENCHMARK_FT1, INTEGRATE.benchmarkFT1_front_door_balham,   46.50, 14.00],
+    ['FT2', BENCHMARK_FT2, INTEGRATE.benchmarkFT2_front_door_fanlight, 46.17, 18.17],
+    ['FT3', BENCHMARK_FT3, INTEGRATE.benchmarkFT3_front_door_arched,   54.83, 14.75],
+  ]
+
+  function runFT(bm) {
+    return runPricingOnTree(bm.tree, SNAPSHOT.rules, SNAPSHOT.pfVariables, {
+      glassCatalogue: SNAPSHOT.glassCatalogue,
+      partAllocationRules: SNAPSHOT.partAllocationRules,
+      partCostMap: bm.partCostMap,
+      ironmongeryLines: bm.ironmongeryLines,
+      ironmongeryCatalogue: SNAPSHOT.ironmongeryCatalogue,
+      profileValues: SNAPSHOT.profileValues,
+      profileCode: bm.profileCode,
+    })
+  }
+
+  for (const [label, bm, target, production, labour] of FT_CASES) {
+    it(`${label}: production ${production} h and labour ${labour} h`, () => {
+      const r = runFT(bm)
+      expect(r.manufacture_labour.total_minutes / 60, `${label} production`)
+        .toBeCloseTo(production, 2)
+      // FT2 and FT3 are Integrate's production EXACTLY; FT1 is 2 h over, and
+      // that is the figure the reviewer settles with Integrate.
+      if (label === 'FT1') {
+        expect(production - target.hours.production, 'FT1 is 2 h over Integrate')
+          .toBeCloseTo(2, 2)
+      } else {
+        expect(production, `${label} is Integrate's own production`)
+          .toBeCloseTo(target.hours.production, 2)
+      }
+      // Fitting is Integrate's on all three, to the minute.
+      expect(r.install_labour.total_minutes / 60, `${label} labour`)
+        .toBeCloseTo(target.hours.labour, 2)
+    })
+
+    it(`${label}: every group is Integrate plus what is declared`, () => {
+      const r = runFT(bm)
+      const got = {}
+      for (const l of r.price.lines) {
+        if (!l.fires || l.error) continue
+        got[l.group_name] = (got[l.group_name] ?? 0) + l.line_cost
+      }
+      const declared = (bm.deliberateDifference?.cost ?? 0) +
+        (bm.parkedResidual?.cost ?? 0) + (bm.pendingDecision?.cost ?? 0)
+      expect(r.price.total_cost, `${label} total`)
+        .toBeCloseTo(target.total_cost + declared, 2)
+      // labour (fitting) is Integrate's exactly on all three
+      expect(got.labour ?? 0, `${label} labour group`)
+        .toBeCloseTo(target.groups.labour.cost, 2)
+      // and so is the glass, except FT3's parked shaped head
+      if (target.groups.glass_done) {
+        expect(got.glass_done ?? 0, `${label} glass`)
+          .toBeCloseTo(target.groups.glass_done.cost + (bm.parkedResidual?.cost ?? 0), 2)
+      }
+    })
+  }
+
+  it('the declared differences are the timber Integrate does not allocate', () => {
+    // 1.788 m of 120 muntin, 1.005 m of 67x96 transom, 0.777 m of 120 mid
+    // rail — at the same per-metre costs every other door line uses.
+    expect(Math.round(1.788 * 17.30 * 100) / 100).toBe(30.93)
+    expect(Math.round(1.005 * 13.60 * 100) / 100).toBe(13.67)
+    expect(Math.round(0.777 * 17.30 * 100) / 100).toBe(13.44)
+    expect(BENCHMARK_FT1.deliberateDifference.cost).toBeCloseTo(30.94, 2)
+    expect(BENCHMARK_FT2.deliberateDifference.cost).toBeCloseTo(13.67, 2)
+    expect(BENCHMARK_FT3.deliberateDifference.cost).toBeCloseTo(13.45, 2)
+  })
+
+  it('a front door prices no timber VOLUME, as the other doors do not', () => {
+    for (const [label, bm] of FT_CASES) {
+      const mm = runFT(bm).price.lines
+        .filter(l => l.fires && !l.error && l.line_cost > 0 &&
+          l.group_name === 'manufacture_materials').map(l => l.name)
+      expect([...new Set(mm)].sort(), label)
+        .toEqual(['LTW General Consumables', 'Tricoya Panel', 'Utile Section Part'])
+    }
   })
 })

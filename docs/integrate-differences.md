@@ -588,6 +588,71 @@ row is neither red today nor silent afterwards.
 
 ---
 
+
+---
+
+## 13. A front door's leaf timber is charged — the muntin and the 120 mid rail
+
+**Decided by:** Nathan's standing rule (13 Oct 2026) — *where Integrate omits door
+timber, GlazePro charges for it*. Applied in Step BD to the two pieces of a front
+door's leaf that Integrate allocates nothing for.
+
+**Integrate's allocation on the three front doors** (drawings 16-18, read
+13 Oct) is three lengths and no more:
+
+| Section | What it covers | FT1 | FT2 | FT3 |
+|---|---|---|---|---|
+| 67x96  | frame head + both jambs, at the OVERALL size | 5463 | 6289 | 5497 |
+| 63x200 | cill + leaf bottom rail + a **170** mid rail at leaf W − 10 | 3083 | 3083 | 2096 |
+| 63x120 | each leaf's two stiles + top rail, **− 20** for an OPEN IN leaf | 5113 | 4995 | 5147 |
+
+Three things are missing from it, and GlazePro charges all three:
+
+- **the leaf's 120 MUNTIN** — at 63x120 for the leaf's interior height between
+  the rails. FT1: 1788 mm × £17.30/m = **+£30.93**.
+- **a 120 MID RAIL** — the arched door's. The 170 rail is in Integrate's 63x200
+  length; the 120 is in nothing at all. At 63x120 for the leaf's interior width.
+  FT3: 777 mm × £17.30/m = **+£13.44**.
+- **the frame TRANSOM** under a fanlight, which is difference 7b already, at
+  67x96 for the internal frame width. FT2: 1005 mm × £13.60/m = **+£13.67**.
+
+All three are **PROVISIONAL** in the same way difference 7b is: no listed
+section is obviously the right stock for a 120 muntin either, and the workshop
+has to confirm what is actually cut. The amounts are declared on FT1, FT2 and
+FT3 so the benchmark page reads **BY DESIGN** rather than FAIL.
+
+**The −20 is a reading, not a decision.** An open-in leaf's 63x120 length is
+2 × H + W − 20 where an open-OUT leaf's is − 6, on all three drawings. It is
+recorded as `OPEN_IN_LEAF_SECTION_OFFSET_MM` beside the open-out one, with the
+same warning: if a fourth drawing disagrees, this is the number to doubt.
+
+## 14. A front door leaf's PANELS count towards its weight
+
+**Decided by:** the only reading that fits all three front doors, Step BD.
+
+"Any Door Overweight" charges 45 install minutes for a leaf over 50 kg, and
+Integrate charges it on FT2 and FT3 but **not** on FT1 — the four-panel door,
+which is the largest leaf of the three. So the panels cannot be heavy and
+cannot be weightless:
+
+| | leaf timber + glass | panel area | Integrate |
+|---|---|---|---|
+| **FT1** | 42.93 kg | 1.063 m² | UNDER 50 — no overweight |
+| **FT2** | 48.81 kg | 0.480 m² | OVER 50 |
+| **FT3** | 50.47 kg | 0.452 m² | OVER 50 |
+
+FT1 brackets a panel at **at most 6.65 kg/m²** and FT2 at **at least 2.5**.
+GlazePro uses **two 6 mm Tricoya skins at 510 kg/m³ = 6.1 kg/m²**
+(`PANEL_KG_PER_M2`), a standard sheet and inside the bracket, which puts all
+three doors on the right side of the line. A solid 56 mm panel would be
+20.9 kg/m² and would make FT1 overweight, which Integrate says it is not.
+
+**PROVISIONAL, and the figure to re-check first:** FT1 lands at 49.4 kg, six
+hundred grams under the threshold. One reading of Integrate's own item weight
+on a panelled door, or the workshop's panel build-up, settles it. The same
+change also counts the leaf's **muntins and mid rails** as timber, which is not
+a judgement at all — they are timber in the leaf, and they were missing.
+
 # Parked residuals
 
 Added by Step AT (12 Oct 2026), under the small-differences policy in
@@ -604,6 +669,7 @@ explained — never by editing a target.
 | **A50** | +£0.28 | +£0.42 | Top sash LEAD counterweight: GlazePro 17.6 kg against Integrate's 17.5 (before the Lead Weight rule's 15% wastage). `sashWeight.js` was calibrated to L34046 and the reviewer is obtaining Integrate's own weight calculation. Everything else on A50 matches. | 12 Oct 2026 |
 | **D** | +£0.54 | +£0.80 | Double-box STEEL counterweights, two lines +0.54 between them. Same weight model as A50; a double box divides its weight per pair, so the two are expected to share one cause. | 12 Oct 2026 |
 | **FD7** | +£0.62 | +£1.24 | A1’s GLASS AREA. FD7’s left panel is a direct glazed unit carrying Integrate’s hidden-0 template quirk: 588 x 2085 = 1.22598 m². GlazePro prices 1.23 (round half up, as every other glass line in every benchmark); Integrate prices 1.22 — and rounds its OWN D1 up, 1.29704 to 1.30, in the same drawing. 0.01 m² x 58.50 + 0.2 kg x 0.17 = 0.62. The reviewer to read Integrate’s glass panel for a hidden-0 unit; the FD5 A1 case was hidden by the 0.30 m² minimum. This is the ONLY unexplained figure in Step BB, and nothing has been tuned to close it. | 13 Oct 2026 |
+| **FT3** | +£15.81 | +£31.62 | The ARCHED LEAF'S SHAPED GLASS, and **not** a small difference — it is over £1.00 and is logged here because it is an open question with a named cause, not because the policy covers it. GlazePro prices 0.83 m² against Integrate's 0.62 on the same 777 × 1103 sightline with a 345.92 rise. GlazePro's model (the sightline shape grown by the cover, arc concentric) reproduces benchmark C exactly, so the SHALLOW-arch case is right. This head is NEAR-SEMICIRCULAR: radius 391.12 against a 777 chord, so the head's inner edge spans only 2 × (391.12 − 110) = 562 mm and the glass is NARROWER than the leaf interior, with the rail's feet taking the top corners. A rectangle 562 × 822 plus a semicircular head, grown by the cover, gives 0.624 — Integrate's 0.62. The reviewer to read Integrate's glass sightline on an arched door; nothing has been tuned, and the amount is on the row in the open. | 14 Oct 2026 |
 
 Not parked, and still reported every step because each is over £1.00 or has a known fix
 pending rather than an open question:

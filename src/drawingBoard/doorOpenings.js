@@ -14,7 +14,7 @@
 
 import { makeKey } from './gridActions.js'
 import { firstOf } from './casementOpenings.js'
-import { DOOR_LEAF_TYPES } from '../pricing/doorGeometry.js'
+import { DOOR_LEAF_TYPES, leafInterior } from '../pricing/doorGeometry.js'
 import { itemFrames } from '../pricing/casementGeometry.js'
 
 /** The materials a door may be made of. Integrate's material 44 is utile. */
@@ -1360,6 +1360,386 @@ export const FLAG_FRAME_TEMPLATES = [
       // three templates are left hand, which is the board's default and what
       // Integrate's own 70 / 71 / 72 have.
       operation: 'right_hand_hung',
+    },
+  },
+]
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Step BD — FRONT DOORS (open in, panelled)
+// docs/integrate-L31115-front-doors.txt, docs/step-bd-front-doors-brief.md
+//
+// A front door is an OPEN IN door with its own clearances and a leaf divided
+// like a little frame: a 120 muntin and a mid rail, with a Tricoya panel or a
+// glass unit in each cell. The surveyor sets that layout on the board, which
+// is what setLeafGrid below is for.
+// ═════════════════════════════════════════════════════════════════════════════
+
+/** Integrate's open-in leaf, as the three front-door templates store it. */
+export const FRONT_DOOR_CLEARANCES = { top: 3, left: 4, right: 4, bottom: 14 }
+export const FRONT_DOOR_LEAF_BOTTOM_RAIL_MM = 170
+export const FRONT_DOOR_MUNTIN_MM = 120
+export const FRONT_DOOR_MID_RAIL_MM = 170
+export const DEFAULT_FRONT_DOOR_OPERATION = 'left_hand_hung'
+
+/** Integrate's own template sizes (facts file, drawings 16-18). */
+export const FRONT_DOOR_DEFAULTS = {
+  width: 1099,
+  height: 2182,
+  frameBottom: 50,            // NOT the garden door's 37
+  fanlightHeight: 2595,
+  fanlightTransomOffset: 431,
+  archedHeight: 2199,
+  archedMidRail: 120,
+}
+
+/** A muntin inside a leaf. */
+function leafMuntinNode(key, { offset, thickness = FRONT_DOOR_MUNTIN_MM }) {
+  return {
+    key,
+    part_type: 'mullionPart',
+    values: {
+      isMuntin: true,
+      offset,
+      thicknessInFrame: thickness,
+      muntinThickness: thickness,
+      mullionStopSize: 0,
+      startDivider: '0', endDivider: '0',
+    },
+    children: [],
+  }
+}
+
+function leafPanelNode(key) {
+  return { key, part_type: 'panelPart', values: { ...DEFAULT_PANEL_VALUES }, children: [] }
+}
+
+function leafGlassNode(key, d) {
+  return {
+    key,
+    part_type: 'glassPart',
+    values: {
+      ...DEFAULT_GLASS,
+      glazingRebateWidth: d.glassRebate,
+      glazingTolerance:   d.glassTolerance,
+    },
+    children: [],
+  }
+}
+
+/**
+ * Set a LEAF's panel layout: how many columns and rows its own grid has, and
+ * what sits in each cell.
+ *
+ * `cells` is 'panel' or 'glass' per cell in ROW-MAJOR order (top row left to
+ * right). Anything not named is a panel, except that a single-cell leaf keeps
+ * its glass — a leaf with no grid is a glazed door, which is what every
+ * garden door is.
+ *
+ * The dividers are spaced EVENLY, because that is what a surveyor wants from
+ * a layout button and Integrate's own 373 / 284 split on the Balham template
+ * is its template's accident, not a design (brief item 8).
+ */
+export function setLeafGrid(tree, leafKey, {
+  columns = 1,
+  rows = 1,
+  cells = null,
+  muntinThickness = FRONT_DOOR_MUNTIN_MM,
+  midRailThickness = FRONT_DOOR_MID_RAIL_MM,
+} = {}, profileValues = {}) {
+  const resolved = doorProfileDefaults(profileValues)
+  const d = resolved.values
+  const cols = Math.max(1, Math.round(columns))
+  const rws  = Math.max(1, Math.round(rows))
+
+  function walk(node) {
+    if (!node) return node
+    if (node.key === leafKey && DOOR_LEAF_TYPES.includes(node.part_type)) {
+      const interior = leafInterior(tree, node)
+      if (interior.width == null || interior.height == null) return node
+      const dividers = []
+      // Evenly spaced muntins: each offset is the span BEFORE it.
+      const colSpan = (interior.width - (cols - 1) * muntinThickness) / cols
+      for (let i = 1; i < cols; i++) {
+        dividers.push(leafMuntinNode(`${node.key}_muntin${i}`, {
+          offset: Math.round((colSpan + muntinThickness) * (i - 1) + colSpan),
+          thickness: muntinThickness,
+        }))
+      }
+      const rowSpan = (interior.height - (rws - 1) * midRailThickness) / rws
+      for (let i = 1; i < rws; i++) {
+        dividers.push(midRailNode(`${node.key}_midrail${i}`, {
+          offset: Math.round((rowSpan + midRailThickness) * (i - 1) + rowSpan),
+          thickness: midRailThickness,
+        }))
+      }
+      const want = cols * rws
+      const existing = (node.children ?? []).filter(
+        c => c.part_type === 'panelPart' || c.part_type === 'glassPart')
+      const kinds = []
+      for (let i = 0; i < want; i++) {
+        kinds.push(cells?.[i] ?? (want === 1
+          ? (existing[0]?.part_type === 'panelPart' ? 'panel' : 'glass')
+          : 'panel'))
+      }
+      const cellNodes = kinds.map((kind, i) => {
+        // Keep a cell that is already the right kind, so its glass codes and
+        // panel options survive a layout change.
+        const keep = existing[i]
+        if (keep && ((kind === 'panel') === (keep.part_type === 'panelPart'))) return keep
+        return kind === 'panel'
+          ? leafPanelNode(`${node.key}_panel${i + 1}`)
+          : leafGlassNode(`${node.key}_glass${i + 1}`, d)
+      })
+      return { ...node, children: [...dividers, ...cellNodes] }
+    }
+    const children = (node.children ?? []).map(walk)
+    return children.length ? { ...node, children } : node
+  }
+  return walk(tree)
+}
+
+/** Turn ONE cell of a leaf's grid into a panel, or into a glass unit. */
+export function setLeafCellKind(tree, cellKey, kind, profileValues = {}) {
+  const d = doorProfileDefaults(profileValues).values
+  function walk(node) {
+    if (!node) return node
+    if (DOOR_LEAF_TYPES.includes(node.part_type) &&
+        (node.children ?? []).some(c => c.key === cellKey)) {
+      return {
+        ...node,
+        children: node.children.map(c => {
+          if (c.key !== cellKey) return c
+          if (kind === 'panel' && c.part_type === 'panelPart') return c
+          if (kind === 'glass' && c.part_type === 'glassPart') return c
+          return kind === 'panel'
+            ? leafPanelNode(`${c.key}_panel`)
+            : leafGlassNode(`${c.key}_glass`, d)
+        }),
+      }
+    }
+    const children = (node.children ?? []).map(walk)
+    return children.length ? { ...node, children } : node
+  }
+  return walk(tree)
+}
+
+/**
+ * An OPEN IN door leaf: a front door's leaf, with its own clearances, its
+ * 170 bottom rail and no glass of its own until the grid says so.
+ */
+export function buildFrontDoorLeaf(profileValues, {
+  defaults = null,
+  operation = DEFAULT_FRONT_DOOR_OPERATION,
+  bottomHeight = FRONT_DOOR_LEAF_BOTTOM_RAIL_MM,
+  arch = null,
+} = {}) {
+  const resolved = defaults ?? doorProfileDefaults(profileValues)
+  if (resolved.missing.length > 0) return { node: null, missing: resolved.missing }
+  const d = resolved.values
+  const key = makeKey('doorleaf')
+  return {
+    node: {
+      key,
+      part_type: 'doorLeafPart',
+      values: {
+        operation,
+        casementTypeId: 'open_in',          // Integrate typeId 8
+        thickness:  d.doorThickness,
+        topHeight:  d.leafHead,
+        leftWidth:  d.leafStileLeft,
+        rightWidth: d.leafStileRight,
+        bottomHeight,
+        bottomHeightExternal: bottomHeight,
+        btmRailShapeId: 'stepped',
+        mechanicalClearanceTop:    FRONT_DOOR_CLEARANCES.top,
+        mechanicalClearanceLeft:   FRONT_DOOR_CLEARANCES.left,
+        mechanicalClearanceRight:  FRONT_DOOR_CLEARANCES.right,
+        mechanicalClearanceBottom: FRONT_DOOR_CLEARANCES.bottom,
+        defaultMuntinThickness: FRONT_DOOR_MUNTIN_MM,
+        archHead: false,
+        ...(arch ?? {}),
+        toBeReplaced: true,
+      },
+      children: [],
+    },
+    missing: [],
+  }
+}
+
+/**
+ * A FRONT DOOR: frame, open-in leaf, and the leaf's panel grid.
+ *
+ * `fanlight` puts a DIRECT GLAZED unit over a frame transom, which is what
+ * Integrate's "Bedford Front Door w Fanlight" has — not a casement sash.
+ * `arch` gives the frame and the leaf a curved head.
+ */
+export function buildFrontDoorFrame(profileValues, {
+  width = FRONT_DOOR_DEFAULTS.width,
+  height = FRONT_DOOR_DEFAULTS.height,
+  material = DEFAULT_DOOR_MATERIAL,
+  product = null,
+  quantity = 1,
+  operation = DEFAULT_FRONT_DOOR_OPERATION,
+  columns = 2,
+  rows = 2,
+  cells = null,
+  midRailThickness = FRONT_DOOR_MID_RAIL_MM,
+  fanlight = null,                 // { offset } — a direct glazed unit over a transom
+  arch = null,                     // { frame: {...}, leaf: {...} }
+} = {}) {
+  const resolved = doorProfileDefaults(profileValues)
+  if (resolved.missing.length > 0) return { tree: null, missing: resolved.missing }
+  const d = resolved.values
+
+  const base = buildFrenchDoorFrame(profileValues, { width, height, material, product, quantity })
+  if (!base.tree) return base
+
+  const leaf = buildFrontDoorLeaf(profileValues, {
+    defaults: resolved, operation, arch: arch?.leaf ?? null,
+  })
+  if (!leaf.node) return { tree: null, missing: leaf.missing }
+
+  const dividers = []
+  const openings = []
+  if (fanlight != null) {
+    dividers.push({
+      key: makeKey('trans'),
+      part_type: 'transomPart',
+      values: {
+        offset: fanlight.offset ?? FRONT_DOOR_DEFAULTS.fanlightTransomOffset,
+        thicknessInFrame: d.transomThickness,
+        transomStopSize: 18,
+        startDivider: '0', endDivider: '0',
+      },
+      children: [],
+    })
+    // The fanlight itself: a glass unit straight in the frame.
+    const key = makeKey('dgu')
+    openings.push({
+      key,
+      part_type: 'glassPart',
+      values: {
+        ...DEFAULT_GLASS,
+        glazingRebateWidth: d.glassRebate,
+        glazingTolerance:   d.glassTolerance,
+        mechanicalClearanceTop: 15, mechanicalClearanceBottom: 15,
+        mechanicalClearanceLeft: 15, mechanicalClearanceRight: 15,
+        hiddenInRebateTop: 15, hiddenInRebateBottom: 15,
+        hiddenInRebateLeft: 15, hiddenInRebateRight: 15,
+        toBeReplaced: true,
+      },
+      children: [],
+    })
+  }
+  openings.push(leaf.node)
+
+  // A front door's frame bottom and cill are 50, not the garden door's 37,
+  // and the finish is DUAL — Clean White inside, Custom Colour TBC outside.
+  const tree = {
+    ...base.tree,
+    children: base.tree.children.map(c => {
+      if (c.part_type === 'paintAndIronmongeryPart') {
+        return {
+          ...c,
+          values: {
+            ...c.values,
+            isFrontDoor: true,
+            internalFinish: 'clean_white',
+            externalFinish: 'custom_colour_tbc',
+          },
+        }
+      }
+      if (c.part_type !== 'assemblyFramePart') return c
+      return {
+        ...c,
+        values: {
+          ...c.values,
+          bottomHeight: FRONT_DOOR_DEFAULTS.frameBottom,
+          ...(arch?.frame ?? {}),
+        },
+        children: [
+          ...dividers,
+          ...openings,
+          ...(c.children ?? []).filter(x => x.part_type === 'cillPart')
+            .map(x => ({
+              ...x,
+              values: { ...x.values, height: FRONT_DOOR_DEFAULTS.frameBottom },
+            })),
+        ],
+      }
+    }),
+  }
+
+  return {
+    tree: setLeafGrid(tree, leaf.node.key, { columns, rows, cells, midRailThickness }, profileValues),
+    missing: [],
+  }
+}
+
+/** Is this drawing a FRONT door? The flag the paint part carries. */
+export function isFrontDoorTree(tree) {
+  const paint = (tree?.children ?? []).find(c => c.part_type === 'paintAndIronmongeryPart')
+  return paint?.values?.isFrontDoor === true
+}
+
+/**
+ * The three front-door templates (brief item 8), as code — the same pattern
+ * as FLAG_FRAME_TEMPLATES, so the SQL, the tests and the board read one
+ * definition.
+ */
+export const FRONT_DOOR_TEMPLATES = [
+  {
+    name: 'Front Door',
+    sort_order: 200,
+    integrate: 128168,          // "Balham"
+    options: {
+      width: 1099, height: 2182,
+      columns: 2, rows: 2,
+      // Integrate's own template puts the muntin at 373 / 284 — not centred.
+      // GlazePro CENTRES it: the brief calls Integrate's split its template's
+      // accident, and an even layout is what a four-panel door is drawn as.
+    },
+  },
+  {
+    name: 'Front Door With Fanlight',
+    sort_order: 210,
+    integrate: 22253,           // "Bedford Front Door w Fanlight"
+    options: {
+      width: 1099, height: 2595,
+      columns: 1, rows: 2,
+      cells: ['glass', 'panel'],
+      fanlight: { offset: 431 },
+    },
+  },
+  {
+    name: 'Arched Front Door',
+    sort_order: 220,
+    integrate: 6619,            // "Arched Door"
+    options: {
+      width: 1099, height: 2199,
+      columns: 1, rows: 2,
+      cells: ['glass', 'panel'],
+      midRailThickness: 120,
+      // Integrate's own arched door is glass over a 120 mid rail and ONE
+      // panel, and it is kept that way: a four-panel arched door would need
+      // shaped top panels, which no rule prices and no drawing holds.
+      arch: {
+        frame: {
+          curvedFrameHead: true,
+          frameLevelArchHead: true,
+          frameLevelArchHeight: 508.891,
+          frameLevelArchRadius: 551.121,
+          archShoulderLeft: 1690,
+          archShoulderRight: 1690,
+        },
+        leaf: {
+          archHead: true,
+          archHeight: 345.92,
+          archRadius: 391.12,
+          curvedSashHead: true,
+          shoulderHeight: 1459.08,
+        },
+      },
     },
   },
 ]

@@ -57,6 +57,18 @@ const DELIBERATE = {
   CD2:  { cost: '303.49', price: '606.97' },
   CD3:  { cost: '303.57', price: '607.14' },
   CD4:  { cost: '646.34', price: '1292.68' },
+  // Step BD: the FRONT DOORS. Each row is three figures in one: the
+  // timber GlazePro charges and Integrate does not (BY DESIGN), the three
+  // AV4 parts the live catalogue holds at cost 0 (-149.10, PENDING until
+  // sql/step-bd1 runs), and on FT1 the 120 production minutes nobody has
+  // explained (+49.32, the reviewer settles it with Integrate). FT3 also
+  // carries +15.81 of PARKED shaped glass on its near-semicircular head.
+  //   FT1  30.94 - 149.10 + 49.32 = -68.84
+  //   FT2  13.67 - 149.10         = -135.43
+  //   FT3  13.45 - 149.10 + 15.81 = -119.84
+  FT1:  { cost: '-68.84', price: '-137.70' },
+  FT2:  { cost: '-135.43', price: '-270.86' },
+  FT3:  { cost: '-119.84', price: '-239.72' },
 }
 
 // NOTE on the Kenrick gearbox gap (J–P £14.70, Q/R/S £8.40): that is a gap in

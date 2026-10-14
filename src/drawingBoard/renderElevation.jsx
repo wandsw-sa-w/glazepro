@@ -20,6 +20,7 @@ import {
 } from '../pricing/casementGeometry.js'
 import { columnCount, isCasementFrameTree, matrixIndexOf, matrixLabel } from './casementOpenings.js'
 import { itemFrames, isMultiFrame } from '../pricing/casementGeometry.js'
+import { DOOR_LEAF_TYPES, leafCellRects } from '../pricing/doorGeometry.js'
 
 // ── Tree helpers ──────────────────────────────────────────────────────────────
 
@@ -125,6 +126,10 @@ const C = {
   selected:     '#dc2626',
   label:        '#1a1a1a',
   opening:      '#eef4f8',
+  // Step BD: a Tricoya PANEL in a door leaf. Not glass and not bare
+  // timber — a four-panel front door has to read as four panels.
+  panel:        '#e8d9bd',
+  panelStroke:  '#8b6840',
 }
 
 // ── Glazing bars ──────────────────────────────────────────────────────────────
@@ -1128,6 +1133,47 @@ export function CasementElevation({
     const gW = Math.max(w - stileL - stileR, 0)
     const gH = Math.max(h - railT - railB,   0)
     const label = sashLabel(node, matrix)
+
+    // Step BD: a DOOR LEAF with its own GRID — a muntin, a mid rail, and a
+    // panel or a glass unit in each cell. Drawn as the timber leaf with
+    // each cell cut out of it, which is what makes a four-panel front door
+    // look like one. A leaf with a single glass cell and no dividers falls
+    // through to the drawing below, unchanged.
+    const leafGrid = DOOR_LEAF_TYPES.includes(node.part_type)
+      ? leafCellRects(tree, node, gx, gy)
+      : []
+    if (leafGrid.length > 1 || leafGrid.some(c => c.kind === 'panel')) {
+      return {
+        idx, slot, size: { width: w, height: h }, label,
+        selected: node.key === selectedKey ||
+          (node.children ?? []).some(c => c.key === selectedKey),
+        svg: (
+          <g key={node.key}>
+            <g style={{ cursor: 'pointer' }} onClick={() => onSelectKey?.(node.key)}>
+              <rect x={x} y={y} width={w} height={h}
+                fill={C.timber} {...ss(node.key)} />
+              {leafGrid.map((cell, ci) => (
+                <rect key={cell.node?.key ?? ci}
+                  x={cell.x} y={cell.y} width={cell.width} height={cell.height}
+                  fill={cell.kind === 'panel' ? C.panel : C.glass}
+                  {...(cell.kind === 'panel'
+                    ? { stroke: cell.node?.key === selectedKey ? C.selected : C.panelStroke,
+                      strokeWidth: cell.node?.key === selectedKey ? 2.5 : 1 }
+                    : sg(cell.node?.key))}
+                  style={{ cursor: 'pointer' }}
+                  onClick={e => { e.stopPropagation(); onSelectKey?.(cell.node?.key) }}
+                />
+              ))}
+            </g>
+            {openingLines(node, gx, gy, gW, gH)}
+            {showGlassLabels && (
+              <CasementLabel text={label} cx={mx(gx + gW / 2)} cy={gy + gH / 2}
+                maxWidth={gW * 0.92} lfs={lfs} mir={mir} />
+            )}
+          </g>
+        ),
+      }
+    }
 
     return {
       idx, slot, size: { width: w, height: h }, label,
