@@ -259,5 +259,26 @@ cannot see:
 
 # e2e after the deploy
 
-Recorded below once the Vercel deploy was confirmed by decoding
-`/version.json`.
+Deploy confirmed by decoding `/version.json`: **13:31:13Z**, after the push.
+
+`npm run e2e` — **5 passed** (25.8s): logs in; every benchmark passes except
+the parked residuals; the fanlight drawing; the validation panel; every
+drawing card on the L507712 matrix priced.
+
+**The benchmark test is the one that matters here, and it says the live site
+agrees with the offline figures exactly.** It now pins all four new rows:
+
+| row | live | |
+|---|---|---|
+| **OI1** | PASS | Integrate to the penny, on the LIVE catalogue |
+| **OI2** | PASS | the same |
+| **SO1** | +£153.66 / +£307.33 | BY DESIGN, the halves’ timber |
+| **OI3** | +£16.94 / +£33.88 | the transom BY DESIGN less the parked 14p |
+
+OI1 and OI2 PASSING live is the real proof of the headline: the engine needed
+no direction flag, and the live rules price an open-in door right as they
+stand. The page now carries **61** benchmarks.
+
+**What the smoke suite still cannot see** is the switch itself — it is a
+click, and the suite is read-only. The six drawings listed above are the way
+to try it, and the two banners are what to watch for.
