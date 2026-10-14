@@ -94,3 +94,14 @@
 #   40 mm bar (width not editable), so it cannot carry a 170 mid rail matching the door. The only way to match is a FIXED
 #   DOOR LEAF as the side light (Integrate's install rule "Combination Frame" 660 exists for door_leaf_qty > 1 and
 #   fixed_door_leaf_qty > 0). Drawing 19 left as created (not saved with the side light). Question for Nathan.
+#
+# ── Nathan's decisions, 14 Oct (after Step BD) ───────────────────────────────────────────────────────────────────────────
+# a. Default front-door ironmongery = the imported RULES' set, but with the CROFT euro cylinder pull instead of the Hardwick
+#    back-to-back pull: 102mm hinges PB x2 ; AV4 Heritage locking system (its thumbturn cylinder, lock, pocket keep, centre
+#    keep) ; Hardwick classic sleeved letterbox PB (HK4350PB) ; Croft euro cylinder pull PB ; NO letter tidy.
+#    (Benchmarks FT1-FT3 keep Integrate's stored template list — this is what a NEW GlazePro front door gets.)
+# b. The AV4 hand is corrected, not copied (Nathan's standing rule: correct Integrate's errors): the _lh locking system
+#    holds the LEFT-hand lock and centre keep (RHZ2481 / RHZ3091), the _rh one the right-hand ones. Same costs both hands,
+#    so no price moves.
+# c. Front-door SIDE LIGHTS are built as a FIXED DOOR LEAF (so the side light's rails, including the 170 mid rail, match
+#    the door). Integrate reading still to take (Balham + a fixed-leaf side light), then its own step.
