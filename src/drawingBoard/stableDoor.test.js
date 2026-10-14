@@ -14,7 +14,7 @@ import {
 } from './doorOpenings.js'
 import {
   doorLeaves, doorLeafSize, leafCells, stableDoorParts, stableHalves,
-  isStableHalf, stableDoorSize, allocatedSectionParts,
+  isStableHalf, stableDoorSize, allocatedSectionParts, stableHalfRects, visionPanelRect,
 } from '../pricing/doorGeometry.js'
 import { assertSaveable, duplicateKeys } from './containment.js'
 import { partLabel } from './partLabels.js'
@@ -153,5 +153,61 @@ describe('Step BF — the stable door on the board', () => {
     expect(s.Utile67x96).toBe(1099 + 2 * 2207)
     expect(s.Utile63x200).toBe(1099 + 997)
     expect(s.Utile63x120).toBe((2 * 1055 + 997 - 20) + (2 * 1048 + 997 - 20) + 997)
+  })
+})
+
+describe('Step BF follow-up — the board DRAWS the two halves', () => {
+  const containerOf = tree => stableDoorParts(tree)[0]
+
+  it('each half is a rect of its own, with its cells inside it', () => {
+    // THE LIVE BUG (drawing 50): the elevation showed one glass-blue opening
+    // "A1" 997 x 2103. The parts list and the tree were right all along.
+    const { tree } = buildStableDoorFrame(PV, {})
+    const rects = stableHalfRects(tree, containerOf(tree), 47, 47)
+    expect(rects.length).toBe(2)
+    expect(rects.map(r => r.half)).toEqual(['top', 'bottom'])
+    // the container's own clearances inset it: 4 left, 4 top of the opening
+    expect(rects.map(r => `${r.x},${r.y} ${r.width}x${r.height}`)).toEqual([
+      '51,51 997x1055',
+      '51,1106 997x1048',
+    ])
+    // and the join is Integrate's stored split, not half each
+    expect(rects[1].y - rects[0].y).toBe(1055)
+    // each half's cells are inside its own rails
+    expect(rects.flatMap(r => r.cells.map(c => `${c.kind} ${c.width}x${c.height}`)))
+      .toEqual(['panel 777x846', 'panel 777x779'])
+    expect(rects[0].cells[0].x).toBe(51 + 110)
+    expect(rects[0].cells[0].y).toBe(51 + 110)
+    // every piece carries its node, so a click can select it
+    expect(rects.map(r => r.node.values.stableHalf)).toEqual(['top', 'bottom'])
+    expect(rects.flatMap(r => r.cells.map(c => c.node.part_type)))
+      .toEqual(['panelPart', 'panelPart'])
+  })
+
+  it('the glazed top half draws glass, the panelled one a panel', () => {
+    const t = STABLE_DOOR_TEMPLATES.find(x => x.name === 'Stable Door Glazed Top')
+    const { tree } = buildStableDoorFrame(PV, t.options)
+    const rects = stableHalfRects(tree, containerOf(tree), 0, 0)
+    expect(rects.flatMap(r => r.cells.map(c => c.kind))).toEqual(['glass', 'panel'])
+  })
+
+  it('a vision panel is drawn centred in its panel, at its own size', () => {
+    const t = STABLE_DOOR_TEMPLATES.find(x => x.name === 'Stable Door With Vision Panel')
+    const { tree } = buildStableDoorFrame(PV, t.options)
+    const rects = stableHalfRects(tree, containerOf(tree), 0, 0)
+    const topCell = rects[0].cells[0]
+    const vision = visionPanelRect(topCell.node, topCell)
+    expect(vision).toMatchObject({ width: 200, height: 350 })
+    // centred in the 777 x 846 cell
+    expect(vision.x).toBeCloseTo(topCell.x + (777 - 200) / 2, 6)
+    expect(vision.y).toBeCloseTo(topCell.y + (846 - 350) / 2, 6)
+    // the panel below has none
+    expect(visionPanelRect(rects[1].cells[0].node, rects[1].cells[0])).toBeNull()
+  })
+
+  it('anything that is not a stable door gets no half rects', () => {
+    const { tree } = buildStableDoorFrame(PV, {})
+    expect(stableHalfRects(tree, doorLeaves(tree)[0], 0, 0)).toEqual([])
+    expect(stableHalfRects(tree, null, 0, 0)).toEqual([])
   })
 })

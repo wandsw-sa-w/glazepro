@@ -911,13 +911,13 @@ must not borrow the word "parked" (reviewer, 14 Oct). It is listed here with
 its amount, it is declared on its benchmark so the figure cannot drift, and
 the benchmark page says **OPEN QUESTION** on the row in as many words.
 
-**One open**, below. FT3’s shaped glass was closed by Nathan on
-14 Oct — difference 17. The section stays because the next one belongs here
-rather than in the parked table.
+**None open.** FT3’s shaped glass was closed by Nathan on 14 Oct (difference
+17) and FD4’s panel ids were re-read the same day (difference 19) — both are
+declared decisions now. The section stays because the next open figure
+belongs here rather than in the parked table.
 
 | Benchmark | Cost gap | Price gap | What is not understood | Opened |
 |---|---|---|---|---|
-| **FD4** | −£49.32 | −£98.64 | Its two panels read Integrate’s type **110**, which is FLAT, so they price 60 minutes each — and FD4 matched Integrate TO THE PENNY while GlazePro charged R&F 120 each. Integrate can only have reached that figure by charging the 240 itself. So either FD4’s panels are really **112** (R&F) and the French-door facts’ “110” is the mislabel that started all of this, or Integrate charged flat too and the old agreement was a coincidence of two errors. **Needed:** one reading of FD4’s panel-type ids in Integrate. Nothing has been tuned — the fixture keeps what the facts say. | 14 Oct 2026 |
 
 # Parked residuals
 

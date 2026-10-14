@@ -577,28 +577,23 @@ export const BENCHMARK_FD4 = {
     ironmongeryLines: DOOR_IRONMONGERY,
   }),
   targets: { ...INTEGRATE_TARGETS.benchmarkFD4_french_doors_with_panels },
-  // Step BF: FD4 MOVED, and nothing has been tuned to stop it.
+  // Step BF follow-up: RESOLVED, and it is a decision.
   //
-  // Its two panels read Integrate’s type 110, which is FLAT — so they now
-  // price flat 60 each where they used to price R&F 120, and FD4 is 120
-  // minutes (49.32) CHEAPER than Integrate. But FD4 matched Integrate TO
-  // THE PENNY before this step, which it could only have done if Integrate
-  // itself charged 240 of panel minutes on it — i.e. the R&F rule.
+  // The reviewer re-read drawing 10/4 (310627) on 14 Oct: both panels are
+  // internalPanelTypeId 110 / externalPanelTypeId 110 — FLAT. So FD4 is the
+  // FT3 pattern, and its old penny-exact match was two errors cancelling:
   //
-  // So one of two things is true, and a single reading settles which:
-  //   * FD4’s panels are really type 112 (R&F) and the French-door facts’
-  //     "110" is the same mislabel that started all of this — in which case
-  //     the FIXTURE should carry 112 and FD4 goes back to exact; or
-  //   * Integrate charged flat 60 on FD4 too, and the old agreement was a
-  //     coincidence of two errors.
+  //   Integrate   flat 2 x 60 + "Door Muntin" 2 x 60 (each leaf’s MID RAIL
+  //               counted as a muntin)                        = 240
+  //   GlazePro    R&F 2 x 120                                 = 240
   //
-  // The first is far likelier (a penny-exact match is not a coincidence),
-  // but the fixture keeps what the facts SAY until the reviewer reads
-  // FD4’s panel-type ids in Integrate. Changing 110 to 112 here to keep a
-  // green row would be tuning a fixture to a guess.
-  pendingDecision: {
+  // GlazePro now charges flat 2 x 60 and nothing for the mid rails, which
+  // is Nathan’s decision d: a mid rail is not a muntin. 120 minutes less
+  // than Integrate = -49.32, BY DESIGN on exactly the same ground as
+  // FT1-FT4 (difference 19).
+  deliberateDifference: {
     cost: -49.32,
-    reason: 'FD4’s two panels: the facts record type 110 (FLAT, 60 min each) and FD4 matched Integrate exactly while GlazePro charged R&F 120 each — so either its panels are really 112 or Integrate charged flat and the old match was a coincidence. The reviewer to read FD4’s panel-type ids; nothing is tuned either way',
+    reason: '120 production minutes LESS than Integrate (-49.32): its two panels are FLAT (type 110, re-read 14 Oct) so they cost 60 each, and Integrate fires “Door Muntin” 60 for each leaf’s MID RAIL where GlazePro charges 60 per REAL muntin only (Nathan, decision d). The old penny-exact match was Integrate’s 2 x 60 + 2 x 60 against GlazePro’s old R&F 2 x 120',
   },
   partCostMap: DOOR_PART_COST_MAP,
   profileValues: DOOR_PROFILE_VALUES,

@@ -20,7 +20,7 @@ import {
 } from '../pricing/casementGeometry.js'
 import { columnCount, isCasementFrameTree, matrixIndexOf, matrixLabel } from './casementOpenings.js'
 import { itemFrames, isMultiFrame } from '../pricing/casementGeometry.js'
-import { gridRectsFor } from '../pricing/doorGeometry.js'
+import { gridRectsFor, stableHalfRects, visionPanelRect } from '../pricing/doorGeometry.js'
 
 // ── Tree helpers ──────────────────────────────────────────────────────────────
 
@@ -1048,6 +1048,69 @@ export function CasementElevation({
             )}
           </g>
         ),
+      }
+    }
+
+    // Step BF follow-up: a STABLE DOOR — one container holding a TOP and a
+    // BOTTOM half. The board drew it as a single pane of glass: the parts
+    // list and the tree were right, and the elevation showed one blue
+    // opening. Each half is its own timber rect with its cells cut out, and
+    // a vision panel is the small light inside a panel.
+    if (node.part_type === 'stableDoorPart') {
+      const halves = stableHalfRects(tree, node, x, y)
+      if (halves.length) {
+        return {
+          idx, slot, size: { width: w, height: h }, label: cellLabel(idx),
+          selected: node.key === selectedKey ||
+            halves.some(hf => hf.node.key === selectedKey ||
+              hf.cells.some(c => c.node?.key === selectedKey)),
+          svg: (
+            <g key={node.key}>
+              {halves.map(hf => {
+                const label = `${hf.half === 'top' ? 'Top' : 'Bottom'} ${cellLabel(idx)}`
+                return (
+                  <g key={hf.node.key}>
+                    <g style={{ cursor: 'pointer' }} onClick={() => onSelectKey?.(hf.node.key)}>
+                      <rect x={hf.x} y={hf.y} width={hf.width} height={hf.height}
+                        fill={C.timber} {...ss(hf.node.key)} />
+                      {hf.cells.map((cell, ci) => {
+                        const vision = visionPanelRect(cell.node, cell)
+                        return (
+                          <g key={cell.node?.key ?? ci}>
+                            <rect x={cell.x} y={cell.y}
+                              width={cell.width} height={cell.height}
+                              fill={cell.kind === 'panel' ? C.panel : C.glass}
+                              {...(cell.kind === 'panel'
+                                ? { stroke: cell.node?.key === selectedKey ? C.selected : C.panelStroke,
+                                  strokeWidth: cell.node?.key === selectedKey ? 2.5 : 1 }
+                                : sg(cell.node?.key))}
+                              style={{ cursor: 'pointer' }}
+                              onClick={e => { e.stopPropagation(); onSelectKey?.(cell.node?.key) }}
+                            />
+                            {vision && (
+                              <rect x={vision.x} y={vision.y}
+                                width={vision.width} height={vision.height}
+                                fill={C.glass} {...sg(vision.node.key)}
+                                style={{ cursor: 'pointer' }}
+                                onClick={e => { e.stopPropagation(); onSelectKey?.(vision.node.key) }}
+                              />
+                            )}
+                          </g>
+                        )
+                      })}
+                    </g>
+                    {showGlassLabels && (
+                      <CasementLabel text={label}
+                        cx={mx(hf.interior.x + hf.interior.width / 2)}
+                        cy={hf.interior.y + hf.interior.height / 2}
+                        maxWidth={hf.interior.width * 0.92} lfs={lfs} mir={mir} />
+                    )}
+                  </g>
+                )
+              })}
+            </g>
+          ),
+        }
       }
     }
 

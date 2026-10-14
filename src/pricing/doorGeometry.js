@@ -408,6 +408,75 @@ export function gridRectsFor(tree, node, gx = 0, gy = 0) {
   return leafCellRects(tree, node, gx, gy)
 }
 
+/**
+ * Step BF follow-up: where a STABLE DOOR’s two halves are drawn.
+ *
+ * The board drew the container as one pane of glass — the parts list and
+ * the tree were right, and the elevation showed a single blue opening. The
+ * geometry is here, where it is testable, and the SVG maps over it.
+ *
+ * Given the OPENING’s rect (the frame cell the container sits in), each
+ * half comes back with its own rect, its rails, its cells (panel / glass /
+ * vision panel, through the same gridRectsFor) and its node, so a click
+ * can select any of them.
+ *
+ * The container’s own clearances inset it from the opening (4 / 4 / 4 / 3
+ * on Integrate’s), and the stored split puts the join where Integrate has
+ * it — 1055 of a 2103 container, not half each.
+ */
+export function stableHalfRects(tree, container, x = 0, y = 0) {
+  if (container?.part_type !== STABLE_DOOR_PART) return []
+  const size = stableDoorSize(tree, container)
+  if (size.width == null || size.height == null) return []
+  const v = container.values ?? {}
+  const left = num(v.mechanicalClearanceLeft) ?? 0
+  const top  = num(v.mechanicalClearanceTop) ?? 0
+  const { top: topHalf, bottom: bottomHalf } = stableHalves(container)
+
+  const out = []
+  let offsetY = y + top
+  for (const half of [topHalf, bottomHalf]) {
+    if (!half) continue
+    const z = doorLeafSize(tree, half)
+    if (z.width == null || z.height == null) continue
+    const hv = half.values ?? {}
+    const stileL = num(hv.leftWidth) ?? 0
+    const railT   = num(hv.topHeight) ?? 0
+    const interior = leafInterior(tree, half)
+    out.push({
+      node: half,
+      half: hv.stableHalf ?? null,
+      x: x + left, y: offsetY, width: z.width, height: z.height,
+      // the glass / panel area inside its own rails
+      interior: {
+        x: x + left + stileL, y: offsetY + railT,
+        width: interior.width ?? 0, height: interior.height ?? 0,
+      },
+      cells: gridRectsFor(tree, half, x + left + stileL, offsetY + railT),
+    })
+    offsetY += z.height
+  }
+  return out
+}
+
+/**
+ * A VISION PANEL to draw: the small light inside a panel, centred in it.
+ * Its size is its own (200 x 350 on Integrate’s), not the cell’s.
+ */
+export function visionPanelRect(panelNode, cellRect) {
+  const glass = (panelNode?.children ?? []).find(c => c.part_type === 'glassPart')
+  if (!glass || !cellRect) return null
+  const w = num(glass.values?.visionPanelWidth)
+  const h = num(glass.values?.visionPanelHeight)
+  if (!(w > 0) || !(h > 0)) return null
+  return {
+    node: glass,
+    x: cellRect.x + (cellRect.width - w) / 2,
+    y: cellRect.y + (cellRect.height - h) / 2,
+    width: w, height: h,
+  }
+}
+
 
 /** A PANEL’s visible size: its own cell. */
 export function panelSizeFor(tree, panelNode) {

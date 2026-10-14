@@ -2361,7 +2361,7 @@ describe('Step BA — French door variant benchmarks', () => {
   // Step BF: FD4 is 120 production minutes (49.32) CHEAPER than Integrate,
   // declared on the fixture while the reviewer reads its panel-type ids.
   const EXTRA = {
-    FD4: BENCHMARK_FD4.pendingDecision?.cost ?? 0,
+    FD4: BENCHMARK_FD4.deliberateDifference?.cost ?? 0,
     FD5: DOORSET_SECTIONS,
     FD6: DOORSET_SECTIONS,
   }
@@ -2413,7 +2413,7 @@ describe('Step BA — French door variant benchmarks', () => {
   it('FD4 matches Integrate on every line but its panel minutes', () => {
     const r = runFD(BENCHMARK_FD4)
     const t = INTEGRATE.benchmarkFD4_french_doors_with_panels
-    const declared = BENCHMARK_FD4.pendingDecision.cost
+    const declared = BENCHMARK_FD4.deliberateDifference.cost
     expect(r.price.total_cost).toBeCloseTo(t.total_cost + declared, 2)
     expect(r.price.total).toBeCloseTo(t.total_price + declared * 2, 2)
   })

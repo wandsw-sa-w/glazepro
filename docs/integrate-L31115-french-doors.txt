@@ -128,7 +128,10 @@
 # CORRECTION 14 Oct 2026 (Step BF, reviewer): panel type id 110 is FLAT. 112 is Raised & Fielded, 114 / 116 the two
 #   T&G — read in Integrate’s own panel-type dialog (docs/integrate-L31115-stable-doors.txt). The "(Raised & Fielded
 #   both sides)" below is WRONG and is left as written; it is where GlazePro’s mapping came from. FD4’s own panel ids
-#   are still to be re-read: it matched Integrate exactly while GlazePro charged R&F 120 a panel.
+#   RE-READ 14 Oct (reviewer) on drawing 10/4 (310627): both PanelParts are internalPanelTypeId 110 /
+#   externalPanelTypeId 110 = FLAT. FD4’s old penny-exact match was two errors cancelling — Integrate charges flat
+#   2 x 60 plus "Door Muntin" 2 x 60 (each leaf’s MID RAIL counted) = 240, which equalled GlazePro’s old R&F 2 x 120.
+#   GlazePro now charges flat 2 x 60 and no muntin: 120 min less, declared BY DESIGN (difference 19).
 #   Below: PanelPart 442.5 x 425 {internalPanelTypeId 110, externalPanelTypeId 110 (Raised & Fielded both sides),
 #     internalPanelBeadId 120, externalPanelBeadId 120 (Ovolo), insulationThickness 15, createVisionPanel true}.
 #   Surround 2 x 2300, 1 x 1500.

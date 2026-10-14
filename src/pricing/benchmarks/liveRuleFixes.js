@@ -41,3 +41,80 @@ export function withShapedGlassRate(snapshot) {
       : r)),
   }
 }
+
+/**
+ * `sql/step-bf3`, RE-ISSUED 14 Oct 2026: what a NEW stable door gets.
+ *
+ * The first issue of bf3 added FIVE rules, one of them a pair of hinges — and
+ * live that made a new stable door £34.65 too dear, which the offline test did
+ * not see because it replaced the rule set instead of adding to it. Two
+ * things were double-counted, and both were already in the live data:
+ *
+ *  - **the hinges.** Rule c11aeeb4 "4 Hinges per Door" is a door_leaf rule at
+ *    qty 2, and a stable door has TWO halves — so it already gives two
+ *    pair-lines, 14.70 + 14.70 = £29.40, which IS Nathan's "each half on its
+ *    own pair". bf3's own hinge rule added another £29.40 on top. It goes.
+ *  - **the trickle vents.** Both "Trickle Vent" rules carry
+ *    `not is_front_door`, so they fire on a stable door: XR16 WHITE 3.15 and
+ *    "trickle" white 2.10. Nathan's list has XR16 BLACK once, so the two are
+ *    gated on `new_stable_door_pair_qty < 1` — they keep firing on everything
+ *    else, which is what they are for.
+ *
+ * 29.40 + 3.15 + 2.10 = £34.65, which is the figure the reviewer measured on
+ * drawings 50-52.
+ */
+export const STABLE_DOOR_DEFAULT_SET = [
+  { short_name: 'era_5_lever_sashlock', finish: 'PB', qty: 1, label: 'Stable Door Sashlock' },
+  { short_name: 'era_deadlock', finish: 'PB', qty: 1, label: 'Stable Door Deadlock' },
+  { short_name: 'trickle_vent_xr16', finish: 'Blk', qty: 1, label: 'Stable Door Trickle Vent' },
+  { short_name: 'victorian', finish: 'PB', qty: 1, label: 'Stable Door Handle' },
+]
+
+/** The three imported rules bf3 turns off: an espag set, a multipoint lock, two cylinders. */
+export const STABLE_DOOR_IMPORTED_RULES = [
+  '0a4a3749-9cba-49e8-b0f9-0fe52f4cb077',
+  '8d303c72-0623-4232-9843-8ef987afbf59',
+  '12d2787c-7d3f-467c-bf92-89a28bcc93f6',
+]
+
+/** The two Trickle Vent rules that must stand down for a stable door. */
+export const TRICKLE_VENT_RULES = [
+  'e4c01f82-8fe6-4f0c-af01-c0b8eacbd84e',
+  '943e246d-aa70-448e-a575-188d230289b8',
+]
+
+export const STABLE_DOOR_NO_VENT = 'new_stable_door_pair_qty < 1'
+
+/**
+ * A pricing context with `sql/step-bf3` applied, ON TOP of the live rule set.
+ *
+ * It ADDS to `ironmongeryRules` rather than replacing them, which is the
+ * mistake the first offline test made: the live set is where the hinges and
+ * the trickle vents come from, so a test that cannot see them cannot catch a
+ * double. Idempotent.
+ */
+export function withStableDoorIronmongery(snapshot) {
+  const rules = (snapshot.ironmongeryRules ?? []).map(r => {
+    if (STABLE_DOOR_IMPORTED_RULES.includes(r.id)) return { ...r, is_active: false }
+    if (TRICKLE_VENT_RULES.includes(r.id) && !String(r.condition).includes(STABLE_DOOR_NO_VENT)) {
+      return { ...r, condition: `${r.condition} and ${STABLE_DOOR_NO_VENT}` }
+    }
+    return r
+  })
+  const have = new Set(rules.filter(r => r.is_active).map(
+    r => `${r.product_short_name}:${r.finish_code}:${r.condition}`))
+  const added = STABLE_DOOR_DEFAULT_SET.map((x, i) => ({
+    id: `bf03000${i + 1}-0000-4000-8000-00000000000${i + 1}`,
+    sort_order: 61 + i,
+    group_name: 'stable_doors',
+    loop_target: null,
+    label: x.label,
+    condition: 'new_stable_door_pair_qty >= 1',
+    qty_expr: String(x.qty),
+    product_short_name: x.short_name,
+    finish_code: x.finish,
+    is_active: true,
+  })).filter(r => !have.has(
+    `${r.product_short_name}:${r.finish_code}:${r.condition}`))
+  return { ...snapshot, ironmongeryRules: [...rules, ...added] }
+}

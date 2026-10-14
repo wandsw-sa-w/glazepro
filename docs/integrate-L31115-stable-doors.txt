@@ -57,3 +57,6 @@
 # i. Default finish: Clean White both sides (single finish), as Integrate's template.
 # j. Default ironmongery: Integrate's stored list + a SECOND pair of hinges (each half on its own pair).
 # k. Door templates' panels are FLAT (type 110), as Integrate's (applies to the front-door templates too).
+#
+# ── FD4 re-read, 14 Oct (reviewer) ───────────────────────────────────────────────────────────────────────────────────
+# Integrate drawing 10/4 (310627, FD4): both PanelParts internalPanelTypeId 110 / externalPanelTypeId 110 = FLAT.
