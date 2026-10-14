@@ -1,0 +1,92 @@
+# INTEGRATE — DOOR OPENING DIRECTION (open in / open out), read 14 Oct 2026 by the reviewer on L31115 item 10 (TEST lead).
+# Nathan (14 Oct): French doors and single garden doors can open IN as well as out; stable doors can open in OR out; front doors
+# open in. Bifold and sliding doors are NOT sold (leave Integrate's groups 4 / 5 out).
+# Drawings 24, 25, 26 created from Integrate's own templates, the item's RANGE switched, SAVED, priced one at a time through
+# L31115 Quote 1 item 10 (Nathan approved switching for this round; restored to drawing 18 = 310641 afterwards).
+# PF30: workshop 24.66 / h, installation 40.21 / h, markup 2.00. Utile (44) frame / leaves / cill.
+#
+# ── How Integrate does it ─────────────────────────────────────────────────────────────────────────────────────────────────
+# Opening direction is NOT a property of the leaf you can pick: it is the drawing item's RANGE ("Range" on the Item node:
+# "Standard Open Out Doors" = single_and_french_doors, "Standard Open In Doors" = open_in_doors). Changing it opens a
+# "Range Defaults" dialog (categories Type of Work / Sectional Details / Material & Paint / Glass & Panel / Ironmongery &
+# Surround / Other, ALL ticked by default); OK re-applies the range's values. What changed on all three drawings:
+#   - cill: bottomHeight / CillPart height 37 (out) <-> 50 (in); cillStopSize 26 (out) <-> 0 (in)
+#   - door type: typeId 7 "Open Out / Flush with Stops Internally" <-> 8 "Open In / Flush with Stops Externally", on the leaf,
+#     the French pair part and the stable door part
+#   - leaf clearances (single leaf: top 2 / sides 3 / bottom 3 out <-> top 3 / sides 4 / bottom 14 in;
+#     French pair part: top 3 / sides 1 / bottom 3 out <-> top 3 / sides 3 / bottom 14 in;
+#     stable door part: UNCHANGED 4 / 4 / 4 / 3 both ways)
+#   - leaf bottom rail: out = stepped (btmRailShapeId 101), 163 internal / 170 external ; in = square (99), 170 / 170
+# What did NOT change: layout, sizes, panels, glass spec, FINISH (stayed as the template's), the STORED ironmongery list
+# (the template's list stayed although "Ironmongery & Surround" was ticked), isFrontDoor / isDoorMpls flags, production
+# minutes, labour minutes. The lock parts the allocator adds follow the direction (French slave: RHZ1648 out <-> RHZ1649 in,
+# same cost 89.47) — GlazePro's mpls_doors allocator already has the opening-in rules (2035 / 2045).
+# GlazePro's profiles open_out_doors / open_in_doors ALREADY hold exactly these differences (checked 14 Oct, /dev/sql: cill
+# 37/50, cill stop 26/0, typeIds, clearances, bottom rail shapes) — Integrate's range values came across with the import.
+#
+# ── OI1 = drawing 10/24 (310744): template 26 "Fully Glazed" French doors 1899 x 2199, range -> OPEN IN ────────────────────
+# Frame 47 / 47 / 47, cill 50, internal 1805 x 2102. FrenchDoorPart typeId 8, clearances 3 / 3 / 3 / 14, meeting stile 198,
+# gap 5, overlap 27. Leaves 910.5 x 2085 (= (1805 - 3 - 3 - 5 + 27) / 2 ; 2102 - 3 - 14), rails 110 / 110 / 110, bottom 170
+# (square). Left leaf LH (op 17) slave, right leaf RH (op 18) master. Glass 690.5 x 1805 sightline each.
+# Stored ironmongery (template, unchanged): 102mm_hinges PB 4 ; double_euro_cylinder PB 1 ; trickle_vent_xr16 Wht 1 ;
+# windsor_inline_handle PB 1. Allocated: RJZ2382, RHZ1649, RHZ1653, RHZ1667 + Utile sections. Finish Clean White single.
+# Integrate cost 2,814.71 / price 5,629.41 (FD1, the same doors opening out: 2,819.53 / 5,639.01):
+#   Square Glass 2 x 1.31 x 58.50 = 76.64 each ; Energy 2 x 26.20 kg = 4.45 each           glass_done 162.18
+#   Ironmongery 260.40 (as FD1: hinges 29.40, keep 6.30, cylinder 21.00, XR16 3.15, Windsor 16.80, FAB shootbolt 36.75,
+#     flushbolt 93.45, Thunderbolt 53.55) ; architrave 13.11 + 5.70 ; consumables 30          installation_materials 309.21
+#   Production 55.42 h = 1,366.66 (3,325 min, as FD1) ; Labour 14.50 h = 583.05 (French Doors 780 + overweight 2 x 45)
+#   LTW 25 ; Utile 63x120 10121 mm = 175.09 ; 63x200 3720 = 107.88 ; 67x96 6297 = 85.64      manufacture_materials 393.61
+#   63x120 = per leaf 2 x 2085 + 910.5 - 20 (the OPEN-IN offset, as the front doors) ; 63x200 = 1899 + 2 x 910.5.
+#
+# ── OI2 = drawing 10/25 (310745): template 15 "Fully Glazed Single Door" 1099 x 2199, range -> OPEN IN ─────────────────────
+# Leaf 997 x 2085 (1005 - 4 - 4 ; 2102 - 3 - 14), LH (op 17), typeId 8, bottom 170 square. Glass 777 x 1805 sightline.
+# Stored ironmongery: 102mm_hinges PB 2 ; double_euro_cylinder PB ; trickle_vent_xr16 Wht ; windsor_inline_handle PB.
+# Allocated: RJZ2382 + Utile sections.
+# Integrate cost 1,864.68 / price 3,729.37 (SD1 opening out: 1,867.12 / 3,734.23):
+#   Square Glass 1.47 x 58.50 = 86.00 ; Energy 29.40 kg 5.00                                 glass_done 91.00
+#   Ironmongery 109.20 ; architrave 13.11 + 3.42 ; consumables 30                            installation_materials 155.73
+#   Production 36.33 h = 895.90 (2,180, as SD1) ; Labour 11.75 h = 472.47 (as SD1)
+#   LTW 25 ; Utile 63x120 5147 = 89.04 (2 x 2085 + 997 - 20) ; 63x200 2096 = 60.78 ; 67x96 5497 = 74.76
+#                                                                                            manufacture_materials 249.58
+#
+# ── SO1 = drawing 10/26 (310746): template 4553 "Stable Door" 1099 x 2207, range -> OPEN OUT ─────────────────────────────
+# Cill 37 (stop 26). StableDoorPart typeId 7, 997 x 2116 (2207 - 47 - 37 - 4 - 3), clearances 4 / 4 / 4 / 3 (unchanged),
+# thickness 58. Top half 997 x 1055 UNCHANGED (rails 110 / 110 / 99, panel 777 x 846). Bottom half 997 x 1061 (was 1048:
+# the 13 mm from the lower cill), rails top 99 / stiles 110 / bottom 163 internal, 170 external (stepped), panel 777 x 799
+# (was 779). 1055 + 3 + 1061 = 2119 = 2116 + 3: the 3 between the halves is inside the stable door part, as ST1.
+# Stored ironmongery as ST1 (102mm_hinges PB 2, ERA 5 lever sashlock, ERA deadlock, XR16 Blk, Victorian lever). Finish
+# Clean White single. isDoorMpls false.
+# Integrate cost 2,510.57 / price 5,021.12 (ST1, the same door opening in: 2,507.64 / 5,015.26):
+#   Ironmongery 88.20 ; architrave 13.11 + 3.42 ; consumables 30                             installation_materials 134.73
+#   Production 56.75 h = 1,399.46 (3,405, as ST1) ; Labour 15.00 h = 603.15 ("Stable Door" 900, as ST1)
+#   Tricoya Panel 0.66 = 124.14 (777 x 846) ; 0.62 = 117.24 (777 x 799 — the ONLY difference from ST1, +2.93)
+#   LTW 25 ; Utile 63x200 1099 = 31.87 (cill only) ; 67x96 5513 = 74.98 (no leaf timber, as ST1)
+#                                                                                            manufacture_materials 373.23
+#
+# ── OI3 = drawing 10/27 (310747): template 16 "French Doors w Fanlight" 1350 x 2599, range -> OPEN IN ──────────────────────
+# Before the switch (template): frame 1350 x 2599, cill 37, transom 41 at offset 399 / 2075, fanlight CasementSashPart 1254 x 396
+#   (op 15 top hung, typeId 7, clearances 1 / 1 / 1 / 2, rails 62 / 62 / 62, bottom 86 int / 93 ext), pair 1254 x 2069.
+# After the switch + save (as stored): frame 1350 x 2591 (!), cill 50 (stop 0), transom 41 at offset 391 / 2062.
+#   Fanlight sash 1250 x 385: clearances 3 / 3 / 3 / 3 (open-in profile), STILL typeId 7 (opens out), bottom rail 78 (!)
+#   int / 93 ext, glass 1126 x 245. FrenchDoorPart typeId 8, clearances 3 / 3 / 3 / 14, 1250 x 2045; leaves 636 x 2045,
+#   bottom 170 square.
+#   INTEGRATE QUIRKS (not to copy): the range switch shrank the FRAME HEIGHT by 8 (2599 -> 2591) and the fanlight bottom rail
+#   86 -> 78 (the fanlight opening lost the 8). A surveyor's measured frame size must not change when the direction changes.
+# NATHAN 14 Oct: when French / garden doors open IN, an opening fanlight or casement light in the same frame STILL OPENS OUT
+#   by default (as Integrate) — and Integrate's production rule 245 "Frame with inward opening and outward opening" 300 then
+#   fires (GlazePro already has it: opening_in_* >= 1 and opening_out_* >= 1).
+# Stored ironmongery = FD3's (hinges 4, Connoisseur LH, Defender 310, double euro cylinder, Kenrick extensions x2 + gearbox,
+#   XR16 Wht, Windsor inline). Allocated RJZ2382, RHZ1649, RHZ1653, RHZ1667 + sections.
+# Integrate cost 3,178.07 / price 6,356.07 (FD3, the same doors opening out at 2599: 3,058.66):
+#   Square Glass fan 0.31 = 18.14 ; leaves 2 x 0.79 = 46.22 each ; Energy 6.20 kg 1.05 ; 2 x 15.80 kg 2.69   glass_done 117.01
+#   Ironmongery 287.70 (as FD3) ; architrave 2.85 x 5.40 = 15.39 + 2.85 x 1.50 = 4.28 ; consumables 30
+#                                                                                            installation_materials 337.37
+#   Production 71.17 h = 1,755.05 = 4,270 min (Estimated Labour Time editor, read): 245 Frame with inward opening and outward
+#     opening 300 ; 1105 frame mullion / transom 180 ; 1200 Door Leaf 2 x 1035 ; 1202 Fanlights in Doorsets 300 ; 1300 Door
+#     Frame 855 ; 30 Glazing 3 x 20 ; 200 Casement Sash Single Finish 60 ; 500 Door Frame Single Finish 180 ; 501 per transom
+#     85 ; 520 Door Leaf Single Finish 2 x 90.   (= FD3's 3,970 + 300.)
+#   Labour 14.50 h = 583.05 (French Doors 780 + opening fanlight 90, as FD3)
+#   LTW 25 ; Utile 63x120 9412 = 162.83 (per leaf 2 x 2045 + 636 - 20) ; 63x200 2622 = 76.04 (1350 + 2 x 636) ;
+#     63x63 2050 = 17.63 (fanlight: 1250 + 2 x 393 + 14 — 8 more than the 385 sash: the lost rail's 8, a quirk) ;
+#     63x96 1250 = 15.25 (the fanlight rail, although it is now 78) ; 67x96 6532 = 88.84 (1350 + 2 x 2591)
+#                                                                                            manufacture_materials 385.59

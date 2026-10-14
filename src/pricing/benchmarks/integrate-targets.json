@@ -1807,5 +1807,125 @@
       "production": 56.08,
       "labour": 15.0
     }
+  },
+  "benchmarkOI1_french_doors_open_in": {
+    "source": "L31115 Item 10 Drawing 24 (template 'Fully Glazed' French doors 1899 x 2199, range switched to Standard Open In Doors, stored ironmongery). Read and priced 14 Oct 2026 via L31115 Quote 1 item 10. Facts: docs/integrate-L31115-door-direction.txt.",
+    "total_cost": 2814.71,
+    "total_price": 5629.41,
+    "groups": {
+      "glass_done": {
+        "cost": 162.18,
+        "price": 324.36
+      },
+      "installation_materials": {
+        "cost": 309.21,
+        "price": 618.42
+      },
+      "manufacture": {
+        "cost": 1366.66,
+        "price": 2733.31
+      },
+      "labour": {
+        "cost": 583.05,
+        "price": 1166.09
+      },
+      "manufacture_materials": {
+        "cost": 393.61,
+        "price": 787.23
+      }
+    },
+    "hours": {
+      "production": 55.42,
+      "labour": 14.5
+    }
+  },
+  "benchmarkOI2_single_door_open_in": {
+    "source": "L31115 Item 10 Drawing 25 (template 'Fully Glazed Single Door' 1099 x 2199, range switched to Standard Open In Doors, stored ironmongery). Read and priced 14 Oct 2026 via L31115 Quote 1 item 10. Facts: docs/integrate-L31115-door-direction.txt.",
+    "total_cost": 1864.68,
+    "total_price": 3729.37,
+    "groups": {
+      "glass_done": {
+        "cost": 91.0,
+        "price": 181.99
+      },
+      "installation_materials": {
+        "cost": 155.73,
+        "price": 311.46
+      },
+      "manufacture": {
+        "cost": 895.9,
+        "price": 1791.8
+      },
+      "labour": {
+        "cost": 472.47,
+        "price": 944.94
+      },
+      "manufacture_materials": {
+        "cost": 249.58,
+        "price": 499.18
+      }
+    },
+    "hours": {
+      "production": 36.33,
+      "labour": 11.75
+    }
+  },
+  "benchmarkSO1_stable_door_open_out": {
+    "source": "L31115 Item 10 Drawing 26 (template 'Stable Door' 1099 x 2207, range switched to Standard Open Out Doors, two flat panels, stored ironmongery). Read and priced 14 Oct 2026 via L31115 Quote 1 item 10. Facts: docs/integrate-L31115-door-direction.txt.",
+    "total_cost": 2510.57,
+    "total_price": 5021.12,
+    "groups": {
+      "installation_materials": {
+        "cost": 134.73,
+        "price": 269.46
+      },
+      "manufacture": {
+        "cost": 1399.46,
+        "price": 2798.91
+      },
+      "labour": {
+        "cost": 603.15,
+        "price": 1206.3
+      },
+      "manufacture_materials": {
+        "cost": 373.23,
+        "price": 746.45
+      }
+    },
+    "hours": {
+      "production": 56.75,
+      "labour": 15.0
+    }
+  },
+  "benchmarkOI3_french_doors_fanlight_open_in": {
+    "source": "L31115 Item 10 Drawing 27 (template 'French Doors w Fanlight' 1350 x 2599, range switched to Standard Open In Doors: stored frame 1350 x 2591, fanlight still opens out, bottom rail 78; stored ironmongery). Read and priced 14 Oct 2026 via L31115 Quote 1 item 10. Facts: docs/integrate-L31115-door-direction.txt.",
+    "total_cost": 3178.07,
+    "total_price": 6356.07,
+    "groups": {
+      "glass_done": {
+        "cost": 117.01,
+        "price": 233.98
+      },
+      "installation_materials": {
+        "cost": 337.37,
+        "price": 674.73
+      },
+      "manufacture": {
+        "cost": 1755.05,
+        "price": 3510.1
+      },
+      "labour": {
+        "cost": 583.05,
+        "price": 1166.09
+      },
+      "manufacture_materials": {
+        "cost": 385.59,
+        "price": 771.17
+      }
+    },
+    "hours": {
+      "production": 71.17,
+      "labour": 14.5
+    }
   }
 }
