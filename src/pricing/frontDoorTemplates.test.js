@@ -33,9 +33,13 @@ import { resolveIronmongeryLines } from './loadPricingContext.js'
 import { buildFrontDoorFrame, FRONT_DOOR_TEMPLATES } from '../drawingBoard/doorOpenings.js'
 import { DOOR_PART_COST_MAP, OPEN_IN_PROFILE_VALUES } from './benchmarks/fixtureDoor.js'
 import { withAv4Costs, withFrontDoorIronmongery } from './benchmarks/frontDoorIronmongery.js'
+import { withShapedGlassRate } from './benchmarks/liveRuleFixes.js'
 
-/** The live data as it stands after sql/step-bd1 and sql/step-bd4. */
-const LIVE = withAv4Costs(withFrontDoorIronmongery(SNAPSHOT))
+/**
+ * The live data as it stands after sql/step-bd1, sql/step-bd4 and
+ * sql/step-be1 — all three RUN by the reviewer.
+ */
+const LIVE = withShapedGlassRate(withAv4Costs(withFrontDoorIronmongery(SNAPSHOT)))
 
 function priceTemplate(options) {
   const { tree, missing } = buildFrontDoorFrame(OPEN_IN_PROFILE_VALUES, options)
@@ -61,16 +65,20 @@ describe('Step BD templates fix — what each template prices', () => {
   // (2,580.01 / 2,697.97 / 2,717.65) were priced BEFORE it:
   //   Front Door  +24.66  the ONE real muntin, 60 minutes at 24.66/h
   //                       (Nathan’s decision d)
-  //   Arched      +22.58  the shaped glass: 1.13 m2 (the largest rectangle
-  //                       of the cut glass + 25%) where the exact shape was
-  //                       0.83, plus the energy surcharge following it.
-  //                       Still at Integrate’s shaped RATE — sql/step-be1
-  //                       takes another 15.11 off it (1.13 x 13.375).
+  //   Arched       +7.47  the shaped glass: 1.13 m2 (the largest rectangle
+  //                       of the cut glass + 25%) at the SQUARE rate, where
+  //                       the exact shape was 0.83 at Integrate’s shaped
+  //                       one, plus the energy surcharge following the area
   //   With Fanlight        unchanged: no muntin and no shaped glass.
+  //
+  // Step BE follow-up: sql/step-be1 is RUN, so the arched door is 2,725.12
+  // and not the 2,740.23 it read while the rate still carried the quarter.
   const EXPECTED = [
     ['Front Door',               2604.67],
     ['Front Door With Fanlight', 2697.97],
-    ['Arched Front Door',        2740.23],
+    ['Arched Front Door',        2725.12],
+    // Step BE follow-up: the side light, with its muntin re-centred
+    ['Front Door With Side Light', 3371.35],
   ]
 
   for (const [name, cost] of EXPECTED) {
@@ -129,8 +137,10 @@ describe('Step BD templates fix — what each template prices', () => {
       centred: priceTemplate({ ...byName('Arched Front Door'), rowOffsets: null }),
       live:    priceTemplate(byName('Arched Front Door')),
     }
-    // the reviewer’s drawing 43 figure plus Step BE’s shaped glass
-    expect(arched.centred.results.price.total_cost).toBeCloseTo(2758.81, 1)
+    // the reviewer’s drawing 43 figure plus Step BE’s shaped glass, at the
+    // square rate: 2,740.74 + 6.44 (a centred rail makes a taller glass cell,
+    // so its billable rectangle grows more than the arched one's)
+    expect(arched.centred.results.price.total_cost).toBeCloseTo(2747.18, 1)
     expect(arched.live.results.price.total_cost)
       .toBeLessThan(arched.centred.results.price.total_cost)
   })

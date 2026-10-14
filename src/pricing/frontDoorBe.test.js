@@ -21,8 +21,11 @@ import {
   BENCHMARK_FT1, BENCHMARK_FT2, BENCHMARK_FT3, BENCHMARK_FD4, BENCHMARK_C,
 } from './benchmarks/index.js'
 import { withAv4Costs } from './benchmarks/frontDoorIronmongery.js'
+import { withShapedGlassRate } from './benchmarks/liveRuleFixes.js'
 
-const LIVE = withAv4Costs(SNAPSHOT)
+// sql/step-be1 is RUN LIVE (14 Oct): a shaped unit is priced at the SQUARE
+// rate. The captured snapshot pre-dates it.
+const LIVE = withShapedGlassRate(withAv4Costs(SNAPSHOT))
 
 function run(bm) {
   return runPricingOnTree(bm.tree, LIVE.rules, LIVE.pfVariables, {
@@ -86,14 +89,16 @@ describe('Step BE B — shaped glass: the largest rectangle + 25%', () => {
     expect(shapedGlassBillableAreaM2(801, 1127)).toBeCloseTo(1.128409, 6)
   })
 
-  it('FT3’s glass is priced on 1.13 m2, not on 0.83', () => {
+  it('FT3’s glass is 1.13 m2 at the SQUARE rate: 66.11', () => {
     const r = run(BENCHMARK_FT3)
     const glass = r.price.lines.filter(l => l.fires && /Glass Cost/.test(l.name ?? ''))
     expect(glass.length).toBe(1)
     expect(glass[0].quantity).toBeCloseTo(1.13, 2)
-    // The RATE is still the shaped rule's 71.875 until sql/step-be1 makes it
-    // the square one; the fixture declares that as pending.
-    expect(glass[0].value).toBeCloseTo(71.875, 3)
+    // sql/step-be1 is live: the quarter is on the AREA and the rate is the
+    // square rule’s own 58.50. Nathan’s own figure was 65.52 from a
+    // 799 x 1125 cut; GlazePro’s cut is 801 x 1127, which is 59p more.
+    expect(glass[0].value).toBeCloseTo(58.50, 2)
+    expect(glass[0].line_cost).toBeCloseTo(66.11, 2)
   })
 
   it('the energy surcharge follows the same rounded area, untouched', () => {

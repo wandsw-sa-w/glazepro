@@ -14,6 +14,7 @@ import { applySashesReplaced } from '../../drawingBoard/sashesReplaced.js'
 import { computeDerived } from '../../drawingBoard/computeDerived.js'
 import { computeVariables } from '../computeVariables.js'
 import { withAv4Costs } from './frontDoorIronmongery.js'
+import { withShapedGlassRate } from './liveRuleFixes.js'
 
 /**
  * Step BE: what C’s shaped glass is dearer by, from the fixture’s own
@@ -22,6 +23,14 @@ import { withAv4Costs } from './frontDoorIronmongery.js'
  */
 const C_SHAPED_GLASS = (BENCHMARK_C.deliberateDifference?.cost ?? 0) +
   (BENCHMARK_C.pendingDecision?.cost ?? 0)
+
+/**
+ * Step BE follow-up: sql/step-be1 is RUN LIVE, so every benchmark here is
+ * priced with a shaped unit at the SQUARE rate. The captured snapshot still
+ * holds Integrate’s shaped rate, and withShapedGlassRate is a no-op once it
+ * is refreshed.
+ */
+const SNAPSHOT_LIVE = withShapedGlassRate(SNAPSHOT)
 import { shortDividerSpanMm, isShortDivider, frameCells, frameGridSize, frameOpenings, casementSashSize, casementSashWeightKg, casementFrameTimberVolumeDm3, casementSashTimberVolumeDm3, casementGlassSightline, frameMuntinLengthM, frameColumns, frameRows, itemFrames, CASEMENT_SASH_TYPES, FRENCH_SASH_TYPES } from '../casementGeometry.js'
 import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_B_UNCORRECTED, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F, BENCHMARK_G, BENCHMARK_H, BENCHMARK_I, BENCHMARK_J, BENCHMARK_K, BENCHMARK_L, BENCHMARK_M, BENCHMARK_N, BENCHMARK_P, BENCHMARK_Q, BENCHMARK_R, BENCHMARK_S, BENCHMARK_SA, BENCHMARK_SB, BENCHMARK_SC, BENCHMARK_SD, BENCHMARK_SE, BENCHMARK_SF, BENCHMARK_TC1, BENCHMARK_TC2, BENCHMARK_TC3, BENCHMARK_FR1, BENCHMARK_FR2, BENCHMARK_FD1, BENCHMARK_FD2, BENCHMARK_FD3, BENCHMARK_FD3b, BENCHMARK_FD4, BENCHMARK_FD5, BENCHMARK_FD6, BENCHMARK_FD7, BENCHMARK_SD1, BENCHMARK_SD2, BENCHMARK_SD3, BENCHMARK_SD4, BENCHMARK_CD1, BENCHMARK_CD2, BENCHMARK_CD3, BENCHMARK_CD4, BENCHMARK_FT1, BENCHMARK_FT2, BENCHMARK_FT3, BENCHMARK_FT4 } from './index.js'
 import { resolveIronmongeryLines } from '../loadPricingContext.js'
@@ -490,14 +499,15 @@ describe('Glass rounded_area formula', () => {
  * tree-saved lines win, defaults apply when the tree has none (L34046).
  */
 function runFromSnapshot(tree) {
-  const ironmongeryLines = resolveIronmongeryLines(tree, SNAPSHOT, SNAPSHOT.profileValues)
-  return runPricingOnTree(tree, SNAPSHOT.rules, SNAPSHOT.pfVariables, {
-    glassCatalogue:       SNAPSHOT.glassCatalogue,
-    partAllocationRules:  SNAPSHOT.partAllocationRules,
-    partCostMap:          SNAPSHOT.partCostMap,
+  const S = SNAPSHOT_LIVE
+  const ironmongeryLines = resolveIronmongeryLines(tree, S, S.profileValues)
+  return runPricingOnTree(tree, S.rules, S.pfVariables, {
+    glassCatalogue:       S.glassCatalogue,
+    partAllocationRules:  S.partAllocationRules,
+    partCostMap:          S.partCostMap,
     ironmongeryLines,
-    ironmongeryCatalogue: SNAPSHOT.ironmongeryCatalogue,
-    profileValues:        SNAPSHOT.profileValues,
+    ironmongeryCatalogue: S.ironmongeryCatalogue,
+    profileValues:        S.profileValues,
   })
 }
 
@@ -3070,7 +3080,7 @@ describe('Step BD — front door benchmarks', () => {
   // had in Step BB while the capture lagged the live data. withAv4Costs
   // never overwrites a cost the snapshot HAS, so a refreshed snapshot makes
   // it a no-op.
-  const FT_SNAPSHOT = withAv4Costs(SNAPSHOT)
+  const FT_SNAPSHOT = withShapedGlassRate(withAv4Costs(SNAPSHOT))
 
   function runFT(bm) {
     return runPricingOnTree(bm.tree, FT_SNAPSHOT.rules, FT_SNAPSHOT.pfVariables, {
@@ -3127,7 +3137,9 @@ describe('Step BD — front door benchmarks', () => {
       // split is the thing a reader checks.
       // FT4’s one glass unit is 0.236 m2 of cut glass and prices at the
       // 0.30 m2 MINIMUM — Integrate’s own 17.55, to the penny.
-      const GLASS = { FT1: 0, FT2: 0, FT3: 23.28 + 15.11, FT4: 0 }
+      // Step BE follow-up: sql/step-be1 is live, so FT3’s glass is the
+      // decided 23.28 alone — the 15.11 of rate is not pending any more.
+      const GLASS = { FT1: 0, FT2: 0, FT3: 23.28, FT4: 0 }
       if (target.groups.glass_done) {
         expect(got.glass_done ?? 0, `${label} glass`)
           .toBeCloseTo(target.groups.glass_done.cost + GLASS[label], 2)

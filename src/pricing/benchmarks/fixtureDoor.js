@@ -1422,7 +1422,7 @@ export const BENCHMARK_FT3 = {
   }),
   targets: { ...INTEGRATE_TARGETS.benchmarkFT3_front_door_arched },
   deliberateDifference: {
-    cost: 36.73,
+    cost: 36.73,   // 13.45 of mid rail + 23.28 of shaped glass
     reason: 'the leaf’s 120 mid rail at Utile63x120 for its interior width (777 mm, +13.45, PROVISIONAL), and the SHAPED GLASS (+23.28): 1.13 m2 at the square rate against Integrate’s 0.62 at its shaped rate — the largest rectangle of the cut glass (801 x 1127) plus the supplier’s quarter (Nathan, decision e), with the energy surcharge following the same area',
   },
   // sql/step-bd1 is RUN LIVE (14 Oct): the three AV4 parts have their costs
@@ -1444,14 +1444,10 @@ export const BENCHMARK_FT3 = {
   // the SQUARE rate, on every product. Integrate’s 0.62 at a shaped rate of
   // 71.875 is wrong twice over, and GlazePro’s own exact-shape 0.83 was
   // measuring the glass rather than the bill.
-  // The shaped RATE is still Integrate’s 71.875 ((inner + outer) x 1.25)
-  // until sql/step-be1 makes it the square rule’s own ((inner + outer) + 1
-  // = 58.50). Nathan puts the supplier’s quarter on the AREA, not on the
-  // rate, so the two must not both carry it.
-  pendingDecision: {
-    cost: 15.11,
-    reason: 'the shaped RATE: 1.13 m2 is priced at Integrate’s 71.875 until sql/step-be1 makes it the square rule’s 58.50 (1.13 x 13.375)',
-  },
+  // sql/step-be1 is RUN LIVE (14 Oct): a shaped unit is priced at the
+  // SQUARE rate, so the quarter is on the area alone and this row has
+  // nothing pending. The captured snapshot pre-dates the run, which is why
+  // the offline tests apply withShapedGlassRate.
   partCostMap: DOOR_PART_COST_MAP,
   profileValues: OPEN_IN_PROFILE_VALUES,
   glassCatalogue: {},

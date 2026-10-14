@@ -72,18 +72,18 @@ const DELIBERATE = {
   //        the ONE real muntin, where Integrate fires flat-panel 60 x 4 and
   //        counts the mid rail as a second muntin)        = 104.92
   //   FT2  13.67 the frame transom, unchanged             =  13.67
-  //   FT3  13.45 the 120 mid rail + 23.28 shaped glass + 15.11 PENDING on
-  //        the shaped RATE until sql/step-be1 runs        =  51.84
+  //   FT3  13.45 the 120 mid rail + 23.28 shaped glass    =  36.73
+  //        (sql/step-be1 is RUN, so the rate carries no quarter)
   //   FT4  70.92 timber (the frame mullion, the muntin and the 120 mid
   //        rail) + 73.98 production                       = 144.90
-  //   C    7.37 shaped glass + 5.75 PENDING on the rate   =  13.12
+  //   C    7.37 shaped glass                              =   7.37
   //        — C’s FIRST difference since Step AD, and it is a sash window:
   //        decision e is every product, not only doors.
   FT1:  { cost: '104.92', price: '209.82' },
   FT2:  { cost: '13.67', price: '27.34' },
-  FT3:  { cost: '51.84', price: '103.65' },
+  FT3:  { cost: '36.73', price: '73.42' },
   FT4:  { cost: '144.90', price: '289.78' },
-  C:    { cost: '13.12', price: '26.23' },
+  C:    { cost: '7.37', price: '14.73' },
 }
 
 // Step BD follow-up: the OPEN QUESTIONS on the page — over £1.00, so not

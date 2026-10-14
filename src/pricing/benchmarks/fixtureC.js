@@ -225,12 +225,9 @@ export const BENCHMARK_C = {
     cost: 7.37,
     reason: 'the two arched units’ shaped glass: 0.43 m2 (the largest rectangle of the cut glass plus the supplier’s quarter) against Integrate’s exact-shape 0.32, with the glazing-bar and energy surcharges following the same area (Nathan, decision e)',
   },
-  // The shaped RATE is still Integrate’s 71.875 until sql/step-be1 makes it
-  // the square rule’s 58.50 — the quarter belongs on the area, not on both.
-  pendingDecision: {
-    cost: 5.75,
-    reason: 'the shaped RATE on the glass line: 0.43 m2 is priced at Integrate’s 71.875 until sql/step-be1 makes it the square rule’s 58.50 (0.43 x 13.375)',
-  },
+  // sql/step-be1 is RUN LIVE (14 Oct), so the rate is the square one and
+  // nothing is pending on this row. The captured snapshot pre-dates the
+  // run; the offline tests apply withShapedGlassRate.
   partCostMap: PART_COST_MAP,
   profileValues: PROFILE_VALUES,
   assumptions: ASSUMPTIONS,
