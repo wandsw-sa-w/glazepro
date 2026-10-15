@@ -44,13 +44,13 @@
 -- 0a. The rule this file changes. Expect ONE row, active, its condition
 --     WITHOUT `not is_front_door`.
 SELECT id, group_name, label, loop_target, condition, qty_expr,
-       part_code_expr, is_active
+       part_code, is_active   -- (reviewer, 15 Oct: the column is part_code, not part_code_expr)
 FROM   public.part_allocation_rules
 WHERE  id::text LIKE 'cebdd8b5%';
 
 -- 0b. The whole family, so the pattern is visible: the three that already
 --     carry `not is_front_door`, and the slave rules that must NOT change.
-SELECT id, label, condition, part_code_expr, is_active
+SELECT id, label, condition, part_code, is_active   -- (reviewer, 15 Oct: part_code)
 FROM   public.part_allocation_rules
 WHERE  group_name = 'mpls_doors'
 ORDER  BY label;
