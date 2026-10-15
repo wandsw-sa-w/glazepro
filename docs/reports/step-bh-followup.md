@@ -245,10 +245,16 @@ cells right, and £7,095.53 is what a lost divider reference looks like.
   `regenerateKeys`, so anything made from now on is safe — including a
   template a surveyor saves from a drawing they have split by hand.
 - **Drawings 54–58 already exist** and carry the trees they were created with.
-  54's price moves when `sql/step-bh3` runs; **56 has to be re-made from the
-  template** (or have its transom's two references re-pointed by hand) because
-  its stored tree still has the broken ones. 58 moves when `bh4` runs, or if
-  it is re-made.
+  54's price moves when `sql/step-bh3` runs; 58 moves when `bh4` runs, or if it
+  is re-made.
+- **Drawing 56 has to be re-made from the template.** Its stored tree still
+  holds the two unresolvable references, and nothing should silently guess
+  where a lost divider stopped — so re-pricing it as it stands now gives a
+  THIRD figure: **£7,517.43**, because the four negative panels no longer come
+  off (item 2) while the cells are still wrong. The board names all four:
+  *Panel Fanlight A1 > Panel has no usable size (235 x −1485 mm)*, and the same
+  for Fanlight C1 and the door's two. Re-made, it reads £8,936.47. All three
+  figures are allowed in the smoke suite, each with its reason.
 - **The degenerate-size guard is a backstop, not a cure.** It stops a broken
   layout taking money off a quote; it does not make the layout right. The
   warning and the validation error both say "check the layout" for that
@@ -269,5 +275,18 @@ cells right, and £7,095.53 is what a lost divider reference looks like.
 
 # e2e after the deploy
 
-Recorded below once the Vercel deploy was confirmed by decoding
-`/version.json`.
+Deploy confirmed by decoding `/version.json`: **07:55:40Z**, just after the
+commit.
+
+`npm run e2e` — **5 passed** (5.2m): logs in; every benchmark passes except the
+parked residuals; the fanlight drawing; the validation panel; every drawing
+card on the L507712 matrix priced, including the five doorsets at the figures
+pinned for them.
+
+**Two things the run confirms, and one it cannot.** The 61 benchmark rows are
+where Step BH left them — so the key fix, the degenerate-size guard, the
+French-leaf drawing and the live-catalogue entries moved no priced figure — and
+the five doorset cards read what they were checked at. What it cannot confirm
+is a RE-PRICE: the matrix shows each drawing's last priced figure, so drawing
+56 still reads the reviewer's £7,095.53 until somebody prices it again
+(£7,517.43 as it stands, £8,936.47 re-made).

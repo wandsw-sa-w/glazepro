@@ -321,13 +321,26 @@ test.describe('GlazePro live smoke (read only)', () => {
   // priced four panels at negative area. 8,936.47 is the figure with the
   // cells right.
   //
-  // TWO of them move when the SQL of this step runs, and both figures are
-  // allowed until it has: 54 gains the second leaf’s 2 h (sql/step-bh3) and
-  // 58 gains the side light’s 16 mm of panel (sql/step-bh4).
+  // THREE of them have two allowed figures, and each for a stated reason:
+  //   54  gains the second leaf’s 2 h when sql/step-bh3 runs
+  //   58  gains the side light’s 16 mm of panel when sql/step-bh4 runs
+  //   56  is the drawing the reviewer made BEFORE the key fix, so its SAVED
+  //       tree still holds the two unresolvable references. The code fix
+  //       repairs every drawing made from now on; it cannot repair one
+  //       already stored, and nothing should silently guess where a lost
+  //       divider stopped. So it has THREE allowed figures and each says
+  //       something:
+  //         7,095.53  the reviewer’s reading, with four panels of negative
+  //                   area taking £211 off the door;
+  //         7,517.43  the same broken tree RE-PRICED now — the negative
+  //                   panels no longer come off (item 2), and the board
+  //                   names all four as errors;
+  //         8,936.47  re-made from the template, which is the fix.
   const DOORSET_DRAWINGS = {
     54: { name: 'Pair Of Front Doors', prices: ['6,642.89', '6,803.73'] },
     55: { name: 'Front Door With Side Lights And Fanlight', prices: ['9,173.93'] },
-    56: { name: '... Fanlight Over Door', prices: ['8,936.47'] },
+    56: { name: '... Fanlight Over Door',
+      prices: ['8,936.47', '7,095.53', '7,517.43'] },
     57: { name: 'Stable Door With Fanlight', prices: ['5,911.17'] },
     58: { name: 'Stable Door With Side Light', prices: ['6,785.57', '6,787.00'] },
   }
