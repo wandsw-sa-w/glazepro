@@ -216,22 +216,35 @@ describe('Step BD item 7 — what a NEW front door gets by default', () => {
 
   it('the default set is hinges, letterbox, euro pull and the AV4 system', () => {
     const { lines } = defaultsFor(BENCHMARK_FT1.tree)
+    // Step BH follow-up 2: the snapshot was refreshed on 15 Oct, so the
+    // pull is the CROFT one the live rule has given since sql/step-bd4
+    // (CRO1774PB, 28.35 -> £29.40) where the old capture still had the
+    // Hardwick set. Nothing was tuned — the capture caught up.
     expect(lines.map(l => `${l.product_short_name} x${l.qty}`)).toEqual([
       '102mm_hinges x2',
       'hardwick_classic_sleeved_letterbox x1',
-      'hardwick_classic_euro_pull_set_back_to_back x1',
+      'euro_cylinder_pull x1',
       'av3_heritage_locking_system_lh x1',
     ])
     // and no trickle vent: both Trickle Vent rules carry `not is_front_door`
     expect(lines.map(l => l.product_short_name).join(',')).not.toMatch(/trickle/)
   })
 
-  it('three AV4 parts have NO cost in the live catalogue — named, not hidden', () => {
-    // The gap that leaves FT1's installation_materials 149.10 short of
-    // Integrate: the Heritage lock, the pocket keep and the centre keep are
-    // in the catalogue at cost 0. sql/step-bd1 gives the reviewer the rows.
+  it('every AV4 part now has a cost — sql/step-bd1 is in the capture', () => {
+    // It did not use to. The Heritage lock, the pocket keep and the centre
+    // keep were in the catalogue at cost 0, which left FT1 £149.10 short of
+    // Integrate, and sql/step-bd1 gave the reviewer the rows. It ran on
+    // 14 Oct and the 15 Oct snapshot carries the costs, so the offline
+    // helper that supplied them (withAv4Costs) has been deleted.
     const set = SNAPSHOT.ironmongeryCatalogue['av3_heritage_locking_system_lh:PC']
     const zero = set.parts.filter(p => !(p.unit_cost > 0)).map(p => p.part_code)
-    expect(zero).toEqual(['RHZ3092', 'RHZ2482', 'RHZ2427'])
+    expect(zero).toEqual([])
+    // the three, by name and cost: the lock 107, the centre keep 30, the
+    // pocket keep 5 (and the LH set holds the LEFT-hand parts, which is the
+    // hand fix of the same file)
+    const costs = Object.fromEntries(set.parts.map(p => [p.part_code, p.unit_cost]))
+    expect(costs.RHZ2481).toBe(107)
+    expect(costs.RHZ3091).toBe(30)
+    expect(costs.RHZ2427).toBe(5)
   })
 })

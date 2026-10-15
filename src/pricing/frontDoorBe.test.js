@@ -20,12 +20,10 @@ import { shapedGlassBillableAreaM2 } from './pricingEngine.js'
 import {
   BENCHMARK_FT1, BENCHMARK_FT2, BENCHMARK_FT3, BENCHMARK_FD4, BENCHMARK_C,
 } from './benchmarks/index.js'
-import { withAv4Costs } from './benchmarks/frontDoorIronmongery.js'
-import { withShapedGlassRate } from './benchmarks/liveRuleFixes.js'
 
 // sql/step-be1 is RUN LIVE (14 Oct): a shaped unit is priced at the SQUARE
 // rate. The captured snapshot pre-dates it.
-const LIVE = withShapedGlassRate(withAv4Costs(SNAPSHOT))
+const LIVE = SNAPSHOT
 
 function run(bm) {
   return runPricingOnTree(bm.tree, LIVE.rules, LIVE.pfVariables, {

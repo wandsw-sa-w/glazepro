@@ -496,17 +496,28 @@ d('Step AX — what it all prices', () => {
     // different products and a casement is sold with both; rule 52's
     // "not is_sw" is what keeps the grille off a box sash. Recorded in
     // docs/integrate-differences.md so nobody "fixes" it.
-    const trickles = (SNAPSHOT.ironmongeryRules ?? [])
+    const allTrickles = (SNAPSHOT.ironmongeryRules ?? [])
       .filter(r => /trickle/i.test(r.product_short_name ?? ''))
       .map(r => ({ sort_order: r.sort_order, label: r.label, product: r.product_short_name,
-        condition: r.condition, is_active: r.is_active }))
-    console.log('the trickle vent rules:', JSON.stringify(trickles, null, 1))
+        finish: r.finish_code, condition: r.condition, is_active: r.is_active }))
+    console.log('the trickle vent rules:', JSON.stringify(allTrickles, null, 1))
+    // Step BF follow-up: a STABLE DOOR has a vent rule of its own now
+    // (sql/step-bf3, in the capture since the 15 Oct refresh) — the black
+    // XR16, which is a different product from these two and fires only on a
+    // stable door. The two WHITE vents are the casement pair.
+    const trickles = allTrickles.filter(r => r.finish !== 'Blk')
+    expect(allTrickles.filter(r => r.finish === 'Blk')).toHaveLength(1)
     expect(trickles).toHaveLength(2)
     // Rule 52 is gated on "not is_sw" and rule 50 is not gated either way,
     // so on a casement (is_sw false) both fire; on a box sash only rule 50.
     const byProduct = Object.fromEntries(trickles.map(r => [r.product, r]))
     expect(byProduct.trickle_vent_xr16.condition).not.toMatch(/is_sw/)
     expect(byProduct.trickle.condition).toMatch(/not is_sw/)
+    // and both now stand down for a stable door, which is what keeps the
+    // black XR16 from being joined by two white ones (Step BF follow-up)
+    for (const r of trickles) {
+      expect(r.condition, r.product).toContain('new_stable_door_pair_qty < 1')
+    }
     for (const label of ['FR1', 'FR2']) {
       expect(report[label], `${label} both vents`).toEqual(expect.arrayContaining([
         'trickle_vent_xr16 x1', 'trickle x1',

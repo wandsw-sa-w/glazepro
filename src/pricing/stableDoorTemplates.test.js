@@ -20,14 +20,13 @@ import { runPricingOnTree } from './pricingEngine.js'
 import { resolveIronmongeryLines } from './loadPricingContext.js'
 import { buildStableDoorFrame, STABLE_DOOR_TEMPLATES } from '../drawingBoard/doorOpenings.js'
 import { DOOR_PART_COST_MAP, OPEN_IN_PROFILE_VALUES } from './benchmarks/fixtureDoor.js'
-import { withAv4Costs } from './benchmarks/frontDoorIronmongery.js'
 import {
-  withShapedGlassRate, withStableDoorIronmongery, STABLE_DOOR_DEFAULT_SET,
-  STABLE_DOOR_IMPORTED_RULES, TRICKLE_VENT_RULES,
+  STABLE_DOOR_DEFAULT_SET, STABLE_DOOR_IMPORTED_RULES, TRICKLE_VENT_RULES,
+  STABLE_DOOR_HINGE_RULE,
 } from './benchmarks/liveRuleFixes.js'
 
 /** The live data as the reviewer has it, with sql/step-bf3 re-issued. */
-const LIVE = withStableDoorIronmongery(withShapedGlassRate(withAv4Costs(SNAPSHOT)))
+const LIVE = SNAPSHOT
 
 function priceTemplate(options, context = LIVE) {
   const { tree, missing } = buildStableDoorFrame(OPEN_IN_PROFILE_VALUES, options)
@@ -97,37 +96,47 @@ describe('Step BF follow-up — what a NEW stable door costs', () => {
     expect(codes).not.toContain('RHZ771') // "trickle" white
   })
 
-  it('bf3 as FIRST ISSUED is £34.65 dearer — the reviewer’s own figure', () => {
-    // The test that could not fail before: price the door on the live rules
-    // with bf3's FIRST issue — its five rules including a hinge pair, and
-    // the two Trickle Vent rules left alone. That is what drawings 50-52
-    // were priced on, and it is 34.65 dearer:
-    //   +29.40  bf3’s hinge rule on top of the live per-leaf one
+  it('bf3 as first issued would still be £34.65 dearer', () => {
+    // WHAT THIS GUARDS. bf3 as first issued added a hinge rule of its own
+    // and left the two white Trickle Vent rules alone, which made every new
+    // stable door 34.65 too dear:
+    //   +29.40  its hinge rule, on top of the live per-leaf one
     //   + 3.15  the live XR16 WHITE vent, beside Nathan’s black one
     //   + 2.10  the live "trickle" white vent
-    const live = withShapedGlassRate(withAv4Costs(SNAPSHOT))
-    const firstIssue = {
+    //
+    // The 15 Oct snapshot has the RE-ISSUED bf3, so the old state is
+    // reconstructed from the live rows themselves: the duplicate hinge rule
+    // is still there and INACTIVE (the reviewer kept the row rather than
+    // deleting it), so switching it back on and ungating the two vents is
+    // exactly the first issue. If anyone ever does that for real, this test
+    // says what it costs.
+    const live = SNAPSHOT
+    const undone = {
       ...live,
-      ironmongeryRules: [
-        ...live.ironmongeryRules.map(r => (STABLE_DOOR_IMPORTED_RULES.includes(r.id)
-          ? { ...r, is_active: false } : r)),
-        { id: 'bf-old-hinges', sort_order: 60, group_name: 'stable_doors', loop_target: null,
-          label: 'Stable Door Hinges', condition: 'new_stable_door_pair_qty >= 1',
-          qty_expr: '4', product_short_name: '102mm_hinges', finish_code: 'PB', is_active: true },
-        ...STABLE_DOOR_DEFAULT_SET.map((x, i) => ({
-          id: `bf-old-${i}`, sort_order: 61 + i, group_name: 'stable_doors', loop_target: null,
-          label: x.label, condition: 'new_stable_door_pair_qty >= 1', qty_expr: String(x.qty),
-          product_short_name: x.short_name, finish_code: x.finish, is_active: true })),
-      ],
+      ironmongeryRules: live.ironmongeryRules.map(r => {
+        const id = String(r.id ?? '')
+        if (id.startsWith(STABLE_DOOR_HINGE_RULE)) return { ...r, is_active: true }
+        if (TRICKLE_VENT_RULES.includes(r.id)) {
+          return { ...r, condition: String(r.condition)
+            .replace(' and new_stable_door_pair_qty < 1', '') }
+        }
+        return r
+      }),
     }
-    const before = priceTemplate(byName('Stable Door'), firstIssue)
+    // the inactive row really is there, which is what makes this possible
+    expect(live.ironmongeryRules.some(r => String(r.id ?? '')
+      .startsWith(STABLE_DOOR_HINGE_RULE) && !r.is_active)).toBe(true)
+
+    const before = priceTemplate(byName('Stable Door'), undone)
     const after = priceTemplate(byName('Stable Door'))
     expect(before.results.price.total_cost - after.results.price.total_cost)
       .toBeCloseTo(34.65, 2)
-    // 2,709.72 is what the reviewer read on drawing 50
+    // 2,709.72 is what the reviewer read on drawing 50 before the re-issue
     expect(before.results.price.total_cost).toBeCloseTo(2709.72, 1)
-    // and the re-issued set has no hinge rule of its own
+    // and the set bf3 settled on has no hinge rule of its own
     expect(STABLE_DOOR_DEFAULT_SET.map(x => x.short_name)).not.toContain('102mm_hinges')
+    expect(STABLE_DOOR_IMPORTED_RULES.every(id => live.ironmongeryRules
+      .find(r => r.id === id)?.is_active === false)).toBe(true)
   })
 
   it('the two live vent rules keep firing on everything else', () => {

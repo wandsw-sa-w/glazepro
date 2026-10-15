@@ -32,14 +32,12 @@ import { runPricingOnTree } from './pricingEngine.js'
 import { resolveIronmongeryLines } from './loadPricingContext.js'
 import { buildFrontDoorFrame, FRONT_DOOR_TEMPLATES } from '../drawingBoard/doorOpenings.js'
 import { DOOR_PART_COST_MAP, OPEN_IN_PROFILE_VALUES } from './benchmarks/fixtureDoor.js'
-import { withAv4Costs, withFrontDoorIronmongery } from './benchmarks/frontDoorIronmongery.js'
-import { withShapedGlassRate } from './benchmarks/liveRuleFixes.js'
 
 /**
  * The live data as it stands after sql/step-bd1, sql/step-bd4 and
  * sql/step-be1 — all three RUN by the reviewer.
  */
-const LIVE = withShapedGlassRate(withAv4Costs(withFrontDoorIronmongery(SNAPSHOT)))
+const LIVE = SNAPSHOT
 
 function priceTemplate(options) {
   const { tree, missing } = buildFrontDoorFrame(OPEN_IN_PROFILE_VALUES, options)

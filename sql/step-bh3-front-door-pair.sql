@@ -160,12 +160,13 @@ BEGIN
 
   INSERT INTO public.price_rules
     (id, name, rule_family, level, group_name, condition, quantity, value,
-     sort_order, is_active, price_file_id)
+     output_unit, sort_order, is_active, price_file_id)
+    -- (reviewer, 15 Oct: output_unit is NOT NULL with no default — 'minutes', as the other Doors fitting rules)
   VALUES
     ('bb030001-0000-4000-8000-000000000001',
      'Front Door Pair Additional Door', 'install_labour', 'item', 'Doors',
      'is_front_door and is_complete_new and is_installation_included and new_french_door_pair_qty >= 1',
-     'new_french_door_pair_qty', '120', 3, TRUE, _price_file)
+     'new_french_door_pair_qty', '120', 'minutes', 3, TRUE, _price_file)
   ON CONFLICT (id) DO UPDATE
     SET name = EXCLUDED.name,
         rule_family = EXCLUDED.rule_family,
@@ -174,6 +175,7 @@ BEGIN
         condition = EXCLUDED.condition,
         quantity = EXCLUDED.quantity,
         value = EXCLUDED.value,
+        output_unit = EXCLUDED.output_unit,
         sort_order = EXCLUDED.sort_order,
         is_active = TRUE,
         price_file_id = EXCLUDED.price_file_id;

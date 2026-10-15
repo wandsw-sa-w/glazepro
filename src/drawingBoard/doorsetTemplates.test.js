@@ -36,10 +36,9 @@ import { computeVariables } from '../pricing/computeVariables.js'
 import { computeDerived } from './computeDerived.js'
 import { resolveIronmongeryLines } from '../pricing/loadPricingContext.js'
 import {
-  withShapedGlassRate, withStableDoorIronmongery, withFrontDoorPairLock,
-  withFrontDoorEuroPull, withStepBh3,
+  FRENCH_MASTER_LOCK_RULE, FRONT_DOOR_NOT, SLAVE_CLAUSE, MASTER_CLAUSE,
+  FRONT_DOOR_SET_RULES, FRONT_DOOR_PAIR_FITTING_RULE,
 } from '../pricing/benchmarks/liveRuleFixes.js'
-import { withAv4Costs } from '../pricing/benchmarks/frontDoorIronmongery.js'
 import { DOOR_PART_COST_MAP } from '../pricing/benchmarks/fixtureDoor.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -70,21 +69,14 @@ const openingsOf = tree => (frameOf(tree).children ?? []).filter(
   c => !['mullionPart', 'transomPart', 'cillPart'].includes(c.part_type))
 
 /**
- * THE LIVE RULE SET as the reviewer has it on 15 Oct: the capture plus every
- * file that has run since it was taken — the AV4 part costs (bd1), the
- * shaped-glass rate (be1), the stable-door set (bf3), the Croft euro pull
- * (bd4, Step BH follow-up item 7) and the front-door-pair lock (bh1).
- *
- * Each one is a named entry, so a refreshed snapshot turns it into a no-op
- * instead of a mystery.
+ * THE LIVE RULE SET. The reviewer refreshed the snapshot on 15 Oct, after
+ * `sql/step-bh3` and `sql/step-bh4` ran, so the capture now holds every file
+ * — the AV4 costs (bd1), the Croft pull (bd4), the shaped-glass rate (be1),
+ * the stable-door set (bf3), the front-door-pair lock (bh1), the set on the
+ * master leaf and the pair’s second leaf (bh3). The helpers that used to
+ * stand in for them are gone.
  */
 const LIVE = SNAPSHOT
-  ? withFrontDoorPairLock(withFrontDoorEuroPull(
-    withStableDoorIronmongery(withShapedGlassRate(withAv4Costs(SNAPSHOT)))))
-  : null
-
-/** And what `sql/step-bh3` will make it: items 4 and 5. */
-const AFTER_BH3 = LIVE ? withStepBh3(LIVE) : null
 
 /** Price a tree the way the live site does, with the live default ironmongery. */
 function priceTree(tree, context = LIVE) {
@@ -192,60 +184,78 @@ describe('Step BH — a pair of front doors (item 2)', () => {
     expect(results.price.total_cost).toBeGreaterThan(0)
   })
 
-  it.skipIf(!SNAPSHOT)('TODAY the front-door set lands on the SLAVE leaf', () => {
-    // Item 4. The five front-door rules carry
-    // `not is_master_leaf_in_french_pair`, so on a PAIR the master is the one
-    // leaf excluded and the whole set goes on the SLAVE — the LEFT leaf, so
-    // the LEFT-hand locking system. The set itself is right (hinges on both
-    // leaves, one letterbox, one pull, one lock), and it is the AV3 where the
-    // FT drawings carry a stored AV4: both for the reviewer, in the report.
+  it.skipIf(!SNAPSHOT)('the front-door set is on the MASTER leaf — sql/step-bh3 RAN', () => {
+    // Item 4, and the file ran live on 15 Oct. The five front-door rules
+    // carried `not is_master_leaf_in_french_pair`, so on a PAIR the master
+    // was the one leaf excluded and the whole set went on the SLAVE — the
+    // LEFT leaf, hence the left-hand locking system. They now carry
+    // `not is_slave_leaf_in_french_pair`, so the set is on the master (the
+    // RIGHT leaf) and comes RIGHT hand.
     const { lines } = priceTree(tree)
     expect(lines.map(l => [l.product_short_name, l.finish_code, l.qty])).toEqual([
       ['102mm_hinges', 'PB', 4],
       ['hardwick_classic_sleeved_letterbox', 'PB', 1],
       ['euro_cylinder_pull', 'PB', 1],
-      ['av3_heritage_locking_system_lh', 'PC', 1],
+      ['av3_heritage_locking_system_rh', 'PC', 1],
     ])
     // two pairs of hinges, one per leaf, from the per-leaf rule
     expect(lines.find(l => l.product_short_name === '102mm_hinges').qty).toBe(4)
+    // the clause itself, so the test names what it depends on
+    for (const id of FRONT_DOOR_SET_RULES) {
+      const rule = LIVE.ironmongeryRules.find(r => String(r.id ?? '').startsWith(id))
+      expect(rule?.condition, id).toContain(SLAVE_CLAUSE)
+    }
   })
 
-  it.skipIf(!SNAPSHOT)('sql/step-bh3 puts it on the MASTER, at the same cost', () => {
-    const before = priceTree(tree)
-    const after = priceTree(tree, AFTER_BH3)
-    // the master is the RIGHT leaf, so the set comes right hand
-    expect(after.lines.map(l => l.product_short_name)).toEqual([
-      '102mm_hinges', 'hardwick_classic_sleeved_letterbox',
-      'euro_cylinder_pull', 'av3_heritage_locking_system_rh',
-    ])
+  it.skipIf(!SNAPSHOT)('and on the SLAVE it would cost the same — the hands are level', () => {
+    // Which is why item 4 moved no money: both hands of the heritage set
+    // are £167.53. Undone, the set comes back left hand at the same cost.
+    const undone = {
+      ...LIVE,
+      ironmongeryRules: LIVE.ironmongeryRules.map(r => (
+        FRONT_DOOR_SET_RULES.some(id => String(r.id ?? '').startsWith(id))
+          ? { ...r, condition: String(r.condition).replace(SLAVE_CLAUSE, MASTER_CLAUSE) }
+          : r)),
+    }
+    const now = priceTree(tree)
+    const was = priceTree(tree, undone)
+    expect(was.lines.map(l => l.product_short_name)).toContain('av3_heritage_locking_system_lh')
+    expect(now.lines.map(l => l.product_short_name)).toContain('av3_heritage_locking_system_rh')
     const ironOf = r => r.results.price.lines
       .filter(l => l.fires && l.name === 'Ironmongery Cost')
       .reduce((t, l) => t + l.line_cost, 0)
-    // same money: the two hands cost the same
-    expect(ironOf(after)).toBeCloseTo(ironOf(before), 2)
-    // and the lock is on the leaf that carries it
-    const setLine = after.lines.find(l => /heritage/.test(l.product_short_name))
-    expect(setLine.qty).toBe(1)
+    expect(ironOf(now)).toBeCloseTo(ironOf(was), 2)
   })
 
-  it.skipIf(!SNAPSHOT)('sql/step-bh3 fits the second leaf: 840 + 120 = 16 h', () => {
-    // Item 5, Nathan 15 Oct. Integrate gives a pair only the 840, because
-    // "French Doors Additional Door" carries `not is_front_door`.
-    const before = priceTree(tree)
-    expect(before.results.install_labour.total_minutes).toBe(840)
-    const after = priceTree(tree, AFTER_BH3)
-    expect(after.results.install_labour.total_minutes).toBe(960)
-    expect(fired(after.results.install_labour).join(' | '))
+  it.skipIf(!SNAPSHOT)('the second leaf is fitted: 840 + 120 = 16 h', () => {
+    // Item 5, Nathan 15 Oct, live since sql/step-bh3. Integrate gives a pair
+    // only the 840, because "French Doors Additional Door" carries
+    // `not is_front_door` — so this 120 is GlazePro’s own (difference 22).
+    const now = priceTree(tree)
+    expect(now.results.install_labour.total_minutes).toBe(960)
+    expect(fired(now.results.install_labour).join(' | '))
       .toContain('Front Door Pair Additional Door 120')
-    // 2 h at 40.21 = 80.42 of cost, 160.84 of price
-    expect(after.results.price.total_cost - before.results.price.total_cost)
+
+    // and what it is worth: 2 h at 40.21 = 80.42 of cost, 160.84 of price
+    const without = {
+      ...LIVE,
+      rules: LIVE.rules.filter(r => r.name !== FRONT_DOOR_PAIR_FITTING_RULE),
+    }
+    const was = priceTree(tree, without)
+    expect(was.results.install_labour.total_minutes).toBe(840)
+    expect(now.results.price.total_cost - was.results.price.total_cost)
       .toBeCloseTo(80.42, 2)
-    expect(after.results.price.total - before.results.price.total)
+    expect(now.results.price.total - was.results.price.total)
       .toBeCloseTo(160.84, 2)
   })
 
   it.skipIf(!SNAPSHOT)('and a single front door, a French pair and a stable door do NOT move', () => {
-    // The new fitting rule must touch nothing else.
+    // The fitting rule must touch nothing else: a single front door has no
+    // pair, and a French pair and a stable door are not front doors.
+    const without = {
+      ...LIVE,
+      rules: LIVE.rules.filter(r => r.name !== FRONT_DOOR_PAIR_FITTING_RULE),
+    }
     const others = [
       ['a single front door', buildFrontDoorFrame(PV, {})],
       ['a French pair', buildFrenchDoorFrame(OUT_PV, {})],
@@ -253,12 +263,12 @@ describe('Step BH — a pair of front doors (item 2)', () => {
     ]
     for (const [label, built] of others) {
       const { tree: other } = asDrawing(built)
-      const before = priceTree(other)
-      const after = priceTree(other, AFTER_BH3)
-      expect(after.results.install_labour.total_minutes, label)
-        .toBe(before.results.install_labour.total_minutes)
-      expect(after.results.price.total_cost, label)
-        .toBeCloseTo(before.results.price.total_cost, 2)
+      const now = priceTree(other)
+      const was = priceTree(other, without)
+      expect(now.results.install_labour.total_minutes, label)
+        .toBe(was.results.install_labour.total_minutes)
+      expect(now.results.price.total_cost, label)
+        .toBeCloseTo(was.results.price.total_cost, 2)
     }
   })
 

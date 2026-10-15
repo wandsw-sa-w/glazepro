@@ -13,8 +13,6 @@ import { runPricingOnTree, shapedGlassCutAreaM2 } from '../pricingEngine.js'
 import { applySashesReplaced } from '../../drawingBoard/sashesReplaced.js'
 import { computeDerived } from '../../drawingBoard/computeDerived.js'
 import { computeVariables } from '../computeVariables.js'
-import { withAv4Costs } from './frontDoorIronmongery.js'
-import { withShapedGlassRate } from './liveRuleFixes.js'
 
 /**
  * Step BE: what C’s shaped glass is dearer by, from the fixture’s own
@@ -30,10 +28,10 @@ const C_SHAPED_GLASS = (BENCHMARK_C.deliberateDifference?.cost ?? 0) +
  * holds Integrate’s shaped rate, and withShapedGlassRate is a no-op once it
  * is refreshed.
  */
-const SNAPSHOT_LIVE = withShapedGlassRate(SNAPSHOT)
+const SNAPSHOT_LIVE = SNAPSHOT
 
 /** The same, with the AV4 costs: what the stable-door block prices from. */
-const FT_SNAPSHOT_ST = withShapedGlassRate(withAv4Costs(SNAPSHOT))
+const FT_SNAPSHOT_ST = SNAPSHOT
 import { shortDividerSpanMm, isShortDivider, frameCells, frameGridSize, frameOpenings, casementSashSize, casementSashWeightKg, casementFrameTimberVolumeDm3, casementSashTimberVolumeDm3, casementGlassSightline, frameMuntinLengthM, frameColumns, frameRows, itemFrames, CASEMENT_SASH_TYPES, FRENCH_SASH_TYPES } from '../casementGeometry.js'
 import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_B_UNCORRECTED, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F, BENCHMARK_G, BENCHMARK_H, BENCHMARK_I, BENCHMARK_J, BENCHMARK_K, BENCHMARK_L, BENCHMARK_M, BENCHMARK_N, BENCHMARK_P, BENCHMARK_Q, BENCHMARK_R, BENCHMARK_S, BENCHMARK_SA, BENCHMARK_SB, BENCHMARK_SC, BENCHMARK_SD, BENCHMARK_SE, BENCHMARK_SF, BENCHMARK_TC1, BENCHMARK_TC2, BENCHMARK_TC3, BENCHMARK_FR1, BENCHMARK_FR2, BENCHMARK_FD1, BENCHMARK_FD2, BENCHMARK_FD3, BENCHMARK_FD3b, BENCHMARK_FD4, BENCHMARK_FD5, BENCHMARK_FD6, BENCHMARK_FD7, BENCHMARK_SD1, BENCHMARK_SD2, BENCHMARK_SD3, BENCHMARK_SD4, BENCHMARK_CD1, BENCHMARK_CD2, BENCHMARK_CD3, BENCHMARK_CD4, BENCHMARK_FT1, BENCHMARK_FT2, BENCHMARK_FT3, BENCHMARK_FT4, BENCHMARK_ST1, BENCHMARK_ST2, BENCHMARK_ST3, BENCHMARK_OI1, BENCHMARK_OI2, BENCHMARK_OI3, BENCHMARK_SO1 } from './index.js'
 import { resolveIronmongeryLines } from '../loadPricingContext.js'
@@ -3106,7 +3104,7 @@ describe('Step BD — front door benchmarks', () => {
   // had in Step BB while the capture lagged the live data. withAv4Costs
   // never overwrites a cost the snapshot HAS, so a refreshed snapshot makes
   // it a no-op.
-  const FT_SNAPSHOT = withShapedGlassRate(withAv4Costs(SNAPSHOT))
+  const FT_SNAPSHOT = SNAPSHOT
 
   function runFT(bm) {
     return runPricingOnTree(bm.tree, FT_SNAPSHOT.rules, FT_SNAPSHOT.pfVariables, {
@@ -3365,7 +3363,7 @@ describe('Step BF — stable door benchmarks', () => {
 // and every figure follows from those.
 // ══════════════════════════════════════════════════════════════════════════════
 describe('Step BG — opening direction', () => {
-  const BG_SNAPSHOT = withShapedGlassRate(withAv4Costs(SNAPSHOT))
+  const BG_SNAPSHOT = SNAPSHOT
   const BG_CASES = [
     ['OI1', BENCHMARK_OI1, INTEGRATE.benchmarkOI1_french_doors_open_in,          3325, 870],
     ['OI2', BENCHMARK_OI2, INTEGRATE.benchmarkOI2_single_door_open_in,           2180, 705],

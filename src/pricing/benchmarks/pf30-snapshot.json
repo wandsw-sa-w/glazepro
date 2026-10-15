@@ -122,17 +122,17 @@
       "sort_order": 0
     },
     {
-      "id": "9b14e7f7-d5d1-431c-a16d-a3cd109c9453",
-      "name": "Direct Glazed Into Existing",
-      "rule_family": "install_labour",
+      "id": "8a90cad5-4c93-4bec-aee7-22c97cbf6340",
+      "name": "Stain £100 per item",
+      "rule_family": "price",
       "level": "item",
-      "condition": "direct_glazed_unit_qty > 0 and not frame_to_be_replaced",
-      "quantity": "120",
-      "value": "direct_glazed_unit_qty",
-      "markup": null,
+      "condition": "is_varnished_or_stained",
+      "quantity": "new_frame_qty + new_sliding_sash_qty",
+      "value": "100",
+      "markup": 2,
       "part_code": null,
       "loop_target": null,
-      "group_name": "Direct Glazed",
+      "group_name": "manufacture_materials",
       "is_active": true,
       "sort_order": 1
     },
@@ -167,21 +167,6 @@
       "sort_order": 1
     },
     {
-      "id": "cfb6f1e6-c317-4790-9855-3d256f192393",
-      "name": "Single Glazed (Error Price)",
-      "rule_family": "price",
-      "level": "item",
-      "condition": "is_single_glazed and not is_bi_glass and single_pane_cost < 250",
-      "quantity": "rounded_area",
-      "value": "single_pane_cost",
-      "markup": 1000,
-      "part_code": null,
-      "loop_target": "glass_unit",
-      "group_name": "glass_done",
-      "is_active": true,
-      "sort_order": 1
-    },
-    {
       "id": "1bf9cb2e-b569-48e5-85fc-530932163a66",
       "name": "DSO Extra Profits",
       "rule_family": "price",
@@ -193,6 +178,21 @@
       "part_code": null,
       "loop_target": null,
       "group_name": "extra_profits",
+      "is_active": true,
+      "sort_order": 1
+    },
+    {
+      "id": "cfb6f1e6-c317-4790-9855-3d256f192393",
+      "name": "Single Glazed (Error Price)",
+      "rule_family": "price",
+      "level": "item",
+      "condition": "is_single_glazed and not is_bi_glass and single_pane_cost < 250",
+      "quantity": "rounded_area",
+      "value": "single_pane_cost",
+      "markup": 1000,
+      "part_code": null,
+      "loop_target": "glass_unit",
+      "group_name": "glass_done",
       "is_active": true,
       "sort_order": 1
     },
@@ -212,19 +212,34 @@
       "sort_order": 1
     },
     {
-      "id": "8a90cad5-4c93-4bec-aee7-22c97cbf6340",
-      "name": "Stain £100 per item",
-      "rule_family": "price",
+      "id": "9b14e7f7-d5d1-431c-a16d-a3cd109c9453",
+      "name": "Direct Glazed Into Existing",
+      "rule_family": "install_labour",
       "level": "item",
-      "condition": "is_varnished_or_stained",
-      "quantity": "new_frame_qty + new_sliding_sash_qty",
-      "value": "100",
-      "markup": 2,
+      "condition": "direct_glazed_unit_qty > 0 and not frame_to_be_replaced",
+      "quantity": "120",
+      "value": "direct_glazed_unit_qty",
+      "markup": null,
       "part_code": null,
       "loop_target": null,
-      "group_name": "manufacture_materials",
+      "group_name": "Direct Glazed",
       "is_active": true,
       "sort_order": 1
+    },
+    {
+      "id": "eb8c07dc-cbe9-4021-be95-fad95d11b6b3",
+      "name": "Front Door and Frame (Transom)",
+      "rule_family": "install_labour",
+      "level": "item",
+      "condition": "is_front_door and is_complete_new and is_installation_included",
+      "quantity": "frame_transom_qty",
+      "value": "90",
+      "markup": null,
+      "part_code": null,
+      "loop_target": null,
+      "group_name": "Doors",
+      "is_active": true,
+      "sort_order": 2
     },
     {
       "id": "55c5efe5-2d7d-4dc8-971c-6195d710099c",
@@ -257,21 +272,6 @@
       "sort_order": 2
     },
     {
-      "id": "eb8c07dc-cbe9-4021-be95-fad95d11b6b3",
-      "name": "Front Door and Frame (Transom)",
-      "rule_family": "install_labour",
-      "level": "item",
-      "condition": "is_front_door and is_complete_new and is_installation_included",
-      "quantity": "frame_transom_qty",
-      "value": "90",
-      "markup": null,
-      "part_code": null,
-      "loop_target": null,
-      "group_name": "Doors",
-      "is_active": true,
-      "sort_order": 2
-    },
-    {
       "id": "cb19c76d-965e-4703-aa2a-1e11f64b664a",
       "name": "2.5sqm Direct Glazed Into Existing",
       "rule_family": "install_labour",
@@ -283,6 +283,21 @@
       "part_code": null,
       "loop_target": null,
       "group_name": "Direct Glazed",
+      "is_active": true,
+      "sort_order": 3
+    },
+    {
+      "id": "bb030001-0000-4000-8000-000000000001",
+      "name": "Front Door Pair Additional Door",
+      "rule_family": "install_labour",
+      "level": "item",
+      "condition": "is_front_door and is_complete_new and is_installation_included and new_french_door_pair_qty >= 1",
+      "quantity": "new_french_door_pair_qty",
+      "value": "120",
+      "markup": null,
+      "part_code": null,
+      "loop_target": null,
+      "group_name": "Doors",
       "is_active": true,
       "sort_order": 3
     },
@@ -512,36 +527,6 @@
       "sort_order": 10
     },
     {
-      "id": "b7daf261-e626-4e9c-be39-a65f40cd4fce",
-      "name": "PoS - White Standard Subs",
-      "rule_family": "manufacture_labour",
-      "level": "item",
-      "condition": "is_same_finish_internally_and_externally and is_sw and nj_involved",
-      "quantity": "new_sliding_sash_qty - 2",
-      "value": "20",
-      "markup": null,
-      "part_code": null,
-      "loop_target": null,
-      "group_name": "Finishing",
-      "is_active": true,
-      "sort_order": 11
-    },
-    {
-      "id": "fe0a79a2-76ca-4bb2-bd2e-a155e30227a4",
-      "name": "InstallSure Up to £10,000",
-      "rule_family": "price",
-      "level": "quote",
-      "condition": "(items_net_value * 1.2) >= 5000.01 and (items_net_value * 1.2) <= 10000 and nj_item_qty >= 1",
-      "quantity": "1",
-      "value": "36.12",
-      "markup": 2,
-      "part_code": null,
-      "loop_target": null,
-      "group_name": "_quote_level_",
-      "is_active": true,
-      "sort_order": 11
-    },
-    {
       "id": "71c97bc7-c9a4-4c8e-bebf-a943c0baabb9",
       "name": "French Doors",
       "rule_family": "install_labour",
@@ -557,6 +542,21 @@
       "sort_order": 11
     },
     {
+      "id": "b7daf261-e626-4e9c-be39-a65f40cd4fce",
+      "name": "PoS - White Standard Subs",
+      "rule_family": "manufacture_labour",
+      "level": "item",
+      "condition": "is_same_finish_internally_and_externally and is_sw and nj_involved",
+      "quantity": "new_sliding_sash_qty - 2",
+      "value": "20",
+      "markup": null,
+      "part_code": null,
+      "loop_target": null,
+      "group_name": "Finishing",
+      "is_active": true,
+      "sort_order": 11
+    },
+    {
       "id": "dde0f029-9ea6-455a-a26d-649d9968b973",
       "name": "1.75sqm Direct Glazed Unit in Frame",
       "rule_family": "install_labour",
@@ -568,6 +568,21 @@
       "part_code": null,
       "loop_target": "glass_unit",
       "group_name": "Direct Glazed",
+      "is_active": true,
+      "sort_order": 11
+    },
+    {
+      "id": "fe0a79a2-76ca-4bb2-bd2e-a155e30227a4",
+      "name": "InstallSure Up to £10,000",
+      "rule_family": "price",
+      "level": "quote",
+      "condition": "(items_net_value * 1.2) >= 5000.01 and (items_net_value * 1.2) <= 10000 and nj_item_qty >= 1",
+      "quantity": "1",
+      "value": "36.12",
+      "markup": 2,
+      "part_code": null,
+      "loop_target": null,
+      "group_name": "_quote_level_",
       "is_active": true,
       "sort_order": 11
     },
@@ -617,11 +632,11 @@
       "sort_order": 13
     },
     {
-      "id": "b092ccd4-1d39-468e-acbe-874ba73bc8c7",
-      "name": "4 sqm Direct Glazed Unit in Frame",
+      "id": "3373ea82-3875-4ca4-bbbb-d2d9b8283a68",
+      "name": "3.25 sqm Direct Glazed Unit in Frame",
       "rule_family": "install_labour",
       "level": "item",
-      "condition": "frame_to_be_replaced and actual_area > 4.0 and is_direct_glazed_unit",
+      "condition": "frame_to_be_replaced and actual_area > 3.25 and is_direct_glazed_unit",
       "quantity": "1",
       "value": "240",
       "markup": null,
@@ -632,11 +647,11 @@
       "sort_order": 13
     },
     {
-      "id": "3373ea82-3875-4ca4-bbbb-d2d9b8283a68",
-      "name": "3.25 sqm Direct Glazed Unit in Frame",
+      "id": "b092ccd4-1d39-468e-acbe-874ba73bc8c7",
+      "name": "4 sqm Direct Glazed Unit in Frame",
       "rule_family": "install_labour",
       "level": "item",
-      "condition": "frame_to_be_replaced and actual_area > 3.25 and is_direct_glazed_unit",
+      "condition": "frame_to_be_replaced and actual_area > 4.0 and is_direct_glazed_unit",
       "quantity": "1",
       "value": "240",
       "markup": null,
@@ -872,36 +887,6 @@
       "sort_order": 18
     },
     {
-      "id": "6e82cff5-b30a-4103-9263-fb1b25ede1b9",
-      "name": "Square Glass Cost",
-      "rule_family": "price",
-      "level": "item",
-      "condition": "is_double_glazed and inner_pane_thickness > 1 and not is_sash_arched",
-      "quantity": "rounded_area",
-      "value": "(inner_pane_cost + outer_pane_cost) + 1",
-      "markup": 2,
-      "part_code": null,
-      "loop_target": "glass_unit",
-      "group_name": "glass_done",
-      "is_active": true,
-      "sort_order": 20
-    },
-    {
-      "id": "e4046d3e-e6c6-41a2-a0e3-7076cfd0f71a",
-      "name": "1st Applied glazing bar",
-      "rule_family": "manufacture_labour",
-      "level": "item",
-      "condition": "gb_to_be_replaced_qty > 0 and not is_individual_panes and not is_door and not is_casement_window and not is_casement_window_bay",
-      "quantity": "1",
-      "value": "40",
-      "markup": null,
-      "part_code": null,
-      "loop_target": null,
-      "group_name": "Machine Shop",
-      "is_active": true,
-      "sort_order": 20
-    },
-    {
       "id": "372b760f-578c-4623-9b05-2bd1c0472f03",
       "name": "Drawing POA",
       "rule_family": "price",
@@ -917,17 +902,17 @@
       "sort_order": 20
     },
     {
-      "id": "c90dc6f6-03b1-44d9-94be-eedd2b141345",
-      "name": "PoS - Dual Special Finish",
-      "rule_family": "manufacture_labour",
+      "id": "6e82cff5-b30a-4103-9263-fb1b25ede1b9",
+      "name": "Square Glass Cost",
+      "rule_family": "price",
       "level": "item",
-      "condition": "is_sw and not is_same_finish_internally_and_externally",
-      "quantity": "1",
-      "value": "135",
-      "markup": null,
+      "condition": "is_double_glazed and inner_pane_thickness > 1 and not is_sash_arched",
+      "quantity": "rounded_area",
+      "value": "(inner_pane_cost + outer_pane_cost) + 1",
+      "markup": 2,
       "part_code": null,
-      "loop_target": null,
-      "group_name": "Finishing",
+      "loop_target": "glass_unit",
+      "group_name": "glass_done",
       "is_active": true,
       "sort_order": 20
     },
@@ -973,6 +958,36 @@
       "part_code": null,
       "loop_target": "glass_unit",
       "group_name": "Glass Manufacture",
+      "is_active": true,
+      "sort_order": 20
+    },
+    {
+      "id": "e4046d3e-e6c6-41a2-a0e3-7076cfd0f71a",
+      "name": "1st Applied glazing bar",
+      "rule_family": "manufacture_labour",
+      "level": "item",
+      "condition": "gb_to_be_replaced_qty > 0 and not is_individual_panes and not is_door and not is_casement_window and not is_casement_window_bay",
+      "quantity": "1",
+      "value": "40",
+      "markup": null,
+      "part_code": null,
+      "loop_target": null,
+      "group_name": "Machine Shop",
+      "is_active": true,
+      "sort_order": 20
+    },
+    {
+      "id": "c90dc6f6-03b1-44d9-94be-eedd2b141345",
+      "name": "PoS - Dual Special Finish",
+      "rule_family": "manufacture_labour",
+      "level": "item",
+      "condition": "is_sw and not is_same_finish_internally_and_externally",
+      "quantity": "1",
+      "value": "135",
+      "markup": null,
+      "part_code": null,
+      "loop_target": null,
+      "group_name": "Finishing",
       "is_active": true,
       "sort_order": 20
     },
@@ -1118,7 +1133,7 @@
       "level": "item",
       "condition": "is_double_glazed and inner_pane_thickness > 1 and is_sash_arched",
       "quantity": "rounded_area",
-      "value": "(inner_pane_cost + outer_pane_cost) * 1.25",
+      "value": "(inner_pane_cost + outer_pane_cost) + 1",
       "markup": 2,
       "part_code": null,
       "loop_target": "glass_unit",
@@ -1202,47 +1217,17 @@
       "sort_order": 30
     },
     {
-      "id": "96459933-f58a-48c5-a118-3fd4d6018793",
-      "name": "Box - White Standard Subs",
-      "rule_family": "manufacture_labour",
+      "id": "7d3b7971-b9d2-4f04-86d3-bdb7d4483f78",
+      "name": "BIG HOARG",
+      "rule_family": "install_labour",
       "level": "item",
-      "condition": "is_same_finish_internally_and_externally and is_sw and frame_to_be_replaced",
-      "quantity": "new_frame_qty + frame_mullion_qty - 1",
-      "value": "50",
+      "condition": "true",
+      "quantity": "big_hoarg_qty",
+      "value": "30",
       "markup": null,
       "part_code": null,
       "loop_target": null,
-      "group_name": "Finishing",
-      "is_active": true,
-      "sort_order": 31
-    },
-    {
-      "id": "a4e8c5d5-2899-4278-8583-700d2c85e903",
-      "name": "DSO SqM Rate",
-      "rule_family": "price",
-      "level": "item",
-      "condition": "needs_draughtsealing and not nj_involved",
-      "quantity": "frame_area",
-      "value": "10",
-      "markup": 2,
-      "part_code": null,
-      "loop_target": null,
-      "group_name": "extra_services",
-      "is_active": true,
-      "sort_order": 31
-    },
-    {
-      "id": "7adaa4b6-8352-407b-9bf7-e1e14cc187e6",
-      "name": "Shaped Glass Multiple Glazing Bar",
-      "rule_family": "price",
-      "level": "item",
-      "condition": "unit_gb_qty >= 1 and glass_unit_thickness >= 24 and is_sash_arched",
-      "quantity": "rounded_area",
-      "value": "44",
-      "markup": 2,
-      "part_code": null,
-      "loop_target": "glass_unit",
-      "group_name": "glass_done",
+      "group_name": "Other",
       "is_active": true,
       "sort_order": 31
     },
@@ -1262,17 +1247,47 @@
       "sort_order": 31
     },
     {
-      "id": "7d3b7971-b9d2-4f04-86d3-bdb7d4483f78",
-      "name": "BIG HOARG",
-      "rule_family": "install_labour",
+      "id": "7adaa4b6-8352-407b-9bf7-e1e14cc187e6",
+      "name": "Shaped Glass Multiple Glazing Bar",
+      "rule_family": "price",
       "level": "item",
-      "condition": "true",
-      "quantity": "big_hoarg_qty",
-      "value": "30",
+      "condition": "unit_gb_qty >= 1 and glass_unit_thickness >= 24 and is_sash_arched",
+      "quantity": "rounded_area",
+      "value": "44",
+      "markup": 2,
+      "part_code": null,
+      "loop_target": "glass_unit",
+      "group_name": "glass_done",
+      "is_active": true,
+      "sort_order": 31
+    },
+    {
+      "id": "a4e8c5d5-2899-4278-8583-700d2c85e903",
+      "name": "DSO SqM Rate",
+      "rule_family": "price",
+      "level": "item",
+      "condition": "needs_draughtsealing and not nj_involved",
+      "quantity": "frame_area",
+      "value": "10",
+      "markup": 2,
+      "part_code": null,
+      "loop_target": null,
+      "group_name": "extra_services",
+      "is_active": true,
+      "sort_order": 31
+    },
+    {
+      "id": "96459933-f58a-48c5-a118-3fd4d6018793",
+      "name": "Box - White Standard Subs",
+      "rule_family": "manufacture_labour",
+      "level": "item",
+      "condition": "is_same_finish_internally_and_externally and is_sw and frame_to_be_replaced",
+      "quantity": "new_frame_qty + frame_mullion_qty - 1",
+      "value": "50",
       "markup": null,
       "part_code": null,
       "loop_target": null,
-      "group_name": "Other",
+      "group_name": "Finishing",
       "is_active": true,
       "sort_order": 31
     },
@@ -1288,6 +1303,21 @@
       "part_code": null,
       "loop_target": "glass_unit",
       "group_name": "Glass Manufacture",
+      "is_active": true,
+      "sort_order": 35
+    },
+    {
+      "id": "885ac05e-528e-43a6-979a-5847d68f0971",
+      "name": "First Glazing Bar (Joinery)",
+      "rule_family": "manufacture_labour",
+      "level": "item",
+      "condition": "gb_to_be_replaced_qty > 0 and not is_individual_panes and not is_door and not is_casement_window and not is_casement_window_bay",
+      "quantity": "1",
+      "value": "25",
+      "markup": null,
+      "part_code": null,
+      "loop_target": null,
+      "group_name": "Joinery Shop",
       "is_active": true,
       "sort_order": 35
     },
@@ -1322,21 +1352,6 @@
       "sort_order": 35
     },
     {
-      "id": "885ac05e-528e-43a6-979a-5847d68f0971",
-      "name": "First Glazing Bar (Joinery)",
-      "rule_family": "manufacture_labour",
-      "level": "item",
-      "condition": "gb_to_be_replaced_qty > 0 and not is_individual_panes and not is_door and not is_casement_window and not is_casement_window_bay",
-      "quantity": "1",
-      "value": "25",
-      "markup": null,
-      "part_code": null,
-      "loop_target": null,
-      "group_name": "Joinery Shop",
-      "is_active": true,
-      "sort_order": 35
-    },
-    {
       "id": "eab9ca37-13b5-48fc-b4bc-15aa3395f71f",
       "name": "Subsequent Glazing Bar (Joinery)",
       "rule_family": "manufacture_labour",
@@ -1348,6 +1363,21 @@
       "part_code": null,
       "loop_target": null,
       "group_name": "Joinery Shop",
+      "is_active": true,
+      "sort_order": 40
+    },
+    {
+      "id": "c870c8fe-fa5c-4b7e-acf7-4cf596dc1c34",
+      "name": "Remove and Refit Panelling",
+      "rule_family": "install_labour",
+      "level": "item",
+      "condition": "(has_panelling or has_shutter_boxes) and remove_and_refit_existing_sdg_or_panel",
+      "quantity": "frame_qty",
+      "value": "900",
+      "markup": null,
+      "part_code": null,
+      "loop_target": null,
+      "group_name": "Other",
       "is_active": true,
       "sort_order": 40
     },
@@ -1382,51 +1412,6 @@
       "sort_order": 40
     },
     {
-      "id": "5f9df922-cb5e-49db-a357-c00246fab21b",
-      "name": "Casement Sash Replacement Decoration",
-      "rule_family": "install_labour",
-      "level": "item",
-      "condition": "is_decoration_included and nj_involved and is_installation_included",
-      "quantity": "casement_sash_qty",
-      "value": "90",
-      "markup": null,
-      "part_code": null,
-      "loop_target": null,
-      "group_name": "Decoration Group",
-      "is_active": true,
-      "sort_order": 40
-    },
-    {
-      "id": "c870c8fe-fa5c-4b7e-acf7-4cf596dc1c34",
-      "name": "Remove and Refit Panelling",
-      "rule_family": "install_labour",
-      "level": "item",
-      "condition": "(has_panelling or has_shutter_boxes) and remove_and_refit_existing_sdg_or_panel",
-      "quantity": "frame_qty",
-      "value": "900",
-      "markup": null,
-      "part_code": null,
-      "loop_target": null,
-      "group_name": "Other",
-      "is_active": true,
-      "sort_order": 40
-    },
-    {
-      "id": "96543a08-cb81-41fa-9a12-a445bfc0eb99",
-      "name": "Sash Replacement Decoration",
-      "rule_family": "install_labour",
-      "level": "item",
-      "condition": "is_decoration_included and nj_involved and is_installation_included",
-      "quantity": "sliding_sash_qty",
-      "value": "90",
-      "markup": null,
-      "part_code": null,
-      "loop_target": null,
-      "group_name": "Decoration Group",
-      "is_active": true,
-      "sort_order": 40
-    },
-    {
       "id": "4d8917d4-d8ab-475a-bd7b-de436ca7bb7b",
       "name": "Door Sash Replacement Decoration",
       "rule_family": "install_labour",
@@ -1453,6 +1438,36 @@
       "part_code": null,
       "loop_target": "sliding_sash",
       "group_name": "Machine Shop",
+      "is_active": true,
+      "sort_order": 40
+    },
+    {
+      "id": "5f9df922-cb5e-49db-a357-c00246fab21b",
+      "name": "Casement Sash Replacement Decoration",
+      "rule_family": "install_labour",
+      "level": "item",
+      "condition": "is_decoration_included and nj_involved and is_installation_included",
+      "quantity": "casement_sash_qty",
+      "value": "90",
+      "markup": null,
+      "part_code": null,
+      "loop_target": null,
+      "group_name": "Decoration Group",
+      "is_active": true,
+      "sort_order": 40
+    },
+    {
+      "id": "96543a08-cb81-41fa-9a12-a445bfc0eb99",
+      "name": "Sash Replacement Decoration",
+      "rule_family": "install_labour",
+      "level": "item",
+      "condition": "is_decoration_included and nj_involved and is_installation_included",
+      "quantity": "sliding_sash_qty",
+      "value": "90",
+      "markup": null,
+      "part_code": null,
+      "loop_target": null,
+      "group_name": "Decoration Group",
       "is_active": true,
       "sort_order": 40
     },
@@ -2387,21 +2402,6 @@
       "sort_order": 105
     },
     {
-      "id": "0f132a08-f637-4a63-a2ad-f4e918604809",
-      "name": "1500 Wide Casement Frame",
-      "rule_family": "install_labour",
-      "level": "item",
-      "condition": "overall_frame_width >= 1.5 and (is_casement_window or is_casement_window_bay) and is_installation_included and frame_to_be_replaced",
-      "quantity": "new_frame_qty",
-      "value": "60",
-      "markup": null,
-      "part_code": null,
-      "loop_target": null,
-      "group_name": "Casements",
-      "is_active": true,
-      "sort_order": 110
-    },
-    {
       "id": "c5ee32f2-a071-44a0-9a2b-6c9d04ee81b8",
       "name": "Casement Frame Jambs & Cills",
       "rule_family": "price",
@@ -2413,6 +2413,21 @@
       "part_code": null,
       "loop_target": "frame",
       "group_name": "manufacture_materials",
+      "is_active": true,
+      "sort_order": 110
+    },
+    {
+      "id": "0f132a08-f637-4a63-a2ad-f4e918604809",
+      "name": "1500 Wide Casement Frame",
+      "rule_family": "install_labour",
+      "level": "item",
+      "condition": "overall_frame_width >= 1.5 and (is_casement_window or is_casement_window_bay) and is_installation_included and frame_to_be_replaced",
+      "quantity": "new_frame_qty",
+      "value": "60",
+      "markup": null,
+      "part_code": null,
+      "loop_target": null,
+      "group_name": "Casements",
       "is_active": true,
       "sort_order": 110
     },
@@ -2552,17 +2567,17 @@
       "sort_order": 166
     },
     {
-      "id": "cd93b9bd-995e-4430-adab-8b009284bea2",
-      "name": "Casement Sash - Single Finish",
-      "rule_family": "manufacture_labour",
+      "id": "84c310c6-49ab-414b-a37d-e0aa11e63a24",
+      "name": "Building Site Install",
+      "rule_family": "install_labour",
       "level": "item",
-      "condition": "is_same_finish_internally_and_externally and not is_varnished_or_stained",
-      "quantity": "new_casement_sash_qty",
-      "value": "60",
+      "condition": "is_installation_level_test_1",
+      "quantity": "1",
+      "value": "1-61",
       "markup": null,
       "part_code": null,
       "loop_target": null,
-      "group_name": "Finishing",
+      "group_name": "Other",
       "is_active": true,
       "sort_order": 200
     },
@@ -2582,6 +2597,21 @@
       "sort_order": 200
     },
     {
+      "id": "cd93b9bd-995e-4430-adab-8b009284bea2",
+      "name": "Casement Sash - Single Finish",
+      "rule_family": "manufacture_labour",
+      "level": "item",
+      "condition": "is_same_finish_internally_and_externally and not is_varnished_or_stained",
+      "quantity": "new_casement_sash_qty",
+      "value": "60",
+      "markup": null,
+      "part_code": null,
+      "loop_target": null,
+      "group_name": "Finishing",
+      "is_active": true,
+      "sort_order": 200
+    },
+    {
       "id": "98968b0a-4ebb-44ce-be5b-8c695de0473b",
       "name": "Box Frames with Fanlights",
       "rule_family": "price",
@@ -2593,21 +2623,6 @@
       "part_code": null,
       "loop_target": "frame",
       "group_name": "extra_profits",
-      "is_active": true,
-      "sort_order": 200
-    },
-    {
-      "id": "84c310c6-49ab-414b-a37d-e0aa11e63a24",
-      "name": "Building Site Install",
-      "rule_family": "install_labour",
-      "level": "item",
-      "condition": "is_installation_level_test_1",
-      "quantity": "1",
-      "value": "1-61",
-      "markup": null,
-      "part_code": null,
-      "loop_target": null,
-      "group_name": "Other",
       "is_active": true,
       "sort_order": 200
     },
@@ -2627,21 +2642,6 @@
       "sort_order": 205
     },
     {
-      "id": "531b3c75-8822-4ce5-8dc5-707eeb2afbe8",
-      "name": "Casement Frame - Single Finish",
-      "rule_family": "manufacture_labour",
-      "level": "item",
-      "condition": "is_same_finish_internally_and_externally and not is_sw and not is_door and not is_varnished_or_stained",
-      "quantity": "new_frame_qty",
-      "value": "90",
-      "markup": null,
-      "part_code": null,
-      "loop_target": null,
-      "group_name": "Finishing",
-      "is_active": true,
-      "sort_order": 210
-    },
-    {
       "id": "9e5cc686-d8bc-4907-a7af-64bcbc0c3fe4",
       "name": "Scaffold Tower",
       "rule_family": "install_labour",
@@ -2653,6 +2653,21 @@
       "part_code": null,
       "loop_target": null,
       "group_name": "Other",
+      "is_active": true,
+      "sort_order": 210
+    },
+    {
+      "id": "531b3c75-8822-4ce5-8dc5-707eeb2afbe8",
+      "name": "Casement Frame - Single Finish",
+      "rule_family": "manufacture_labour",
+      "level": "item",
+      "condition": "is_same_finish_internally_and_externally and not is_sw and not is_door and not is_varnished_or_stained",
+      "quantity": "new_frame_qty",
+      "value": "90",
+      "markup": null,
+      "part_code": null,
+      "loop_target": null,
+      "group_name": "Finishing",
       "is_active": true,
       "sort_order": 210
     },
@@ -2732,21 +2747,6 @@
       "sort_order": 220
     },
     {
-      "id": "7348f00f-0756-4185-b16c-ceec9f6091c9",
-      "name": "Tricoya Panel",
-      "rule_family": "price",
-      "level": "item",
-      "condition": "not is_varnished_or_stained",
-      "quantity": "(visible_width_in_mm_old * visible_height_in_mm_old) / 1000000",
-      "value": "(62.95 * 1.5) * 2",
-      "markup": 2,
-      "part_code": null,
-      "loop_target": "panel",
-      "group_name": "manufacture_materials",
-      "is_active": true,
-      "sort_order": 225
-    },
-    {
       "id": "3bac75e1-0f23-407c-b3ae-fd4f2e8b947a",
       "name": "Casement Frame - Staining External Only",
       "rule_family": "manufacture_labour",
@@ -2762,19 +2762,19 @@
       "sort_order": 225
     },
     {
-      "id": "9385eb66-14ea-454c-9612-a52950bacbaa",
-      "name": "Casement Frame - Staining Internal Only",
-      "rule_family": "manufacture_labour",
+      "id": "7348f00f-0756-4185-b16c-ceec9f6091c9",
+      "name": "Tricoya Panel",
+      "rule_family": "price",
       "level": "item",
-      "condition": "frame_to_be_replaced and not is_sw and not is_door and not is_varnished_or_stained_externally and is_varnished_or_stained_internally",
-      "quantity": "new_frame_qty",
-      "value": "600",
-      "markup": null,
+      "condition": "not is_varnished_or_stained",
+      "quantity": "(visible_width_in_mm_old * visible_height_in_mm_old) / 1000000",
+      "value": "(62.95 * 1.5) * 2",
+      "markup": 2,
       "part_code": null,
-      "loop_target": null,
-      "group_name": "Finishing",
+      "loop_target": "panel",
+      "group_name": "manufacture_materials",
       "is_active": true,
-      "sort_order": 226
+      "sort_order": 225
     },
     {
       "id": "a230db73-e871-4238-ab94-90d4ebdfc403",
@@ -2792,19 +2792,19 @@
       "sort_order": 226
     },
     {
-      "id": "03afa7bc-625b-4c58-b563-354efa4f5384",
-      "name": "Internal Bolection Moulding",
-      "rule_family": "price",
+      "id": "9385eb66-14ea-454c-9612-a52950bacbaa",
+      "name": "Casement Frame - Staining Internal Only",
+      "rule_family": "manufacture_labour",
       "level": "item",
-      "condition": "is_bolection_moulding_around_panel_internally",
-      "quantity": "1",
-      "value": "13.5",
-      "markup": 2,
+      "condition": "frame_to_be_replaced and not is_sw and not is_door and not is_varnished_or_stained_externally and is_varnished_or_stained_internally",
+      "quantity": "new_frame_qty",
+      "value": "600",
+      "markup": null,
       "part_code": null,
-      "loop_target": "panel",
-      "group_name": "manufacture_materials",
+      "loop_target": null,
+      "group_name": "Finishing",
       "is_active": true,
-      "sort_order": 227
+      "sort_order": 226
     },
     {
       "id": "066916ae-5d46-419f-9686-72337d3bf8e4",
@@ -2818,6 +2818,21 @@
       "part_code": null,
       "loop_target": null,
       "group_name": "Finishing",
+      "is_active": true,
+      "sort_order": 227
+    },
+    {
+      "id": "03afa7bc-625b-4c58-b563-354efa4f5384",
+      "name": "Internal Bolection Moulding",
+      "rule_family": "price",
+      "level": "item",
+      "condition": "is_bolection_moulding_around_panel_internally",
+      "quantity": "1",
+      "value": "13.5",
+      "markup": 2,
+      "part_code": null,
+      "loop_target": "panel",
+      "group_name": "manufacture_materials",
       "is_active": true,
       "sort_order": 227
     },
@@ -2837,21 +2852,6 @@
       "sort_order": 228
     },
     {
-      "id": "49e9e419-7fad-4189-8ffd-a4153c64e69c",
-      "name": "Fourth Floor 45 minutes",
-      "rule_family": "install_labour",
-      "level": "item",
-      "condition": "is_floor_set_as_fourth_floor",
-      "quantity": "1",
-      "value": "75",
-      "markup": null,
-      "part_code": null,
-      "loop_target": null,
-      "group_name": "Other",
-      "is_active": true,
-      "sort_order": 230
-    },
-    {
       "id": "1254d738-896e-422a-8fbb-54c92ee1a66c",
       "name": "Casement Sash - Staining External Only",
       "rule_family": "manufacture_labour",
@@ -2863,6 +2863,21 @@
       "part_code": null,
       "loop_target": null,
       "group_name": "Finishing",
+      "is_active": true,
+      "sort_order": 230
+    },
+    {
+      "id": "49e9e419-7fad-4189-8ffd-a4153c64e69c",
+      "name": "Fourth Floor 45 minutes",
+      "rule_family": "install_labour",
+      "level": "item",
+      "condition": "is_floor_set_as_fourth_floor",
+      "quantity": "1",
+      "value": "75",
+      "markup": null,
+      "part_code": null,
+      "loop_target": null,
+      "group_name": "Other",
       "is_active": true,
       "sort_order": 230
     },
@@ -2927,6 +2942,21 @@
       "sort_order": 245
     },
     {
+      "id": "9186a2ca-b76b-4a06-9481-fb9d7fa8010a",
+      "name": "Fully Coupled Frame Transport",
+      "rule_family": "price",
+      "level": "item",
+      "condition": "is_bay_with_fully_coupled_frames",
+      "quantity": "1",
+      "value": "150",
+      "markup": 2,
+      "part_code": null,
+      "loop_target": null,
+      "group_name": "extra_services",
+      "is_active": true,
+      "sort_order": 250
+    },
+    {
       "id": "bafc8961-8a40-42bc-88fa-db0a8c0a6c16",
       "name": "Linings",
       "rule_family": "install_labour",
@@ -2953,21 +2983,6 @@
       "part_code": null,
       "loop_target": null,
       "group_name": "Other",
-      "is_active": true,
-      "sort_order": 250
-    },
-    {
-      "id": "9186a2ca-b76b-4a06-9481-fb9d7fa8010a",
-      "name": "Fully Coupled Frame Transport",
-      "rule_family": "price",
-      "level": "item",
-      "condition": "is_bay_with_fully_coupled_frames",
-      "quantity": "1",
-      "value": "150",
-      "markup": 2,
-      "part_code": null,
-      "loop_target": null,
-      "group_name": "extra_services",
       "is_active": true,
       "sort_order": 250
     },
@@ -3362,6 +3377,21 @@
       "sort_order": 511
     },
     {
+      "id": "7d4538cb-a353-4f19-98a5-49373d625513",
+      "name": "Door Leaf - Stain Finish",
+      "rule_family": "manufacture_labour",
+      "level": "item",
+      "condition": "is_door and is_varnished_or_stained",
+      "quantity": "door_leaf_qty",
+      "value": "300",
+      "markup": null,
+      "part_code": null,
+      "loop_target": null,
+      "group_name": "Finishing",
+      "is_active": true,
+      "sort_order": 520
+    },
+    {
       "id": "c02596bd-c26e-4fa5-a51e-5e394b425c1e",
       "name": "Door Leaf - Single Finish",
       "rule_family": "manufacture_labour",
@@ -3384,21 +3414,6 @@
       "condition": "is_door and not is_same_finish_internally_and_externally",
       "quantity": "door_leaf_qty",
       "value": "180",
-      "markup": null,
-      "part_code": null,
-      "loop_target": null,
-      "group_name": "Finishing",
-      "is_active": true,
-      "sort_order": 520
-    },
-    {
-      "id": "7d4538cb-a353-4f19-98a5-49373d625513",
-      "name": "Door Leaf - Stain Finish",
-      "rule_family": "manufacture_labour",
-      "level": "item",
-      "condition": "is_door and is_varnished_or_stained",
-      "quantity": "door_leaf_qty",
-      "value": "300",
       "markup": null,
       "part_code": null,
       "loop_target": null,
@@ -5158,7 +5173,7 @@
       "group_name": "mpls_doors",
       "loop_target": "door_leaf",
       "label": "MPLS master or tall – shootbolt",
-      "condition": "is_door_mpls and gross_sash_height_in_mm > 1853 and is_master_leaf_in_french_pair",
+      "condition": "is_door_mpls and gross_sash_height_in_mm > 1853 and is_master_leaf_in_french_pair and not is_front_door",
       "qty_expr": "1",
       "part_code": "RJZ2382",
       "measure_expr": null,
@@ -7015,13 +7030,13 @@
     "RHZ2213": 45.21,
     "RHZ2214": 47.86,
     "RHZ2295": 8.61,
-    "RHZ2427": 0,
-    "RHZ2481": 0,
-    "RHZ2482": 0,
+    "RHZ2427": 5,
+    "RHZ2481": 107,
+    "RHZ2482": 107,
     "RHZ2819": 10.83,
     "RHZ2910": 1.85,
-    "RHZ3091": 0,
-    "RHZ3092": 0,
+    "RHZ3091": 30,
+    "RHZ3092": 30,
     "RHZ651": 3.25,
     "RHZ665": 3.25,
     "RHZ770": 1.75,
@@ -7103,30 +7118,6 @@
   },
   "ironmongeryRules": [
     {
-      "id": "0a4a3749-9cba-49e8-b0f9-0fe52f4cb077",
-      "sort_order": 0,
-      "group_name": "front_doors",
-      "loop_target": null,
-      "label": null,
-      "condition": "new_stable_door_pair_qty == 1",
-      "qty_expr": "1",
-      "product_short_name": "hardwick_lyndon_door_espag_set",
-      "finish_code": "PB",
-      "is_active": true
-    },
-    {
-      "id": "355c34bb-47f9-4757-876d-491afa6e9d7d",
-      "sort_order": 0,
-      "group_name": "sash_windows",
-      "loop_target": "sliding_sash",
-      "label": "Box Frame",
-      "condition": "is_complete_new and is_cord_hung",
-      "qty_expr": "0.5",
-      "product_short_name": "z-claw_fastener_kit_wpulleys",
-      "finish_code": "PB",
-      "is_active": true
-    },
-    {
       "id": "8d303c72-0623-4232-9843-8ef987afbf59",
       "sort_order": 0,
       "group_name": "front_doors",
@@ -7136,7 +7127,7 @@
       "qty_expr": "1",
       "product_short_name": "winkhaus_interlocking_stable_door_multipoint_lock",
       "finish_code": "PC",
-      "is_active": true
+      "is_active": false
     },
     {
       "id": "12d2787c-7d3f-467c-bf92-89a28bcc93f6",
@@ -7147,6 +7138,30 @@
       "condition": "new_stable_door_pair_qty == 1",
       "qty_expr": "2",
       "product_short_name": "double_euro_cylinder",
+      "finish_code": "PB",
+      "is_active": false
+    },
+    {
+      "id": "0a4a3749-9cba-49e8-b0f9-0fe52f4cb077",
+      "sort_order": 0,
+      "group_name": "front_doors",
+      "loop_target": null,
+      "label": null,
+      "condition": "new_stable_door_pair_qty == 1",
+      "qty_expr": "1",
+      "product_short_name": "hardwick_lyndon_door_espag_set",
+      "finish_code": "PB",
+      "is_active": false
+    },
+    {
+      "id": "355c34bb-47f9-4757-876d-491afa6e9d7d",
+      "sort_order": 0,
+      "group_name": "sash_windows",
+      "loop_target": "sliding_sash",
+      "label": "Box Frame",
+      "condition": "is_complete_new and is_cord_hung",
+      "qty_expr": "0.5",
+      "product_short_name": "z-claw_fastener_kit_wpulleys",
       "finish_code": "PB",
       "is_active": true
     },
@@ -7187,18 +7202,6 @@
       "is_active": true
     },
     {
-      "id": "8e50d176-4269-4468-b390-354bfb9cbc13",
-      "sort_order": 5,
-      "group_name": "mpls_casement",
-      "loop_target": "casement_sash",
-      "label": "Casement Handle",
-      "condition": "is_opening and is_casement_mpls and is_left_hand_hung_viewed_internally",
-      "qty_expr": "1",
-      "product_short_name": "connoisseur_handle_lh",
-      "finish_code": "PB",
-      "is_active": true
-    },
-    {
       "id": "9bd822b7-29b1-483e-afdb-f4ff7ec7489c",
       "sort_order": 5,
       "group_name": "mpls_door",
@@ -7207,6 +7210,18 @@
       "condition": "is_door_mpls and frame_to_be_replaced and not is_front_door and not is_french_door_leaf",
       "qty_expr": "1",
       "product_short_name": "hardwick_lyndon_door_espag_set",
+      "finish_code": "PB",
+      "is_active": true
+    },
+    {
+      "id": "8e50d176-4269-4468-b390-354bfb9cbc13",
+      "sort_order": 5,
+      "group_name": "mpls_casement",
+      "loop_target": "casement_sash",
+      "label": "Casement Handle",
+      "condition": "is_opening and is_casement_mpls and is_left_hand_hung_viewed_internally",
+      "qty_expr": "1",
+      "product_short_name": "connoisseur_handle_lh",
       "finish_code": "PB",
       "is_active": true
     },
@@ -7247,30 +7262,6 @@
       "is_active": true
     },
     {
-      "id": "c11aeeb4-dd0e-4e41-90f8-39f1114885c5",
-      "sort_order": 10,
-      "group_name": "door_hinges",
-      "loop_target": "door_leaf",
-      "label": "4 Hinges per Door",
-      "condition": "is_left_hand_hung_viewed_internally or is_right_hand_hung_viewed_internally",
-      "qty_expr": "2",
-      "product_short_name": "102mm_hinges",
-      "finish_code": "PB",
-      "is_active": true
-    },
-    {
-      "id": "e607cb4c-1d33-44af-8e4f-5106d2c16396",
-      "sort_order": 10,
-      "group_name": "sash_windows",
-      "loop_target": null,
-      "label": "Pair of Sashes",
-      "condition": "is_sw and nj_involved and not frame_to_be_replaced",
-      "qty_expr": "new_opening_sliding_sash_qty / 2",
-      "product_short_name": "z-claw_fastener_kit_wopulleys",
-      "finish_code": "PB",
-      "is_active": true
-    },
-    {
       "id": "9c98690e-351e-4c1d-a6d5-05e635fe807e",
       "sort_order": 10,
       "group_name": "heritage_casement",
@@ -7280,42 +7271,6 @@
       "qty_expr": "2",
       "product_short_name": "76mm_hinges",
       "finish_code": "PB",
-      "is_active": true
-    },
-    {
-      "id": "65c64755-ee52-47ab-b133-49e757280fb7",
-      "sort_order": 10,
-      "group_name": "bifolding_doors",
-      "loop_target": null,
-      "label": "2 Left",
-      "condition": "is_bi_fold_door_set and door_leaf_qty_folding_left == 2",
-      "qty_expr": "1",
-      "product_short_name": "centor_pivot_set",
-      "finish_code": "PB",
-      "is_active": false
-    },
-    {
-      "id": "acba2568-3a1d-4a8a-a032-555f6d7f6ced",
-      "sort_order": 10,
-      "group_name": "friction_hinges",
-      "loop_target": "casement_sash",
-      "label": "Up to 600mm",
-      "condition": "is_opening and (gross_sash_width_in_mm <= 600) and (weight_in_kg <= 22) and (gross_sash_height_in_mm <= 1300) and is_side_hung and not is_heritage_range and not is_french_casement_sash",
-      "qty_expr": "1",
-      "product_short_name": "defender_friction_hinge_-_side_hung_310mm",
-      "finish_code": "PC",
-      "is_active": true
-    },
-    {
-      "id": "971ba3b1-c4c9-4154-82ac-d0ad5f1bde8e",
-      "sort_order": 10,
-      "group_name": "mpls_casement",
-      "loop_target": "casement_sash",
-      "label": "Espag Gearbox",
-      "condition": "is_opening and is_casement_mpls",
-      "qty_expr": "1",
-      "product_short_name": "kenrick_extension_gear_box",
-      "finish_code": "PC",
       "is_active": true
     },
     {
@@ -7331,16 +7286,64 @@
       "is_active": false
     },
     {
-      "id": "b93c8be4-3a23-4cd3-875c-b5ab022f4c4a",
-      "sort_order": 11,
+      "id": "c11aeeb4-dd0e-4e41-90f8-39f1114885c5",
+      "sort_order": 10,
+      "group_name": "door_hinges",
+      "loop_target": "door_leaf",
+      "label": "4 Hinges per Door",
+      "condition": "is_left_hand_hung_viewed_internally or is_right_hand_hung_viewed_internally",
+      "qty_expr": "2",
+      "product_short_name": "102mm_hinges",
+      "finish_code": "PB",
+      "is_active": true
+    },
+    {
+      "id": "971ba3b1-c4c9-4154-82ac-d0ad5f1bde8e",
+      "sort_order": 10,
+      "group_name": "mpls_casement",
+      "loop_target": "casement_sash",
+      "label": "Espag Gearbox",
+      "condition": "is_opening and is_casement_mpls",
+      "qty_expr": "1",
+      "product_short_name": "kenrick_extension_gear_box",
+      "finish_code": "PC",
+      "is_active": true
+    },
+    {
+      "id": "e607cb4c-1d33-44af-8e4f-5106d2c16396",
+      "sort_order": 10,
+      "group_name": "sash_windows",
+      "loop_target": null,
+      "label": "Pair of Sashes",
+      "condition": "is_sw and nj_involved and not frame_to_be_replaced",
+      "qty_expr": "new_opening_sliding_sash_qty / 2",
+      "product_short_name": "z-claw_fastener_kit_wopulleys",
+      "finish_code": "PB",
+      "is_active": true
+    },
+    {
+      "id": "acba2568-3a1d-4a8a-a032-555f6d7f6ced",
+      "sort_order": 10,
       "group_name": "friction_hinges",
       "loop_target": "casement_sash",
       "label": "Up to 600mm",
-      "condition": "is_opening and is_side_hung and weight_in_kg > 22 and gross_sash_width_in_mm <= 600 or is_opening and is_side_hung and weight_in_kg > 22 and gross_sash_height_in_mm >= 1300 and not is_heritage_range and not is_french_casement_sash",
-      "qty_expr": "2",
-      "product_short_name": "76mm_hinges",
-      "finish_code": "PB",
+      "condition": "is_opening and (gross_sash_width_in_mm <= 600) and (weight_in_kg <= 22) and (gross_sash_height_in_mm <= 1300) and is_side_hung and not is_heritage_range and not is_french_casement_sash",
+      "qty_expr": "1",
+      "product_short_name": "defender_friction_hinge_-_side_hung_310mm",
+      "finish_code": "PC",
       "is_active": true
+    },
+    {
+      "id": "65c64755-ee52-47ab-b133-49e757280fb7",
+      "sort_order": 10,
+      "group_name": "bifolding_doors",
+      "loop_target": null,
+      "label": "2 Left",
+      "condition": "is_bi_fold_door_set and door_leaf_qty_folding_left == 2",
+      "qty_expr": "1",
+      "product_short_name": "centor_pivot_set",
+      "finish_code": "PB",
+      "is_active": false
     },
     {
       "id": "0bbf7cb7-f9f5-4308-af79-8e00b9db2c10",
@@ -7353,6 +7356,18 @@
       "product_short_name": "centor_wall_pivot_set",
       "finish_code": "PB",
       "is_active": false
+    },
+    {
+      "id": "b93c8be4-3a23-4cd3-875c-b5ab022f4c4a",
+      "sort_order": 11,
+      "group_name": "friction_hinges",
+      "loop_target": "casement_sash",
+      "label": "Up to 600mm",
+      "condition": "is_opening and is_side_hung and weight_in_kg > 22 and gross_sash_width_in_mm <= 600 or is_opening and is_side_hung and weight_in_kg > 22 and gross_sash_height_in_mm >= 1300 and not is_heritage_range and not is_french_casement_sash",
+      "qty_expr": "2",
+      "product_short_name": "76mm_hinges",
+      "finish_code": "PB",
+      "is_active": true
     },
     {
       "id": "6cdb474f-ffe6-4fc7-9ad3-c6ef8d7a2813",
@@ -7379,14 +7394,14 @@
       "is_active": true
     },
     {
-      "id": "75bc81fd-84d8-4a86-824d-b5c0887b5f3e",
+      "id": "8b0bf420-bf6e-41bf-b132-07eb6a882c3d",
       "sort_order": 15,
-      "group_name": "mpls_casement",
+      "group_name": "friction_hinges",
       "loop_target": "casement_sash",
-      "label": "306-442mm Extensions",
-      "condition": "is_opening and is_casement_mpls and is_top_hung and gross_sash_width_in_mm <= 442 and gross_sash_width_in_mm >= 306",
-      "qty_expr": "2",
-      "product_short_name": "kenrick_extension_300mm",
+      "label": "Up to 700mm",
+      "condition": "is_opening and (gross_sash_width_in_mm <= 700) and gross_sash_width_in_mm > 600 and (weight_in_kg <= 24) and (gross_sash_height_in_mm <= 1300) and is_side_hung and not is_heritage_range and not is_french_casement_sash",
+      "qty_expr": "1",
+      "product_short_name": "defender_friction_hinge_-_side_hung_412mm",
       "finish_code": "PC",
       "is_active": true
     },
@@ -7403,18 +7418,6 @@
       "is_active": true
     },
     {
-      "id": "3c28ef9a-b52e-46cf-b18f-3479828b8bf9",
-      "sort_order": 15,
-      "group_name": "bifolding_doors",
-      "loop_target": null,
-      "label": "2 Left",
-      "condition": "is_bi_fold_door_set and door_leaf_qty_folding_left == 2",
-      "qty_expr": "1",
-      "product_short_name": "centor_wall_pivot_set",
-      "finish_code": "PB",
-      "is_active": false
-    },
-    {
       "id": "f7f237ef-e86a-4552-b879-65c146ba7f24",
       "sort_order": 15,
       "group_name": "front_doors",
@@ -7427,14 +7430,26 @@
       "is_active": false
     },
     {
-      "id": "8b0bf420-bf6e-41bf-b132-07eb6a882c3d",
+      "id": "3c28ef9a-b52e-46cf-b18f-3479828b8bf9",
       "sort_order": 15,
-      "group_name": "friction_hinges",
-      "loop_target": "casement_sash",
-      "label": "Up to 700mm",
-      "condition": "is_opening and (gross_sash_width_in_mm <= 700) and gross_sash_width_in_mm > 600 and (weight_in_kg <= 24) and (gross_sash_height_in_mm <= 1300) and is_side_hung and not is_heritage_range and not is_french_casement_sash",
+      "group_name": "bifolding_doors",
+      "loop_target": null,
+      "label": "2 Left",
+      "condition": "is_bi_fold_door_set and door_leaf_qty_folding_left == 2",
       "qty_expr": "1",
-      "product_short_name": "defender_friction_hinge_-_side_hung_412mm",
+      "product_short_name": "centor_wall_pivot_set",
+      "finish_code": "PB",
+      "is_active": false
+    },
+    {
+      "id": "75bc81fd-84d8-4a86-824d-b5c0887b5f3e",
+      "sort_order": 15,
+      "group_name": "mpls_casement",
+      "loop_target": "casement_sash",
+      "label": "306-442mm Extensions",
+      "condition": "is_opening and is_casement_mpls and is_top_hung and gross_sash_width_in_mm <= 442 and gross_sash_width_in_mm >= 306",
+      "qty_expr": "2",
+      "product_short_name": "kenrick_extension_300mm",
       "finish_code": "PC",
       "is_active": true
     },
@@ -7448,6 +7463,18 @@
       "qty_expr": "2",
       "product_short_name": "76mm_hinges",
       "finish_code": "PB",
+      "is_active": true
+    },
+    {
+      "id": "9597e488-5eb3-4b00-b230-b0d40c849e07",
+      "sort_order": 20,
+      "group_name": "mpls_casement",
+      "loop_target": "casement_sash",
+      "label": "443-502mm Extensions",
+      "condition": "is_opening and is_casement_mpls and is_top_hung and gross_sash_width_in_mm <= 502 and gross_sash_width_in_mm >= 443",
+      "qty_expr": "2",
+      "product_short_name": "kenrick_extension_370mm",
+      "finish_code": "PC",
       "is_active": true
     },
     {
@@ -7475,30 +7502,6 @@
       "is_active": false
     },
     {
-      "id": "06dbb56d-fa1c-4e3f-9b7a-c15cf41bfe33",
-      "sort_order": 20,
-      "group_name": "friction_hinges",
-      "loop_target": "casement_sash",
-      "label": "8 inch top hung",
-      "condition": "is_top_hung and gross_sash_height_in_mm <= 350 and weight_in_kg <= 12 and not is_heritage_range and not is_french_casement_sash",
-      "qty_expr": "1",
-      "product_short_name": "defender_209mm",
-      "finish_code": "PC",
-      "is_active": true
-    },
-    {
-      "id": "9597e488-5eb3-4b00-b230-b0d40c849e07",
-      "sort_order": 20,
-      "group_name": "mpls_casement",
-      "loop_target": "casement_sash",
-      "label": "443-502mm Extensions",
-      "condition": "is_opening and is_casement_mpls and is_top_hung and gross_sash_width_in_mm <= 502 and gross_sash_width_in_mm >= 443",
-      "qty_expr": "2",
-      "product_short_name": "kenrick_extension_370mm",
-      "finish_code": "PC",
-      "is_active": true
-    },
-    {
       "id": "93861e39-e04a-428e-987d-167e7157ef05",
       "sort_order": 20,
       "group_name": "heritage_casement",
@@ -7508,6 +7511,18 @@
       "qty_expr": "1",
       "product_short_name": "hardwick_lyndon_12_forged_casement_stay",
       "finish_code": "PB",
+      "is_active": true
+    },
+    {
+      "id": "06dbb56d-fa1c-4e3f-9b7a-c15cf41bfe33",
+      "sort_order": 20,
+      "group_name": "friction_hinges",
+      "loop_target": "casement_sash",
+      "label": "8 inch top hung",
+      "condition": "is_top_hung and gross_sash_height_in_mm <= 350 and weight_in_kg <= 12 and not is_heritage_range and not is_french_casement_sash",
+      "qty_expr": "1",
+      "product_short_name": "defender_209mm",
+      "finish_code": "PC",
       "is_active": true
     },
     {
@@ -7535,18 +7550,6 @@
       "is_active": true
     },
     {
-      "id": "8f4116c9-bc37-4402-9196-f6480ef444d5",
-      "sort_order": 25,
-      "group_name": "mpls_casement",
-      "loop_target": "casement_sash",
-      "label": "503-698mm Extensions",
-      "condition": "is_opening and is_casement_mpls and is_top_hung and gross_sash_width_in_mm <= 698 and gross_sash_width_in_mm >= 503",
-      "qty_expr": "2",
-      "product_short_name": "kenrick_extension_490mm",
-      "finish_code": "PC",
-      "is_active": true
-    },
-    {
       "id": "53ffc6b1-10e7-4a2c-a134-5cef44ecd34d",
       "sort_order": 25,
       "group_name": "friction_hinges",
@@ -7555,6 +7558,18 @@
       "condition": "is_top_hung and gross_sash_height_in_mm <= 550 and gross_sash_height_in_mm > 350 and weight_in_kg <= 20 and not is_heritage_range and not is_french_casement_sash",
       "qty_expr": "1",
       "product_short_name": "defender_310mm",
+      "finish_code": "PC",
+      "is_active": true
+    },
+    {
+      "id": "8f4116c9-bc37-4402-9196-f6480ef444d5",
+      "sort_order": 25,
+      "group_name": "mpls_casement",
+      "loop_target": "casement_sash",
+      "label": "503-698mm Extensions",
+      "condition": "is_opening and is_casement_mpls and is_top_hung and gross_sash_width_in_mm <= 698 and gross_sash_width_in_mm >= 503",
+      "qty_expr": "2",
+      "product_short_name": "kenrick_extension_490mm",
       "finish_code": "PC",
       "is_active": true
     },
@@ -7576,34 +7591,10 @@
       "group_name": "front_doors",
       "loop_target": "door_leaf",
       "label": "Front Door Euro Cylinder Pull",
-      "condition": "is_front_door and is_door_mpls and not is_master_leaf_in_french_pair",
+      "condition": "is_front_door and is_door_mpls and not is_slave_leaf_in_french_pair",
       "qty_expr": "1",
-      "product_short_name": "hardwick_classic_euro_pull_set_back_to_back",
+      "product_short_name": "euro_cylinder_pull",
       "finish_code": "PB",
-      "is_active": true
-    },
-    {
-      "id": "30745d17-b24b-4fc4-93a7-b610334a5572",
-      "sort_order": 30,
-      "group_name": "heritage_casement",
-      "loop_target": "casement_sash",
-      "label": "Heritage Range Fastener",
-      "condition": "is_opening and is_heritage_range and is_side_hung and is_left_hand_hung_viewed_internally",
-      "qty_expr": "1",
-      "product_short_name": "hardwick_lyndon_lh_locking_nightvent_fastener",
-      "finish_code": "PB",
-      "is_active": true
-    },
-    {
-      "id": "2c359b28-50a3-457d-bcfd-d52114dc6793",
-      "sort_order": 30,
-      "group_name": "friction_hinges",
-      "loop_target": "casement_sash",
-      "label": "16 inch top hung",
-      "condition": "is_top_hung and gross_sash_height_in_mm <= 750 and gross_sash_height_in_mm > 550 and weight_in_kg <= 21 and not is_heritage_range and not is_french_casement_sash",
-      "qty_expr": "1",
-      "product_short_name": "defender_310mm",
-      "finish_code": "PC",
       "is_active": true
     },
     {
@@ -7624,10 +7615,34 @@
       "group_name": "front_doors",
       "loop_target": "door_leaf",
       "label": "Front Door Open In Left Hand Hung",
-      "condition": "is_front_door and is_opening_in and is_left_hand_hung_viewed_internally and is_door_mpls and not is_master_leaf_in_french_pair",
+      "condition": "is_front_door and is_opening_in and is_left_hand_hung_viewed_internally and is_door_mpls and not is_slave_leaf_in_french_pair",
       "qty_expr": "1",
       "product_short_name": "av3_heritage_locking_system_lh",
       "finish_code": "PC",
+      "is_active": true
+    },
+    {
+      "id": "2c359b28-50a3-457d-bcfd-d52114dc6793",
+      "sort_order": 30,
+      "group_name": "friction_hinges",
+      "loop_target": "casement_sash",
+      "label": "16 inch top hung",
+      "condition": "is_top_hung and gross_sash_height_in_mm <= 750 and gross_sash_height_in_mm > 550 and weight_in_kg <= 21 and not is_heritage_range and not is_french_casement_sash",
+      "qty_expr": "1",
+      "product_short_name": "defender_310mm",
+      "finish_code": "PC",
+      "is_active": true
+    },
+    {
+      "id": "30745d17-b24b-4fc4-93a7-b610334a5572",
+      "sort_order": 30,
+      "group_name": "heritage_casement",
+      "loop_target": "casement_sash",
+      "label": "Heritage Range Fastener",
+      "condition": "is_opening and is_heritage_range and is_side_hung and is_left_hand_hung_viewed_internally",
+      "qty_expr": "1",
+      "product_short_name": "hardwick_lyndon_lh_locking_nightvent_fastener",
+      "finish_code": "PB",
       "is_active": true
     },
     {
@@ -7639,30 +7654,6 @@
       "condition": "is_top_hung and gross_sash_height_in_mm <= 750 and gross_sash_height_in_mm > 550 and weight_in_kg > 21 and not is_heritage_range and not is_french_casement_sash",
       "qty_expr": "2",
       "product_short_name": "76mm_hinges",
-      "finish_code": "PB",
-      "is_active": true
-    },
-    {
-      "id": "501f9ca5-2b0a-43ab-8c70-1b0a991b6c88",
-      "sort_order": 35,
-      "group_name": "front_doors",
-      "loop_target": "door_leaf",
-      "label": "Front Door Open In Right Hand Hung",
-      "condition": "is_front_door and is_opening_in and is_right_hand_hung_viewed_internally and is_door_mpls and not is_master_leaf_in_french_pair",
-      "qty_expr": "1",
-      "product_short_name": "av3_heritage_locking_system_rh",
-      "finish_code": "PC",
-      "is_active": true
-    },
-    {
-      "id": "0489290b-8427-41b1-8780-39049759bdd6",
-      "sort_order": 35,
-      "group_name": "heritage_casement",
-      "loop_target": "casement_sash",
-      "label": "Heritage Range Fastener",
-      "condition": "is_opening and is_heritage_range and is_side_hung and is_right_hand_hung_viewed_internally",
-      "qty_expr": "1",
-      "product_short_name": "hardwick_lyndon_rh_locking_nightvent_fastener",
       "finish_code": "PB",
       "is_active": true
     },
@@ -7679,6 +7670,18 @@
       "is_active": true
     },
     {
+      "id": "501f9ca5-2b0a-43ab-8c70-1b0a991b6c88",
+      "sort_order": 35,
+      "group_name": "front_doors",
+      "loop_target": "door_leaf",
+      "label": "Front Door Open In Right Hand Hung",
+      "condition": "is_front_door and is_opening_in and is_right_hand_hung_viewed_internally and is_door_mpls and not is_slave_leaf_in_french_pair",
+      "qty_expr": "1",
+      "product_short_name": "av3_heritage_locking_system_rh",
+      "finish_code": "PC",
+      "is_active": true
+    },
+    {
       "id": "95b56a76-8555-497d-9049-d8b43f50602b",
       "sort_order": 35,
       "group_name": "mpls_casement",
@@ -7688,6 +7691,18 @@
       "qty_expr": "2",
       "product_short_name": "kenrick_extension_950mm",
       "finish_code": "PC",
+      "is_active": true
+    },
+    {
+      "id": "0489290b-8427-41b1-8780-39049759bdd6",
+      "sort_order": 35,
+      "group_name": "heritage_casement",
+      "loop_target": "casement_sash",
+      "label": "Heritage Range Fastener",
+      "condition": "is_opening and is_heritage_range and is_side_hung and is_right_hand_hung_viewed_internally",
+      "qty_expr": "1",
+      "product_short_name": "hardwick_lyndon_rh_locking_nightvent_fastener",
+      "finish_code": "PB",
       "is_active": true
     },
     {
@@ -7703,24 +7718,12 @@
       "is_active": true
     },
     {
-      "id": "33b4538a-c635-4a2a-861b-7da786f40c4a",
-      "sort_order": 40,
-      "group_name": "friction_hinges",
-      "loop_target": "casement_sash",
-      "label": "24 inch top hung",
-      "condition": "is_top_hung and gross_sash_height_in_mm <= 1200 and gross_sash_height_in_mm > 1000 and weight_in_kg <= 40 and not is_heritage_range and not is_french_casement_sash",
-      "qty_expr": "1",
-      "product_short_name": "defender_615mm",
-      "finish_code": "PC",
-      "is_active": true
-    },
-    {
       "id": "e938fc5a-04c7-4148-9122-89284c8d75c6",
       "sort_order": 40,
       "group_name": "front_doors",
       "loop_target": "door_leaf",
       "label": "Front Door Open Out Left Hand Hung",
-      "condition": "is_front_door and is_opening_out and is_left_hand_hung_viewed_internally and is_door_mpls and not is_master_leaf_in_french_pair",
+      "condition": "is_front_door and is_opening_out and is_left_hand_hung_viewed_internally and is_door_mpls and not is_slave_leaf_in_french_pair",
       "qty_expr": "1",
       "product_short_name": "av3_heritage_locking_system_rh",
       "finish_code": "PC",
@@ -7739,6 +7742,18 @@
       "is_active": true
     },
     {
+      "id": "33b4538a-c635-4a2a-861b-7da786f40c4a",
+      "sort_order": 40,
+      "group_name": "friction_hinges",
+      "loop_target": "casement_sash",
+      "label": "24 inch top hung",
+      "condition": "is_top_hung and gross_sash_height_in_mm <= 1200 and gross_sash_height_in_mm > 1000 and weight_in_kg <= 40 and not is_heritage_range and not is_french_casement_sash",
+      "qty_expr": "1",
+      "product_short_name": "defender_615mm",
+      "finish_code": "PC",
+      "is_active": true
+    },
+    {
       "id": "565f47cd-d355-4183-9ddf-453e2a8eb21c",
       "sort_order": 41,
       "group_name": "friction_hinges",
@@ -7748,6 +7763,18 @@
       "qty_expr": "2",
       "product_short_name": "76mm_hinges",
       "finish_code": "PB",
+      "is_active": true
+    },
+    {
+      "id": "d23e8262-8e96-4db0-a600-a91740d8e62d",
+      "sort_order": 45,
+      "group_name": "front_doors",
+      "loop_target": "door_leaf",
+      "label": "Front Door Open Out Right Hand Hung",
+      "condition": "is_front_door and is_opening_out and is_right_hand_hung_viewed_internally and is_door_mpls and not is_slave_leaf_in_french_pair",
+      "qty_expr": "1",
+      "product_short_name": "av3_heritage_locking_system_lh",
+      "finish_code": "PC",
       "is_active": true
     },
     {
@@ -7775,18 +7802,6 @@
       "is_active": true
     },
     {
-      "id": "d23e8262-8e96-4db0-a600-a91740d8e62d",
-      "sort_order": 45,
-      "group_name": "front_doors",
-      "loop_target": "door_leaf",
-      "label": "Front Door Open Out Right Hand Hung",
-      "condition": "is_front_door and is_opening_out and is_right_hand_hung_viewed_internally and is_door_mpls and not is_master_leaf_in_french_pair",
-      "qty_expr": "1",
-      "product_short_name": "av3_heritage_locking_system_lh",
-      "finish_code": "PC",
-      "is_active": true
-    },
-    {
       "id": "8208b56d-05a5-438c-a6a2-c392351cd5f0",
       "sort_order": 46,
       "group_name": "mpls_casement",
@@ -7811,18 +7826,6 @@
       "is_active": true
     },
     {
-      "id": "e4c01f82-8fe6-4f0c-af01-c0b8eacbd84e",
-      "sort_order": 50,
-      "group_name": "sash_windows",
-      "loop_target": null,
-      "label": "Trickle Vent",
-      "condition": "frame_to_be_replaced and not is_front_door and not is_heritage_range",
-      "qty_expr": "1",
-      "product_short_name": "trickle_vent_xr16",
-      "finish_code": "Wht",
-      "is_active": true
-    },
-    {
       "id": "7edf2791-1d94-4f83-bf93-68e6a924107e",
       "sort_order": 50,
       "group_name": "friction_hinges",
@@ -7832,6 +7835,18 @@
       "qty_expr": "1",
       "product_short_name": "76mm_hinges",
       "finish_code": "PB",
+      "is_active": true
+    },
+    {
+      "id": "e4c01f82-8fe6-4f0c-af01-c0b8eacbd84e",
+      "sort_order": 50,
+      "group_name": "sash_windows",
+      "loop_target": null,
+      "label": "Trickle Vent",
+      "condition": "frame_to_be_replaced and not is_front_door and not is_heritage_range and new_stable_door_pair_qty < 1",
+      "qty_expr": "1",
+      "product_short_name": "trickle_vent_xr16",
+      "finish_code": "Wht",
       "is_active": true
     },
     {
@@ -7852,7 +7867,7 @@
       "group_name": "sash_windows",
       "loop_target": null,
       "label": "Trickle Vent",
-      "condition": "frame_to_be_replaced and not is_front_door and not is_heritage_range and not is_sw",
+      "condition": "frame_to_be_replaced and not is_front_door and not is_heritage_range and not is_sw and new_stable_door_pair_qty < 1",
       "qty_expr": "1",
       "product_short_name": "trickle",
       "finish_code": "Wht",
@@ -7907,6 +7922,18 @@
       "is_active": true
     },
     {
+      "id": "bf030001-0000-4000-8000-000000000001",
+      "sort_order": 60,
+      "group_name": "stable_doors",
+      "loop_target": null,
+      "label": "Stable Door Hinges",
+      "condition": "new_stable_door_pair_qty >= 1",
+      "qty_expr": "4",
+      "product_short_name": "102mm_hinges",
+      "finish_code": "PB",
+      "is_active": false
+    },
+    {
       "id": "e7738e72-4654-4680-86eb-b176d6c00a2b",
       "sort_order": 60,
       "group_name": "mpls_casement",
@@ -7928,6 +7955,54 @@
       "qty_expr": "1",
       "product_short_name": "kenrick_excalibur_straight_extension_300mm",
       "finish_code": "PC",
+      "is_active": true
+    },
+    {
+      "id": "bf030002-0000-4000-8000-000000000002",
+      "sort_order": 61,
+      "group_name": "stable_doors",
+      "loop_target": null,
+      "label": "Stable Door Sashlock",
+      "condition": "new_stable_door_pair_qty >= 1",
+      "qty_expr": "1",
+      "product_short_name": "era_5_lever_sashlock",
+      "finish_code": "PB",
+      "is_active": true
+    },
+    {
+      "id": "bf030003-0000-4000-8000-000000000003",
+      "sort_order": 62,
+      "group_name": "stable_doors",
+      "loop_target": null,
+      "label": "Stable Door Deadlock",
+      "condition": "new_stable_door_pair_qty >= 1",
+      "qty_expr": "1",
+      "product_short_name": "era_deadlock",
+      "finish_code": "PB",
+      "is_active": true
+    },
+    {
+      "id": "bf030004-0000-4000-8000-000000000004",
+      "sort_order": 63,
+      "group_name": "stable_doors",
+      "loop_target": null,
+      "label": "Stable Door Trickle Vent",
+      "condition": "new_stable_door_pair_qty >= 1",
+      "qty_expr": "1",
+      "product_short_name": "trickle_vent_xr16",
+      "finish_code": "Blk",
+      "is_active": true
+    },
+    {
+      "id": "bf030005-0000-4000-8000-000000000005",
+      "sort_order": 64,
+      "group_name": "stable_doors",
+      "loop_target": null,
+      "label": "Stable Door Handle",
+      "condition": "new_stable_door_pair_qty >= 1",
+      "qty_expr": "1",
+      "product_short_name": "victorian",
+      "finish_code": "PB",
       "is_active": true
     },
     {
@@ -7967,16 +8042,16 @@
       "is_active": false
     },
     {
-      "id": "dcde3cdc-7776-45b5-b013-c616a21254b2",
+      "id": "8eaa3c9a-e7b1-42e0-a58f-fdc80fa3fb6d",
       "sort_order": 105,
-      "group_name": "mpls_casement",
-      "loop_target": "casement_sash",
-      "label": "Side Hung 443-502mm Extensions",
-      "condition": "is_opening and is_casement_mpls and is_side_hung and gross_sash_height_in_mm <= 502 and gross_sash_height_in_mm >= 443",
-      "qty_expr": "2",
-      "product_short_name": "kenrick_extension_370mm",
+      "group_name": "bifolding_doors",
+      "loop_target": null,
+      "label": "3000mm Top Track",
+      "condition": "is_bi_fold_door_set and overall_frame_width_in_mm <= 3000",
+      "qty_expr": "1",
+      "product_short_name": "centor_3640",
       "finish_code": "PC",
-      "is_active": true
+      "is_active": false
     },
     {
       "id": "4dcbb531-13fb-4c2e-9837-2d9bafa356e8",
@@ -7991,26 +8066,14 @@
       "is_active": false
     },
     {
-      "id": "8eaa3c9a-e7b1-42e0-a58f-fdc80fa3fb6d",
+      "id": "dcde3cdc-7776-45b5-b013-c616a21254b2",
       "sort_order": 105,
-      "group_name": "bifolding_doors",
-      "loop_target": null,
-      "label": "3000mm Top Track",
-      "condition": "is_bi_fold_door_set and overall_frame_width_in_mm <= 3000",
-      "qty_expr": "1",
-      "product_short_name": "centor_3640",
-      "finish_code": "PC",
-      "is_active": false
-    },
-    {
-      "id": "65018edf-1f97-4d10-b284-da04b9099ded",
-      "sort_order": 110,
       "group_name": "mpls_casement",
       "loop_target": "casement_sash",
-      "label": "Side Hung 503-698mm Extensions",
-      "condition": "is_opening and is_casement_mpls and is_side_hung and gross_sash_height_in_mm <= 698 and gross_sash_height_in_mm >= 503",
+      "label": "Side Hung 443-502mm Extensions",
+      "condition": "is_opening and is_casement_mpls and is_side_hung and gross_sash_height_in_mm <= 502 and gross_sash_height_in_mm >= 443",
       "qty_expr": "2",
-      "product_short_name": "kenrick_extension_490mm",
+      "product_short_name": "kenrick_extension_370mm",
       "finish_code": "PC",
       "is_active": true
     },
@@ -8025,6 +8088,18 @@
       "product_short_name": "centor_4240",
       "finish_code": "PC",
       "is_active": false
+    },
+    {
+      "id": "65018edf-1f97-4d10-b284-da04b9099ded",
+      "sort_order": 110,
+      "group_name": "mpls_casement",
+      "loop_target": "casement_sash",
+      "label": "Side Hung 503-698mm Extensions",
+      "condition": "is_opening and is_casement_mpls and is_side_hung and gross_sash_height_in_mm <= 698 and gross_sash_height_in_mm >= 503",
+      "qty_expr": "2",
+      "product_short_name": "kenrick_extension_490mm",
+      "finish_code": "PC",
+      "is_active": true
     },
     {
       "id": "e866db27-6ca8-4aea-a5df-6bba26c82798",
@@ -10284,22 +10359,22 @@
           "unit_cost": 25.84
         },
         {
-          "part_code": "RHZ3092",
-          "part_name": "Winkhaus AV4 RH Centre Keep w Dayswitch",
+          "part_code": "RHZ3091",
+          "part_name": "Winkhaus AV4 LH Centre Keep w Dayswitch",
           "qty": 1,
-          "unit_cost": 0
+          "unit_cost": 30
         },
         {
-          "part_code": "RHZ2482",
-          "part_name": "Winkhaus AV4 Heritage Lock RH",
+          "part_code": "RHZ2481",
+          "part_name": "Winkhaus AV4 Heritage Lock LH",
           "qty": 1,
-          "unit_cost": 0
+          "unit_cost": 107
         },
         {
           "part_code": "RHZ2427",
           "part_name": "Winkhaus AV4 Pocket Keep",
           "qty": 1,
-          "unit_cost": 0
+          "unit_cost": 5
         }
       ]
     },
@@ -10313,22 +10388,22 @@
           "unit_cost": 25.84
         },
         {
-          "part_code": "RHZ3091",
-          "part_name": "Winkhaus AV4 LH Centre Keep w Dayswitch",
+          "part_code": "RHZ3092",
+          "part_name": "Winkhaus AV4 RH Centre Keep w Dayswitch",
           "qty": 1,
-          "unit_cost": 0
+          "unit_cost": 30
         },
         {
-          "part_code": "RHZ2481",
-          "part_name": "Winkhaus AV4 Heritage Lock LH",
+          "part_code": "RHZ2482",
+          "part_name": "Winkhaus AV4 Heritage Lock RH",
           "qty": 1,
-          "unit_cost": 0
+          "unit_cost": 107
         },
         {
           "part_code": "RHZ2427",
           "part_name": "Winkhaus AV4 Pocket Keep",
           "qty": 1,
-          "unit_cost": 0
+          "unit_cost": 5
         }
       ]
     },

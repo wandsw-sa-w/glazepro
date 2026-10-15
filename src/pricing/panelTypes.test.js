@@ -19,10 +19,8 @@ import { runPricingOnTree } from './pricingEngine.js'
 import {
   BENCHMARK_FT1, BENCHMARK_FT2, BENCHMARK_FT3, BENCHMARK_FT4, BENCHMARK_FD4,
 } from './benchmarks/index.js'
-import { withAv4Costs } from './benchmarks/frontDoorIronmongery.js'
-import { withShapedGlassRate } from './benchmarks/liveRuleFixes.js'
 
-const LIVE = withShapedGlassRate(withAv4Costs(SNAPSHOT))
+const LIVE = SNAPSHOT
 const run = bm => runPricingOnTree(bm.tree, LIVE.rules, LIVE.pfVariables, {
   glassCatalogue:       LIVE.glassCatalogue,
   partAllocationRules:  LIVE.partAllocationRules,
