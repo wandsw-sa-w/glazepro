@@ -1,0 +1,93 @@
+# INTEGRATE — CASEMENT COMBINATIONS, CONFIGURATIONS 4-7, read 15 Oct 2026 by the reviewer on L31115 item 10 (TEST lead).
+# Drawings 29-32 created from Integrate's own templates (CW family, group "3. Combination Flush Casements"), UNCHANGED and
+# NOT re-saved (as TC1-TC3), priced one at a time through L31115 Quote 1 item 10 (Nathan approved; restored to drawing 18 =
+# 310641 afterwards, confirmed on reload). Production rules read in the Estimated Labour Time editor, fitting rules in
+# Installation > Fitting Units (test record L31115 / 1). PF30: workshop 24.66 / h, installation 40.21 / h, markup 2.00.
+# NATHAN 15 Oct: all four are sold.
+#
+# Common to all four (as TC1-TC3): range Casement, flush, Solid Redwood frame / sashes (38), utile cill (44), complete new,
+# Clean White both sides, isCasementMpls true. Frame 37 jambs / 47 head / 47 cill, depth 96, cill depth 128, stops 20.
+# Dividers 27 (stops 20). Every sash 54 thick, rails 62 / 62 / 62, bottom 83 (fanlights INCLUDED — Integrate's templates
+# store 83 on the top lights too), clearance 4, typeId 7 open out. Glass GL100010 / GL100080, rebate 16, tolerance 2.
+# Stored surround: Nosing in Solid Redwood x1 + Ogee Architrave MDF x2 (height) + x1 (width) — fires labour "Windowboard" 30.
+#
+# ── C4 = drawing 10/29 (310768), template 89818 "Configuration 4", 1299 x 1307: opener | fixed | opener ────────────────────
+# Internal 1225 x 1213. Mullions 27 at offset 393 / 805 (full height). Columns 393 | 385 | 393.
+#   A1 op 17 LH 385 x 1205 (glass 261 x 1060) ; B1 op 11 FIXED 377 x 1205 ; C1 op 18 RH 385 x 1205. Cills 393 / 385 / 393.
+# Stored ironmongery: connoisseur_handle_lh PB 1 ; connoisseur_handle_rh PB 1 ; defender_friction_hinge_-_side_hung_310mm PC 2 ;
+#   kenrick_extension_950mm PC 4 ; kenrick_extension_gear_box PC 2 ; trickle_vent_xr16 Wht 1.
+# Surround: Nosing 1450 ; Ogee x2 1410 ; Ogee x1 1400.
+# Integrate cost 1,379.11 / price 2,758.24:
+#   Square Glass 3 x 0.31 = 18.14 each ; Energy 3 x 6.20 kg 1.05                                   glass_done 57.57
+#   Ironmongery 59.85 (8.40, 8.40, 16.80, 4.20, 8.40, 8.40, 1.05, 1.05, 3.15) ; Component nosing 2.76 x 1.50 = 4.14,
+#     architrave 2.85 x 2.80 = 7.98 + 2.85 x 1.40 = 3.99 ; Installation Consumables 30            installation_materials 105.96
+#   Production 25.50 h = 628.83 (1,530 min): 1000 Casement Sash 3 x 180 ; 1100 Casement Frame 180 ; 1105 Mullion / Transom
+#     2 x 180 ; 30 Glazing 3 x 20 ; 200 Casement Sash Single Finish 3 x 60 ; 210 Casement Frame Single Finish 90 ;
+#     211 per divider 2 x 60.
+#   Labour 12.50 h = 502.63 (750 min): 13 Base Casement Frame 480 ; 14 Opening Casement Sash 2 x 90 ; 15 Fixed Casement
+#     Sash 60 ; 251 Windowboard 30.
+#   Softwood Casement Frame & Sashes 46.86 x 0.55 = 25.77 ; Softwood Casement Sashes 11.08 / 11.02 / 11.08 x 0.55 =
+#     6.09 / 6.06 / 6.09 ; Hardwood Casement Cill 13.93 x 1.09 = 15.11 ; LTW 25                    manufacture_materials 84.12
+#
+# ── C5 = drawing 10/30 (310769), template 89819 "Configuration 5", 1699 x 1307: opener | fixed | fixed | opener ─────────────
+# Internal 1625 x 1213. Mullions 27 at 389 / 799 / 1209. Columns 389 | 383 | 383 | 389.
+#   A1 op 17 LH 381 x 1205 ; B1 FIXED 375 x 1205 ; C1 FIXED 375 x 1205 ; D1 op 18 RH 381 x 1205. Cills 389 / 383 / 383 / 389.
+# Stored ironmongery: as C4. Surround: Nosing 1850 ; Ogee x2 1410 ; Ogee x1 1800.
+# Integrate cost 1,703.04 / price 3,406.08:
+#   Glass 0.31 / 0.30 / 0.30 / 0.31 (18.14 / 17.55 / 17.55 / 18.14) ; Energy 6.20 / 6.00 / 6.00 / 6.20 kg   glass_done 75.52
+#   Ironmongery 59.85 ; nosing 2.76 x 1.90 = 5.24 ; architrave 7.98 + 2.85 x 1.80 = 5.13 ; consumables 30  inst. 108.20
+#   Production 33.83 h = 834.25 (2,030): sash 4 x 180 ; frame 180 ; dividers 3 x 180 ; glazing 4 x 20 ; sash finish
+#     4 x 60 ; frame finish 90 ; per divider 3 x 60.
+#   Labour 14.50 h = 583.05 (870): frame 480 ; opening 2 x 90 ; fixed 2 x 60 ; 110 "1500 Wide Casement Frame" 60 ;
+#     Windowboard 30.
+#   Frame & Sashes 60.00 x 0.55 = 33.00 ; Sashes 11.05 / 11.00 / 11.00 / 11.05 x 0.55 ; Cill 18.21 x 1.09 = 19.76 ; LTW 25
+#                                                                                                 manufacture_materials 102.02
+#
+# ── C6 = drawing 10/31 (310770), template 6601 "Configuration 6", 1499 x 1199: full-height opener each side, top-hung
+#    fanlight over a fixed sash in the middle ──────────────────────────────────────────────────────────────────────────────
+# Internal 1425 x 1105. Mullions 27 at 459 / 937 (full height). Columns 459 | 451 | 461.
+# TransomPart 27 at offset 356 / 722 with startDivider = the LEFT mullion's id and endDivider = the RIGHT mullion's id (a
+#   SHORT transom in the middle column only — the first saved short divider GlazePro will hold since Step BH's save fix).
+#   A1 op 17 LH 451 x 1097 (glass 327 x 952) ; B1 op 15 TOP HUNG 443 x 348 (glass 319 x 203, bottom rail 83) ;
+#   C1 op 18 RH 453 x 1097 ; B2 op 11 FIXED 443 x 714 (glass 319 x 569). Cills 459 / 461 / 451 (stored in that order).
+# Stored ironmongery: connoisseur_handle_lh PB 2 ; connoisseur_handle_rh PB 1 ; defender_310mm PC 1 ;
+#   defender_friction_hinge_-_side_hung_310mm PC 2 ; kenrick_extension_300mm PC 2 ; kenrick_extension_950mm PC 4 ;
+#   kenrick_extension_gear_box PC 3 ; trickle_vent_xr16 Wht 1.
+# Surround: Nosing 1650 ; Ogee x2 1300 ; Ogee x1 1600.
+# Integrate cost 1,736.53 / price 3,473.05:
+#   Glass 0.35 (A1) 20.48 ; 0.30 (B1) 17.55 ; 0.30 (B2) 17.55 ; 0.35 (C1) 20.48 ; Energy 7.00 / 6.00 / 6.00 / 7.00 kg
+#                                                                                                 glass_done 80.48
+#   Ironmongery 74.55 (15.75, 8.40, 16.80, 5.25, 6.30, 2.10, 8.40, 12.60, 2.10, 2.10, 3.15) ; nosing 2.76 x 1.70 = 4.69 ;
+#     architrave 2.85 x 2.60 = 7.41 + 2.85 x 1.60 = 4.56 ; consumables 30                         installation_materials 129.61
+#   Production 33.83 h = 834.25 (2,030): sash 4 x 180 ; frame 180 ; dividers 3 x 180 (the short transom counts) ;
+#     glazing 4 x 20 ; sash finish 4 x 60 ; frame finish 90 ; per divider 3 x 60.
+#   Labour 15.00 h = 603.15 (900): frame 480 ; opening 3 x 90 (the top-hung fanlight counts as an opener) ; fixed 60 ;
+#     "1500 Wide Casement Frame" 60 (fires at 1,499 — see below) ; Windowboard 30.
+#   Frame & Sashes 48.91 x 0.55 = 26.90 ; Sashes 10.88 / 5.80 / 8.25 / 10.89 x 0.55 = 5.98 / 3.19 / 4.54 / 5.99 ;
+#     Cill 16.08 x 1.09 = 17.44 ; LTW 25                                                          manufacture_materials 89.04
+#
+# ── C7 = drawing 10/32 (310771), template 6602 "Configuration 7", 1499 x 1199: three columns, a light over each ─────────────
+# Internal 1425 x 1105. Mullions 27 at 459 / 937 and a transom 27 at 356 / 722, all FULL (startDivider / endDivider '0').
+#   Top row (opening 356 high): A1 op 15 TOP HUNG 451 x 348 ; B1 op 11 FIXED 443 x 348 ; C1 op 15 TOP HUNG 453 x 348.
+#   Bottom row (722): A2 op 17 LH 451 x 714 ; B2 op 11 FIXED 443 x 714 ; C2 op 18 RH 453 x 714. Cills 459 / 451 / 461.
+# Stored ironmongery: connoisseur_handle_lh PB 3 ; connoisseur_handle_rh PB 1 ; defender_310mm PC 2 ;
+#   defender_friction_hinge_-_side_hung_310mm PC 2 ; kenrick_extension_370mm PC 4 ; kenrick_extension_690mm PC 4 ;
+#   kenrick_extension_gear_box PC 4 ; trickle_vent_xr16 Wht 1.  Surround as C6.
+# Integrate cost 2,110.81 / price 4,221.63:
+#   Glass 6 x 0.30 = 17.55 each ; Energy 6 x 6.00 kg 1.02                                           glass_done 111.42
+#   Ironmongery 103.95 (24.15, 8.40, 16.80, 10.50, 8.40, 3.15, 6.30, 16.80, 3.15, 3.15, 3.15) ; nosing 4.69 ;
+#     architrave 7.41 + 4.56 ; consumables 30                                                     installation_materials 150.61
+#   Production 42.50 h = 1,048.05 (2,550): sash 6 x 180 ; frame 180 ; dividers 3 x 180 ; glazing 6 x 20 ; sash finish
+#     6 x 60 ; frame finish 90 ; per divider 3 x 60.
+#   Labour 17.50 h = 703.68 (1,050): frame 480 ; opening 4 x 90 ; fixed 2 x 60 ; "1500 Wide Casement Frame" 60 ;
+#     Windowboard 30.
+#   Frame & Sashes 56.88 x 0.55 = 31.28 ; Sashes 5.86 / 8.31 / 5.80 / 8.25 / 5.88 / 8.33 x 0.55 ; Cill 16.08 x 1.09 =
+#     17.44 ; LTW 25                                                                              manufacture_materials 97.05
+#
+# ── Things to watch ──────────────────────────────────────────────────────────────────────────────────────────────────────
+# 1. "1500 Wide Casement Frame" (rule 110, overall_frame_width >= 1.5) FIRES on C6 / C7 at 1,499 mm, and not on C4 (1,299).
+#    So Integrate's overall_frame_width is ROUNDED before the test (1.499 -> 1.50 at 2 dp, or 1.5 at 1 dp); GlazePro uses
+#    frame_width_m unrounded (1.499), so it would miss 60 min (40.21 cost) on C6 and C7. P (1,599) and C5 (1,699) fire either way.
+# 2. C6's transom is SHORT, bounded by both mullions — the save path fixed in Step BH follow-up 2 must carry it.
+# 3. Integrate's templates store 83 bottom rails on the fanlights; Nathan's GlazePro default for a new flush fanlight is 62
+#    (Step AV templates). The benchmarks keep Integrate's 83; the GlazePro templates use 62 (declared, as TC1-TC3).

@@ -1927,5 +1927,129 @@
       "production": 71.17,
       "labour": 14.5
     }
+  },
+  "benchmarkTC4_opener_fixed_opener": {
+    "source": "L31115 Item 10 Drawing 29 (Integrate template 'Configuration 4', 1299 x 1307, opener | fixed | opener, unchanged, unsaved). Read and priced 15 Oct 2026 via L31115 Quote 1 item 10. Facts: docs/integrate-L31115-configurations-4-7.txt.",
+    "total_cost": 1379.11,
+    "total_price": 2758.24,
+    "groups": {
+      "glass_done": {
+        "cost": 57.57,
+        "price": 115.14
+      },
+      "installation_materials": {
+        "cost": 105.96,
+        "price": 211.92
+      },
+      "manufacture": {
+        "cost": 628.83,
+        "price": 1257.66
+      },
+      "labour": {
+        "cost": 502.63,
+        "price": 1005.25
+      },
+      "manufacture_materials": {
+        "cost": 84.12,
+        "price": 168.27
+      }
+    },
+    "hours": {
+      "production": 25.5,
+      "labour": 12.5
+    }
+  },
+  "benchmarkTC5_opener_two_fixed_opener": {
+    "source": "L31115 Item 10 Drawing 30 (Integrate template 'Configuration 5', 1699 x 1307, opener | fixed | fixed | opener, unchanged, unsaved). Read and priced 15 Oct 2026 via L31115 Quote 1 item 10. Facts: docs/integrate-L31115-configurations-4-7.txt.",
+    "total_cost": 1703.04,
+    "total_price": 3406.08,
+    "groups": {
+      "glass_done": {
+        "cost": 75.52,
+        "price": 151.04
+      },
+      "installation_materials": {
+        "cost": 108.2,
+        "price": 216.41
+      },
+      "manufacture": {
+        "cost": 834.25,
+        "price": 1668.5
+      },
+      "labour": {
+        "cost": 583.05,
+        "price": 1166.09
+      },
+      "manufacture_materials": {
+        "cost": 102.02,
+        "price": 204.04
+      }
+    },
+    "hours": {
+      "production": 33.83,
+      "labour": 14.5
+    }
+  },
+  "benchmarkTC6_openers_each_side_fanlight_over_fixed": {
+    "source": "L31115 Item 10 Drawing 31 (Integrate template 'Configuration 6', 1499 x 1199, full-height openers each side, top-hung fanlight over a fixed sash in the middle (short transom), unchanged, unsaved). Read and priced 15 Oct 2026 via L31115 Quote 1 item 10. Facts: docs/integrate-L31115-configurations-4-7.txt.",
+    "total_cost": 1736.53,
+    "total_price": 3473.05,
+    "groups": {
+      "glass_done": {
+        "cost": 80.48,
+        "price": 160.94
+      },
+      "installation_materials": {
+        "cost": 129.61,
+        "price": 259.22
+      },
+      "manufacture": {
+        "cost": 834.25,
+        "price": 1668.5
+      },
+      "labour": {
+        "cost": 603.15,
+        "price": 1206.3
+      },
+      "manufacture_materials": {
+        "cost": 89.04,
+        "price": 178.09
+      }
+    },
+    "hours": {
+      "production": 33.83,
+      "labour": 15.0
+    }
+  },
+  "benchmarkTC7_three_columns_light_over_each": {
+    "source": "L31115 Item 10 Drawing 32 (Integrate template 'Configuration 7', 1499 x 1199, three columns with a light over each, unchanged, unsaved). Read and priced 15 Oct 2026 via L31115 Quote 1 item 10. Facts: docs/integrate-L31115-configurations-4-7.txt.",
+    "total_cost": 2110.81,
+    "total_price": 4221.63,
+    "groups": {
+      "glass_done": {
+        "cost": 111.42,
+        "price": 222.84
+      },
+      "installation_materials": {
+        "cost": 150.61,
+        "price": 301.22
+      },
+      "manufacture": {
+        "cost": 1048.05,
+        "price": 2096.1
+      },
+      "labour": {
+        "cost": 703.68,
+        "price": 1407.35
+      },
+      "manufacture_materials": {
+        "cost": 97.05,
+        "price": 194.12
+      }
+    },
+    "hours": {
+      "production": 42.5,
+      "labour": 17.5
+    }
   }
 }
