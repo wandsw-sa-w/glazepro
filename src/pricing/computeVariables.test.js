@@ -641,3 +641,48 @@ describe('computeQuoteVariables', () => {
     expect(qv.installation_labour_time).toBe(0)
   })
 })
+
+// ── Step BI item 2: overall_frame_width is ROUNDED before a rule reads it ────
+//
+// Integrate fires rule 110 "1500 Wide Casement Frame" on Configuration 6 and
+// Configuration 7, both 1,499 mm wide, and not on Configuration 4 at 1,299
+// (docs/integrate-L31115-configurations-4-7.txt). So it rounds the metre
+// figure before the >= 1.5 test. frame_width_m stays UNROUNDED: it is not a
+// threshold, and nothing may change the mm figures the timber rules multiply.
+describe('computeVariables — overall_frame_width rounding (Step BI)', () => {
+  const widthOf = mm => {
+    const tree = makeBoxSashTree({ frame: { width: mm } })
+    return computeVariables(tree, computeDerived(tree))
+  }
+
+  it('rounds to the nearest 10 mm — 1,499 reads as 1.5, so rule 110 fires', () => {
+    expect(widthOf(1499).overall_frame_width).toBe(1.5)
+    expect(widthOf(1499).overall_frame_width >= 1.5).toBe(true)
+  })
+
+  it('does not round 1,299 up — rule 110 must NOT fire on Configuration 4', () => {
+    expect(widthOf(1299).overall_frame_width).toBe(1.3)
+    expect(widthOf(1299).overall_frame_width >= 1.5).toBe(false)
+  })
+
+  it('the widths that already fired still fire: 1,599 and 1,699', () => {
+    expect(widthOf(1599).overall_frame_width).toBe(1.6)
+    expect(widthOf(1699).overall_frame_width).toBe(1.7)
+  })
+
+  it('rounds half UP, and exactly 1,500 is untouched', () => {
+    expect(widthOf(1495).overall_frame_width).toBe(1.5)
+    expect(widthOf(1494).overall_frame_width).toBe(1.49)
+    expect(widthOf(1500).overall_frame_width).toBe(1.5)
+  })
+
+  it('frame_width_m is left UNROUNDED — the timber rules read the mm', () => {
+    expect(widthOf(1499).frame_width_m).toBe(1.499)
+    expect(widthOf(1499).frame_width_in_mm).toBe(1499)
+  })
+
+  it('a frame with no width gives null, not 0', () => {
+    const tree = makeBoxSashTree({ frame: { width: null } })
+    expect(computeVariables(tree, computeDerived(tree)).overall_frame_width).toBe(null)
+  })
+})

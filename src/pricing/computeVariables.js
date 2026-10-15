@@ -815,7 +815,32 @@ export function computeVariables(tree, derived = {}, pfVariables = {}, opts = {}
     const frame_height_m = frame_height != null ? frame_height / 1000 : null
 
     // overall_frame_width in metres (used in install_labour rules)
-    const overall_frame_width = frame_width_m
+    //
+    // Step BI item 2: ROUNDED TO 2 dp — the nearest 10 mm — before any rule
+    // reads it, because that is what Integrate compares.
+    //
+    // Rule 110 "1500 Wide Casement Frame" (overall_frame_width >= 1.5) FIRES
+    // in Integrate on Configuration 6 and Configuration 7, both 1,499 mm
+    // wide, and does NOT fire on Configuration 4 at 1,299
+    // (docs/integrate-L31115-configurations-4-7.txt). An unrounded 1.499 is
+    // below 1.5, so GlazePro missed 60 minutes — £40.21 of install labour —
+    // on each of them.
+    //
+    // 2 dp is the rounding, not 1 dp. Both fit the four readings we hold
+    // (1,299 no; 1,499 yes; 1,599 and 1,699 yes), but 2 dp is the rounding
+    // Integrate is already known to use on a metre-scale figure — frame_area
+    // just below is rounded to 2 dp for the same reason — and the nearest
+    // 10 mm is how its surround lengths round too (surroundLines, Step AV /
+    // FR1). 1 dp would additionally fire anything from 1,450 up, which no
+    // reading supports. The two roundings differ only for widths 1,450-1,494
+    // (and 2,450-2,494 on rule 111), and no benchmark is in that band, so if
+    // one ever is read it settles the question — see docs/reports/step-bi.md.
+    //
+    // Done in mm to keep the comparison off the floating-point edge
+    // (1.499 * 100 is 149.89999999999998).
+    const overall_frame_width = frame_width != null
+      ? Math.round(frame_width / 10) * 10 / 1000
+      : null
 
     const frame_area_m2 = (frame_width != null && frame_height != null)
       ? Math.round((frame_width * frame_height) / 1e6 * 100) / 100 : null
