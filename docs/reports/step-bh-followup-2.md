@@ -235,5 +235,23 @@ reconstructing the old state **from the live rows**:
 
 # e2e after the deploy
 
-Recorded below once the Vercel deploy was confirmed by decoding
-`/version.json`.
+Deploy confirmed by decoding `/version.json`: **09:13:08Z**, 14 seconds after
+the commit.
+
+`npm run e2e` — **5 passed** (33.2s): logs in; every benchmark passes except
+the parked residuals; the fanlight drawing; the validation panel; every
+drawing card on the L507712 matrix priced, the five doorsets at their pinned
+figures.
+
+**What this run is worth, given that the snapshot was replaced.** The
+benchmark page prices from the LIVE data, not from the capture — so "61 rows,
+A50 and D parked" passing means the refreshed snapshot agrees with the site it
+was taken from, which is the whole point of refreshing it. And the validation
+panel still loads clean on drawing 24, with two built-in checks now running on
+every drawing.
+
+**What it cannot show** is the save fix: the suite is read-only, and the five
+cards show each drawing's last priced figure. The live check is
+`sql/step-bh5`, then re-pricing drawings 56 and 60 — both should read
+**£8,936.47** — or making one more drawing from template 38, which needs no
+SQL at all and should price the same.
