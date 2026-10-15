@@ -1157,3 +1157,190 @@ export const BENCHMARK_FR2 = {
   ironmongeryLines: FR2_IRONMONGERY,
   assumptions: FR_ASSUMPTIONS,
 }
+
+// ── Step BI — casement combinations, Configurations 4-7: TC4-TC7 ────────────
+//
+// Integrate's own combination templates again, drawn as L31115 item 10 and
+// read on 15 Oct (docs/integrate-L31115-configurations-4-7.txt). Nathan: all
+// four are sold.
+//
+//   TC4  10/29 — template 89818 "Configuration 4", 1299 x 1307
+//                opener | fixed | opener, three columns, no transom
+//   TC5  10/30 — template 89819 "Configuration 5", 1699 x 1307
+//                opener | fixed | fixed | opener, four columns
+//   TC6  10/31 — template 6601  "Configuration 6", 1499 x 1199
+//                a full-height opener each side, and a top-hung fanlight over
+//                a fixed sash in the MIDDLE column only — a SHORT transom
+//                bounded by BOTH mullions
+//   TC7  10/32 — template 6602  "Configuration 7", 1499 x 1199
+//                three columns with a light over each — all three dividers
+//                run frame to frame
+//
+// WHAT IS NEW HERE is only more of what Step AV built. TC4 and TC5 are plain
+// one-row frames with two and three mullions; TC7 is a plain 3 x 2 grid. TC6
+// is the first SHORT divider bounded at BOTH ends (TC1's mullion and TC3's
+// transom each ran to the frame at one end), which is why item 3 puts it
+// through the save round trip.
+//
+// The one rule that needed a change is install rule 110 "1500 Wide Casement
+// Frame": it fires in Integrate on TC6 and TC7 at 1,499 mm, so Integrate
+// rounds overall_frame_width before the >= 1.5 test. See computeVariables.js
+// GROUP 12 and docs/reports/step-bi.md.
+//
+// As TC1-TC3, these are Integrate's templates UNCHANGED and NEVER SAVED, so
+// each carries Integrate's stored ironmongery list and its stored surround
+// list INCLUDING the nosing, and every bottom rail is 83 — the fanlights
+// included, which is what Integrate's templates hold. GlazePro's own
+// templates use 62 on a fanlight (Nathan, 12 Oct) and carry neither stored
+// list; that is sql/step-bi1, not these fixtures.
+
+const TC4_IRONMONGERY = [
+  { product_short_name: 'connoisseur_handle_lh', finish_code: 'PB', qty: 1, source: 'survey' },
+  { product_short_name: 'connoisseur_handle_rh', finish_code: 'PB', qty: 1, source: 'survey' },
+  { product_short_name: 'defender_friction_hinge_-_side_hung_310mm', finish_code: 'PC', qty: 2, source: 'survey' },
+  { product_short_name: 'kenrick_extension_950mm', finish_code: 'PC', qty: 4, source: 'survey' },
+  { product_short_name: 'kenrick_extension_gear_box', finish_code: 'PC', qty: 2, source: 'survey' },
+  { product_short_name: 'trickle_vent_xr16', finish_code: 'Wht', qty: 1, source: 'survey' },
+]
+
+// ── TC4: opener | fixed | opener, 1299 x 1307 ──────────────────────────────
+// internal 1225 x 1213; both mullions run head to cill, so one row of three
+// columns: 393 + 27 + 385 + 27 + 393 = 1225.
+export const BENCHMARK_TC4 = {
+  name: 'Benchmark TC4 — Opener, fixed, opener (L31115 Item 10 Drawing 29)',
+  tree: tcTree({
+    width: 1299, height: 1307, nosing: 1450,
+    dividers: [
+      fullDivider('mull1', 'mullionPart', 393, 'mullionStopSize'),
+      fullDivider('mull2', 'mullionPart', 805, 'mullionStopSize'),
+    ],
+    openings: [
+      casementSash('cas_a1', 'left_hand_hung'),
+      casementSash('cas_b1', 'fix'),
+      casementSash('cas_c1', 'right_hand_hung'),
+    ],
+    ironmongeryLines: TC4_IRONMONGERY,
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkTC4_opener_fixed_opener },
+  partCostMap: TC_PART_COST_MAP,
+  profileValues: PROFILE_VALUES,
+  glassCatalogue: {},
+  ironmongeryLines: TC4_IRONMONGERY,
+  assumptions: TC_ASSUMPTIONS,
+}
+
+// ── TC5: opener | fixed | fixed | opener, 1699 x 1307 ──────────────────────
+// internal 1625 x 1213 = 389 + 27 + 383 + 27 + 383 + 27 + 389. Integrate's
+// stored ironmongery is the SAME list as TC4's, two extra fixed sashes and
+// all: Integrate does not re-run it when the openings change (as J-N).
+export const BENCHMARK_TC5 = {
+  name: 'Benchmark TC5 — Opener, two fixed, opener (L31115 Item 10 Drawing 30)',
+  tree: tcTree({
+    width: 1699, height: 1307, nosing: 1850,
+    dividers: [
+      fullDivider('mull1', 'mullionPart', 389, 'mullionStopSize'),
+      fullDivider('mull2', 'mullionPart', 799, 'mullionStopSize'),
+      fullDivider('mull3', 'mullionPart', 1209, 'mullionStopSize'),
+    ],
+    openings: [
+      casementSash('cas_a1', 'left_hand_hung'),
+      casementSash('cas_b1', 'fix'),
+      casementSash('cas_c1', 'fix'),
+      casementSash('cas_d1', 'right_hand_hung'),
+    ],
+    ironmongeryLines: TC4_IRONMONGERY,
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkTC5_opener_two_fixed_opener },
+  partCostMap: TC_PART_COST_MAP,
+  profileValues: PROFILE_VALUES,
+  glassCatalogue: {},
+  ironmongeryLines: TC4_IRONMONGERY,
+  assumptions: TC_ASSUMPTIONS,
+}
+
+// ── TC6: openers either side of a fanlight over fixed, 1499 x 1199 ─────────
+// internal 1425 x 1105. Both mullions run head to cill (459 + 27 + 451 + 27
+// + 461 = 1425); the TRANSOM starts at the LEFT mullion and ends at the
+// RIGHT one, so it exists in the middle column alone and the two side
+// openers run the full 1105.
+//
+// The first divider in the repository bounded at BOTH ends — item 3.
+const TC6_MULL_L = fullDivider('mull1', 'mullionPart', 459, 'mullionStopSize')
+const TC6_MULL_R = fullDivider('mull2', 'mullionPart', 937, 'mullionStopSize')
+const TC6_TRANSOM = shortDivider('trans1', 'transomPart', 356, 'transomStopSize',
+  { startDivider: 'mull1', endDivider: 'mull2' })
+
+const TC6_IRONMONGERY = [
+  { product_short_name: 'connoisseur_handle_lh', finish_code: 'PB', qty: 2, source: 'survey' },
+  { product_short_name: 'connoisseur_handle_rh', finish_code: 'PB', qty: 1, source: 'survey' },
+  { product_short_name: 'defender_310mm', finish_code: 'PC', qty: 1, source: 'survey' },
+  { product_short_name: 'defender_friction_hinge_-_side_hung_310mm', finish_code: 'PC', qty: 2, source: 'survey' },
+  { product_short_name: 'kenrick_extension_300mm', finish_code: 'PC', qty: 2, source: 'survey' },
+  { product_short_name: 'kenrick_extension_950mm', finish_code: 'PC', qty: 4, source: 'survey' },
+  { product_short_name: 'kenrick_extension_gear_box', finish_code: 'PC', qty: 3, source: 'survey' },
+  { product_short_name: 'trickle_vent_xr16', finish_code: 'Wht', qty: 1, source: 'survey' },
+]
+
+export const BENCHMARK_TC6 = {
+  name: 'Benchmark TC6 — Openers either side of a fanlight over fixed (L31115 Item 10 Drawing 31)',
+  tree: tcTree({
+    width: 1499, height: 1199, nosing: 1650,
+    dividers: [TC6_MULL_L, TC6_MULL_R, TC6_TRANSOM],
+    openings: [
+      // row-major, as frameCells reads them: the two spanning openers sit in
+      // row 0 with the fanlight between them, and the fixed sash follows.
+      casementSash('cas_a1', 'left_hand_hung'),   // spans both rows
+      casementSash('cas_b1', 'top_hung'),         // the fanlight
+      casementSash('cas_c1', 'right_hand_hung'),  // spans both rows
+      casementSash('cas_b2', 'fix'),
+    ],
+    ironmongeryLines: TC6_IRONMONGERY,
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkTC6_openers_each_side_fanlight_over_fixed },
+  partCostMap: TC_PART_COST_MAP,
+  profileValues: PROFILE_VALUES,
+  glassCatalogue: {},
+  ironmongeryLines: TC6_IRONMONGERY,
+  assumptions: TC_ASSUMPTIONS,
+}
+
+// ── TC7: three columns with a light over each, 1499 x 1199 ─────────────────
+// The same frame and the same two mullions as TC6, but the transom runs jamb
+// to jamb, so it is a plain 3 x 2 grid of six openings.
+const TC7_IRONMONGERY = [
+  { product_short_name: 'connoisseur_handle_lh', finish_code: 'PB', qty: 3, source: 'survey' },
+  { product_short_name: 'connoisseur_handle_rh', finish_code: 'PB', qty: 1, source: 'survey' },
+  { product_short_name: 'defender_310mm', finish_code: 'PC', qty: 2, source: 'survey' },
+  { product_short_name: 'defender_friction_hinge_-_side_hung_310mm', finish_code: 'PC', qty: 2, source: 'survey' },
+  { product_short_name: 'kenrick_extension_370mm', finish_code: 'PC', qty: 4, source: 'survey' },
+  { product_short_name: 'kenrick_extension_690mm', finish_code: 'PC', qty: 4, source: 'survey' },
+  { product_short_name: 'kenrick_extension_gear_box', finish_code: 'PC', qty: 4, source: 'survey' },
+  { product_short_name: 'trickle_vent_xr16', finish_code: 'Wht', qty: 1, source: 'survey' },
+]
+
+export const BENCHMARK_TC7 = {
+  name: 'Benchmark TC7 — Three casements with a light over each (L31115 Item 10 Drawing 32)',
+  tree: tcTree({
+    width: 1499, height: 1199, nosing: 1650,
+    dividers: [
+      fullDivider('mull1', 'mullionPart', 459, 'mullionStopSize'),
+      fullDivider('mull2', 'mullionPart', 937, 'mullionStopSize'),
+      fullDivider('trans1', 'transomPart', 356, 'transomStopSize'),
+    ],
+    openings: [
+      casementSash('cas_a1', 'top_hung'),
+      casementSash('cas_b1', 'fix'),
+      casementSash('cas_c1', 'top_hung'),
+      casementSash('cas_a2', 'left_hand_hung'),
+      casementSash('cas_b2', 'fix'),
+      casementSash('cas_c2', 'right_hand_hung'),
+    ],
+    ironmongeryLines: TC7_IRONMONGERY,
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkTC7_three_columns_light_over_each },
+  partCostMap: TC_PART_COST_MAP,
+  profileValues: PROFILE_VALUES,
+  glassCatalogue: {},
+  ironmongeryLines: TC7_IRONMONGERY,
+  assumptions: TC_ASSUMPTIONS,
+}

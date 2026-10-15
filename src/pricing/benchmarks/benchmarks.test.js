@@ -33,7 +33,8 @@ const SNAPSHOT_LIVE = SNAPSHOT
 /** The same, with the AV4 costs: what the stable-door block prices from. */
 const FT_SNAPSHOT_ST = SNAPSHOT
 import { shortDividerSpanMm, isShortDivider, frameCells, frameGridSize, frameOpenings, casementSashSize, casementSashWeightKg, casementFrameTimberVolumeDm3, casementSashTimberVolumeDm3, casementGlassSightline, frameMuntinLengthM, frameColumns, frameRows, itemFrames, CASEMENT_SASH_TYPES, FRENCH_SASH_TYPES } from '../casementGeometry.js'
-import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_B_UNCORRECTED, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F, BENCHMARK_G, BENCHMARK_H, BENCHMARK_I, BENCHMARK_J, BENCHMARK_K, BENCHMARK_L, BENCHMARK_M, BENCHMARK_N, BENCHMARK_P, BENCHMARK_Q, BENCHMARK_R, BENCHMARK_S, BENCHMARK_SA, BENCHMARK_SB, BENCHMARK_SC, BENCHMARK_SD, BENCHMARK_SE, BENCHMARK_SF, BENCHMARK_TC1, BENCHMARK_TC2, BENCHMARK_TC3, BENCHMARK_FR1, BENCHMARK_FR2, BENCHMARK_FD1, BENCHMARK_FD2, BENCHMARK_FD3, BENCHMARK_FD3b, BENCHMARK_FD4, BENCHMARK_FD5, BENCHMARK_FD6, BENCHMARK_FD7, BENCHMARK_SD1, BENCHMARK_SD2, BENCHMARK_SD3, BENCHMARK_SD4, BENCHMARK_CD1, BENCHMARK_CD2, BENCHMARK_CD3, BENCHMARK_CD4, BENCHMARK_FT1, BENCHMARK_FT2, BENCHMARK_FT3, BENCHMARK_FT4, BENCHMARK_ST1, BENCHMARK_ST2, BENCHMARK_ST3, BENCHMARK_OI1, BENCHMARK_OI2, BENCHMARK_OI3, BENCHMARK_SO1 } from './index.js'
+import * as ALL_BENCHMARKS from './index.js'
+import { BENCHMARK_L34046, BENCHMARK_A, BENCHMARK_A35, BENCHMARK_A40, BENCHMARK_A50, BENCHMARK_A35_H1700, BENCHMARK_B, BENCHMARK_B_UNCORRECTED, BENCHMARK_C, BENCHMARK_D, BENCHMARK_E, BENCHMARK_F, BENCHMARK_G, BENCHMARK_H, BENCHMARK_I, BENCHMARK_J, BENCHMARK_K, BENCHMARK_L, BENCHMARK_M, BENCHMARK_N, BENCHMARK_P, BENCHMARK_Q, BENCHMARK_R, BENCHMARK_S, BENCHMARK_SA, BENCHMARK_SB, BENCHMARK_SC, BENCHMARK_SD, BENCHMARK_SE, BENCHMARK_SF, BENCHMARK_TC1, BENCHMARK_TC2, BENCHMARK_TC3, BENCHMARK_TC4, BENCHMARK_TC5, BENCHMARK_TC6, BENCHMARK_TC7, BENCHMARK_FR1, BENCHMARK_FR2, BENCHMARK_FD1, BENCHMARK_FD2, BENCHMARK_FD3, BENCHMARK_FD3b, BENCHMARK_FD4, BENCHMARK_FD5, BENCHMARK_FD6, BENCHMARK_FD7, BENCHMARK_SD1, BENCHMARK_SD2, BENCHMARK_SD3, BENCHMARK_SD4, BENCHMARK_CD1, BENCHMARK_CD2, BENCHMARK_CD3, BENCHMARK_CD4, BENCHMARK_FT1, BENCHMARK_FT2, BENCHMARK_FT3, BENCHMARK_FT4, BENCHMARK_ST1, BENCHMARK_ST2, BENCHMARK_ST3, BENCHMARK_OI1, BENCHMARK_OI2, BENCHMARK_OI3, BENCHMARK_SO1 } from './index.js'
 import { resolveIronmongeryLines } from '../loadPricingContext.js'
 import { allocatedSectionParts, doorLeaves, doorLeafSize, doorLeafWeightKg, doorGlassSightline, doorPanelSize, leafCells } from '../doorGeometry.js'
 // The LIVE price-file snapshot (reviewer-checked, 8 Oct 2026) — the honest
@@ -3575,5 +3576,195 @@ describe('Step BG — opening direction', () => {
     expect(BENCHMARK_OI1.parkedResidual).toBeUndefined()
     expect(BENCHMARK_OI2.deliberateDifference).toBeUndefined()
     expect(BENCHMARK_OI2.parkedResidual).toBeUndefined()
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step BI — casement combinations, Configurations 4-7: TC4, TC5, TC6, TC7
+// ══════════════════════════════════════════════════════════════════════════════
+// docs/integrate-L31115-configurations-4-7.txt, read 15 Oct 2026. Nathan: all
+// four are sold.
+//
+// TC4 and TC5 are one-row frames with two and three mullions; TC7 is a plain
+// 3 x 2 grid; TC6 is the first SHORT divider bounded at BOTH ends — its
+// transom starts at the left mullion and ends at the right one, so the
+// fanlight sits over the middle column alone and the two side openers run the
+// full height.
+//
+// The one change these needed is the rounding of overall_frame_width (item
+// 2): rule 110 "1500 Wide Casement Frame" fires in Integrate on TC6 and TC7
+// at 1,499 mm, which an unrounded 1.499 misses.
+describe('Step BI — Configurations 4-7 benchmarks', () => {
+
+  const CASES = [
+    ['TC4', BENCHMARK_TC4, INTEGRATE.benchmarkTC4_opener_fixed_opener,                   25.50, 12.50],
+    ['TC5', BENCHMARK_TC5, INTEGRATE.benchmarkTC5_opener_two_fixed_opener,               33.83, 14.50],
+    ['TC6', BENCHMARK_TC6, INTEGRATE.benchmarkTC6_openers_each_side_fanlight_over_fixed, 33.83, 15.00],
+    ['TC7', BENCHMARK_TC7, INTEGRATE.benchmarkTC7_three_columns_light_over_each,         42.50, 17.50],
+  ]
+
+  /** As the TC1-TC3 runner: these carry their own part costs (the nosing). */
+  function runTC(bm) {
+    return runPricingOnTree(bm.tree, SNAPSHOT.rules, SNAPSHOT.pfVariables, {
+      glassCatalogue: SNAPSHOT.glassCatalogue,
+      partAllocationRules: SNAPSHOT.partAllocationRules,
+      partCostMap: bm.partCostMap,
+      ironmongeryLines: bm.ironmongeryLines,
+      ironmongeryCatalogue: SNAPSHOT.ironmongeryCatalogue,
+      profileValues: SNAPSHOT.profileValues,
+    })
+  }
+
+  const frameOf = bm => bm.tree.children.find(c => c.part_type === 'assemblyFramePart')
+  const byKey = (bm, key) => frameOf(bm).children.find(c => c.key === key)
+
+  for (const [label, bm, target, production, labour] of CASES) {
+    it(`${label}: production ${production} h and labour ${labour} h, exactly`, () => {
+      const r = runTC(bm)
+      expect(r.manufacture_labour.total_minutes / 60, `${label} production`)
+        .toBeCloseTo(production, 2)
+      expect(r.install_labour.total_minutes / 60, `${label} install`)
+        .toBeCloseTo(labour, 2)
+    })
+
+    it(`${label}: every group matches Integrate, group by group`, () => {
+      expectMatchesIntegrate(runTC(bm), target)
+    })
+  }
+
+  // ── The geometry each tree lays out ───────────────────────────────────────
+
+  it('TC4 and TC5 are single rows of three and four columns', () => {
+    const cells = bm => frameCells(bm.tree)
+      .map(c => [c.col, c.row, c.colSpan, c.rowSpan, c.width, c.height])
+    // Integrate's columns: 393 | 385 | 393 and 389 | 383 | 383 | 389
+    expect(cells(BENCHMARK_TC4)).toEqual([
+      [0, 0, 1, 1, 393, 1213], [1, 0, 1, 1, 385, 1213], [2, 0, 1, 1, 393, 1213],
+    ])
+    expect(cells(BENCHMARK_TC5)).toEqual([
+      [0, 0, 1, 1, 389, 1213], [1, 0, 1, 1, 383, 1213],
+      [2, 0, 1, 1, 383, 1213], [3, 0, 1, 1, 389, 1213],
+    ])
+  })
+
+  it('TC6: the fanlight is in the MIDDLE column and both openers span', () => {
+    // The transom is bounded by both mullions, so column A and column C are
+    // one cell each and only column B is split.
+    const cells = frameCells(BENCHMARK_TC6.tree)
+    expect(cells.map(c => [c.col, c.row, c.colSpan, c.rowSpan]))
+      .toEqual([[0, 0, 1, 2], [1, 0, 1, 1], [2, 0, 1, 2], [1, 1, 1, 1]])
+    expect(cells.map(c => [c.width, c.height]))
+      .toEqual([[459, 1105], [451, 356], [461, 1105], [451, 722]])
+  })
+
+  it('TC7 is a plain 3 x 2 grid — every divider runs frame to frame', () => {
+    const cells = frameCells(BENCHMARK_TC7.tree)
+    expect(cells.map(c => [c.col, c.row, c.colSpan, c.rowSpan]))
+      .toEqual([[0, 0, 1, 1], [1, 0, 1, 1], [2, 0, 1, 1],
+        [0, 1, 1, 1], [1, 1, 1, 1], [2, 1, 1, 1]])
+    expect(cells.map(c => [c.width, c.height]))
+      .toEqual([[459, 356], [451, 356], [461, 356],
+        [459, 722], [451, 722], [461, 722]])
+  })
+
+  it('the sash sizes are Integrate’s own, sash for sash', () => {
+    const sizes = bm => openingNodes(bm.tree)
+      .map(n => { const s = casementSashSize(bm.tree, n); return [s.width, s.height] })
+    // C4 385 / 377 / 385 x 1205
+    expect(sizes(BENCHMARK_TC4)).toEqual([[385, 1205], [377, 1205], [385, 1205]])
+    // C5 381 / 375 / 375 / 381 x 1205
+    expect(sizes(BENCHMARK_TC5))
+      .toEqual([[381, 1205], [375, 1205], [375, 1205], [381, 1205]])
+    // C6 A1 451 x 1097, B1 443 x 348, C1 453 x 1097, B2 443 x 714
+    expect(sizes(BENCHMARK_TC6))
+      .toEqual([[451, 1097], [443, 348], [453, 1097], [443, 714]])
+    // C7 451 / 443 / 453 wide, 348 over 714
+    expect(sizes(BENCHMARK_TC7)).toEqual([
+      [451, 348], [443, 348], [453, 348], [451, 714], [443, 714], [453, 714],
+    ])
+  })
+
+  it('TC6’s transom is SHORT and bounded at BOTH ends; TC7’s is full', () => {
+    const t6 = byKey(BENCHMARK_TC6, 'trans1')
+    expect(isShortDivider(BENCHMARK_TC6.tree, t6)).toBe(true)
+    expect(t6.values.startDivider).toBe('mull1')
+    expect(t6.values.endDivider).toBe('mull2')
+    // its span is the middle column, 451 — not the frame's 1425
+    expect(shortDividerSpanMm(BENCHMARK_TC6.tree, t6)).toBe(451)
+    for (const key of ['mull1', 'mull2']) {
+      expect(isShortDivider(BENCHMARK_TC6.tree, byKey(BENCHMARK_TC6, key)), key).toBe(false)
+    }
+    // TC7: all three run frame to frame
+    for (const key of ['mull1', 'mull2', 'trans1']) {
+      expect(isShortDivider(BENCHMARK_TC7.tree, byKey(BENCHMARK_TC7, key)), key).toBe(false)
+    }
+  })
+
+  it('the short transom still counts once for production, as a full one does', () => {
+    // Rules 1105 and 211 count every divider, short or full: TC6 has three
+    // (two mullions and the short transom) and so has TC7, which is why both
+    // come to 2,030 production minutes on four sashes and 2,550 on six.
+    expect(runTC(BENCHMARK_TC6).manufacture_labour.total_minutes).toBe(2030)
+    expect(runTC(BENCHMARK_TC7).manufacture_labour.total_minutes).toBe(2550)
+  })
+
+  // ── Item 2: the rounding, where it bites ──────────────────────────────────
+
+  it('rule 110 "1500 Wide Casement Frame" fires on TC6 and TC7 at 1,499', () => {
+    const fired = bm => runTC(bm).install_labour.lines
+      .filter(l => l.fires && !l.error && l.name === '1500 Wide Casement Frame')
+    // 60 minutes each, as Integrate charges them
+    for (const [label, bm] of [['TC6', BENCHMARK_TC6], ['TC7', BENCHMARK_TC7]]) {
+      const lines = fired(bm)
+      expect(lines.length, `${label} rule 110 lines`).toBe(1)
+      expect(lines[0].minutes, `${label} rule 110 minutes`).toBe(60)
+    }
+    // and NOT on TC4 at 1,299 — the reading that fixes the rounding at 2 dp
+    expect(fired(BENCHMARK_TC4)).toEqual([])
+    // TC5 at 1,699 fires either way
+    expect(fired(BENCHMARK_TC5).length).toBe(1)
+  })
+
+  it('the rounding is worth 60 min and £40.21 of labour on each', () => {
+    // Stated in money rather than argued. 1,494 rounds DOWN to 1.49, so the
+    // same tree 5 mm narrower does not fire rule 110; the labour group is the
+    // only group install minutes feed, so the difference is the rule alone.
+    const at = (bm, width) => {
+      const tree = JSON.parse(JSON.stringify(bm.tree))
+      tree.children.find(c => c.part_type === 'assemblyFramePart').values.width = width
+      return runTC({ ...bm, tree })
+    }
+    const labourCost = r => groupTotals(r).labour.cost
+    for (const [label, bm] of [['TC6', BENCHMARK_TC6], ['TC7', BENCHMARK_TC7]]) {
+      const read = runTC(bm)
+      const below = at(bm, 1494)
+      expect(read.install_labour.total_minutes - below.install_labour.total_minutes,
+        `${label} minutes`).toBe(60)
+      expect(labourCost(read) - labourCost(below), `${label} labour cost`)
+        .toBeCloseTo(40.21, 2)
+    }
+  })
+
+  it('no OTHER benchmark width lies where the rounding changes a threshold', () => {
+    // The guard for item 5. Rounding to the nearest 10 mm can only change
+    // rule 110 / 111 for a frame 1,450-1,499 or 2,450-2,499 wide. Every
+    // benchmark frame is checked, so if a later step adds one in that band
+    // this test names it and the reviewer decides, rather than a figure
+    // moving quietly.
+    const moved = []
+    for (const [name, bm] of Object.entries(ALL_BENCHMARKS)) {
+      if (!bm || typeof bm !== 'object' || !bm.tree) continue
+      for (const frame of itemFrames(bm.tree)) {
+        const w = Number(frame.values?.width)
+        if (!isFinite(w)) continue
+        const fires = v => `${v >= 1.5 ? 'A' : ''}${v >= 2.5 ? 'B' : ''}`
+        if (fires(w / 1000) !== fires(Math.round(w / 10) * 10 / 1000)) {
+          moved.push(`${name} ${w}`)
+        }
+      }
+    }
+    // TC6 and TC7 are the only benchmark frames in the band at all, and they
+    // move only to agree with Integrate.
+    expect([...new Set(moved)].sort()).toEqual(['BENCHMARK_TC6 1499', 'BENCHMARK_TC7 1499'])
   })
 })
