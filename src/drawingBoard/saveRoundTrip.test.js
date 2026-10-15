@@ -31,6 +31,9 @@ import {
   fixDividerRefsAfterSave, deadDividerRefs, hasDividerRefs, dividerRefMap,
 } from './dividerRefs.js'
 import { splitOpening } from './gridActions.js'
+import {
+  COMBINATION_CASEMENT_TEMPLATES, buildCombinationCasementTemplate,
+} from './combinationCasement.js'
 import { frameCells, itemFrames } from '../pricing/casementGeometry.js'
 import { doorLeaves, doorLeafSize, leafCells } from '../pricing/doorGeometry.js'
 import { runPricingOnTree } from '../pricing/pricingEngine.js'
@@ -313,5 +316,177 @@ describe('Step BH follow-up 2 — a dead reference fails loudly', () => {
     expect(validateDrawing(loaded, {}, [], {}, {})
       .filter(r => r.status === 'fired' && r.rule_id === 'built_in.dead_divider_reference'))
       .toEqual([])
+  })
+})
+
+// ── Step BI item 3 — Configuration 6, through the same path ─────────────────
+//
+// C6's transom is the first SHORT divider bounded at BOTH ends: it starts at
+// the left mullion and ends at the right one, so the fanlight sits over the
+// middle column alone and the two side openers run full height. Both
+// references have to survive create → save → reload, and if either is lost
+// the frame reads as a 3 x 2 grid of six cells instead of four.
+//
+// Everything above this point is a DOOR frame. This is the casement the
+// Step BH follow-up 2 fix was never run against.
+describe('Step BI — Configuration 6 survives the database', () => {
+  // The live casement profile: 83 on an ordinary rail, 62 on a fanlight
+  // (sql/step-as0), which is what the GlazePro template is built with.
+  const CASEMENT_PV = {
+    'assemblyFramePart.leftWidth': 37, 'assemblyFramePart.rightWidth': 37,
+    'assemblyFramePart.topHeight': 47, 'assemblyFramePart.bottomHeight': 47,
+    'assemblyFramePart.frameDepth': 96, 'assemblyFramePart.frameHeadStopSize': 20,
+    'assemblyFramePart.frameStileStopSize': 20, 'assemblyFramePart.cillStopSize': 20,
+    'assemblyFramePart.cillAngle': 6,
+    'cillPart.height': 47, 'cillPart.depth': 128,
+    'mullionPart.thicknessInFrameSolid': 27, 'mullionPart.mullionStopSize': 20,
+    'casementSashPart.thickness': 54, 'casementSashPart.topHeight': 62,
+    'casementSashPart.leftWidth': 62, 'casementSashPart.rightWidth': 62,
+    'casementSashPart.bottomHeight': 83,
+    'casementSashPart.defaultFanlightBottomHeight': 62,
+    'casementSashPart.mechanicalClearanceLeft': 4,
+    'casementSashPart.mechanicalClearanceRight': 4,
+    'casementSashPart.mechanicalClearanceTop': 4,
+    'casementSashPart.mechanicalClearanceBottom': 4,
+    'casementSashPart.btmRailShapeId': 'square',
+    'glassPart.defaultDoubleGlazingRebateWidthForSash': 16,
+    'glassPart.defaultDoubleGlazingTolerance': 2,
+    'glassPart.defaultDirGuStopSize': 20,
+    'glassPart.defaultDoubleGlazingRebateWidthForDirGU': 20,
+    'glassPart.defaultDoubleGlazingToleranceForDirGU': 2,
+  }
+
+  const specOf = n => COMBINATION_CASEMENT_TEMPLATES
+    .find(t => t.integrate.includes(`Configuration ${n}`))
+
+  const templateOf = n => {
+    const { tree, missing } = buildCombinationCasementTemplate(specOf(n), CASEMENT_PV)
+    expect(missing, `Configuration ${n}`).toEqual([])
+    return tree
+  }
+
+  /** A CASEMENT price: the casement part costs, and no door profile code. */
+  function priceCasement(tree) {
+    const lines = resolveIronmongeryLines(tree, SNAPSHOT, SNAPSHOT.profileValues)
+    return runPricingOnTree(tree, SNAPSHOT.rules, SNAPSHOT.pfVariables, {
+      glassCatalogue: SNAPSHOT.glassCatalogue,
+      partAllocationRules: SNAPSHOT.partAllocationRules,
+      partCostMap: { TP68: 2.85, TP61: 2.76 },
+      ironmongeryLines: lines ?? [],
+      ironmongeryCatalogue: SNAPSHOT.ironmongeryCatalogue,
+      profileValues: SNAPSHOT.profileValues,
+    })
+  }
+
+  const template = () => templateOf('6')
+
+  it('the keys really change: the client keys become row ids', () => {
+    const { created, loaded } = throughTheDatabase(template())
+    expect(created.key).not.toBe(loaded.key)
+    const keys = []
+    ;(function walk(n) { keys.push(n.key); (n.children ?? []).forEach(walk) })(loaded)
+    expect(keys.every(k => /^\d+$/.test(k))).toBe(true)
+  })
+
+  it('BOTH of the transom’s references resolve after the save', () => {
+    const { loaded } = throughTheDatabase(template())
+    expect(hasDividerRefs(loaded)).toBe(true)
+    expect(deadDividerRefs(loaded)).toEqual([])
+    // and they point at the two mullions, by their NEW keys
+    const frame = itemFrames(loaded)[0]
+    const mullions = frame.children.filter(c => c.part_type === 'mullionPart')
+      .sort((a, b) => a.values.offset - b.values.offset)
+    const transom = frame.children.find(c => c.part_type === 'transomPart')
+    expect(transom.values.startDivider).toBe(mullions[0].key)
+    expect(transom.values.endDivider).toBe(mullions[1].key)
+  })
+
+  it('the cells are the SAME four, not six', () => {
+    const { created, loaded } = throughTheDatabase(template())
+    expect(cellsOf(loaded)).toEqual(cellsOf(created))
+    expect(cellsOf(loaded).length).toBe(4)
+    // Integrate's own layout: the two spanning openers and the split middle
+    expect(frameCells(loaded, itemFrames(loaded)[0])
+      .map(c => [c.col, c.row, c.colSpan, c.rowSpan, c.width, c.height]))
+      .toEqual([[0, 0, 1, 2, 459, 1105], [1, 0, 1, 1, 451, 356],
+        [2, 0, 1, 2, 461, 1105], [1, 1, 1, 1, 451, 722]])
+  })
+
+  it('no cell is negative, and the fanlight keeps its 62 rail', () => {
+    const { loaded } = throughTheDatabase(template())
+    for (const cell of frameCells(loaded, itemFrames(loaded)[0])) {
+      expect(cell.width).toBeGreaterThan(0)
+      expect(cell.height).toBeGreaterThan(0)
+    }
+    const rails = itemFrames(loaded)[0].children
+      .filter(c => c.part_type === 'casementSashPart')
+      .map(c => c.values.bottomHeight)
+    expect(rails).toEqual([83, 62, 83, 83])
+  })
+
+  it('it prices the same after the round trip as before it', () => {
+    const { created, loaded } = throughTheDatabase(template())
+    const before = priceCasement(created)
+    const after = priceCasement(loaded)
+    expect(after.price.total_cost).toBeCloseTo(before.price.total_cost, 2)
+    expect(after.price.total).toBeCloseTo(before.price.total, 2)
+    expect(after.install_labour.total_minutes).toBe(before.install_labour.total_minutes)
+    expect(after.manufacture_labour.total_minutes)
+      .toBe(before.manufacture_labour.total_minutes)
+    // and no priced line errored on the reloaded tree
+    expect(after.price.lines.filter(l => l.error)).toEqual([])
+  })
+
+  it('WITHOUT the fix the references die and the frame reads as SIX cells', () => {
+    // The same failure Step BH follow-up 2 found on a doorset, on a casement:
+    // the save path without the re-pointing.
+    const { tree: created } = prepareTemplateTree(template())
+    const db = makeDb(7000)
+    db.save(created)
+    const loaded = db.load()
+    expect(deadDividerRefs(loaded).length).toBe(2)   // startDivider and endDivider
+    expect(cellsOf(loaded).length).toBe(6)
+    // and it would price DIFFERENTLY, which is the money the fix saves
+    expect(priceCasement(loaded).price.total_cost)
+      .not.toBeCloseTo(priceCasement(created).price.total_cost, 2)
+  })
+
+  it('survives SAVE after SAVE, even when every id changes', () => {
+    const { loaded } = throughTheDatabase(template(), { times: 3 })
+    expect(deadDividerRefs(loaded)).toEqual([])
+    expect(cellsOf(loaded).length).toBe(4)
+  })
+
+  it('a dead reference is an ERROR on the board, not a re-cut frame', () => {
+    const { tree: created } = prepareTemplateTree(template())
+    const db = makeDb(8000)
+    db.save(created)
+    const broken = db.load()
+    const fired = validateDrawing(broken, {}, [], {}, {})
+      .filter(r => r.status === 'fired' && r.rule_id === 'built_in.dead_divider_reference')
+    expect(fired.length).toBe(2)
+    for (const r of fired) expect(r.severity).toBe('error')
+    // and the sound one says nothing
+    const { loaded } = throughTheDatabase(template(), { nextId: 9000 })
+    expect(validateDrawing(loaded, {}, [], {}, {})
+      .filter(r => r.status === 'fired' && r.rule_id === 'built_in.dead_divider_reference'))
+      .toEqual([])
+  })
+
+  it('the other three Configurations round-trip too, and have no references', () => {
+    // 4, 5 and 7 hold only frame-to-frame dividers, so the fix has nothing to
+    // do — which is worth asserting, because "nothing to do" is the path that
+    // must not touch them.
+    for (const n of ['4', '5', '7']) {
+      const tree = templateOf(n)
+      expect(hasDividerRefs(prepareTemplateTree(tree).tree), `Configuration ${n}`).toBe(false)
+      const { created, loaded } = throughTheDatabase(tree)
+      expect(cellsOf(loaded), `Configuration ${n}`).toEqual(cellsOf(created))
+      expect(deadDividerRefs(loaded), `Configuration ${n}`).toEqual([])
+      expect(priceCasement(loaded).price.total_cost, `Configuration ${n}`)
+        .toBeCloseTo(priceCasement(created).price.total_cost, 2)
+      const { changed } = fixDividerRefsAfterSave(created, loaded)
+      expect(changed, `Configuration ${n}`).toEqual([])
+    }
   })
 })
