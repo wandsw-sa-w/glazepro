@@ -21,15 +21,21 @@ import {
   setCasementOperation, applyFanlightBottomRails, resizeCasementFrame,
 } from './casementOpenings.js'
 import { applyDividers, addDividerInCell, removeDivider } from './gridActions.js'
+import {
+  COMBINATION_CASEMENT_TEMPLATES, buildCombinationCasementTemplate,
+} from './combinationCasement.js'
 import { assertSaveable } from './containment.js'
 import { findRequiredEmpty } from './requiredFields.js'
-import { frameCells, frameInterior } from '../pricing/casementGeometry.js'
+import {
+  frameCells, frameInterior, isShortDivider, shortDividerSpanMm,
+} from '../pricing/casementGeometry.js'
 import { runPricingOnTree } from '../pricing/pricingEngine.js'
 import { defaultIronmonger } from '../pricing/defaultIronmongery.js'
 import { computeVariables } from '../pricing/computeVariables.js'
 import { computeDerived } from './computeDerived.js'
 import {
   BENCHMARK_TC1, BENCHMARK_TC2, BENCHMARK_TC3,
+  BENCHMARK_TC4, BENCHMARK_TC5, BENCHMARK_TC6, BENCHMARK_TC7,
 } from '../pricing/benchmarks/fixtureCasement.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -62,6 +68,17 @@ const PV = {
   'glassPart.defaultDoubleGlazingToleranceForDirGU': 2,
 }
 const PICKER_PV = { thicknessInFrameSolid: 27, mullionStopSize: 20 }
+
+// The SAME profile with sql/step-as0 run, which is what the live casement
+// profile holds today: an ordinary casement rail of 83 and a FANLIGHT rail of
+// 62 (Nathan, 12 Oct). PV above keeps 83 in both positions on purpose,
+// because that is what Integrate's own templates store and what TC1-TC3 were
+// read with. The Step BI templates are built with THIS one.
+const PV_AS0 = {
+  ...PV,
+  'casementSashPart.bottomHeight': 83,
+  'casementSashPart.defaultFanlightBottomHeight': 62,
+}
 
 const REQUIRED_DEFS = {
   drawingItemPart: [
@@ -303,5 +320,205 @@ d('Step AV — the board’s trees price as the fixtures do', () => {
       .filter(l => l.fires && l.alloc_iron_part_code).length
     expect(ironmongery(stored)).toBeGreaterThan(0)
     expect(ironmongery(none)).toBe(0)
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step BI item 4 — the four Configuration 4-7 templates
+// ══════════════════════════════════════════════════════════════════════════════
+// The templates sql/step-bi1 writes, built by the board's own code
+// (src/drawingBoard/combinationCasement.js) and checked against the TC4-TC7
+// fixtures, which are Integrate's drawings as read.
+//
+// A template is NOT the fixture: it carries no stored surround list and no
+// stored ironmongery list, and its FANLIGHT bottom rails are 62 where
+// Integrate's templates hold 83. So the geometry must match cell for cell and
+// the sash values must match everywhere EXCEPT that rail — which is asserted
+// rather than waved at.
+
+describe('Step BI — the board builds Configurations 4-7', () => {
+  const SPEC = Object.fromEntries(
+    COMBINATION_CASEMENT_TEMPLATES.map(t => [t.integrate.match(/Configuration (\d)/)[1], t]))
+
+  const build = n => {
+    const { tree, missing } = buildCombinationCasementTemplate(SPEC[n], PV_AS0)
+    expect(missing, `Configuration ${n}: unresolved profile values`).toEqual([])
+    expect(tree, `Configuration ${n}: tree`).toBeTruthy()
+    return tree
+  }
+
+  const CASES = [
+    ['4', BENCHMARK_TC4], ['5', BENCHMARK_TC5],
+    ['6', BENCHMARK_TC6], ['7', BENCHMARK_TC7],
+  ]
+
+  for (const [n, bm] of CASES) {
+    it(`Configuration ${n}: the cells are the fixture's, cell for cell`, () => {
+      const mine = frameCells(build(n))
+      const theirs = frameCells(bm.tree)
+      expect(mine.map(c => [c.col, c.row, c.colSpan, c.rowSpan, c.width, c.height]))
+        .toEqual(theirs.map(c => [c.col, c.row, c.colSpan, c.rowSpan, c.width, c.height]))
+    })
+
+    it(`Configuration ${n}: the sashes carry the fixture's values, bar the 62 rail`, () => {
+      const tree = build(n)
+      const mine = openingNodes(tree)
+      const theirs = openingNodes(bm.tree)
+      expect(mine.length).toBe(theirs.length)
+      const cells = frameCells(tree)
+      const rows = Math.max(...cells.map(c => c.row + c.rowSpan))
+      for (let i = 0; i < mine.length; i++) {
+        for (const k of ['operation', 'thickness', 'topHeight', 'leftWidth',
+          'rightWidth', 'mechanicalClearanceLeft', 'mechanicalClearanceTop',
+          'casementTypeId']) {
+          expect(mine[i].values[k], `Configuration ${n} opening ${i} ${k}`)
+            .toBe(theirs[i].values[k])
+        }
+        // The bottom rail is the ONE declared difference: a fanlight — a
+        // top-row sash that does not run the full height — is 62 here and 83
+        // in Integrate's template.
+        const c = cells[i]
+        const isFanlight = rows > 1 && c.row === 0 && c.rowSpan < rows
+        expect(mine[i].values.bottomHeight, `Configuration ${n} opening ${i} rail`)
+          .toBe(isFanlight ? 62 : 83)
+        expect(theirs[i].values.bottomHeight, `fixture ${n} opening ${i} rail`).toBe(83)
+      }
+    })
+
+    it(`Configuration ${n}: saves, and no required field is empty`, () => {
+      const tree = { ...build(n), values: { ...build(n).values, product: 'casement' } }
+      expect(() => assertSaveable(tree)).not.toThrow()
+      expect(findRequiredEmpty(tree, REQUIRED_DEFS)).toEqual([])
+    })
+
+    it(`Configuration ${n}: carries NO stored surround and NO stored ironmongery`, () => {
+      const tree = build(n)
+      expect(tree.values.surroundLines).toBeUndefined()
+      const paint = tree.children.find(c => c.part_type === 'paintAndIronmongeryPart')
+      expect(paint.values.ironmongeryLines).toBeUndefined()
+      // and MPLS is on, which is what gives a casement its multipoint gear
+      expect(paint.values.isCasementMpls).toBe(true)
+    })
+  }
+
+  it('Configuration 6 is the only one with a fanlight rail of 62, and it has ONE', () => {
+    const rails = n => openingNodes(build(n)).map(o => o.values.bottomHeight)
+    // C4 and C5 are single rows: nothing is a fanlight
+    expect(rails('4')).toEqual([83, 83, 83])
+    expect(rails('5')).toEqual([83, 83, 83, 83])
+    // C6: A1 spans both rows, B1 is the light, C1 spans, B2 is below
+    expect(rails('6')).toEqual([83, 62, 83, 83])
+    // C7: a light over each, so all three top-row sashes are 62
+    expect(rails('7')).toEqual([62, 62, 62, 83, 83, 83])
+  })
+
+  it('Configuration 6 stores a SHORT transom bounded by both mullions', () => {
+    const tree = build('6')
+    const frame = tree.children.find(c => c.part_type === 'assemblyFramePart')
+    const mullions = frame.children.filter(c => c.part_type === 'mullionPart')
+      .sort((a, b) => a.values.offset - b.values.offset)
+    const transom = frame.children.find(c => c.part_type === 'transomPart')
+    expect(mullions.map(m => m.values.offset)).toEqual([459, 937])
+    expect(transom.values.offset).toBe(356)
+    expect(transom.values.startDivider).toBe(mullions[0].key)
+    expect(transom.values.endDivider).toBe(mullions[1].key)
+    expect(isShortDivider(tree, transom)).toBe(true)
+    // and its span is the middle column, not the frame
+    expect(shortDividerSpanMm(tree, transom)).toBe(451)
+  })
+
+  it('Configuration 7 stores three dividers that all run frame to frame', () => {
+    const tree = build('7')
+    const frame = tree.children.find(c => c.part_type === 'assemblyFramePart')
+    const dividers = frame.children.filter(
+      c => c.part_type === 'mullionPart' || c.part_type === 'transomPart')
+    expect(dividers.length).toBe(3)
+    for (const d of dividers) {
+      expect(d.values.startDivider, d.key).toBe('0')
+      expect(d.values.endDivider, d.key).toBe('0')
+      expect(isShortDivider(tree, d), d.key).toBe(false)
+    }
+  })
+
+  it('the names and sort orders are the ones sql/step-bi1 writes', () => {
+    expect(COMBINATION_CASEMENT_TEMPLATES.map(t => [t.name, t.sort_order, t.group_name]))
+      .toEqual([
+        ['Opener, Fixed, Opener (Configuration 4)', 72, 'Combination Flush Casements'],
+        ['Opener, Two Fixed, Opener (Configuration 5)', 74, 'Combination Flush Casements'],
+        ['Openers Either Side Of A Fanlight Over Fixed (Configuration 6)', 76, 'Combination Flush Casements'],
+        ['Three Casements With A Light Over Each (Configuration 7)', 78, 'Combination Flush Casements'],
+      ])
+  })
+})
+
+// ── What each template prices OFFLINE, with its own defaults ────────────────
+//
+// Not a target. A template carries no stored ironmongery and no nosing, so it
+// does NOT price what Integrate's unsaved drawing priced — the report quotes
+// these figures so the difference is on the record rather than a surprise.
+const dBI = SNAPSHOT ? describe : describe.skip
+
+dBI('Step BI — what Configurations 4-7 price offline', () => {
+  const PRICED = {}
+
+  function priceTemplate(template) {
+    const { tree, missing } = buildCombinationCasementTemplate(template, PV_AS0)
+    expect(missing).toEqual([])
+    const derived = computeDerived(tree)
+    const vars = computeVariables(tree, derived, SNAPSHOT.pfVariables)
+    const lines = defaultIronmonger(tree, vars, SNAPSHOT.ironmongeryRules ?? [], {},
+      SNAPSHOT.profileValues ?? {})
+    const r = runPricingOnTree(tree, SNAPSHOT.rules, SNAPSHOT.pfVariables, {
+      glassCatalogue: SNAPSHOT.glassCatalogue,
+      partAllocationRules: SNAPSHOT.partAllocationRules,
+      partCostMap: BENCHMARK_TC4.partCostMap,
+      ironmongeryLines: lines ?? [],
+      ironmongeryCatalogue: SNAPSHOT.ironmongeryCatalogue,
+      profileValues: SNAPSHOT.profileValues,
+    })
+    return { tree, r, lines: lines ?? [] }
+  }
+
+  it('prices each one, and the default rules follow the openings', () => {
+    for (const t of COMBINATION_CASEMENT_TEMPLATES) {
+      const { r, lines } = priceTemplate(t)
+      PRICED[t.name] = {
+        cost: Number(r.price.total_cost.toFixed(2)),
+        price: Number(r.price.total.toFixed(2)),
+        production: r.manufacture_labour.total_minutes,
+        install: r.install_labour.total_minutes,
+        ironmongery: lines.map(l =>
+          `${l.product_short_name} ${l.finish_code ?? ''} x${l.qty}`.replace(/ {2,}/g, ' ')),
+      }
+      // Every one prices: no errored line, and a total over zero.
+      expect(r.price.lines.filter(l => l.error), t.name).toEqual([])
+      expect(r.price.total_cost, t.name).toBeGreaterThan(0)
+    }
+    // Printed so the step's report quotes the run rather than a guess.
+    console.log('Step BI offline prices:', JSON.stringify(PRICED, null, 2))
+  })
+
+  it('the 1500 rule fires on Configurations 6 and 7, not on 4', () => {
+    const mins = name => {
+      const t = COMBINATION_CASEMENT_TEMPLATES.find(x => x.name.includes(name))
+      return priceTemplate(t).r.install_labour.lines
+        .filter(l => l.fires && !l.error && l.name === '1500 Wide Casement Frame')
+        .reduce((n, l) => n + l.minutes, 0)
+    }
+    expect(mins('Configuration 4')).toBe(0)
+    expect(mins('Configuration 5')).toBe(60)
+    expect(mins('Configuration 6')).toBe(60)
+    expect(mins('Configuration 7')).toBe(60)
+  })
+
+  it('no template fires the Windowboard rule — there is no stored nosing', () => {
+    // sql/step-ax3's decision, carried to these four: the nosing is what
+    // makes has_deep_window_board true, and Integrate drops it on the first
+    // save, so a GlazePro template must not charge rule 251's 30 minutes.
+    for (const t of COMBINATION_CASEMENT_TEMPLATES) {
+      const fired = priceTemplate(t).r.install_labour.lines
+        .filter(l => l.fires && !l.error && l.name === 'Windowboard')
+      expect(fired, t.name).toEqual([])
+    }
   })
 })
