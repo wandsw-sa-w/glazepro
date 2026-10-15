@@ -57,7 +57,7 @@
 # Integrate cost 1,736.53 / price 3,473.05:
 #   Glass 0.35 (A1) 20.48 ; 0.30 (B1) 17.55 ; 0.30 (B2) 17.55 ; 0.35 (C1) 20.48 ; Energy 7.00 / 6.00 / 6.00 / 7.00 kg
 #                                                                                                 glass_done 80.48
-#   Ironmongery 74.55 (15.75, 8.40, 16.80, 5.25, 6.30, 2.10, 8.40, 12.60, 2.10, 2.10, 3.15) ; nosing 2.76 x 1.70 = 4.69 ;
+#   Ironmongery 82.95 (15.75, 8.40, 16.80, 5.25, 6.30, 2.10, 8.40, 12.60, 2.10, 2.10, 3.15 — reviewer corrected 15 Oct: was mis-summed as 74.55) ; nosing 2.76 x 1.70 = 4.69 ;
 #     architrave 2.85 x 2.60 = 7.41 + 2.85 x 1.60 = 4.56 ; consumables 30                         installation_materials 129.61
 #   Production 33.83 h = 834.25 (2,030): sash 4 x 180 ; frame 180 ; dividers 3 x 180 (the short transom counts) ;
 #     glazing 4 x 20 ; sash finish 4 x 60 ; frame finish 90 ; per divider 3 x 60.
