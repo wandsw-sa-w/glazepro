@@ -1,0 +1,100 @@
+# INTEGRATE — BI-GLASS ON CASEMENT WINDOWS, read 15 Oct 2026 by the reviewer on L31115 item 10 (TEST lead).
+# Drawings 33-36 are copies of existing test drawings with the item's "Bi-Glass" box ticked and every glass set to Single,
+# then SAVED (Integrate only finalises bi-glass on save). Priced one at a time through L31115 Quote 1 item 10 (Nathan
+# approved for this round; restored to drawing 18 = 310641 afterwards, confirmed on reload). Price lines from the Price
+# File Editor (test quote L31115 / 1), fitting from Installation > Fitting Units, production from the Estimated Labour Time
+# editor. PF30: workshop 24.66 / h, installation 40.21 / h, markup 2.00.
+#
+# NATHAN 15 Oct:
+#   - Surveyors draw it exactly like this: tick Bi-Glass, set the glazing to Single, glass to be replaced.
+#   - All four layouts are sold: plain single casement, casement with glazing bars, multi-sash, casement with fanlight.
+#   - Draught sealing is ALWAYS part of a bi-glass casement job (Integrate ticks it automatically — keep that).
+#   - Ironmongery: the sashes are kept, so NO new ironmongery by default. The surveyor adds any that is replaced.
+#     (The four drawings below still carry the ironmongery their source drawings stored; Integrate prices it as stored,
+#     and the benchmarks keep it so they compare like for like.)
+#   - Fixed sash fitting hour: COPY INTEGRATE — a bi-glass casement gets "Fixed Casement Sash with Frame" 60 min per fixed
+#     sash even though the frame is kept (see BG3).
+#
+# ── What ticking "Bi-Glass" does to a casement drawing in Integrate ──────────────────────────────────────────────────
+# Item: biGlass true, newSashes false, newFrame false, noWork false, draughtseal TRUE (set automatically).
+#   An "Include Clearance" box appears on the item, default OFF.
+# Every CasementSashPart: toBeReplaced false (kept), towBg 0, towDsId 0.
+# Every GlassPart: biGlass true. After setting Glazing = Single and saving: glazingId 1 (single), toBeReplaced TRUE,
+#   single glass "4mm Clear Toughened" (singleGlassPartNo GL100080), hackOut false.
+# SIZES: with Include Clearance off, each sash = its OPENING (no 4 mm clearance) and the glass grows to match:
+#   P (complete new) sash 1517 x 1497, glass 1393 x 1352  ->  bi-glass sash 1525 x 1505, glass 1401 x 1360.
+#   Glass sightline = sash - 62 - 62 wide, sash - 62 - 83 high (rails unchanged). Glass CUT = sightline + 2 x (16 - 2).
+# Surround: ticking Bi-Glass CLEARED the stored surround (C4 copy: nosing + ogee architraves -> surround []).
+#   No component lines, no Windowboard labour, no Installation Consumables (frame_to_be_replaced false).
+# isCasementMpls went from true (C4) to false. Stored ironmongerySet untouched and priced as stored.
+# Validation (warning only): "We cannot do side hung opening casement sashes over 45kg" on BG1/BG2 (1525 x 1505 sash).
+#
+# ── Rules that fire (all four) ─────────────────────────────────────────────────────────────────────────────────────
+# extra_services  31 DSO SqM Rate            needs_draughtsealing and not nj_involved     frame_area x 10.00
+# glass_done       9 BiGlass Cost            is_single_glazed and is_bi_glass (glass loop) rounded_area x single_pane_cost
+#                                            single_pane_cost = 25.50 (4mm Clear Toughened); rounded_area min 0.30
+#                  NO Energy surcharge (rule 50 needs is_double_glazed), NO glazing-bar glass lines (21/22 need
+#                  glass_unit_thickness >= 24), NO Single Glazed error price (rule 1 excludes bi_glass).
+# installation_materials  ironmongery as stored only.
+# manufacture     211 Casement Frame - Single Finish (Mullions)  (frame_mullion_qty + frame_transom_qty) x 60
+#                  — fires on bi-glass too (no new-frame test). Nothing else: no sash / frame / glazing / finish rules.
+# labour (fitting) 0 BiGlass Labour Base Price  glass_unit loop, is_bi_glass and to_be_replaced   240 per glass unit
+#                  1 BiGlass GBs to Take Off    is_bi_glass and is_installation_included         gb_qty x 60
+#                 95 Any Sash Overweight (casement_sash loop)  weight_in_kg > 25                 45 per sash
+#                 15 Fixed Casement Sash with Frame  fixed_casement_sash_qty x 60 — Integrate's condition is
+#                    "[is_casement_window] || [is_casement_window_bay] && [is_installation_included] && [frame_to_be_replaced]"
+#                    and it evaluates as  is_casement_window OR (...)  — it FIRED on BG3 with the frame kept.
+#                    GlazePro's rule has brackets ((a or b) and installation and frame_to_be_replaced). Nathan: copy
+#                    Integrate for bi-glass.
+# manufacture_materials 325 LTW General Consumables  25 per frame
+#
+# ── BG1 = drawing 10/33 (310816): copy of P (item 2 drawing 19), 1599 x 1599, single LH side-hung (op 17), Solid Redwood ──
+# Sash 1525 x 1505 (kept), glass sightline 1401 x 1360 -> cut 1429 x 1388 = 1.98 m2. Single 4mm Clear Toughened.
+# Stored ironmongery: connoisseur_handle_lh PB 1 ; connoisseur_handle_rh PB 1 ; defender_friction_hinge_-_side_hung_412mm
+#   PC 2 ; kenrick_extension_690mm PC 4 ; kenrick_extension_gear_box PC 2 ; trickle_vent_xr16 Wht 1. Surround none.
+# Integrate cost 358.24 / price 716.48:
+#   DSO SqM Rate 2.56 x 10.00 = 25.60                                                     extra_services 25.60 / 51.20
+#   BiGlass Cost 1.98 x 25.50 = 50.49                                                      glass_done 50.49 / 100.98
+#   Ironmongery 8.40, 8.40, 25.20, 4.20, 6.30, 8.40, 1.05, 1.05, 3.15                       installation_materials 66.15 / 132.30
+#   Labour 4.75 h = 191.00 (285 min): BiGlass Labour Base Price 240 ; Any Sash Overweight 45   labour 191.00 / 382.00
+#   LTW 25                                                                                 manufacture_materials 25.00 / 50.00
+#   Production 0.
+#
+# ── BG2 = drawing 10/34 (310818): BG1 + glazing bars "2x3" (1 vertical + 2 horizontal = gb_qty 3) ───────────────────────
+# Glass unchanged (one unit, 1.98 m2; bars add no glass line on single glazing).
+# Integrate cost 478.87 / price 957.74: as BG1 except
+#   Labour 7.75 h = 311.63 (465 min): BiGlass base 240 ; Any Sash Overweight 45 ; BiGlass GBs to Take Off 3 x 60 = 180
+#                                                                                          labour 311.63 / 623.26
+#
+# ── BG3 = drawing 10/35 (310819): copy of C4 (10/29), 1299 x 1307, opener | fixed | opener, Solid Redwood ─────────────────
+# Mullions 27 at 393 / 805. Sashes (kept, = openings) A1 op 17 LH 393 x 1213 ; B1 op 11 FIXED 385 x 1213 ;
+#   C1 op 18 RH 393 x 1213. Glass sightline 269 / 261 / 269 x 1068 -> cut 297 / 289 / 297 x 1096 = 0.33 / 0.32 / 0.33.
+#   Cills 393 / 385 / 393. Surround CLEARED by the Bi-Glass tick; isCasementMpls false.
+# Stored ironmongery (as C4): connoisseur_handle_lh PB 1 ; connoisseur_handle_rh PB 1 ;
+#   defender_friction_hinge_-_side_hung_310mm PC 2 ; kenrick_extension_950mm PC 4 ; kenrick_extension_gear_box PC 2 ;
+#   trickle_vent_xr16 Wht 1.
+# Integrate cost 698.90 / price 1,397.78:
+#   DSO SqM Rate 1.70 x 10.00 = 17.00                                                      extra_services 17.00 / 34.00
+#   BiGlass Cost 0.33 x 25.50 = 8.42 ; 0.32 x 25.50 = 8.16 ; 0.33 x 25.50 = 8.42           glass_done 25.00 / 49.98
+#   Ironmongery 8.40, 8.40, 16.80, 4.20, 8.40, 8.40, 1.05, 1.05, 3.15                       installation_materials 59.85 / 119.70
+#   Production 2.00 h = 49.32 (120 min): 211 Casement Frame - Single Finish (Mullions) 2 x 60   manufacture 49.32 / 98.64
+#   Labour 13.00 h = 522.73 (780 min): BiGlass base 3 x 240 = 720 ; 15 Fixed Casement Sash with Frame 1 x 60
+#                                                                                          labour 522.73 / 1,045.46
+#   LTW 25                                                                                 manufacture_materials 25.00 / 50.00
+#
+# ── BG4 = drawing 10/36 (310820): copy of S (item 2 drawing 23), 1199 x 1499, top-hung fanlight over LH casement ────────
+# Transom 27 at 356 / 1022. Sashes (kept, = openings) A1 op 15 TOP HUNG 1125 x 356 ; A2 op 17 LH 1125 x 1022.
+#   Glass sightline 1001 x 211 and 1001 x 877 -> cut 1029 x 239 = 0.25 -> 0.30 (minimum) and 1029 x 905 = 0.93.
+#   Cill 1125.
+# Stored ironmongery (as S): Connoisseur Handle LH PB 1, Defender 310mm Top Hung Friction Hinge 1, Kenrick gearbox set 1,
+#   Kenrick Extension 490-700 x2, Trickle Vent XR16 — 8 lines.
+# Integrate cost 448.01 / price 896.01:
+#   DSO SqM Rate 1.80 x 10.00 = 18.00                                                      extra_services 18.00 / 36.00
+#   BiGlass Cost 0.30 x 25.50 = 7.65 ; 0.93 x 25.50 = 23.72                                glass_done 31.37 / 62.73
+#   Ironmongery 8.40, 5.25, 2.10, 2.10, 4.20, 1.05, 1.05, 3.15                              installation_materials 27.30 / 54.60
+#   Production 1.00 h = 24.66 (60 min): 211 per transom 1 x 60                              manufacture 24.66 / 49.32
+#   Labour 8.00 h = 321.68 (480 min): BiGlass base 2 x 240                                  labour 321.68 / 643.36
+#   LTW 25                                                                                 manufacture_materials 25.00 / 50.00
+#
+# Not read: a casement with "Include Clearance" ticked; a bi-glass French casement pair; per-sash bi-glass (towBg) on a
+# mixed item. Integrate housekeeping for Nathan: drawings 33-36 on L31115 item 10 are test drawings.

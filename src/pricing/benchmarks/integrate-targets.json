@@ -2051,5 +2051,137 @@
       "production": 42.5,
       "labour": 17.5
     }
+  },
+  "benchmarkBG1_biglass_single_casement": {
+    "source": "L31115 Item 10 Drawing 33 (copy of P, 1599 x 1599 single LH casement, Bi-Glass ticked, glazing Single, saved). Read and priced 15 Oct 2026 via L31115 Quote 1 item 10. Facts: docs/integrate-L31115-casement-biglass.txt.",
+    "total_cost": 358.24,
+    "total_price": 716.48,
+    "groups": {
+      "extra_services": {
+        "cost": 25.6,
+        "price": 51.2
+      },
+      "glass_done": {
+        "cost": 50.49,
+        "price": 100.98
+      },
+      "installation_materials": {
+        "cost": 66.15,
+        "price": 132.3
+      },
+      "labour": {
+        "cost": 191.0,
+        "price": 382.0
+      },
+      "manufacture_materials": {
+        "cost": 25.0,
+        "price": 50.0
+      }
+    },
+    "hours": {
+      "production": 0,
+      "labour": 4.75
+    }
+  },
+  "benchmarkBG2_biglass_casement_glazing_bars": {
+    "source": "L31115 Item 10 Drawing 34 (BG1 + 2x3 glazing bars, gb_qty 3, saved). Read and priced 15 Oct 2026 via L31115 Quote 1 item 10. Facts: docs/integrate-L31115-casement-biglass.txt.",
+    "total_cost": 478.87,
+    "total_price": 957.74,
+    "groups": {
+      "extra_services": {
+        "cost": 25.6,
+        "price": 51.2
+      },
+      "glass_done": {
+        "cost": 50.49,
+        "price": 100.98
+      },
+      "installation_materials": {
+        "cost": 66.15,
+        "price": 132.3
+      },
+      "labour": {
+        "cost": 311.63,
+        "price": 623.26
+      },
+      "manufacture_materials": {
+        "cost": 25.0,
+        "price": 50.0
+      }
+    },
+    "hours": {
+      "production": 0,
+      "labour": 7.75
+    }
+  },
+  "benchmarkBG3_biglass_opener_fixed_opener": {
+    "source": "L31115 Item 10 Drawing 35 (copy of C4, 1299 x 1307 opener | fixed | opener, Bi-Glass ticked, glazing Single, saved). Read and priced 15 Oct 2026 via L31115 Quote 1 item 10. Facts: docs/integrate-L31115-casement-biglass.txt.",
+    "total_cost": 698.9,
+    "total_price": 1397.78,
+    "groups": {
+      "extra_services": {
+        "cost": 17.0,
+        "price": 34.0
+      },
+      "glass_done": {
+        "cost": 25.0,
+        "price": 49.98
+      },
+      "installation_materials": {
+        "cost": 59.85,
+        "price": 119.7
+      },
+      "manufacture": {
+        "cost": 49.32,
+        "price": 98.64
+      },
+      "labour": {
+        "cost": 522.73,
+        "price": 1045.46
+      },
+      "manufacture_materials": {
+        "cost": 25.0,
+        "price": 50.0
+      }
+    },
+    "hours": {
+      "production": 2.0,
+      "labour": 13.0
+    }
+  },
+  "benchmarkBG4_biglass_casement_with_fanlight": {
+    "source": "L31115 Item 10 Drawing 36 (copy of S, 1199 x 1499 top-hung fanlight over LH casement, Bi-Glass ticked, glazing Single, saved). Read and priced 15 Oct 2026 via L31115 Quote 1 item 10. Facts: docs/integrate-L31115-casement-biglass.txt.",
+    "total_cost": 448.01,
+    "total_price": 896.01,
+    "groups": {
+      "extra_services": {
+        "cost": 18.0,
+        "price": 36.0
+      },
+      "glass_done": {
+        "cost": 31.37,
+        "price": 62.73
+      },
+      "installation_materials": {
+        "cost": 27.3,
+        "price": 54.6
+      },
+      "manufacture": {
+        "cost": 24.66,
+        "price": 49.32
+      },
+      "labour": {
+        "cost": 321.68,
+        "price": 643.36
+      },
+      "manufacture_materials": {
+        "cost": 25.0,
+        "price": 50.0
+      }
+    },
+    "hours": {
+      "production": 1.0,
+      "labour": 8.0
+    }
   }
 }
