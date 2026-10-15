@@ -425,4 +425,29 @@ right-hand sash.
 
 # e2e after the deploy
 
-To be filled in after the push.
+Deploy confirmed by decoding `/version.json`: **`mv9e17hg` = 10:20:29Z**,
+nineteen seconds after the last commit (10:20:10Z).
+
+`npm run e2e` — **5 passed** (22.9s): logs in; every benchmark passes except
+the parked residuals; the fanlight drawing shows Fanlight A1 and Casement
+Sash A2; the validation panel loads; every drawing card on the L507712 quote
+matrix shows a price.
+
+The benchmark test is the one that matters here, and it matters as a
+**negative**: this step changed `overall_frame_width`, which every casement
+and every door frame reads, and all of the live benchmark rows are where Step
+BH follow-up 2 left them. The one engine line this step touched moved nothing
+on the live site.
+
+**What the smoke suite cannot see yet**: the four templates, because
+`sql/step-bi1` has not run. Once it has, the four drawings listed under
+"Drawings to make live" are worth pinning in the suite the way the benchmark
+rows are — and the fastest check of the rounding is Configuration 6 at 14.50 h
+of fitting rather than 13.50 h.
+
+**Not verified against the live database:** everything in section 4's price
+tables is the captured snapshot, not the live rules; no template exists live
+until `sql/step-bi1` is run; and the live `default_profile_values` for the
+83 / 62 bottom rails were not read (the anon key returns nothing under RLS) —
+`sql/step-bi1` section 0b is there for the reviewer to read them, and the
+script refuses to write the templates if they are not 83 and 62.
