@@ -309,6 +309,29 @@ test.describe('GlazePro live smoke (read only)', () => {
     }
   })
 
+  // Step BH follow-up item 8: the five DOORSET DRAWINGS the reviewer made
+  // from the Step BH templates, by drawing id on L507712 item 9. These are
+  // not benchmarks — Integrate has no template for any of them — so what
+  // they pin is that GlazePro keeps pricing them the way it priced them when
+  // they were checked by hand, rule by rule, in docs/reports/step-bh.md and
+  // docs/reports/step-bh-followup.md.
+  //
+  // Drawing 56 is the one worth having: it read £7,095.53 when a template
+  // with a SHORT transom lost its divider references on creation, which
+  // priced four panels at negative area. 8,936.47 is the figure with the
+  // cells right.
+  //
+  // TWO of them move when the SQL of this step runs, and both figures are
+  // allowed until it has: 54 gains the second leaf’s 2 h (sql/step-bh3) and
+  // 58 gains the side light’s 16 mm of panel (sql/step-bh4).
+  const DOORSET_DRAWINGS = {
+    54: { name: 'Pair Of Front Doors', prices: ['6,642.89', '6,803.73'] },
+    55: { name: 'Front Door With Side Lights And Fanlight', prices: ['9,173.93'] },
+    56: { name: '... Fanlight Over Door', prices: ['8,936.47'] },
+    57: { name: 'Stable Door With Fanlight', prices: ['5,911.17'] },
+    58: { name: 'Stable Door With Side Light', prices: ['6,785.57', '6,787.00'] },
+  }
+
   test('every drawing card on the L507712 quote matrix shows a price', async ({ page }) => {
     await login(page)
     await page.goto('/leads/9/quotes')
@@ -334,6 +357,18 @@ test.describe('GlazePro live smoke (read only)', () => {
       const needsPricing = /needs pricing/i.test(cardText)
       if (!/£\s?[\d,]+\.\d{2}/.test(text) && !needsPricing) {
         priceless.push(`drawing ${id}: "${text}"`)
+      }
+
+      // Step BH follow-up item 8: and the five doorsets price what they
+      // were checked at, rule by rule.
+      const pinned = DOORSET_DRAWINGS[Number(id)]
+      if (pinned && !needsPricing) {
+        const ok = pinned.prices.some(price => text.includes(price))
+        if (!ok) {
+          priceless.push(
+            `drawing ${id} (${pinned.name}) should price ` +
+            `£${pinned.prices.join(' or £')}, reads "${text}"`)
+        }
       }
     }
     expect(priceless, priceless.join('\n')).toEqual([])

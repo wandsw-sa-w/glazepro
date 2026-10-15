@@ -2572,28 +2572,32 @@ export function buildFrontDoorSetFrame(profileValues, {
  * Where a STABLE DOOR’s side light carries its mid rail, so that the rail is
  * LEVEL with the stable door’s meeting rails.
  *
- * A stable door’s join is not one rail but three bands: the top half’s 99
- * bottom rail, the 3 mm between the halves and the bottom half’s 99 top rail
- * — 201 mm in all. The side light’s mid rail is 170. Two rails of different
- * depths cannot align on both edges, so they are aligned on their CENTRES,
- * which is what the eye reads as level.
+ * NATHAN, 15 Oct: the TOP EDGES line up — the top of the side light’s 170
+ * mid rail with the top of the stable door’s meeting rail (the top half’s
+ * 99 bottom rail). Step BH aligned the CENTRES of the two bands and said so;
+ * this is the decision, and it moves the rail 16 mm up (911 -> 895).
+ *
+ * A stable door’s join is three bands, not one rail: the top half’s 99
+ * bottom rail, the 3 mm between the halves and the bottom half’s 99 top
+ * rail — 201 mm in all, against the side light’s 170. Two rails of
+ * different depths cannot align on both edges, so the TOP is the one that
+ * matters: it is the line the eye follows across the doorset.
  *
  * Measured from the top of the frame’s interior:
- *   the join’s centre   = container top clearance + split + (3 / 2)
- *   the rail’s centre   = sash top clearance + sash head + offset + 170 / 2
+ *   the meeting rail’s top = container top clearance + split - 99
+ *   the mid rail’s top     = sash top clearance + sash head + offset
  * and the offset is the GLASS above the rail, which is what a divider offset
- * means everywhere on this board.
+ * means everywhere on this board. 4 + 1055 - 99 - 3 - 62 = 895.
  */
 export function stableSideLightMidRailOffset({
   splitOffset = STABLE_DOOR_DEFAULTS.splitOffset,
   containerTopClearance = STABLE_DOOR_DEFAULTS.clearances.top,
-  betweenHalves = STABLE_DOOR_DEFAULTS.clearances.between,
+  meetingRail = STABLE_DOOR_DEFAULTS.top.rails.bottom,
   sashTopClearance = SIDE_LIGHT_DEFAULTS.clearance,
   sashHead = SIDE_LIGHT_DEFAULTS.rails.top,
-  midRailThickness = SIDE_LIGHT_DEFAULTS.midRailThickness,
 } = {}) {
-  const joinCentre = containerTopClearance + splitOffset + betweenHalves / 2
-  const offset = joinCentre - sashTopClearance - sashHead - midRailThickness / 2
+  const meetingRailTop = containerTopClearance + splitOffset - meetingRail
+  const offset = meetingRailTop - sashTopClearance - sashHead
   return offset > 0 ? Math.round(offset) : null
 }
 

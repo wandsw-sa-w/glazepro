@@ -146,6 +146,8 @@ import {
   doorPanelSize, leafForPanel, panelSizeFor, leafCellOf,
 } from './doorGeometry.js'
 import { isFanlightSash } from './casementSashVariables.js'
+// Step BH follow-up item 2: the label a degenerate part is reported under
+import { openingLabel } from '../drawingBoard/casementOpenings.js'
 
 // ── Tree helpers (local copies, same logic as computeDerived.js) ──────────────
 
@@ -631,6 +633,10 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
     const beadOut  = panelBead(v.externalPanelBeadId)
     const typeIs = (code, side) => (side === 'internal' ? internal : external) === code
     return {
+      // Step BH follow-up item 2: the size this part was WORKED OUT to be,
+      // for the degenerate-size guard. Underscored because it is not a
+      // rule variable — no condition names it, and it is an object.
+      _size: { width: size.width, height: size.height },
       to_be_replaced: is_complete_new || v.toBeReplaced === true,
       visible_width_in_mm_old:  size.width  ?? 0,
       visible_height_in_mm_old: size.height ?? 0,
@@ -825,6 +831,19 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
     const has_white_warm_edge_spacer = isWarmEdgeSpacerColour(v.spacerColourId)
 
     return {
+      // Step BH follow-up item 2, as the panel branch: the SIGHTLINE this
+      // unit was worked out to have. actual_area is clamped at 0 and
+      // rounded_area carries a 0.30 m2 minimum, so a unit with no real
+      // size would otherwise price at the minimum rather than not at all.
+      //
+      // A VISION PANEL is the exception, and it is a real one: its size is
+      // STORED (Integrate’s 200 x 350 — a hole cut in a panel), not worked
+      // out from a cell, so the sightline above comes out 0 and its price is
+      // the 0.30 m2 minimum, £17.55, which is Integrate’s own figure on ST2.
+      // The guard measures it by what it IS; nothing about the way it prices
+      // is touched, and that it prices off a sightline of 0 is a question of
+      // its own for whoever reads ST2 next.
+      _size: visionPanelSize(v) ?? { width: sightlineWidth, height: sightlineHeight },
       actual_area,
       rounded_area,
       is_sash_arched: parentArch.archHead,
@@ -849,6 +868,101 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
   }
 
   return {}
+}
+
+// ── Step BH follow-up item 2: a size that cannot be real ────────────────────
+//
+// Live drawing 56 priced four Tricoya panels at NEGATIVE area — £211 off the
+// cost of a door — because a broken layout (a template’s short transom
+// losing its divider references on creation) had squeezed the leaf into a
+// 365 mm cell and turned its grid inside out. The layout bug is fixed; this
+// is the backstop, because a drawing that takes money off is a failure mode
+// of its own.
+
+/**
+ * A VISION PANEL’s own stored size, or null if this is not one.
+ *
+ * Integrate stores `visionPanelWidth` / `visionPanelHeight` on the glass
+ * unit inside the panel (ST2: 200 x 350), and `visionPanelRect` draws it
+ * from the same two values.
+ */
+function visionPanelSize(v) {
+  const w = Number(v?.visionPanelWidth)
+  const h = Number(v?.visionPanelHeight)
+  if (!isFinite(w) || !isFinite(h) || w <= 0 || h <= 0) return null
+  return { width: w, height: h }
+}
+
+/** A width or a height that cannot be made. */
+export function isDegenerateSize(size) {
+  if (!size) return false
+  const w = Number(size.width)
+  const h = Number(size.height)
+  // a size that is not known at all is a different thing, and not this
+  // guard’s business: plenty of parts have no size until they are placed
+  if (!isFinite(w) || !isFinite(h)) return false
+  return w <= 0 || h <= 0
+}
+
+const DEGENERATE_TYPES = ['panelPart', 'glassPart']
+
+function fmtMm(v) {
+  const n = Number(v)
+  return isFinite(n) ? Math.round(n * 10) / 10 : '?'
+}
+
+function partTypeLabel(node) {
+  return node?.part_type === 'panelPart' ? 'Panel' : 'Glass'
+}
+
+/**
+ * A label a surveyor can find. The OPENING's own name and matrix position
+ * where there is one ("Casement Sash A2"), else the holder it sits in, else
+ * the key — which always works and is what the board selects by.
+ */
+function partLabelFor(tree, node) {
+  try {
+    const own = openingLabel(tree, node)
+    if (own) return own
+    const holder = findParentSash(tree, node.key)
+    if (holder && holder.part_type !== 'drawingItemPart') {
+      const holderLabel = openingLabel(tree, holder)
+      if (holderLabel) return `${holderLabel} > ${partTypeLabel(node)}`
+    }
+  } catch { /* a label is a nicety; the key always works */ }
+  return node?.key ?? '?'
+}
+
+/**
+ * Every panel and glass unit in the tree whose COMPUTED size is <= 0.
+ *
+ * The same numbers the price lines would have used: it asks
+ * `computePartVariables` for the part’s own `_size`, so the guard and the
+ * price can never disagree about what a part measures.
+ *
+ * The board shows these as validation ERRORS (src/validation/validate.js)
+ * and the engine prices none of them.
+ */
+export function degenerateParts(tree, derived = {}, profileValues = {}, glassCatalogue = {}) {
+  if (!tree) return []
+  const out = []
+  for (const type of DEGENERATE_TYPES) {
+    for (const node of findAll(tree, type)) {
+      let size = null
+      try {
+        size = computePartVariables(node, tree, derived, {}, glassCatalogue, profileValues)?._size ?? null
+      } catch { continue }
+      if (!isDegenerateSize(size)) continue
+      out.push({
+        key: node.key,
+        part_type: node.part_type,
+        label: partLabelFor(tree, node),
+        width: Number(size.width),
+        height: Number(size.height),
+      })
+    }
+  }
+  return out
 }
 
 // ── Line money rounding (Step AD decision 4) ─────────────────────────────────
@@ -1126,6 +1240,8 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
   const componentParts = [...mergedMap.values()]
 
   const pricingWarnings = []
+  // Step BH follow-up item 2: parts the loop refused to price, by key
+  const degenerate = new Map()
 
   // Option codes the engine depends on but does not recognise must surface
   // as warnings naming the field and the code — never a silent false.
@@ -1341,6 +1457,15 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
       const vars = partNode
         ? { ...priceVars, ...computePartVariables(partNode, tree, derived, priceVars, glassCatalogue, profileValues) }
         : priceVars
+      // Step BH follow-up item 2: a part whose computed size is not a real
+      // size does not price AT ALL. Live drawing 56 took £211 OFF a door
+      // in negative Tricoya panels, because a broken layout had turned its
+      // grid inside out. The layout bug is fixed; this is the backstop, and
+      // it is a skip WITH A WARNING, never a silent drop.
+      if (isDegenerateSize(vars._size)) {
+        degenerate.set(partNode.key, { node: partNode, size: vars._size })
+        continue
+      }
       const line = evalPriceRuleLine(rule, vars, partNode)
       if (!line.error && line.fires) { totalCost += line.line_cost; totalPrice += line.line_total }
       results.price.lines.push(line)
@@ -1364,6 +1489,14 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
       pricingWarnings.push(`Glass code not found in catalogue: ${gv.singleGlassPartNo} (single pane)`)
     }
   }
+  // Step BH follow-up item 2: say which parts were left out, and why.
+  for (const { node, size } of degenerate.values()) {
+    pricingWarnings.push(
+      `${partTypeLabel(node)} ${partLabelFor(tree, node)} has no usable size ` +
+      `(${fmtMm(size?.width)} x ${fmtMm(size?.height)} mm) and cannot be priced ` +
+      '— check the layout')
+  }
+
   // Components: check allocated part codes against the cost map
   for (const ap of componentParts) {
     if (ap.part_code && !(ap.part_code in partCostMap)) {

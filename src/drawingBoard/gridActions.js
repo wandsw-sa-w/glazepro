@@ -41,19 +41,43 @@ export function makeKey(prefix) {
 
 // Deep-clone a subtree with fresh keys at every node (used to duplicate a
 // sash pair — including its bars — into a new opening).
+/**
+ * Step BH follow-up item 1: a divider reference inside what is being copied
+ * follows the copy. One that points OUTSIDE it is left as it is — the
+ * caller’s business, not a guess.
+ *
+ * The same rule `regenerateKeys` follows in templates.js, where leaving it
+ * out cost a live drawing £1,832.54.
+ */
 export function cloneWithNewKeys(node) {
-  const prefix = (node.part_type || 'part').replace(/Part$/, '')
-  return {
-    ...node,
-    key: makeKey(prefix),
-    // Step AU: `values` is COPIED, not shared. The spread above is shallow,
-    // so a cloned opening used to point at the ORIGINAL's values object —
-    // editing A1's bottom rail in place silently edited B1's too. The board's
-    // own field handler replaces values immutably, so the app never hit it,
-    // but it is a trap for anything that does mutate (a test did).
-    values: { ...(node.values ?? {}) },
-    children: (node.children ?? []).map(cloneWithNewKeys),
+  const map = new Map()
+  const copy = (n) => {
+    const prefix = (n.part_type || 'part').replace(/Part$/, '')
+    const key = makeKey(prefix)
+    map.set(n.key, key)
+    return {
+      ...n,
+      key,
+      // Step AU: `values` is COPIED, not shared. The spread above is shallow,
+      // so a cloned opening used to point at the ORIGINAL's values object —
+      // editing A1's bottom rail in place silently edited B1's too. The
+      // board's own field handler replaces values immutably, so the app never
+      // hit it, but it is a trap for anything that does mutate (a test did).
+      values: { ...(n.values ?? {}) },
+      children: (n.children ?? []).map(copy),
+    }
   }
+  return remapRefs(copy(node), map)
+}
+
+/** The divider references inside a copied subtree, re-pointed at the copy. */
+function remapRefs(node, map) {
+  for (const field of ['startDivider', 'endDivider']) {
+    const ref = node.values?.[field]
+    if (ref != null && ref !== '0' && map.has(ref)) node.values[field] = map.get(ref)
+  }
+  for (const child of (node.children ?? [])) remapRefs(child, map)
+  return node
 }
 
 // Apply an N-column x M-row grid to the frame — Integrate's "Transom /

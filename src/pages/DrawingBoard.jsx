@@ -1227,7 +1227,9 @@ export function ValidationPanel({ tree, derived, onSelectKey, profileCode = null
     ? (computeVariables(tree, derived || {}, {}, { profileCode }) || {})
     : {}
   const results = !loading && tree
-    ? validateDrawing(tree, variables, rules, lists, { glassCatalogue })
+    // Step BH follow-up item 2: `derived` so the built-in degenerate-size
+    // check measures what the price would have measured
+    ? validateDrawing(tree, variables, rules, lists, { glassCatalogue, derived })
     : []
   const firedResults = results.filter(r => r.status === 'fired')
   const unevaluable = results.filter(r => r.status === 'unevaluable')

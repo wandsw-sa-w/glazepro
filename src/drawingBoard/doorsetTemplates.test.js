@@ -15,8 +15,9 @@ import { readFileSync, existsSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 
+import { prepareTemplateTree } from './templates.js'
 import {
-  DOORSET_TEMPLATES, buildDoorsetTemplate, buildFrenchDoorFrame,
+  DOORSET_TEMPLATES, buildDoorsetTemplate, buildFrenchDoorFrame, buildFrontDoorFrame,
   buildFrontDoorPairFrame, buildFrontDoorSetFrame, buildStableDoorSetFrame,
   stableSideLightMidRailOffset, isFrontDoorTree, isStableDoorTree,
   FRONT_DOOR_SET_DEFAULTS, SIDE_LIGHT_DEFAULTS,
@@ -36,6 +37,7 @@ import { computeDerived } from './computeDerived.js'
 import { resolveIronmongeryLines } from '../pricing/loadPricingContext.js'
 import {
   withShapedGlassRate, withStableDoorIronmongery, withFrontDoorPairLock,
+  withFrontDoorEuroPull, withStepBh3,
 } from '../pricing/benchmarks/liveRuleFixes.js'
 import { withAv4Costs } from '../pricing/benchmarks/frontDoorIronmongery.js'
 import { DOOR_PART_COST_MAP } from '../pricing/benchmarks/fixtureDoor.js'
@@ -47,14 +49,42 @@ const SNAPSHOT = existsSync(SNAPSHOT_PATH)
   : null
 
 const PV = OPEN_IN_PROFILE_VALUES
+
+/**
+ * BUILD IT THE WAY A SURVEYOR GETS IT (Step BH follow-up item 1).
+ *
+ * The builders return a TEMPLATE tree; a DRAWING is that tree through
+ * prepareTemplateTree — fresh keys, item values cleared. Template 38 priced
+ * 1,832.54 wrong live while this file passed, because the live path replaced
+ * every key and left the short transom pointing at mullions that no longer
+ * existed. One function stood between the two and no test crossed it. Every
+ * tree here now does.
+ */
+const asDrawing = built => {
+  expect(built.missing ?? [], 'missing profile values').toEqual([])
+  const { tree } = prepareTemplateTree(built.tree)
+  return { tree, missing: [] }
+}
 const frameOf = tree => itemFrames(tree)[0]
 const openingsOf = tree => (frameOf(tree).children ?? []).filter(
   c => !['mullionPart', 'transomPart', 'cillPart'].includes(c.part_type))
 
-/** The live rule set, with the two fixes the capture pre-dates. */
+/**
+ * THE LIVE RULE SET as the reviewer has it on 15 Oct: the capture plus every
+ * file that has run since it was taken — the AV4 part costs (bd1), the
+ * shaped-glass rate (be1), the stable-door set (bf3), the Croft euro pull
+ * (bd4, Step BH follow-up item 7) and the front-door-pair lock (bh1).
+ *
+ * Each one is a named entry, so a refreshed snapshot turns it into a no-op
+ * instead of a mystery.
+ */
 const LIVE = SNAPSHOT
-  ? withStableDoorIronmongery(withShapedGlassRate(withAv4Costs(SNAPSHOT)))
+  ? withFrontDoorPairLock(withFrontDoorEuroPull(
+    withStableDoorIronmongery(withShapedGlassRate(withAv4Costs(SNAPSHOT)))))
   : null
+
+/** And what `sql/step-bh3` will make it: items 4 and 5. */
+const AFTER_BH3 = LIVE ? withStepBh3(LIVE) : null
 
 /** Price a tree the way the live site does, with the live default ironmongery. */
 function priceTree(tree, context = LIVE) {
@@ -92,7 +122,7 @@ const tally = (group) => {
 }
 
 describe('Step BH — a pair of front doors (item 2)', () => {
-  const { tree, missing } = buildFrontDoorPairFrame(PV, {})
+  const { tree, missing } = asDrawing(buildFrontDoorPairFrame(PV, {}))
 
   it('builds: 1500 x 2182, two leaves of 711 x 2068', () => {
     expect(missing).toEqual([])
@@ -162,58 +192,115 @@ describe('Step BH — a pair of front doors (item 2)', () => {
     expect(results.price.total_cost).toBeGreaterThan(0)
   })
 
-  it.skipIf(!SNAPSHOT)('the default set is the front door’s, on the MASTER leaf', () => {
+  it.skipIf(!SNAPSHOT)('TODAY the front-door set lands on the SLAVE leaf', () => {
+    // Item 4. The five front-door rules carry
+    // `not is_master_leaf_in_french_pair`, so on a PAIR the master is the one
+    // leaf excluded and the whole set goes on the SLAVE — the LEFT leaf, so
+    // the LEFT-hand locking system. The set itself is right (hinges on both
+    // leaves, one letterbox, one pull, one lock), and it is the AV3 where the
+    // FT drawings carry a stored AV4: both for the reviewer, in the report.
     const { lines } = priceTree(tree)
-    // What the LIVE default_ironmongery rules give a pair of front doors.
-    // Nathan 2 asks for the front-door set on the master and hinges on both
-    // leaves, and that is what it is — with two things for the reviewer to
-    // confirm, both in the report: the locking system is the AV3 (the FT
-    // drawings carry a stored AV4), and it comes LEFT HAND although the
-    // master leaf is the right one.
     expect(lines.map(l => [l.product_short_name, l.finish_code, l.qty])).toEqual([
       ['102mm_hinges', 'PB', 4],
       ['hardwick_classic_sleeved_letterbox', 'PB', 1],
-      ['hardwick_classic_euro_pull_set_back_to_back', 'PB', 1],
+      ['euro_cylinder_pull', 'PB', 1],
       ['av3_heritage_locking_system_lh', 'PC', 1],
     ])
     // two pairs of hinges, one per leaf, from the per-leaf rule
     expect(lines.find(l => l.product_short_name === '102mm_hinges').qty).toBe(4)
   })
 
-  it.skipIf(!SNAPSHOT)('the FRENCH master lock must not fire — sql/step-bh1', () => {
-    // THE FINDING of item 2. A pair of front doors fires allocator rule
-    // cebdd8b5 "MPLS master or tall – shootbolt", which gives the master a
-    // Winkhaus Thunderbolt (RJZ2382, 53.55) on top of the heritage lock the
-    // default set already gives it. Every other rule in that family carries
-    // `not is_front_door`; this one never did, because Integrate has no pair
-    // of front doors to catch it.
+  it.skipIf(!SNAPSHOT)('sql/step-bh3 puts it on the MASTER, at the same cost', () => {
+    const before = priceTree(tree)
+    const after = priceTree(tree, AFTER_BH3)
+    // the master is the RIGHT leaf, so the set comes right hand
+    expect(after.lines.map(l => l.product_short_name)).toEqual([
+      '102mm_hinges', 'hardwick_classic_sleeved_letterbox',
+      'euro_cylinder_pull', 'av3_heritage_locking_system_rh',
+    ])
+    const ironOf = r => r.results.price.lines
+      .filter(l => l.fires && l.name === 'Ironmongery Cost')
+      .reduce((t, l) => t + l.line_cost, 0)
+    // same money: the two hands cost the same
+    expect(ironOf(after)).toBeCloseTo(ironOf(before), 2)
+    // and the lock is on the leaf that carries it
+    const setLine = after.lines.find(l => /heritage/.test(l.product_short_name))
+    expect(setLine.qty).toBe(1)
+  })
+
+  it.skipIf(!SNAPSHOT)('sql/step-bh3 fits the second leaf: 840 + 120 = 16 h', () => {
+    // Item 5, Nathan 15 Oct. Integrate gives a pair only the 840, because
+    // "French Doors Additional Door" carries `not is_front_door`.
+    const before = priceTree(tree)
+    expect(before.results.install_labour.total_minutes).toBe(840)
+    const after = priceTree(tree, AFTER_BH3)
+    expect(after.results.install_labour.total_minutes).toBe(960)
+    expect(fired(after.results.install_labour).join(' | '))
+      .toContain('Front Door Pair Additional Door 120')
+    // 2 h at 40.21 = 80.42 of cost, 160.84 of price
+    expect(after.results.price.total_cost - before.results.price.total_cost)
+      .toBeCloseTo(80.42, 2)
+    expect(after.results.price.total - before.results.price.total)
+      .toBeCloseTo(160.84, 2)
+  })
+
+  it.skipIf(!SNAPSHOT)('and a single front door, a French pair and a stable door do NOT move', () => {
+    // The new fitting rule must touch nothing else.
+    const others = [
+      ['a single front door', buildFrontDoorFrame(PV, {})],
+      ['a French pair', buildFrenchDoorFrame(OUT_PV, {})],
+      ['a stable door', buildStableDoorSetFrame(PV, {})],
+    ]
+    for (const [label, built] of others) {
+      const { tree: other } = asDrawing(built)
+      const before = priceTree(other)
+      const after = priceTree(other, AFTER_BH3)
+      expect(after.results.install_labour.total_minutes, label)
+        .toBe(before.results.install_labour.total_minutes)
+      expect(after.results.price.total_cost, label)
+        .toBeCloseTo(before.results.price.total_cost, 2)
+    }
+  })
+
+  it.skipIf(!SNAPSHOT)('the FRENCH master lock does not fire — sql/step-bh1 RAN', () => {
+    // Step BH’s finding, and the file ran live on 15 Oct: allocator rule
+    // cebdd8b5 "MPLS master or tall – shootbolt" now carries
+    // `not is_front_door`, so a pair of front doors no longer gets a
+    // Winkhaus Thunderbolt (RJZ2382, £53.55) on top of its heritage lock.
     const codes = results => results.price.lines
       .filter(l => l.fires && l.name === 'Ironmongery Cost')
       .map(l => l.alloc_iron_part_code)
 
-    // as the live data stands TODAY
-    const before = priceTree(tree)
-    expect(codes(before.results)).toContain('RJZ2382')
-    // and with sql/step-bh1 applied
-    const after = priceTree(tree, withFrontDoorPairLock(LIVE))
-    expect(codes(after.results)).not.toContain('RJZ2382')
-    expect(before.results.price.total_cost - after.results.price.total_cost)
+    // the live data as it stands
+    const now = priceTree(tree)
+    expect(codes(now.results)).not.toContain('RJZ2382')
+    // and what it was before the file: the same £53.55 it was worth
+    const RULE = 'cebdd8b5'
+    const undone = {
+      ...LIVE,
+      partAllocationRules: LIVE.partAllocationRules.map(r => (
+        String(r.id ?? '').startsWith(RULE)
+          ? { ...r, condition: String(r.condition).replace(' and not is_front_door', '') }
+          : r)),
+    }
+    const was = priceTree(tree, undone)
+    expect(codes(was.results)).toContain('RJZ2382')
+    expect(was.results.price.total_cost - now.results.price.total_cost)
       .toBeCloseTo(53.55, 2)
 
-    // the SLAVE's bolts and keeps stay either way — Nathan 2 asks for them
+    // the SLAVE's bolts and keeps stay — Nathan 2 asks for them by name
     for (const part of ['RHZ1649', 'RHZ1653', 'RHZ1667']) {
-      expect(codes(after.results), part).toContain(part)
+      expect(codes(now.results), part).toContain(part)
     }
     // and a FRENCH pair keeps its Thunderbolt
-    const french = buildFrenchDoorFrame(OUT_PV, {}).tree
-    expect(codes(priceTree(french, withFrontDoorPairLock(LIVE)).results))
-      .toContain('RJZ2382')
+    const french = asDrawing(buildFrenchDoorFrame(OUT_PV, {})).tree
+    expect(codes(priceTree(french).results)).toContain('RJZ2382')
   })
 })
 
 describe('Step BH — front door with side lights and a fanlight (item 3b / 3c)', () => {
-  const full = buildFrontDoorSetFrame(PV, { fanlight: 'full_width' })
-  const over = buildFrontDoorSetFrame(PV, { fanlight: 'over_door' })
+  const full = asDrawing(buildFrontDoorSetFrame(PV, { fanlight: 'full_width' }))
+  const over = asDrawing(buildFrontDoorSetFrame(PV, { fanlight: 'over_door' }))
 
   it('full width: THREE fanlights over a side light, the door and a side light', () => {
     expect(full.missing).toEqual([])
@@ -313,8 +400,8 @@ describe('Step BH — front door with side lights and a fanlight (item 3b / 3c)'
 })
 
 describe('Step BH — a stable door with a fanlight or a side light (item 3d / 3e)', () => {
-  const fan = buildStableDoorSetFrame(PV, { fanlight: true })
-  const side = buildStableDoorSetFrame(PV, { sideLight: { side: 'right' } })
+  const fan = asDrawing(buildStableDoorSetFrame(PV, { fanlight: true }))
+  const side = asDrawing(buildStableDoorSetFrame(PV, { sideLight: { side: 'right' } }))
 
   it('the fanlight makes the frame taller and leaves the DOOR alone', () => {
     expect(fan.missing).toEqual([])
@@ -344,13 +431,18 @@ describe('Step BH — a stable door with a fanlight or a side light (item 3d / 3
     expect(() => assertSaveable(tree)).not.toThrow()
   })
 
-  it('the side light’s mid rail is LEVEL with the meeting rails', () => {
-    // the join's centre is 4 + 1055 + 1.5 = 1060.5 below the interior top;
-    // the rail's centre is 3 + 62 + offset + 85
-    expect(stableSideLightMidRailOffset({})).toBe(911)
+  it('the side light’s mid rail TOP is level with the meeting rail’s', () => {
+    // Nathan, 15 Oct: the TOP EDGES line up. The meeting rail’s top is
+    // 4 + 1055 - 99 = 960 below the interior top; the mid rail’s is
+    // 3 + 62 + offset. So the offset is 895, 16 mm up from the 911 that
+    // aligned the two bands’ centres.
+    expect(stableSideLightMidRailOffset({})).toBe(895)
     const sash = openingsOf(side.tree).find(o => o.part_type === 'casementSashPart')
     const rail = (sash.children ?? []).find(c => c.part_type === 'transomPart')
-    expect(rail.values.offset).toBe(911)
+    expect(rail.values.offset).toBe(895)
+    // its glass is 895 high and its panel 802, of the 1867 interior
+    expect(leafInterior(side.tree, sash).height).toBe(1867)
+    expect(leafCells(side.tree, sash).map(c => c.height)).toEqual([895, 802])
     // and it is glass over a FLAT panel, as template 32's side light is
     expect((sash.children ?? []).map(c => c.part_type))
       .toEqual(['transomPart', 'glassPart', 'panelPart'])
@@ -388,7 +480,7 @@ describe('Step BH — the five templates are one definition', () => {
   it('every template builds, is saveable and has no empty required field', () => {
     expect(DOORSET_TEMPLATES.length).toBe(5)
     for (const t of DOORSET_TEMPLATES) {
-      const { tree, missing } = buildDoorsetTemplate(t, PV)
+      const { tree, missing } = asDrawing(buildDoorsetTemplate(t, PV))
       expect(missing, t.name).toEqual([])
       expect(tree, t.name).toBeTruthy()
       expect(() => assertSaveable(tree), t.name).not.toThrow()
@@ -405,7 +497,7 @@ describe('Step BH — the five templates are one definition', () => {
   it('the brief’s starting sizes are what they build at', () => {
     const sizes = {}
     for (const t of DOORSET_TEMPLATES) {
-      const f = frameOf(buildDoorsetTemplate(t, PV).tree)
+      const f = frameOf(asDrawing(buildDoorsetTemplate(t, PV)).tree)
       sizes[t.name] = [f.values.width, f.values.height]
     }
     expect(sizes).toEqual({

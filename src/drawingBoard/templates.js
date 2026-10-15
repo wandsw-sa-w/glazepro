@@ -12,14 +12,61 @@ import { applySashesReplaced } from './sashesReplaced.js'
 
 // ── Key regeneration ─────────────────────────────────────────────────────────
 
-/** Replace every node key in the tree with a fresh UUID. */
+/**
+ * The values that hold ANOTHER NODE’S KEY, and so have to follow it when
+ * keys change (Step BH follow-up item 1).
+ *
+ * Integrate’s model, which Step AV copied: a divider names the dividers it
+ * starts and ends at, and '0' means the frame itself. A SHORT transom — one
+ * that stops at two mullions, so the side lights beside it run full height
+ * — is the only thing in a tree that points at another node.
+ */
+export const KEY_REF_FIELDS = ['startDivider', 'endDivider']
+
+/**
+ * Re-point every divider reference through `map` (old key -> new key).
+ *
+ * A reference to a node that is NOT in the map is left exactly as it is: it
+ * is either '0' (the frame) or a node outside what was copied, and quietly
+ * pointing it somewhere new would be worse than leaving it for a caller to
+ * see.
+ */
+export function remapDividerRefs(node, map) {
+  if (!node) return node
+  const v = node.values ?? {}
+  let values = v
+  for (const field of KEY_REF_FIELDS) {
+    const ref = v[field]
+    if (ref == null || ref === '0' || !map.has(ref)) continue
+    if (values === v) values = { ...v }
+    values[field] = map.get(ref)
+  }
+  const children = (node.children ?? []).map(c => remapDividerRefs(c, map))
+  if (values === v && children.every((c, i) => c === node.children[i])) return node
+  return { ...node, values, children }
+}
+
+/**
+ * Replace every node key in the tree with a fresh UUID — and carry the
+ * divider references with them.
+ *
+ * THE LIVE BUG this fixes (template 38, drawing 56): the keys were replaced
+ * and the references were not, so the short transom pointed at mullions
+ * that no longer existed. `dividerRefIndex` resolved neither, the transom
+ * was read as running frame to frame, and the frame became a 3 x 2 grid of
+ * six cells for four openings: the door landed in a 365-wide cell, its
+ * panels priced at NEGATIVE area, the side lights were charged as fanlights,
+ * and the drawing read £7,095.53 instead of £8,928.07.
+ */
 export function regenerateKeys(node) {
   if (!node) return node
-  return {
-    ...node,
-    key: crypto.randomUUID(),
-    children: (node.children ?? []).map(regenerateKeys),
+  const map = new Map()
+  const withKeys = (n) => {
+    const key = crypto.randomUUID()
+    map.set(n.key, key)
+    return { ...n, key, children: (n.children ?? []).map(withKeys) }
   }
+  return remapDividerRefs(withKeys(node), map)
 }
 
 // ── Clear item-specific values ───────────────────────────────────────────────

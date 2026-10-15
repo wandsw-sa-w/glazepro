@@ -13,6 +13,11 @@ import { CASEMENT_SASH_TYPES } from '../pricing/casementGeometry.js'
 import { glassSpacerMm } from '../pricing/optionVocabulary.js'
 import { casementSashVariables } from '../pricing/casementSashVariables.js'
 import { openingLabel } from '../drawingBoard/casementOpenings.js'
+// Step BH follow-up item 2: the degenerate-size check is BUILT IN, not a
+// row in validation_rules — a part that cannot be made is not a business
+// rule somebody might switch off, and it must fire on every profile
+// whatever its rules say.
+import { degenerateParts } from '../pricing/pricingEngine.js'
 
 // ── Parser setup (mirrors evaluator.js but adds validation functions) ────────
 
@@ -424,7 +429,31 @@ export function validateDrawing(tree, variables, rules, lists = {}, opts = {}) {
     }
   }
 
+  // Step BH follow-up item 2: anything whose computed size is <= 0. It
+  // prices nothing (the engine refuses it by the same measurement), so the
+  // board has to say so — a drawing that quietly took £211 off a door in
+  // negative panels is what this is here for.
+  for (const part of degenerateParts(tree, opts.derived ?? {},
+    opts.profileValues ?? {}, glassCatalogue ?? {})) {
+    const what = part.part_type === 'panelPart' ? 'panel' : 'glass unit'
+    results.push({
+      rule_id: 'built_in.degenerate_size',
+      severity: 'error',
+      message: `This ${what} has no usable size (${fmtMm(part.width)} wide x ` +
+        `${fmtMm(part.height)} high). It is not priced — check the layout.`,
+      part_key: part.key,
+      part_label: part.label,
+      status: 'fired',
+      missing: [],
+    })
+  }
+
   return results
+}
+
+function fmtMm(v) {
+  const n = Number(v)
+  return isFinite(n) ? Math.round(n * 10) / 10 : '?'
 }
 
 /**

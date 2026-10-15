@@ -124,6 +124,103 @@ export function withFrontDoorPairLock(snapshot) {
   return { ...snapshot, partAllocationRules: rules }
 }
 
+/**
+ * `sql/step-bd4`, ALREADY LIVE: a front door’s euro cylinder pull is the
+ * CROFT one.
+ *
+ * The capture’s rule `cb8eb0b9` gives
+ * `hardwick_classic_euro_pull_set_back_to_back` (HK4000PB, 23.92 -> 25.20);
+ * live it gives `euro_cylinder_pull` (Croft CRO1774PB, 28.35 -> 29.40).
+ * That £4.20 of cost is the £8.40 the reviewer measured on drawings 54 and
+ * 55 against the Step BH report, and it is the only money in it.
+ *
+ * The catalogue already holds the Croft product, so only the rule moves.
+ * Idempotent, and a no-op once the snapshot is refreshed.
+ */
+export const FRONT_DOOR_PULL_RULE = 'cb8eb0b9'
+export const FRONT_DOOR_PULL_PRODUCT = 'euro_cylinder_pull'
+
+export function withFrontDoorEuroPull(snapshot) {
+  return {
+    ...snapshot,
+    ironmongeryRules: (snapshot.ironmongeryRules ?? []).map(r => (
+      String(r.id ?? '').startsWith(FRONT_DOOR_PULL_RULE)
+        ? { ...r, product_short_name: FRONT_DOOR_PULL_PRODUCT }
+        : r)),
+  }
+}
+
+/**
+ * `sql/step-bh3` item 4, NOT YET RUN: the front-door set goes on the leaf
+ * that carries the lock.
+ *
+ * The five front-door rules carry `not is_master_leaf_in_french_pair`, so on
+ * a PAIR of front doors the master is the one leaf excluded and the whole
+ * set — lock, cylinder, keeps and pull — lands on the SLAVE. Nathan’s
+ * decision is the front-door set on the MASTER (the slave gets its hinges
+ * and the pair’s bolts), so the clause becomes
+ * `not is_slave_leaf_in_french_pair`.
+ *
+ * A SINGLE front door is neither master nor slave, so it is untouched —
+ * which is why FT1-FT4 do not move. The pair’s set then comes RIGHT hand
+ * (the master is the right leaf), at the same cost as the left.
+ */
+export const FRONT_DOOR_SET_RULES = [
+  'b5c2d45a',   // Front Door Open In Left Hand Hung
+  '501f9ca5',   // Front Door Open In Right Hand Hung
+  'e938fc5a',   // Front Door Open Out Left Hand Hung
+  'd23e8262',   // Front Door Open Out Right Hand Hung
+  'cb8eb0b9',   // Front Door Euro Cylinder Pull
+]
+export const MASTER_CLAUSE = 'not is_master_leaf_in_french_pair'
+export const SLAVE_CLAUSE  = 'not is_slave_leaf_in_french_pair'
+
+export function withFrontDoorSetOnMaster(snapshot) {
+  return {
+    ...snapshot,
+    ironmongeryRules: (snapshot.ironmongeryRules ?? []).map(r => (
+      FRONT_DOOR_SET_RULES.some(id => String(r.id ?? '').startsWith(id))
+        ? { ...r, condition: String(r.condition).replace(MASTER_CLAUSE, SLAVE_CLAUSE) }
+        : r)),
+  }
+}
+
+/**
+ * `sql/step-bh3` item 5, NOT YET RUN: Nathan (15 Oct) fits a PAIR of front
+ * doors in 14 h + 2 h for the second leaf.
+ *
+ * Integrate gives a pair only "Front Door and Frame (Base)" 840, because
+ * "French Doors Additional Door" 120 carries `not is_front_door`. The new
+ * rule is that 120 for a front-door pair, in the same shape as the three
+ * "Front Door and Frame" rules: quantity `new_french_door_pair_qty`, value
+ * 120, so a single front door (0 pairs), a French pair (not a front door)
+ * and a stable door (not a front door) are all unmoved.
+ */
+export const FRONT_DOOR_PAIR_FITTING = {
+  id: 'bb030001-0000-4000-8000-000000000001',
+  name: 'Front Door Pair Additional Door',
+  rule_family: 'install_labour',
+  level: 'item',
+  group_name: 'Doors',
+  sort_order: 3,
+  condition: 'is_front_door and is_complete_new and is_installation_included ' +
+    'and new_french_door_pair_qty >= 1',
+  quantity: 'new_french_door_pair_qty',
+  value: '120',
+  is_active: true,
+}
+
+export function withFrontDoorPairFitting(snapshot) {
+  const rules = snapshot.rules ?? []
+  if (rules.some(r => r.name === FRONT_DOOR_PAIR_FITTING.name)) return snapshot
+  return { ...snapshot, rules: [...rules, { ...FRONT_DOOR_PAIR_FITTING }] }
+}
+
+/** Everything `sql/step-bh3` does, for a test that prices what it will. */
+export function withStepBh3(snapshot) {
+  return withFrontDoorPairFitting(withFrontDoorSetOnMaster(snapshot))
+}
+
 export function withStableDoorIronmongery(snapshot) {
   const rules = (snapshot.ironmongeryRules ?? []).map(r => {
     if (STABLE_DOOR_IMPORTED_RULES.includes(r.id)) return { ...r, is_active: false }

@@ -957,6 +957,33 @@ store "stepped" on an open-in leaf; no rule reads the field, so it is logged
 here rather than given a file of its own — the next template SQL should carry
 it.
 
+## 22. A pair of front doors is fitted in 16 hours, not 14
+
+**Decided by:** Nathan, 15 Oct 2026 (Step BH follow-up item 5).
+
+Integrate gives a PAIR of front doors the same fitting as a single one —
+"Front Door and Frame (Base)" 840 minutes — because the rule that charges
+for an extra leaf, "French Doors Additional Door" 120, carries
+`not is_front_door`. Nathan fits the second leaf in **2 hours**.
+
+`sql/step-bh3` adds one install-labour rule in the same shape as the three
+"Front Door and Frame" rules:
+
+    Front Door Pair Additional Door   120 x new_french_door_pair_qty
+    is_front_door and is_complete_new and is_installation_included
+      and new_french_door_pair_qty >= 1
+
+so a single front door (no pair), a French pair (not a front door) and a
+stable door (not a front door) are all unmoved — which the tests assert one
+by one.
+
+**+£80.42 cost / +£160.84 price** on a pair (2 h at £40.21): the Pair Of
+Front Doors template goes from £6,642.89 to **£6,803.73**.
+
+There is no Integrate figure to compare, because Integrate has no pair of
+front doors — so this is a decision rather than a disagreement, and it is
+here because the fitting hours of every other door came FROM Integrate.
+
 # Open questions
 
 **Not parked, and not decided.** The parked table below is for differences

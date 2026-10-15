@@ -20,7 +20,9 @@ import {
 } from '../pricing/casementGeometry.js'
 import { columnCount, isCasementFrameTree, matrixIndexOf, matrixLabel } from './casementOpenings.js'
 import { itemFrames, isMultiFrame } from '../pricing/casementGeometry.js'
-import { gridRectsFor, stableHalfRects, visionPanelRect } from '../pricing/doorGeometry.js'
+import {
+  gridRectsFor, stableHalfRects, visionPanelRect, leafInterior,
+} from '../pricing/doorGeometry.js'
 
 // ── Tree helpers ──────────────────────────────────────────────────────────────
 
@@ -1150,17 +1152,52 @@ export function CasementElevation({
                 (cells[idx]?.col ?? 0) + (isLeftLeaf(leaf) ? 0 : 1),
                 cells[idx]?.row ?? 0)
               const text = sashLabel(leaf, matrix)
+              // Step BH follow-up item 3: a French leaf has a GRID of its
+              // own on a pair of front doors (a 170 mid rail with a flat
+              // panel above and below) and on FD4 (glass over a panel). The
+              // board drew it as one pane of glass, which is what Step BE
+              // fixed for a side light and Step BF for a stable half:
+              // gridRectsFor is the gate.
+              //
+              // IN PROPORTION, because the drawn leaf and the real one are
+              // not the same width: a pair laps 27 mm at the meeting stile,
+              // so the real leaf is wider than half the opening while the
+              // drawing splits the opening in two. The cells are laid out
+              // inside the leaf AS DRAWN, so a cell can never stick out of
+              // the leaf it belongs to.
+              const lCells = gridRectsFor(tree, leaf, 0, 0)
+              const lInterior = leafInterior(tree, leaf)
+              const hasGrid = lCells.length > 1 ||
+                lCells.some(c => c.kind === 'panel')
+              const sx = lInterior.width > 0 ? lgW / lInterior.width : 1
+              const sy = lInterior.height > 0 ? lgH / lInterior.height : 1
               return (
                 <g key={leaf.key}>
                   <g style={{ cursor: 'pointer' }} onClick={() => onSelectKey?.(leaf.key)}>
                     <rect x={lx - lLap} y={y - lLap}
                       width={leafW + 2 * lLap} height={h + 2 * lLap}
                       fill={C.timber} {...ss(leaf.key)} />
-                    <rect x={lgx} y={lgy} width={lgW} height={lgH}
-                      fill={C.glass} {...sg(lGlass?.key)}
-                      style={{ cursor: 'pointer' }}
-                      onClick={e => { e.stopPropagation(); onSelectKey?.(lGlass?.key) }}
-                    />
+                    {hasGrid
+                      ? lCells.map((cell, ci) => (
+                        <rect key={cell.node?.key ?? ci}
+                          x={lgx + cell.x * sx} y={lgy + cell.y * sy}
+                          width={cell.width * sx} height={cell.height * sy}
+                          fill={cell.kind === 'panel' ? C.panel : C.glass}
+                          {...(cell.kind === 'panel'
+                            ? { stroke: cell.node?.key === selectedKey ? C.selected : C.panelStroke,
+                              strokeWidth: cell.node?.key === selectedKey ? 2.5 : 1 }
+                            : sg(cell.node?.key))}
+                          style={{ cursor: 'pointer' }}
+                          onClick={e => { e.stopPropagation(); onSelectKey?.(cell.node?.key) }}
+                        />
+                      ))
+                      : (
+                        <rect x={lgx} y={lgy} width={lgW} height={lgH}
+                          fill={C.glass} {...sg(lGlass?.key)}
+                          style={{ cursor: 'pointer' }}
+                          onClick={e => { e.stopPropagation(); onSelectKey?.(lGlass?.key) }}
+                        />
+                      )}
                   </g>
                   {openingLines(leaf, lgx, lgy, lgW, lgH)}
                   {showGlassLabels && (
