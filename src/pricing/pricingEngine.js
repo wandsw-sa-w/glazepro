@@ -530,7 +530,11 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
     // rule, which is why benchmark J shows no sash timber line at all.
     const itemNode = findFirst(tree, 'drawingItemPart')
     const casementWeight = casementSashWeightKg(tree, partNode, glassCatalogue)
-    const sashTimber = timberFamily(itemNode?.values?.sashMaterialId) === 'redwood'
+    // Step BJ item 1f: a BI-GLASS sash is KEPT, so there is no sash timber to
+    // charge. Rule 165's condition is literally "true", so the volume is the
+    // only place this can be said.
+    const sashIsMade = baseVars.is_bi_glass !== true
+    const sashTimber = (sashIsMade && timberFamily(itemNode?.values?.sashMaterialId) === 'redwood')
       ? casementSashTimberVolumeDm3(tree, partNode)
       : 0
     return {
@@ -774,7 +778,20 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
     const rounded_area = Math.max(0.30, actual_area)
 
     // to_be_replaced
-    const to_be_replaced = (baseVars.is_complete_new === true) || (parentSash?.values?.toBeReplaced === true)
+    //
+    // Step BJ item 1a: the GLASS PART'S OWN FLAG comes first, because that is
+    // where Integrate stores it. On a BI-GLASS job the glass is the only
+    // thing being replaced — the frame and the sashes are kept — so
+    // is_complete_new is false and the parent sash's flag is false, and this
+    // read false. "BiGlass Labour Base Price" (240 minutes a glass unit, and
+    // the whole of BG1's fitting) could not fire at all.
+    //
+    // The sash's flag is kept as a fallback, which is what makes every
+    // existing benchmark stand still: a complete-new or sash-replacement
+    // drawing stores the flag on the SASH and nothing on the glass.
+    const to_be_replaced = (baseVars.is_complete_new === true) ||
+      (v.toBeReplaced === true) ||
+      (parentSash?.values?.toBeReplaced === true)
 
     // Glazing bars: prefer actual verticalGlazingBarPart/horizontalGlazingBarPart children
     // when present; fall back to legacy barsWide/barsHigh counts for unmigrated trees.
@@ -783,7 +800,7 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
     const hasActualBars = vBarParts.length > 0 || hBarParts.length > 0
     const barsWide = hasActualBars ? vBarParts.length : (v.barsWide ?? 0)
     const barsHigh = hasActualBars ? hBarParts.length : (v.barsHigh ?? 0)
-    const unit_gb_qty = barsWide + barsHigh
+    const rawUnitGbQty = barsWide + barsHigh
 
     // internal_spacer_length: total run of glazing bar material in this unit
     // (metres), at the glass CUT size — the same cut the glass price uses —
@@ -802,8 +819,32 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
     // neither fits. No constant was tuned: the cut size is the existing
     // glassWidth/glassHeight and the rounding is the engine's own
     // decimal-safe half-up.
-    const internal_spacer_length = round2dpHalfUp(
+    //
+    // Step BJ item 1f: on a BI-GLASS CASEMENT the bars are taken OFF, not
+    // made. Integrate charges their removal as fitting labour ("BiGlass GBs
+    // to Take Off", 60 minutes each) and no bar material at all, so the run
+    // of NEW bar is zero. BG2 was £7.82 of manufacture_materials over.
+    //
+    // Scoped to a casement on purpose: bi-glass on a SLIDING sash is a
+    // separate step (Step BJ item 3) and must price exactly as it does today.
+    const isBiGlassCasementUnit = baseVars.is_bi_glass === true &&
+      baseVars.is_casement_window === true
+    const internal_spacer_length = isBiGlassCasementUnit ? 0 : round2dpHalfUp(
       (barsWide * glassHeight + barsHigh * glassWidth) / 1000)
+
+    // Step BJ item 1f, the same reading from the other side: THIS UNIT'S bars
+    // are the ones being taken off, so the NEW pane has none.
+    //
+    // The item-level `gb_qty` still counts all three — that is what "BiGlass
+    // GBs to Take Off" charges 60 minutes each to remove — but the glazing
+    // that goes in is one plain sheet. Without this, "Glazing with Bar"
+    // (production, unit_gb_qty x 12) charged BG2 36 minutes against
+    // Integrate's nil, which is how the reading settles it: BG2's production
+    // is 0 and only its FITTING differs from BG1.
+    //
+    // "Glazing a Sash" needs no such care — Integrate wrote `not is_bi_glass`
+    // into that one itself.
+    const unit_gb_qty = isBiGlassCasementUnit ? 0 : rawUnitGbQty
 
     // Glass costs — look up from parts catalogue using part codes; fall back to fixture values
     const innerEntry  = glassCatalogue[v.internalGlassPartNo] ?? null

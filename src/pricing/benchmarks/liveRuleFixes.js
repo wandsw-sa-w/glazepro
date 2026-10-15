@@ -108,3 +108,50 @@ export const SLAVE_CLAUSE  = 'not is_slave_leaf_in_french_pair'
  * `new_french_door_pair_qty` x 120 minutes.
  */
 export const FRONT_DOOR_PAIR_FITTING_RULE = 'Front Door Pair Additional Door'
+
+// ── sql/step-bj1: the FIXED casement sash hour on a bi-glass casement ──────
+//
+// Step BJ. Install rule 15 "Fixed Casement Sash with Frame" (60 minutes per
+// fixed casement sash) fires in Integrate on a BI-GLASS casement, where the
+// frame is kept — benchmark BG3, a copy of Configuration 4, is charged its
+// one fixed sash. Integrate's own condition is stored unbracketed,
+//
+//   [is_casement_window] || [is_casement_window_bay] && [is_installation_included] && [frame_to_be_replaced]
+//
+// and it evaluates as `is_casement_window OR (the rest)`, so on any casement
+// at all the first term alone carries it. GlazePro's import bracketed it the
+// way it reads — `(a or b) and installation and frame_to_be_replaced` — which
+// is why BG3 came out 60 minutes short.
+//
+// Nathan (15 Oct): copy Integrate for bi-glass, but do NOT copy the loose
+// precedence. Integrate's version would also reach a draught-seal-only or a
+// supply-only casement, which nobody has asked about and which no reading
+// covers. So the clause is widened by exactly one case:
+//
+//   (is_casement_window or is_casement_window_bay) and is_installation_included
+//     and (frame_to_be_replaced or is_bi_glass)
+//
+// This is the capture ahead of which the live data now sits: delete this entry
+// when the snapshot is refreshed after sql/step-bj1 has run.
+export const FIXED_CASEMENT_SASH_RULE = 'Fixed Casement Sash with Frame'
+
+export const FIXED_CASEMENT_SASH_CONDITION_BEFORE =
+  '(is_casement_window or is_casement_window_bay) and is_installation_included and frame_to_be_replaced'
+
+export const FIXED_CASEMENT_SASH_CONDITION_AFTER =
+  '(is_casement_window or is_casement_window_bay) and is_installation_included and (frame_to_be_replaced or is_bi_glass)'
+
+/**
+ * The snapshot with sql/step-bj1 applied: rule 15 reaching a bi-glass
+ * casement. Returns a NEW array; the rule is matched by name and by its
+ * current condition, so a refreshed snapshot that already carries the new
+ * condition is left alone and this becomes a no-op.
+ */
+export function withFixedCasementSashBiGlass(rules) {
+  return rules.map(r => (
+    r.name === FIXED_CASEMENT_SASH_RULE &&
+    r.condition === FIXED_CASEMENT_SASH_CONDITION_BEFORE
+      ? { ...r, condition: FIXED_CASEMENT_SASH_CONDITION_AFTER }
+      : r
+  ))
+}

@@ -46,6 +46,14 @@ import SNAPSHOT from './pf30-snapshot.json'
 // truth is the right outcome when GlazePro disagrees with Integrate.
 import INTEGRATE from './integrate-targets.json'
 import { matrixIndexOf, isStormproofSash, isStormproofWindow, openingNodes, openingLabel } from '../../drawingBoard/casementOpenings.js'
+// Step BJ: the four bi-glass casements, and the one rule sql/step-bj1 widens.
+import {
+  BENCHMARK_BG1, BENCHMARK_BG2, BENCHMARK_BG3, BENCHMARK_BG4,
+} from './fixtureBiGlass.js'
+import {
+  withFixedCasementSashBiGlass, FIXED_CASEMENT_SASH_RULE,
+  FIXED_CASEMENT_SASH_CONDITION_AFTER,
+} from './liveRuleFixes.js'
 
 // ── Minimal price-file variables (PF30 scalars) ────────────────────────────
 // Sash profile rebate/tolerance (14 / 2) — the measured sash-weight model
@@ -3766,5 +3774,287 @@ describe('Step BI — Configurations 4-7 benchmarks', () => {
     // TC6 and TC7 are the only benchmark frames in the band at all, and they
     // move only to agree with Integrate.
     expect([...new Set(moved)].sort()).toEqual(['BENCHMARK_TC6 1499', 'BENCHMARK_TC7 1499'])
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step BJ — BI-GLASS on casement windows: BG1, BG2, BG3, BG4
+// ══════════════════════════════════════════════════════════════════════════════
+// docs/integrate-L31115-casement-biglass.txt, read 15 Oct 2026. Nathan: all
+// four layouts are sold.
+//
+// Bi-glass keeps the frame AND the sashes: the single glass comes out, a new
+// single pane goes in, the window is draught sealed and the glazing bars are
+// taken off. GlazePro has had typeOfWork 'bi_glass' and the imported bi-glass
+// rules since the PF30 import, but no benchmark had ever exercised them.
+//
+// These four are COPIES of drawings already matched penny for penny — P, P
+// with bars, Configuration 4 and S — with the Bi-Glass box ticked, so every
+// difference between a benchmark and its source is bi-glass and nothing else.
+//
+// What each one is for:
+//   BG1  the base case: 240 minutes a glass unit, the DSO rate, no joinery
+//   BG2  gb_qty on a CASEMENT — 3 bars, 180 minutes to take off
+//   BG3  rule 15 on a kept frame, and rule 211 on the mullions
+//   BG4  the sash that is NOT overweight, because the pane is single
+describe('Step BJ — bi-glass casement benchmarks', () => {
+
+  const CASES = [
+    ['BG1', BENCHMARK_BG1, INTEGRATE.benchmarkBG1_biglass_single_casement,            0,   4.75],
+    ['BG2', BENCHMARK_BG2, INTEGRATE.benchmarkBG2_biglass_casement_glazing_bars,      0,   7.75],
+    ['BG3', BENCHMARK_BG3, INTEGRATE.benchmarkBG3_biglass_opener_fixed_opener,        2.0, 13.00],
+    ['BG4', BENCHMARK_BG4, INTEGRATE.benchmarkBG4_biglass_casement_with_fanlight,     1.0,  8.00],
+  ]
+
+  /**
+   * The snapshot WITH sql/step-bj1 applied — rule 15 reaching a bi-glass
+   * casement. The live data will carry it once the reviewer runs the file;
+   * until then the capture is behind, which is what liveRuleFixes is for.
+   */
+  const BJ_RULES = withFixedCasementSashBiGlass(SNAPSHOT.rules)
+
+  function runBG(bm, { rules = BJ_RULES } = {}) {
+    return runPricingOnTree(bm.tree, rules, SNAPSHOT.pfVariables, {
+      glassCatalogue: SNAPSHOT.glassCatalogue,
+      partAllocationRules: SNAPSHOT.partAllocationRules,
+      partCostMap: bm.partCostMap,
+      ironmongeryLines: bm.ironmongeryLines,
+      ironmongeryCatalogue: SNAPSHOT.ironmongeryCatalogue,
+      profileValues: SNAPSHOT.profileValues,
+    })
+  }
+
+  const varsOf = bm =>
+    computeVariables(bm.tree, computeDerived(bm.tree), SNAPSHOT.pfVariables)
+
+  for (const [label, bm, target, production, labour] of CASES) {
+    it(`${label}: production ${production} h and fitting ${labour} h, exactly`, () => {
+      const r = runBG(bm)
+      expect(r.manufacture_labour.total_minutes / 60, `${label} production`)
+        .toBeCloseTo(production, 2)
+      expect(r.install_labour.total_minutes / 60, `${label} fitting`)
+        .toBeCloseTo(labour, 2)
+    })
+
+    it(`${label}: every group matches Integrate, group by group`, () => {
+      expectMatchesIntegrate(runBG(bm), target)
+    })
+  }
+
+  // ── 1a: the glass unit is what is being replaced ──────────────────────────
+
+  it('1a: a bi-glass glass unit is to_be_replaced, so rule 0 fires per unit', () => {
+    // to_be_replaced used to be is_complete_new || parent sash toBeReplaced,
+    // and on bi-glass BOTH are false — so "BiGlass Labour Base Price" could
+    // not fire at all. Integrate stores the flag on the GlassPart.
+    const base = bm => runBG(bm).install_labour.lines
+      .filter(l => l.fires && !l.error && l.name === 'BiGlass Labour Base Price')
+    expect(base(BENCHMARK_BG1).length, 'BG1 one unit').toBe(1)
+    expect(base(BENCHMARK_BG3).length, 'BG3 three units').toBe(3)
+    expect(base(BENCHMARK_BG4).length, 'BG4 two units').toBe(2)
+    for (const l of base(BENCHMARK_BG3)) expect(l.minutes).toBe(240)
+  })
+
+  it('1a: the SASH is not replaced — only the glass is', () => {
+    for (const [label, bm] of [['BG1', BENCHMARK_BG1], ['BG3', BENCHMARK_BG3]]) {
+      for (const sash of openingNodes(bm.tree)) {
+        expect(sash.values.toBeReplaced, `${label} sash`).toBe(false)
+        const glass = sash.children.find(c => c.part_type === 'glassPart')
+        expect(glass.values.toBeReplaced, `${label} glass`).toBe(true)
+      }
+    }
+  })
+
+  // ── 1b: single glazing, and the pane rate ─────────────────────────────────
+
+  it('1b: single glazed at 25.50 a m², on the CUT area', () => {
+    for (const [label, bm] of [['BG1', BENCHMARK_BG1], ['BG3', BENCHMARK_BG3], ['BG4', BENCHMARK_BG4]]) {
+      expect(varsOf(bm).is_single_glazed, `${label} is_single_glazed`).toBe(true)
+      expect(varsOf(bm).is_double_glazed, `${label} is_double_glazed`).toBe(false)
+    }
+    const glassLines = bm => runBG(bm).price.lines
+      .filter(l => l.fires && !l.error && l.name === 'BiGlass Cost')
+      .map(l => [Number(l.quantity.toFixed(2)), Number(l.unit_value ?? 25.5)])
+    // BG1's one unit: cut 1429 x 1388 = 1.98 m²
+    expect(glassLines(BENCHMARK_BG1).map(g => g[0])).toEqual([1.98])
+    // BG3: 0.33 / 0.32 / 0.33
+    expect(glassLines(BENCHMARK_BG3).map(g => g[0])).toEqual([0.33, 0.32, 0.33])
+    // BG4: 0.25 lifted to the 0.30 minimum, and 0.93
+    expect(glassLines(BENCHMARK_BG4).map(g => g[0])).toEqual([0.30, 0.93])
+    // and the rate is the catalogue's 4mm Clear Toughened
+    expect(SNAPSHOT.glassCatalogue.GL100080.cost_per_m2).toBe(25.5)
+  })
+
+  it('1b: NO Energy surcharge and NO Single Glazed error price', () => {
+    // Rule 50 needs is_double_glazed; the error price excludes bi_glass.
+    for (const [label, bm] of CASES.map(c => [c[0], c[1]])) {
+      const names = runBG(bm).price.lines.filter(l => l.fires && !l.error).map(l => l.name)
+      expect(names, `${label} energy`).not.toContain('Energy Surcharge')
+      expect(names, `${label} error price`).not.toContain('Single Glazed (Error Price)')
+    }
+  })
+
+  // ── 1c: gb_qty on a casement ──────────────────────────────────────────────
+
+  it('1c: gb_qty counts a CASEMENT sash’s bars — BG2 has 3', () => {
+    // total_glazing_bar_count only ever counted topSashPart / bottomSashPart,
+    // so a casement's bars were invisible and BG2 lost 180 minutes.
+    expect(varsOf(BENCHMARK_BG2).gb_qty).toBe(3)
+    expect(varsOf(BENCHMARK_BG1).gb_qty).toBe(0)
+    const off = bm => runBG(bm).install_labour.lines
+      .filter(l => l.fires && !l.error && l.name === 'BiGlass GBs to Take Off')
+      .reduce((n, l) => n + l.minutes, 0)
+    expect(off(BENCHMARK_BG2)).toBe(180)
+    expect(off(BENCHMARK_BG1)).toBe(0)
+  })
+
+  it('1c: bars add NO glass line on single glazing, and no bar TIMBER', () => {
+    // Rules 21/22 need glass_unit_thickness >= 24; a single 4 mm pane is 4.
+    const bg2 = runBG(BENCHMARK_BG2).price.lines.filter(l => l.fires && !l.error)
+    expect(bg2.filter(l => /Glazing Bar/.test(l.name) && l.group_name === 'glass_done'))
+      .toEqual([])
+    // and the bars are taken OFF, not made, so no manufacture_materials line
+    expect(bg2.filter(l => l.name === 'Glazing Bar' && l.line_cost > 0)).toEqual([])
+    // BG2 differs from BG1 by the 180 minutes alone
+    expect(runBG(BENCHMARK_BG2).price.total_cost - runBG(BENCHMARK_BG1).price.total_cost)
+      .toBeCloseTo(120.63, 2)
+  })
+
+  // ── 1d: draught sealing, and the DSO rate ─────────────────────────────────
+
+  it('1d: a bi-glass casement needs draught sealing, and the DSO rate fires', () => {
+    for (const [label, bm, , ,] of CASES) {
+      expect(varsOf(bm).needs_draughtsealing, `${label}`).toBe(true)
+    }
+    // frame_area is the overall frame, 2 dp — 2.56 / 2.56 / 1.70 / 1.80
+    expect(CASES.map(([, bm]) => varsOf(bm).frame_area)).toEqual([2.56, 2.56, 1.70, 1.80])
+    const dso = bm => runBG(bm).price.lines
+      .filter(l => l.fires && !l.error && l.name === 'DSO SqM Rate')
+      .map(l => Number(l.line_cost.toFixed(2)))
+    expect(dso(BENCHMARK_BG1)).toEqual([25.60])
+    expect(dso(BENCHMARK_BG3)).toEqual([17.00])
+    expect(dso(BENCHMARK_BG4)).toEqual([18.00])
+  })
+
+  it('1d: and NOT the sliding-sash draught-seal rules', () => {
+    // Three rules carry `not is_bi_glass` precisely so they stay out of it;
+    // this asserts the derived flag did not drag them in.
+    for (const [label, bm] of CASES.map(c => [c[0], c[1]])) {
+      const names = runBG(bm).price.lines.filter(l => l.fires && !l.error).map(l => l.name)
+      expect(names, `${label} DSO extra profits`).not.toContain('DSO Extra Profits')
+      expect(names, `${label} painting profits`).not.toContain('Sashes Only Painting Profits')
+      const inst = runBG(bm).install_labour.lines.filter(l => l.fires && !l.error).map(l => l.name)
+      expect(inst, `${label} DSO sashes`).not.toContain('DSO Sashes')
+    }
+  })
+
+  // ── 1e: the weight of a SINGLE pane ───────────────────────────────────────
+
+  it('1e: a single pane weighs 4 mm, not 8 — so BG4 is not overweight', () => {
+    // The weight model added inner + outer thickness whatever the glazing, so
+    // BG4's lower sash came out 26.6 kg and wrongly fired rule 95. With the
+    // single pane it is under 25, which is what Integrate charges.
+    const weights = bm => openingNodes(bm.tree)
+      .map(n => casementSashWeightKg(bm.tree, n, SNAPSHOT.glassCatalogue))
+    // BG1's 1525 x 1505 sash is over 25 even on single glass
+    expect(weights(BENCHMARK_BG1)[0]).toBeGreaterThan(25)
+    // BG4's two are not
+    for (const w of weights(BENCHMARK_BG4)) expect(w).toBeLessThan(25)
+    // BG3's three are nowhere near
+    for (const w of weights(BENCHMARK_BG3)) expect(w).toBeLessThan(25)
+
+    const over = bm => runBG(bm).install_labour.lines
+      .filter(l => l.fires && !l.error && l.name === 'Any Sash Overweight (Casement)')
+      .reduce((n, l) => n + l.minutes, 0)
+    expect(over(BENCHMARK_BG1)).toBe(45)
+    expect(over(BENCHMARK_BG2)).toBe(45)
+    expect(over(BENCHMARK_BG3)).toBe(0)
+    expect(over(BENCHMARK_BG4)).toBe(0)
+  })
+
+  it('1e: S keeps its overweight sash — the double unit is twice the glass', () => {
+    // The same frame and the same sash as BG4, double glazed: S's lower sash
+    // IS over 25 kg and S is unchanged by this step.
+    const s = openingNodes(BENCHMARK_S.tree)
+      .map(n => casementSashWeightKg(BENCHMARK_S.tree, n, SNAPSHOT.glassCatalogue))
+    expect(Math.max(...s)).toBeGreaterThan(25)
+  })
+
+  // ── 1f: nothing is made ───────────────────────────────────────────────────
+
+  it('1f: no joinery timber, no consumables, no surround, no Windowboard', () => {
+    for (const [label, bm] of CASES.map(c => [c[0], c[1]])) {
+      const fired = runBG(bm).price.lines.filter(l => l.fires && !l.error && l.line_cost > 0)
+      const names = fired.map(l => l.name)
+      // the frame, the sashes, the cill and the bars are all KEPT
+      for (const n of ['Softwood Casement Frame & Sashes', 'Softwood Casement Sashes',
+        'Hardwood Casement Cill', 'Glazing Bar']) {
+        expect(names, `${label} ${n}`).not.toContain(n)
+      }
+      expect(names, `${label} consumables`).not.toContain('Installation Consumables')
+      // manufacture_materials is the LTW 25 and nothing else
+      const mm = fired.filter(l => l.group_name === 'manufacture_materials')
+      expect(mm.map(l => l.name), `${label} manufacture_materials`)
+        .toEqual(['LTW General Consumables'])
+      expect(mm[0].line_cost).toBeCloseTo(25, 2)
+      // no stored surround, so no component line and no Windowboard
+      expect(bm.tree.values.surroundLines, `${label} surround`).toBeUndefined()
+      const inst = runBG(bm).install_labour.lines.filter(l => l.fires && !l.error).map(l => l.name)
+      expect(inst, `${label} windowboard`).not.toContain('Windowboard')
+    }
+  })
+
+  it('1f: production is rule 211 alone — 60 a mullion or transom', () => {
+    const fired = bm => runBG(bm).manufacture_labour.lines
+      .filter(l => l.fires && !l.error && l.minutes > 0)
+      .map(l => [l.name, l.minutes])
+    expect(fired(BENCHMARK_BG1)).toEqual([])
+    expect(fired(BENCHMARK_BG2)).toEqual([])
+    // BG3's two mullions, BG4's one transom
+    expect(fired(BENCHMARK_BG3)).toEqual([['Casement Frame - Single Finish (Mullions)', 120]])
+    expect(fired(BENCHMARK_BG4)).toEqual([['Casement Frame - Single Finish (Mullions)', 60]])
+  })
+
+  it('1f: the stored ironmongery is priced, and no default is added', () => {
+    for (const [label, bm] of CASES.map(c => [c[0], c[1]])) {
+      const lines = resolveIronmongeryLines(bm.tree, SNAPSHOT, SNAPSHOT.profileValues)
+      expect(lines.length, `${label} lines`).toBe(bm.ironmongeryLines.length)
+      expect(lines.map(l => l.product_short_name).sort(),
+        `${label} products`).toEqual(bm.ironmongeryLines.map(l => l.product_short_name).sort())
+    }
+  })
+
+  // ── 1g: rule 15 on a kept frame ───────────────────────────────────────────
+
+  it('1g: rule 15 fires on BG3’s fixed sash although the frame is kept', () => {
+    const fixed = (bm, rules) => runBG(bm, { rules }).install_labour.lines
+      .filter(l => l.fires && !l.error && l.name === 'Fixed Casement Sash with Frame')
+      .reduce((n, l) => n + l.minutes, 0)
+    expect(varsOf(BENCHMARK_BG3).fixed_casement_sash_qty).toBe(1)
+    expect(varsOf(BENCHMARK_BG3).frame_to_be_replaced).toBe(false)
+    expect(fixed(BENCHMARK_BG3)).toBe(60)
+    // BG1, BG2 and BG4 have no fixed sash, so it is 0 either way
+    for (const bm of [BENCHMARK_BG1, BENCHMARK_BG2, BENCHMARK_BG4]) {
+      expect(fixed(bm)).toBe(0)
+    }
+    // and WITHOUT sql/step-bj1 it is the 60 minutes BG3 was short
+    expect(fixed(BENCHMARK_BG3, SNAPSHOT.rules)).toBe(0)
+    const before = runBG(BENCHMARK_BG3, { rules: SNAPSHOT.rules })
+    const after  = runBG(BENCHMARK_BG3)
+    expect(after.install_labour.total_minutes - before.install_labour.total_minutes).toBe(60)
+    expect(after.price.total_cost - before.price.total_cost).toBeCloseTo(40.21, 2)
+  })
+
+  it('1g: the widened clause reaches bi-glass and nothing else', () => {
+    // Integrate's own precedence would fire rule 15 on ANY casement — a
+    // draught-seal-only or a supply-only one included. Nathan asked for
+    // bi-glass alone, so the clause is `frame_to_be_replaced or is_bi_glass`.
+    expect(FIXED_CASEMENT_SASH_CONDITION_AFTER)
+      .toBe('(is_casement_window or is_casement_window_bay) and is_installation_included and (frame_to_be_replaced or is_bi_glass)')
+    // it is the BEFORE condition that the patch replaces, so a refreshed
+    // snapshot makes the helper a no-op rather than patching twice
+    const patched = withFixedCasementSashBiGlass(BJ_RULES)
+    expect(patched.find(r => r.name === FIXED_CASEMENT_SASH_RULE).condition)
+      .toBe(FIXED_CASEMENT_SASH_CONDITION_AFTER)
   })
 })

@@ -174,9 +174,25 @@ export function computeVariables(tree, derived = {}, pfVariables = {}, opts = {}
     const is_complete_new      = typeOfWork === 'complete_new'
     const nj_involved          = typeOfWork === 'complete_new' || typeOfWork === 'new_pair_of_sashes'
     const frame_to_be_replaced = is_complete_new
-    const needs_draughtsealing = typeOfWork === 'draught_seal'
-    const needs_draughtproofing = needs_draughtsealing
     const is_bi_glass           = item?.values?.isBiGlass === true || typeOfWork === 'bi_glass'
+    // Step BJ item 1d: a BI-GLASS CASEMENT is always draught sealed.
+    //
+    // Integrate keeps `draughtseal` as its own item flag and ticks it
+    // automatically when Bi-Glass is ticked; Nathan (15 Oct) confirms it is
+    // always part of the job. GlazePro's typeOfWork is SINGLE-VALUED and so
+    // cannot hold both bi_glass and draught_seal — fixture A recorded that
+    // limitation for the same reason — so the flag is derived here instead of
+    // stored. It is what fires "DSO SqM Rate" (frame_area x 10) on all four
+    // bi-glass benchmarks, which is 25.60 / 25.60 / 17.00 / 18.00 of their
+    // extra_services.
+    //
+    // Scoped to a CASEMENT on purpose: bi-glass on a sliding sash is a
+    // separate step (Step BJ item 3) and must price exactly as it does today.
+    // The three sliding-sash draught-seal rules carry `not is_bi_glass`
+    // already, so they stay out of it either way.
+    const needs_draughtsealing = typeOfWork === 'draught_seal' ||
+      (is_bi_glass && is_casement_window)
+    const needs_draughtproofing = needs_draughtsealing
     const is_sash_replacement   = typeOfWork === 'new_pair_of_sashes'
 
     // Old service_type aliases for backward compat
@@ -510,7 +526,22 @@ export function computeVariables(tree, derived = {}, pfVariables = {}, opts = {}
         const { bW, bH } = glassBarCounts(g)
         return cs + bW + bH
       }, 0), 0)
-    const total_glazing_bar_count = top_sash_glazing_bar_count + bottom_sash_glazing_bar_count
+    // Step BJ item 1c: EVERY glass unit's bars, not just a sliding sash's.
+    //
+    // The two counts above read topSashPart / bottomSashPart, so a CASEMENT
+    // sash's bars were invisible: BG2 has one vertical and two horizontal
+    // bars — Integrate's gb_qty 3 — and GlazePro saw 0, which cost it the
+    // 180 minutes of "BiGlass GBs to Take Off".
+    //
+    // Counting all glass parts cannot move a sliding sash: every glass unit
+    // in a box-sash tree is inside a top or bottom sash, so the sum is the
+    // same two numbers added up. The per-sash counts are left exactly as they
+    // are, because other rules read them.
+    const all_glazing_bar_count = allGlassParts.reduce((s, g) => {
+      const { bW, bH } = glassBarCounts(g)
+      return s + bW + bH
+    }, 0)
+    const total_glazing_bar_count = all_glazing_bar_count
     const has_glazing_bars        = total_glazing_bar_count > 0
     // Pane count: (barsWide+1) × (barsHigh+1) per glass part, summed per sash
     const top_sash_pane_count = allTopSashes.reduce((s, sash) =>
@@ -969,6 +1000,23 @@ export function computeVariables(tree, derived = {}, pfVariables = {}, opts = {}
     // casement-only price rule — so the two live side by side.
     const isCasementFrame = is_casement_window || is_casement_window_bay
 
+    // Step BJ item 1f: on a BI-GLASS casement NOTHING IS MADE.
+    //
+    // The frame, the sashes and the cill are all kept — only the glass comes
+    // out — so the three casement timber volumes are zero and their rules
+    // price nothing. Integrate reaches the same place from the other end: its
+    // rules carry no replace test (rule 165's condition is literally "true"),
+    // but its volumes count timber being MADE, so a kept frame contributes
+    // none. All four bi-glass benchmarks show manufacture_materials as the
+    // LTW consumable and nothing else, where GlazePro charged the frame, the
+    // sashes, the cill and the bars — £49 to £59 a window.
+    //
+    // This is the same principle as difference 1 (the sash material rules
+    // gated by to_be_replaced), applied to a casement. It is scoped to a
+    // casement because every one of these three variables is already
+    // casement-only, and bi-glass on a sliding sash is a separate step.
+    const isBiGlassCasement = is_bi_glass && isCasementFrame
+
     // Rule 166 "Hardwood Casement Cill": the FULL FRAME WIDTH × cill depth
     // × (cill height + cill stop) = 1199 × 128 × 67 / 1e6 = 10.2826 dm³,
     // and × 1.25 = 12.85, Integrate's printed quantity. Integrate stores one
@@ -977,7 +1025,7 @@ export function computeVariables(tree, derived = {}, pfVariables = {}, opts = {}
     // expression (cill_length × cill_profiled_height × frame_depth) and
     // never reads this variable, so L34046, C, D and E cannot move.
     const solid_utile_hardwood_cill_volume    = isCasementFrame
-      ? casementCillVolumeDm3(tree)
+      ? (isBiGlassCasement ? 0 : casementCillVolumeDm3(tree))
       : hardwood_cill_volume_m3
 
     // Rule 160 "Softwood Casement Frame & Sashes": the reviewer's measured
@@ -987,7 +1035,7 @@ export function computeVariables(tree, derived = {}, pfVariables = {}, opts = {}
     // box sash frame model above is a different window and is kept for
     // sash windows. Only a REDWOOD casement frame is charged by this rule.
     const solid_redwood_frame_excl_cill_volume = isCasementFrame
-      ? (is_frame_redwood ? casementFrameTimberVolumeDm3(tree) : 0)
+      ? ((is_frame_redwood && !isBiGlassCasement) ? casementFrameTimberVolumeDm3(tree) : 0)
       : redwood_frame_volume_m3
 
     // Rule 121 "Casement Transoms & Mullions" (J): total divider length in

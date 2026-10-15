@@ -29,7 +29,7 @@
 
 import { computeOpeningLayout } from '../drawingBoard/sashGeometry.js'
 import { KG_PER_M2_PER_MM } from './sashWeight.js'
-import { timberFamily, TIMBER_FAMILY_DENSITIES } from './optionVocabulary.js'
+import { timberFamily, TIMBER_FAMILY_DENSITIES, glazingType } from './optionVocabulary.js'
 
 // ── Tree helpers (local copies — this module stays pure) ────────────────────
 
@@ -838,9 +838,23 @@ export function casementSashWeightKg(tree, sashNode, glassCatalogue = {}) {
     const sl = casementGlassSightline(tree, sashNode)
     if (sl.width != null && sl.height != null) {
       const areaM2 = (sl.width + 2 * cover) * (sl.height + 2 * cover) / 1e6
-      const inner = glassCatalogue[gv.internalGlassPartNo]?.thickness_mm ?? 4
-      const outer = glassCatalogue[gv.externalGlassPartNo]?.thickness_mm ?? 4
-      glassKg = areaM2 * (inner + outer) * KG_PER_M2_PER_MM
+      // Step BJ item 1e: a SINGLE glazed unit is ONE pane.
+      //
+      // This added the inner and the outer thickness whatever the glazing,
+      // so a single 4 mm pane was weighed as 8 mm of glass. On bi-glass
+      // benchmark BG4 that put the lower sash at 26.6 kg and fired install
+      // rule 95 "Any Sash Overweight (Casement)" for 45 minutes Integrate
+      // does not charge; at its real 17.3 kg it does not fire, which is what
+      // Integrate shows. BG1's 1525 x 1505 sash is over 25 kg either way and
+      // Integrate charges it.
+      //
+      // Benchmark S is the control: the same frame and the same sash DOUBLE
+      // glazed weighs twice the glass and stays overweight, as it always has.
+      const totalThicknessMm = glazingType(gv.glazingId) === 'single'
+        ? (glassCatalogue[gv.singleGlassPartNo]?.thickness_mm ?? 4)
+        : (glassCatalogue[gv.internalGlassPartNo]?.thickness_mm ?? 4) +
+          (glassCatalogue[gv.externalGlassPartNo]?.thickness_mm ?? 4)
+      glassKg = areaM2 * totalThicknessMm * KG_PER_M2_PER_MM
     }
   }
 
