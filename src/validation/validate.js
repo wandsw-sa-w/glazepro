@@ -18,6 +18,10 @@ import { openingLabel } from '../drawingBoard/casementOpenings.js'
 // rule somebody might switch off, and it must fire on every profile
 // whatever its rules say.
 import { degenerateParts } from '../pricing/pricingEngine.js'
+// Step BH follow-up 2 item 1: a divider that names a divider which is not
+// there. Read as frame-to-frame it silently re-cuts the whole frame, so it has
+// to fail loudly instead.
+import { deadDividerRefs } from '../drawingBoard/dividerRefs.js'
 
 // ── Parser setup (mirrors evaluator.js but adds validation functions) ────────
 
@@ -427,6 +431,28 @@ export function validateDrawing(tree, variables, rules, lists = {}, opts = {}) {
         })
       }
     }
+  }
+
+  // Step BH follow-up 2 item 1: a SHORT divider whose reference resolves to
+  // nothing. `drawing_parts` has no key column, so a reference saved as a
+  // client key died when the rows got their ids — which is how two live
+  // drawings came to be read as six-cell frames and priced £1,832.54 wrong.
+  // The save path re-points them now; this is what says so when one has been
+  // missed, instead of the frame quietly re-cutting itself.
+  for (const ref of deadDividerRefs(tree)) {
+    const what = ref.part_type === 'transomPart' ? 'transom' : 'mullion'
+    results.push({
+      rule_id: 'built_in.dead_divider_reference',
+      severity: 'error',
+      message: `This ${what} says it stops at a divider that is not in the ` +
+        `frame (${ref.field} = ${ref.ref}). The frame cannot be read ` +
+        'correctly until that is put right — re-make the drawing from its ' +
+        'template, or set the divider to run frame to frame.',
+      part_key: ref.key,
+      part_label: partDisplayLabel(tree, { key: ref.key, part_type: ref.part_type }),
+      status: 'fired',
+      missing: [],
+    })
   }
 
   // Step BH follow-up item 2: anything whose computed size is <= 0. It

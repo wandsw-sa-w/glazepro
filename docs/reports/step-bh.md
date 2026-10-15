@@ -146,6 +146,16 @@ pass while the site is wrong (the Step BF follow-up lesson).
 
 # 3. What each template prices, offline, on the live rules
 
+> **CORRECTION, 15 Oct** (Step BH follow-up 2 item 7): the figures in this
+> section priced the front door's euro pull from a stale capture — the
+> Hardwick set at £25.20, where the live rule has given the **Croft**
+> `euro_cylinder_pull` (CRO1774PB, £29.40) since `sql/step-bd4`. So every
+> front-door row below is **£4.20 of cost / £8.40 of price low**: 240 reads
+> £6,642.89, 250 £9,173.93 and 260 £8,936.47 live. The stable doors (330, 340)
+> are unaffected. `docs/reports/step-bh-followup.md` carries the live figures,
+> and the "AV3 set" named below is the **AV4** Heritage set under a legacy
+> product id (item 3 of the second follow-up).
+
 `sql/step-bh1` applied for 240 (without it, add £53.55 / £107.10). Priced with
 the live default ironmongery, the live rules and the live catalogue, through
 `src/drawingBoard/doorsetTemplates.test.js`.
@@ -327,9 +337,15 @@ And to try item 1 by hand, on any door drawing:
   compositions of matched parts. Every rule each one fires is listed above
   precisely so the reviewer can check them by hand; nothing here has been
   tuned to a target, because there is no target.
-- **The AV3 / AV4 question and the hand of the lock** (above) are live-data
-  questions this step did not decide. They apply to every front door, not just
-  the pair.
+- ~~**The AV3 / AV4 question and the hand of the lock** (above) are live-data
+  questions this step did not decide.~~ **CLOSED 15 Oct** (Step BH follow-up
+  2 item 3): there is no AV3 / AV4 question. The product SHORT NAMES are
+  `av3_heritage_locking_system_lh` / `_rh` — a legacy id — and the products
+  themselves are named "AV4 Heritage Locking System LH / RH" and hold the AV4
+  parts (RHZ2481 / RHZ3091 left hand, RHZ2482 / RHZ3092 right, with RHZ2427
+  and LJZ5074040CP in both). Nothing to decide. The HAND was the real
+  question, and `sql/step-bh3` answered it: the set goes on the master leaf,
+  so a pair gets the right-hand system.
 - **Nothing charges for fitting the second leaf** of a pair of front doors:
   "French Doors Additional Door" 120 carries `not is_front_door`. The brief
   asked only that 840 fire and 780 not, so this is reported rather than

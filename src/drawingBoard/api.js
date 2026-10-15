@@ -1,4 +1,5 @@
 import { supabase } from '../supabase.js'
+import { hasDividerRefs, fixDividerRefsAfterSave } from './dividerRefs.js'
 
 // ---------------------------------------------------------------------------
 // Field definitions — grouped by part_type, active rows only, sorted
@@ -194,5 +195,47 @@ export async function saveDrawingParts(drawingId, tree) {
     p_parts:      parts,
   })
   if (error) throw error
-  return { rowsWritten: parts.length, data }
+
+  // ── Step BH follow-up 2 item 1: a SHORT divider’s references ───────────
+  //
+  // `drawing_parts` has no key column. The client sends `key` /
+  // `parent_key`, the rows get DATABASE ids, and `loadDrawingParts` keys the
+  // tree by `String(row.id)` — so a divider that names the dividers it stops
+  // at (Integrate’s startDivider / endDivider, by key) points at keys that
+  // do not exist the moment the drawing is re-opened. Read as frame to
+  // frame, that turned a four-opening frame into a six-cell grid: live
+  // drawing 56 priced £7,095.53 against £8,936.47, with four panels of
+  // negative area.
+  //
+  // Every path that writes a drawing goes through here — the board’s save,
+  // creating from a template, and copying a drawing (which is worse: the
+  // references would point at the SOURCE drawing’s rows) — so this is the
+  // one place it can be put right.
+  //
+  // The re-pointing is POSITIONAL (the nth mullion or transom of the nth
+  // frame), so it is right whatever ids the database hands out, and it runs
+  // after every save, so a table that renumbers its rows cannot break it.
+  // Only the one or two rows that hold a reference are written.
+  let refsFixed = 0
+  if (hasDividerRefs(tree)) {
+    const saved = await loadDrawingParts(drawingId)
+    const { changed } = fixDividerRefsAfterSave(tree, saved)
+    for (const row of changed) {
+      const { error: refErr } = await supabase
+        .from('drawing_parts')
+        .update({ values: row.values })
+        .eq('id', Number(row.key))
+      // A failed re-point must not look like a failed save — the parts ARE
+      // saved — but it must not pass silently either: the board shows a dead
+      // reference as a validation error on the next load, and this says why.
+      if (refErr) {
+        console.error('save_drawing_parts: could not re-point a divider ' +
+          `reference on part ${row.key}: ${refErr.message}`)
+      } else {
+        refsFixed += 1
+      }
+    }
+  }
+
+  return { rowsWritten: parts.length, data, refsFixed }
 }

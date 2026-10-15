@@ -259,10 +259,13 @@ cells right, and £7,095.53 is what a lost divider reference looks like.
   layout taking money off a quote; it does not make the layout right. The
   warning and the validation error both say "check the layout" for that
   reason.
-- **The AV3 / AV4 question is still open** (Step BH's report): the live default
-  gives a front door the AV3 Heritage set where Integrate's own FT drawings
-  carry a stored AV4. `sql/step-bh3` moves the set to the right LEAF; it does
-  not answer which set it should be.
+- ~~**The AV3 / AV4 question is still open**~~ **CLOSED 15 Oct** (Step BH
+  follow-up 2 item 3): there was no question. `av3_heritage_locking_system_lh`
+  / `_rh` is a legacy SHORT NAME; the products are "AV4 Heritage Locking System
+  LH / RH" and hold the AV4 parts (RHZ2481 / RHZ3091 left hand, RHZ2482 /
+  RHZ3092 right, RHZ2427 and LJZ5074040CP in both). A front door gets the AV4
+  set, whatever the id reads. The hand was the real point, and `sql/step-bh3`
+  settled it.
 - **A pair of front doors' fitting is now a GlazePro decision** (difference
   22), the first door-fitting figure that does not come from Integrate.
 - **The side light's rail is Nathan's top-edge rule**, and the two rail bands
