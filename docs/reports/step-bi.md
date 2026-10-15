@@ -7,12 +7,15 @@ Facts: `docs/integrate-L31115-configurations-4-7.txt` (L31115 item 10, drawings
 
 Commits: `4f4a301` (item 0 — the facts, targets and brief) and the ones after it.
 
-**SQL waiting, not run:**
+**SQL — RUN LIVE 15 Oct, nothing outstanding:**
 
 - **`sql/step-bi1-combination-casement-templates-4-7.sql`** — the four
-  templates, group "Combination Flush Casements", sort order 72–78. Needs
-  `sql/step-as0` (the 83 / 62 bottom-rail profile values), which has run; the
-  script checks and refuses rather than writing templates on the wrong rails.
+  templates, group "Combination Flush Casements", sort order 72–78. Needed
+  `sql/step-as0` (the 83 / 62 bottom-rail profile values), which had run; the
+  script checks and refuses rather than writing templates on the wrong rails,
+  and it did not refuse. **Drawings 65–68 were then made from the four
+  templates and priced, and all four came out at the predicted figure to the
+  penny** — see "Drawings made live" below.
 
 Offline suite: **1,963 passing, 8 failing** — the standing eight (six Step W
 sash-weight rows, benchmarks A50 and D), exactly as before this step. 55 new
@@ -354,19 +357,45 @@ empty list** — other than TC4–TC7, which are new and exact.
 
 ---
 
-# Drawings to make live
+# Drawings made live — all four as predicted
 
-On L31115 or L507712, once `sql/step-bi1` has run — each from its template,
-then priced through a quote. These are the OFFLINE figures above; the live
-rules should give the same, and the gap to Integrate's own drawing is the
-nosing and the Windowboard in every case.
+`sql/step-bi1` ran on **15 Oct**, and drawings **65–68** were made from the
+four templates and priced through a quote. **Every one came out at the figure
+predicted offline, to the penny:**
 
-| from template | expect | what it proves |
-|---|---|---|
-| **Opener, Fixed, Opener** (72) | £1,356.96 / £2,713.95, fitting 12.00 h | three columns, no transom; rule 110 must NOT fire at 1,299 |
-| **Opener, Two Fixed, Opener** (74) | £1,679.79 / £3,359.58, fitting 14.00 h | four columns; rule 110 fires at 1,699 |
-| **Openers Either Side Of A Fanlight Over Fixed** (76) | £1,712.52 / £3,425.01, fitting 14.50 h | **the short transom, and rule 110 at 1,499** |
-| **Three Casements With A Light Over Each** (78) | £2,085.18 / £4,170.36, fitting 17.00 h | a 3 × 2 grid; three 62 rails |
+| drawing | from template | predicted | priced live |
+|---|---|---|---|
+| **65** | Opener, Fixed, Opener (72) | £2,713.95 | **£2,713.95** |
+| **66** | Opener, Two Fixed, Opener (74) | £3,359.58 | **£3,359.58** |
+| **67** | Openers Either Side Of A Fanlight Over Fixed (76) | £3,425.01 | **£3,425.01** |
+| **68** | Three Casements With A Light Over Each (78) | £4,170.36 | **£4,170.36** |
+
+(Reported by Nathan, 15 Oct — not an observation of this session; the anon key
+returns nothing under RLS, so the live figures could not be read from here.
+Section 4's offline table is what this session ran.)
+
+That is the whole step confirmed end to end, and three claims with it:
+
+- **the rounding reached the live site.** 67 and 68 are 1,499 mm wide, and
+  their predicted figures include rule 110's 60 minutes. Either would have
+  come out £40.21 light without it;
+- **the short transom survived a real save.** 67's price is the four-opening
+  price. Had either of its divider references been lost in `drawing_parts` the
+  frame would have read as six cells and the figure would have been different;
+- **the templates carry what they were meant to** — no nosing, no stored
+  ironmongery, 62 on the fanlights — because every one of those four figures
+  depends on all three.
+
+Each live figure is the PRICE (cost × 2). The costs predicted alongside them
+are £1,356.96 / £1,679.79 / £1,712.52 / £2,085.18, and the fitting times
+12.00 / 14.00 / 14.50 / 17.00 h.
+
+| what it proves, drawing by drawing |
+|---|
+| **65** three columns, no transom; rule 110 correctly does NOT fire at 1,299 |
+| **66** four columns; rule 110 fires at 1,699 |
+| **67** **the both-ends short transom, and rule 110 at 1,499** |
+| **68** a 3 × 2 grid; three 62 fanlight rails |
 
 **Drawing 76 is the one to look at.** Two things to check by eye once it is
 saved and re-opened:
@@ -392,11 +421,13 @@ right-hand sash.
   Section 2 names the band that would separate them (1,450–1,494) and the test
   that will notice if a benchmark lands in it. If the reviewer can read one
   1,475-wide casement in Integrate, the question closes.
-- **The facts file's TC6 ironmongery subtotal does not add up.** It records
-  "Ironmongery 74.55" and then lists eleven figures that sum to **82.95**,
-  which is what the group total of 129.61 requires. The bracket list is right
-  and the 74.55 is a slip; the benchmark matches on the group, so nothing
-  depends on it, but the reviewer may want to correct the file.
+- ~~**The facts file's TC6 ironmongery subtotal does not add up.**~~
+  **CORRECTED 15 Oct** (commit `18e9953`): the figure is **82.95**, not 74.55.
+  The eleven figures in brackets were right all along and sum to 82.95, which
+  is what the installation_materials total of 129.61 requires alongside the
+  nosing 4.69, the architrave 7.41 + 4.56 and the 30 of consumables. Nothing
+  in the repository moved — `benchmarkTC6` is asserted on the GROUP total,
+  which was always 129.61.
 - **Nothing here needed a new rule or a new model.** TC4, TC5 and TC7 are more
   of what Step AV built; only TC6's both-ends transom was new, and the
   existing `shortDivider` model carried it unchanged. If a reader expects to
@@ -416,9 +447,14 @@ right-hand sash.
   comma-list names. Both are one-line changes and both are flagged above
   rather than decided quietly.
 - **The offline prices are the captured snapshot, not the live database.** The
-  live rules are the same import, but nothing here was run against the live
-  site; the four figures in "Drawings to make live" are predictions to check,
-  not observations.
+  live rules are the same import, and drawings 65–68 have since come out at
+  all four predicted figures — but that is Nathan's reading reported back, not
+  something this session ran. Nothing in section 4 was observed live from
+  here.
+- **The sort order and the two comma-list names are now live**, so changing
+  either means an UPDATE rather than an edit to `sql/step-bi1`. The script
+  updates by name, so a rename would create a fifth template rather than
+  rename the fourth — worth saying before anyone changes a string.
 - `public/version.json` is left uncommitted, as CLAUDE.md says.
 
 ---
@@ -439,15 +475,18 @@ and every door frame reads, and all of the live benchmark rows are where Step
 BH follow-up 2 left them. The one engine line this step touched moved nothing
 on the live site.
 
-**What the smoke suite cannot see yet**: the four templates, because
-`sql/step-bi1` has not run. Once it has, the four drawings listed under
-"Drawings to make live" are worth pinning in the suite the way the benchmark
-rows are — and the fastest check of the rounding is Configuration 6 at 14.50 h
-of fitting rather than 13.50 h.
+**What the smoke suite does not cover yet**: `sql/step-bi1` has since run and
+drawings 65–68 exist, so the four are now worth pinning in the suite the way
+the benchmark rows are — £2,713.95 / £3,359.58 / £3,425.01 / £4,170.36.
+Drawing **67** is the one to pin first: it is the only live drawing in the
+repository whose price depends on a both-ends short divider surviving a save,
+so it is the regression test for Step BH follow-up 2 as much as for this step.
+The e2e run above predates all four drawings.
 
-**Not verified against the live database:** everything in section 4's price
-tables is the captured snapshot, not the live rules; no template exists live
-until `sql/step-bi1` is run; and the live `default_profile_values` for the
-83 / 62 bottom rails were not read (the anon key returns nothing under RLS) —
-`sql/step-bi1` section 0b is there for the reviewer to read them, and the
-script refuses to write the templates if they are not 83 and 62.
+**Not verified against the live database from this session:** everything in
+section 4's price tables is the captured snapshot, not the live rules, and the
+live `default_profile_values` for the 83 / 62 bottom rails were never read
+here (the anon key returns nothing under RLS). `sql/step-bi1` has since run
+without raising, which is itself evidence those two values are 83 and 62 —
+the script checks them and refuses otherwise — and drawings 65–68 priced as
+predicted. Both of those are reported back, not observed here.
