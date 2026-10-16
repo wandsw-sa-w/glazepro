@@ -55,6 +55,11 @@ import {
   withFixedCasementSashBiGlass, FIXED_CASEMENT_SASH_RULE,
   FIXED_CASEMENT_SASH_CONDITION_AFTER,
 } from './liveRuleFixes.js'
+// Step BL: six real Integrate quotes, redrawn and compared.
+import {
+  BENCHMARK_LQ1, BENCHMARK_LQ2, BENCHMARK_LQ3, BENCHMARK_LQ4, BENCHMARK_LQ5,
+  BENCHMARK_LQ6, BENCHMARK_LQ7, BENCHMARK_LQ8, BENCHMARK_LQ9,
+} from './fixtureLiveQuotes.js'
 
 // ── Minimal price-file variables (PF30 scalars) ────────────────────────────
 // Sash profile rebate/tolerance (14 / 2) — the measured sash-weight model
@@ -4214,5 +4219,272 @@ describe('Step BK — bi-glass French casement benchmarks', () => {
           l.group_name === 'manufacture_materials')
       expect(mm.map(l => l.name), label).toEqual(['LTW General Consumables'])
     }
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step BL — the live-quote benchmarks: LQ1–LQ9
+// ══════════════════════════════════════════════════════════════════════════════
+// docs/integrate-live-quotes.txt, read 16 Oct 2026. Six real Integrate quotes,
+// redrawn on the live board and compared group by group and line by line.
+//
+// A benchmark passes when every group equals Integrate's figure PLUS its
+// declared known gap — a difference that belongs to a later step, listed in
+// the target's own `known_gaps` with its reason. Four of the nine are exact on
+// every group; the rest carry the differences this step reports and does NOT
+// tune, each asserted here so it cannot drift unnoticed.
+describe('Step BL — live-quote benchmarks', () => {
+
+  /** `known_gaps` ({group: {cost, price, reason}}) as expectMatchesIntegrate's declared map. */
+  const declaredOf = target => Object.fromEntries(
+    Object.entries(target.known_gaps ?? {}).map(([g, v]) => [g, v.cost]))
+
+  function runLQ(bm) {
+    return runPricingOnTree(bm.tree, SNAPSHOT.rules, SNAPSHOT.pfVariables, {
+      glassCatalogue: SNAPSHOT.glassCatalogue,
+      partAllocationRules: SNAPSHOT.partAllocationRules,
+      partCostMap: bm.partCostMap,
+      ironmongeryLines: bm.ironmongeryLines,
+      ironmongeryCatalogue: SNAPSHOT.ironmongeryCatalogue,
+      profileValues: bm.profileValues,
+      profileCode: bm.profileCode ?? null,
+    })
+  }
+
+  const groupsOf = r => {
+    const g = {}
+    for (const l of r.price.lines) {
+      if (!l.fires || l.error) continue
+      const k = l.group_name ?? '(ungrouped)'
+      g[k] = (g[k] ?? 0) + l.line_cost
+    }
+    for (const k of Object.keys(g)) g[k] = Math.round(g[k] * 100) / 100
+    return g
+  }
+
+  const firedMinutes = (r, name) => r.install_labour.lines
+    .concat(r.manufacture_labour.lines)
+    .filter(l => l.fires && !l.error && l.name === name)
+    .reduce((n, l) => n + l.minutes, 0)
+
+  // ── The four that are exact on every group ────────────────────────────────
+
+  const EXACT = [
+    ['LQ1', BENCHMARK_LQ1, INTEGRATE.benchmarkLQ1_casement_fixed_tophung_fixed_bars],
+    ['LQ3', BENCHMARK_LQ3, INTEGRATE.benchmarkLQ3_utile_french_doors_bars_panels],
+    ['LQ4', BENCHMARK_LQ4, INTEGRATE.benchmarkLQ4_config7_tall_one_bar],
+    // LQ9 is exact on every group BUT installation_materials, which carries
+    // the 13p parked steel-weight residual, so it is checked below instead.
+  ]
+
+  for (const [label, bm, target] of EXACT) {
+    it(`${label}: every group matches Integrate plus its declared gap`, () => {
+      expectMatchesIntegrate(runLQ(bm), target, declaredOf(target))
+    })
+  }
+
+  it('LQ1, LQ3, LQ4 and LQ9 hit Integrate’s production and fitting hours', () => {
+    // LQ1's and LQ4's FITTING is short by the declared surround labour, so the
+    // hours are checked where the gap does not touch them.
+    expect(runLQ(BENCHMARK_LQ1).manufacture_labour.total_minutes / 60).toBeCloseTo(28.80, 2)
+    expect(runLQ(BENCHMARK_LQ3).manufacture_labour.total_minutes / 60).toBeCloseTo(61.22, 2)
+    expect(runLQ(BENCHMARK_LQ3).install_labour.total_minutes / 60).toBeCloseTo(13.00, 2)
+    expect(runLQ(BENCHMARK_LQ4).manufacture_labour.total_minutes / 60).toBeCloseTo(43.20, 2)
+    expect(runLQ(BENCHMARK_LQ9).manufacture_labour.total_minutes / 60).toBeCloseTo(18.45, 2)
+    expect(runLQ(BENCHMARK_LQ9).install_labour.total_minutes / 60).toBeCloseTo(7.50, 2)
+  })
+
+  // ── Item 1: the glazing-bar glass charge ──────────────────────────────────
+
+  it('item 1: the bar glass rules fire on a casement, a fanlight and a door', () => {
+    const barLines = bm => runLQ(bm).price.lines
+      .filter(l => l.fires && !l.error && /Glazing Bar/.test(l.name) && l.group_name === 'glass_done')
+      .map(l => [l.name, Number(l.line_cost.toFixed(2))])
+    // LQ1: three casement sashes, 3 bars each -> Multiple, 3 x 16.35
+    expect(barLines(BENCHMARK_LQ1)).toEqual([
+      ['Square Glass Multiple Glazing Bar', 16.35],
+      ['Square Glass Multiple Glazing Bar', 16.35],
+      ['Square Glass Multiple Glazing Bar', 16.35],
+    ])
+    // LQ2: a FANLIGHT with one bar -> Single, 9.21
+    expect(barLines(BENCHMARK_LQ2)).toEqual([['Square Glass Single Glazing Bar', 9.21]])
+    // LQ3: two DOOR leaves, 2 bars each -> Multiple, 2 x 20.44
+    expect(barLines(BENCHMARK_LQ3)).toEqual([
+      ['Square Glass Multiple Glazing Bar', 20.44],
+      ['Square Glass Multiple Glazing Bar', 20.44],
+    ])
+    // LQ4: one barred sash of six -> Single, 9.21
+    expect(barLines(BENCHMARK_LQ4)).toEqual([['Square Glass Single Glazing Bar', 9.21]])
+  })
+
+  it('item 1: it is the SPACER that lets them fire — 4 + 16 + 4', () => {
+    // Without the drawing's profile spacer a casement unit is 8 mm thick and
+    // every one of these rules is gated on >= 24.
+    const noSpacer = { ...BENCHMARK_LQ1.profileValues }
+    delete noSpacer.spacerDimId
+    const r = runPricingOnTree(BENCHMARK_LQ1.tree, SNAPSHOT.rules, SNAPSHOT.pfVariables, {
+      glassCatalogue: SNAPSHOT.glassCatalogue,
+      partAllocationRules: SNAPSHOT.partAllocationRules,
+      partCostMap: BENCHMARK_LQ1.partCostMap,
+      ironmongeryLines: BENCHMARK_LQ1.ironmongeryLines,
+      ironmongeryCatalogue: SNAPSHOT.ironmongeryCatalogue,
+      profileValues: noSpacer,
+    })
+    expect(r.price.lines.filter(l => l.fires && /Glazing Bar/.test(l.name) &&
+      l.group_name === 'glass_done')).toEqual([])
+    // and that is £49.05 of glass — the live difference on drawing 82
+    expect(groupsOf(runLQ(BENCHMARK_LQ1)).glass_done -
+      groupsOf(r).glass_done).toBeCloseTo(49.05, 2)
+  })
+
+  // ── Item 2: the per-sash bar count ────────────────────────────────────────
+
+  it('item 2: "Additional for Glazing Bars" counts the sash’s OWN bars', () => {
+    // LQ4 has ONE barred sash of six: 30 minutes, not 180.
+    expect(firedMinutes(runLQ(BENCHMARK_LQ4), 'Additional for Glazing Bars')).toBe(30)
+    // LQ2 has one barred fanlight of two sashes: 30, not 60.
+    expect(firedMinutes(runLQ(BENCHMARK_LQ2), 'Additional for Glazing Bars')).toBe(30)
+    // LQ1 has bars on ALL THREE, so three is right.
+    expect(firedMinutes(runLQ(BENCHMARK_LQ1), 'Additional for Glazing Bars')).toBe(90)
+    // LQ3's two door leaves BOTH have bars, so twice is right.
+    expect(firedMinutes(runLQ(BENCHMARK_LQ3), 'Additional for Glazing Bars (Door)')).toBe(60)
+  })
+
+  // ── Item 3: the horn, once per pair ───────────────────────────────────────
+
+  it('item 3: the custom horn is charged for the sash that HAS it', () => {
+    // LQ5 and LQ9: one pair, a custom 75 top horn and a plain bottom -> ONCE
+    expect(firedMinutes(runLQ(BENCHMARK_LQ5), 'Non-Std Horn 75mm')).toBe(30)
+    expect(firedMinutes(runLQ(BENCHMARK_LQ9), 'Non-Std Horn 75mm')).toBe(30)
+    // LQ6 is a DOUBLE box — two pairs, so twice
+    expect(firedMinutes(runLQ(BENCHMARK_LQ6), 'Non-Std Horn 75mm')).toBe(60)
+    // LQ7's horn is VICTORIAN, not custom, so it is not charged at all
+    expect(firedMinutes(runLQ(BENCHMARK_LQ7), 'Non-Std Horn 75mm')).toBe(0)
+    expect(firedMinutes(runLQ(BENCHMARK_LQ7), 'Non-Std Horn Non-75mm')).toBe(0)
+    // and the production group is exact on all four because of it
+    for (const [label, bm, want] of [
+      ['LQ5', BENCHMARK_LQ5, 719.33], ['LQ6', BENCHMARK_LQ6, 1389.10],
+      ['LQ7', BENCHMARK_LQ7, 496.90], ['LQ9', BENCHMARK_LQ9, 454.98],
+    ]) {
+      expect(groupsOf(runLQ(bm)).manufacture, label).toBeCloseTo(want, 2)
+    }
+  })
+
+  // ── Item 4: the tall frame ────────────────────────────────────────────────
+
+  it('item 4: a 2,600 frame fires both height rules — 360 minutes', () => {
+    const r = runLQ(BENCHMARK_LQ4)
+    expect(firedMinutes(r, '1500 Height Casement Frame Replacement')).toBe(60)
+    expect(firedMinutes(r, '2500 Height Casement Frame Replacement')).toBe(300)
+    expect(firedMinutes(r, '3000 Height Casement Frame Replacement')).toBe(0)
+    // the sibling width rule still fires, as it always did
+    expect(firedMinutes(r, '1500 Wide Casement Frame')).toBe(60)
+    // and a short frame fires none of them
+    for (const bm of [BENCHMARK_LQ1, BENCHMARK_LQ2, BENCHMARK_LQ8]) {
+      expect(firedMinutes(runLQ(bm), '1500 Height Casement Frame Replacement')).toBe(0)
+    }
+  })
+
+  // ── Item 5: the tower ─────────────────────────────────────────────────────
+
+  it('item 5: WSW Mobile Tower access fires "Scaffold Tower" — 180 minutes', () => {
+    expect(firedMinutes(runLQ(BENCHMARK_LQ8), 'Scaffold Tower')).toBe(180)
+    // and nothing else does: every other LQ item is easily accessible
+    for (const bm of [BENCHMARK_LQ1, BENCHMARK_LQ2, BENCHMARK_LQ3, BENCHMARK_LQ4]) {
+      expect(firedMinutes(runLQ(bm), 'Scaffold Tower')).toBe(0)
+    }
+  })
+
+  // ── Item 7: the hardwood box sash, and what is still short ───────────────
+
+  it('item 7: both hardwood lines now charge — and both are still low', () => {
+    const mm = runLQ(BENCHMARK_LQ7).price.lines
+      .filter(l => l.fires && !l.error && /Hardwood (Box Frame|Sashes)/.test(l.name))
+      .map(l => [l.name, Number(l.line_cost.toFixed(2))])
+    // Hardwood Box Frame was THREE PENCE before the dm³ fix
+    expect(mm).toEqual([
+      ['Hardwood Box Frame', 32.82],
+      ['Hardwood Sashes', 11.91],
+      ['Hardwood Sashes', 14.95],
+    ])
+    // Integrate charges 38.98 / 12.73 / 16.13, so £8.16 is still missing —
+    // GlazePro's box-frame and sash timber volumes are 6-16% below
+    // Integrate's and two readings do not determine the model. Reported in
+    // docs/reports/step-bl.md, NOT tuned.
+    expect(38.98 + 12.73 + 16.13 - (32.82 + 11.91 + 14.95)).toBeCloseTo(8.16, 2)
+    const gap = groupsOf(runLQ(BENCHMARK_LQ7)).manufacture_materials -
+      INTEGRATE.benchmarkLQ7_utile_box_sash.groups.manufacture_materials.cost
+    expect(gap).toBeCloseTo(-8.16, 2)
+  })
+
+  // ── The casement cill horns ───────────────────────────────────────────────
+
+  it('the cill horns are measured: LQ8’s 60 mm each side', () => {
+    // The volume used the bare frame width, so the horns were unpaid.
+    const cill = runLQ(BENCHMARK_LQ8).price.lines
+      .find(l => l.fires && !l.error && l.name === 'Hardwood Casement Cill')
+    expect(Number(cill.line_cost.toFixed(2))).toBeCloseTo(13.73, 2)
+    expect(groupsOf(runLQ(BENCHMARK_LQ8)).manufacture_materials).toBeCloseTo(60.33, 2)
+  })
+
+  // ── What this step reports and does NOT fix ──────────────────────────────
+
+  it('item 6: LQ8’s sash is 25.57 kg, so GlazePro charges 45 min Integrate does not', () => {
+    // Reported and stopped on, as the brief directs: 0.57 kg over a 25 kg
+    // threshold, no second reading, and the one lever that would close it
+    // (measuring the glass at the sightline) has no precedent — the sliding
+    // sash model uses the cut size too.
+    const sash = openingNodes(BENCHMARK_LQ8.tree)[0]
+    const kg = casementSashWeightKg(BENCHMARK_LQ8.tree, sash, SNAPSHOT.glassCatalogue)
+    expect(kg).toBeCloseTo(25.57, 2)
+    expect(firedMinutes(runLQ(BENCHMARK_LQ8), 'Any Sash Overweight (Casement)')).toBe(45)
+    // which is the whole of LQ8's remaining difference
+    const labour = groupsOf(runLQ(BENCHMARK_LQ8)).labour -
+      INTEGRATE.benchmarkLQ8_casement_tophung_tower.groups.labour.cost
+    expect(labour).toBeCloseTo(30.15, 2)
+  })
+
+  it('LQ5 and LQ6: the ARCHED glass is what Step BM takes on', () => {
+    // LQ5 is a FRAME-level arch, which benchmark C prices right, and this
+    // fixture still does not: the engine bills 0.49 m² of shaped glass where
+    // Integrate bills 0.30. LQ6 is an arched sash in a SQUARE frame, which no
+    // earlier benchmark covers, and it is further out again. Reported and
+    // stopped on, per the brief.
+    const shaped = bm => runLQ(bm).price.lines
+      .filter(l => l.fires && !l.error && l.name === 'Shaped Glass Cost')
+      .map(l => Number(l.quantity.toFixed(2)))
+    expect(shaped(BENCHMARK_LQ5)).toEqual([0.49])          // Integrate 0.30
+    expect(shaped(BENCHMARK_LQ6).sort()).toEqual([0.50, 0.57])  // Integrate 0.30 each
+    const g5 = groupsOf(runLQ(BENCHMARK_LQ5)).glass_done -
+      INTEGRATE.benchmarkLQ5_box_sash_frame_arch_custom_horn.groups.glass_done.cost
+    expect(g5).toBeCloseTo(7.76, 2)
+    const g6 = groupsOf(runLQ(BENCHMARK_LQ6)).glass_done -
+      INTEGRATE.benchmarkLQ6_double_box_sash_level_arch.groups.glass_done.cost
+    expect(g6).toBeCloseTo(24.79, 2)
+  })
+
+  it('every other group on LQ2, LQ5, LQ6, LQ7 and LQ8 is exact or parked', () => {
+    // The parked residuals, each under £1 with a named cause:
+    //   the STEEL WEIGHT on every box sash — the sash weight model is 0.1 kg
+    //   heavier than Integrate's (Step W's six failing measurement rows)
+    //   LQ2's 1p on "Casement Transoms & Mullions" — the mullion length is
+    //   internal height + 25, an assumption with no reading (Step AR)
+    const parked = (bm, target, group) =>
+      groupsOf(runLQ(bm))[group] - target.groups[group].cost
+    expect(parked(BENCHMARK_LQ2, INTEGRATE.benchmarkLQ2_utile_fanlight_bar_over_fixed,
+      'manufacture_materials')).toBeCloseTo(0.01, 2)
+    expect(parked(BENCHMARK_LQ5, INTEGRATE.benchmarkLQ5_box_sash_frame_arch_custom_horn,
+      'installation_materials')).toBeCloseTo(0.28, 2)
+    expect(parked(BENCHMARK_LQ7, INTEGRATE.benchmarkLQ7_utile_box_sash,
+      'installation_materials')).toBeCloseTo(0.27, 2)
+    expect(parked(BENCHMARK_LQ9, INTEGRATE.benchmarkLQ9_box_sash_bar_custom_horn,
+      'installation_materials')).toBeCloseTo(0.13, 2)
+    // and the groups that ARE exact on those items
+    expect(groupsOf(runLQ(BENCHMARK_LQ2)).glass_done).toBeCloseTo(58.12, 2)
+    expect(groupsOf(runLQ(BENCHMARK_LQ2)).manufacture).toBeCloseTo(481.61, 2)
+    expect(groupsOf(runLQ(BENCHMARK_LQ5)).manufacture_materials).toBeCloseTo(79.59, 2)
+    expect(groupsOf(runLQ(BENCHMARK_LQ7)).glass_done).toBeCloseTo(64.26, 2)
+    expect(groupsOf(runLQ(BENCHMARK_LQ8)).glass_done).toBeCloseTo(55.10, 2)
+    expect(groupsOf(runLQ(BENCHMARK_LQ8)).manufacture).toBeCloseTo(217.75, 2)
   })
 })
