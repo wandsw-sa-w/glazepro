@@ -2279,13 +2279,6 @@
     "hours": {
       "production": 28.8,
       "labour": 13.0
-    },
-    "known_gaps": {
-      "labour": {
-        "cost": -20.1,
-        "price": -40.2,
-        "reason": "Windowboard 30 min: surround (architrave_and_w_board) not enterable yet - later step"
-      }
     }
   },
   "benchmarkLQ2_utile_fanlight_bar_over_fixed": {
@@ -2317,13 +2310,6 @@
     "hours": {
       "production": 19.53,
       "labour": 13.0
-    },
-    "known_gaps": {
-      "labour": {
-        "cost": -140.73,
-        "price": -281.46,
-        "reason": "Linings 180 + Windowboard 30: surround (architrave_lining_and_w_board) not enterable yet - later step"
-      }
     }
   },
   "benchmarkLQ3_utile_french_doors_bars_panels": {
@@ -2355,13 +2341,6 @@
     "hours": {
       "production": 61.22,
       "labour": 13.0
-    },
-    "known_gaps": {
-      "installation_materials": {
-        "cost": 17.96,
-        "price": 35.92,
-        "reason": "GlazePro adds surround timber although the item has no surround (autoCalcSurroundComponents 0) - surround step"
-      }
     }
   },
   "benchmarkLQ4_config7_tall_one_bar": {
@@ -2396,9 +2375,9 @@
     },
     "known_gaps": {
       "labour": {
-        "cost": -140.73,
-        "price": -281.46,
-        "reason": "Windowboard 30 (surround, later step) + 3 h that Integrate labour holds beyond its own fitting units (unexplained; investigate in the snapshot, do not tune)"
+        "cost": -120.63,
+        "price": -241.26,
+        "reason": "Integrate's PricePart POA line 'Frame buried extra rip out time' 180 min (labour / installation) - no GlazePro input until Step BS (docs/integrate-drawing-gaps.txt P2)"
       }
     }
   },
@@ -2431,13 +2410,6 @@
     "hours": {
       "production": 29.17,
       "labour": 8.75
-    },
-    "known_gaps": {
-      "labour": {
-        "cost": -50.26,
-        "price": -100.52,
-        "reason": "Remove and Refit Shutters 75 min comes from a scope-of-works note, no GlazePro input yet - later step"
-      }
     }
   },
   "benchmarkLQ6_double_box_sash_level_arch": {
@@ -2500,13 +2472,6 @@
     "hours": {
       "production": 20.15,
       "labour": 10.0
-    },
-    "known_gaps": {
-      "labour": {
-        "cost": -140.73,
-        "price": -281.46,
-        "reason": "Linings 180 + Windowboard 30: surround (architrave_lining_and_w_board) not enterable yet - later step"
-      }
     }
   },
   "benchmarkLQ8_casement_tophung_tower": {
