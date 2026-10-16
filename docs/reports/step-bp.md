@@ -183,6 +183,9 @@ flag on drawing 117. The selector is now the dialog's exact label.
 flag (SECTION 0 shows the row; it supersedes `sql/step-bs2`). The test cannot
 tell its own residue from a surveyor's line, which is why it is a file.
 
+**Final run**, against the deploy of `1b89621` (the selector fix): **10
+passed, 0 skipped** — item 5's "expect 10 passed".
+
 ---
 
 # What the reviewer should draw live
