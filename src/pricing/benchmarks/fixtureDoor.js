@@ -630,24 +630,19 @@ export const BENCHMARK_FD4 = {
     ironmongeryLines: DOOR_IRONMONGERY,
   }),
   targets: { ...INTEGRATE_TARGETS.benchmarkFD4_french_doors_with_panels },
-  // Step BF follow-up: RESOLVED, and it is a decision.
+  // EXACT on every group, as of the Step BM follow-up.
   //
   // The reviewer re-read drawing 10/4 (310627) on 14 Oct: both panels are
-  // internalPanelTypeId 110 / externalPanelTypeId 110 — FLAT. So FD4 is the
-  // FT3 pattern, and its old penny-exact match was two errors cancelling:
+  // internalPanelTypeId 110 / externalPanelTypeId 110 — FLAT. So FD4 charges
+  // flat 2 x 60, and Integrate fires "Door Muntin" 2 x 60 for the two leaves'
+  // MID RAILS. GlazePro now does both, so the -49.32 this carried under Step
+  // BE's decision d ("a mid rail is not a muntin") is gone — the whole of
+  // that declared difference WAS the two mid rails.
   //
-  //   Integrate   flat 2 x 60 + "Door Muntin" 2 x 60 (each leaf’s MID RAIL
-  //               counted as a muntin)                        = 240
-  //   GlazePro    R&F 2 x 120                                 = 240
-  //
-  // GlazePro now charges flat 2 x 60 and nothing for the mid rails, which
-  // is Nathan’s decision d: a mid rail is not a muntin. 120 minutes less
-  // than Integrate = -49.32, BY DESIGN on exactly the same ground as
-  // FT1-FT4 (difference 19).
-  deliberateDifference: {
-    cost: -49.32,
-    reason: '120 production minutes LESS than Integrate (-49.32): its two panels are FLAT (type 110, re-read 14 Oct) so they cost 60 each, and Integrate fires “Door Muntin” 60 for each leaf’s MID RAIL where GlazePro charges 60 per REAL muntin only (Nathan, decision d). The old penny-exact match was Integrate’s 2 x 60 + 2 x 60 against GlazePro’s old R&F 2 x 120',
-  },
+  // Its old penny-exact match, before the panels were re-read, was two errors
+  // cancelling: Integrate's flat 2 x 60 + muntin 2 x 60 = 240 against
+  // GlazePro's R&F 2 x 120 = 240. It is now 240 against 240 the right way
+  // round, which is why this fixture has nothing left to declare.
   partCostMap: DOOR_PART_COST_MAP,
   profileValues: DOOR_PROFILE_VALUES,
   glassCatalogue: {},
@@ -1386,17 +1381,18 @@ export const BENCHMARK_FT1 = {
     ironmongeryLines: FRONT_DOOR_IRONMONGERY,
   }),
   targets: { ...INTEGRATE_TARGETS.benchmarkFT1_front_door_balham },
-  // Step BF: the panels are FLAT (type 110), so Integrate’s flat-panel 60
-  // was right and GlazePro’s R&F 120 was the error. What is left of
-  // decision d is the muntin, and it makes GlazePro CHEAPER:
+  // The panels are FLAT (type 110), so Integrate’s flat-panel 60 is right.
+  // Production is now EXACTLY Integrate’s 44.50 h: the Step BM follow-up made
+  // the leaf’s MID RAIL count as a muntin, so "Door Muntin" fires 2 x 60 here
+  // — once for the real muntin and once for the mid rail — which is what
+  // Integrate’s labour editor reads on drawing 16. The -24.66 this used to
+  // declare under decision d is gone.
+  //
+  // What remains is only the TIMBER, which is a separate open question:
   //   +30.94  the leaf’s 120 muntin at Utile63x120 (1788 mm), PROVISIONAL
-  //   and 60 production minutes LESS than Integrate (-24.66):
-  //   Integrate counts a leaf’s MID RAIL as a muntin and fires "Door Muntin"
-  //   60 for it; GlazePro charges 60 per REAL muntin only, which is the half
-  //   of Nathan’s decision d that survived the panel-type correction.
   deliberateDifference: {
-    cost: 6.28,
-    reason: 'the leaf’s 120 muntin at Utile63x120 for its interior height (1788 mm, +30.94, PROVISIONAL — Integrate allocates nothing for it), LESS 60 production minutes (-24.66): Integrate counts the leaf’s mid rail as a second muntin and GlazePro charges 60 per REAL muntin only (Nathan, decision d)',
+    cost: 30.94,
+    reason: 'the leaf’s 120 muntin at Utile63x120 for its interior height (1788 mm, +30.94, PROVISIONAL — Integrate allocates nothing for it). The -24.66 that sat beside this is GONE: the mid rail now counts as a muntin, so production is exactly Integrate’s 44.50 h (Step BM follow-up, Integrate’s labour editor on drawing 16)',
   },
   // The three AV4 parts the live catalogue holds at cost 0 — the Heritage
   // lock (112.35), the pocket keep (5.25) and the centre keep w dayswitch
@@ -1459,11 +1455,13 @@ export const BENCHMARK_FT2 = {
     ironmongeryLines: FRONT_DOOR_IRONMONGERY,
   }),
   targets: { ...INTEGRATE_TARGETS.benchmarkFT2_front_door_fanlight },
-  // Step BF: +13.67 of transom, less 60 production minutes (-24.66) for the
-  // mid rail Integrate counts as a muntin. The panels are FLAT either way.
+  // +13.67 of transom timber, and nothing else. Production is now EXACTLY
+  // Integrate’s 46.17 h: the Step BM follow-up made the mid rail count, so
+  // the -24.66 that used to sit beside this is gone. The panels are FLAT
+  // either way.
   deliberateDifference: {
-    cost: -10.99,
-    reason: 'the frame transom at Utile67x96 for the internal frame width (1005 mm, +13.67, PROVISIONAL — Integrate allocates nothing for it), LESS 60 production minutes (-24.66) for the mid rail Integrate counts as a muntin (Nathan, decision d)',
+    cost: 13.67,
+    reason: 'the frame transom at Utile67x96 for the internal frame width (1005 mm, +13.67, PROVISIONAL — Integrate allocates nothing for it). The -24.66 beside this is GONE: the mid rail now counts as a muntin, so production is exactly Integrate’s 46.17 h (Step BM follow-up)',
   },
   // sql/step-bd1 is RUN LIVE (14 Oct): the three AV4 parts have their costs
   // and this row is Integrate’s own figure plus its declared timber, with
@@ -1530,12 +1528,14 @@ export const BENCHMARK_FT3 = {
     ironmongeryLines: FRONT_DOOR_IRONMONGERY,
   }),
   targets: { ...INTEGRATE_TARGETS.benchmarkFT3_front_door_arched },
-  // Step BF: +13.45 of mid-rail timber +23.28 of shaped glass, less 60
-  // production minutes (-24.66) for the mid rail Integrate counts as a
-  // muntin. Its one panel is FLAT, as Integrate has it.
+  // +13.45 of mid-rail timber +23.28 of shaped glass, and nothing else.
+  // Production is now EXACTLY Integrate’s 54.83 h: the Step BM follow-up made
+  // the mid rail count, so the -24.66 is gone. FT3 is the case that proved
+  // the point — it has NO real muntin at all, and Integrate fires "Door
+  // Muntin" 1 x 60 on it regardless. Its one panel is FLAT, as Integrate has.
   deliberateDifference: {
-    cost: 12.07,   // 13.45 mid rail + 23.28 shaped glass - 24.66 production
-    reason: 'the leaf’s 120 mid rail at Utile63x120 for its interior width (777 mm, +13.45, PROVISIONAL), the SHAPED GLASS (+23.28): 1.13 m2 at the square rate against Integrate’s 0.62 at its shaped rate — the largest rectangle of the cut glass (801 x 1127) plus the supplier’s quarter (Nathan, decision e) with the energy surcharge following it — LESS 60 production minutes (-24.66) for the mid rail Integrate counts as a muntin',
+    cost: 36.73,   // 13.45 mid rail + 23.28 shaped glass
+    reason: 'the leaf’s 120 mid rail at Utile63x120 for its interior width (777 mm, +13.45, PROVISIONAL) and the SHAPED GLASS (+23.28): 1.13 m2 at the square rate against Integrate’s 0.62 at its shaped rate — the largest rectangle of the cut glass (801 x 1127) plus the supplier’s quarter (Nathan, decision e) with the energy surcharge following it. The -24.66 that used to sit beside these is GONE: the mid rail now counts as a muntin, so production is exactly Integrate’s 54.83 h (Step BM follow-up)',
   },
   // sql/step-bd1 is RUN LIVE (14 Oct): the three AV4 parts have their costs
   // and this row is Integrate’s own figure plus its declared timber, with
@@ -1685,11 +1685,14 @@ export const BENCHMARK_FT4 = {
   // and 180 production minutes at 24.66/h = 73.98 — Integrate’s flat-panel
   // error on five type-110 R&F panels (-300) and its mid-rail-as-muntin
   // firings (+120 for two rails, against the one real muntin’s 60).
-  // Step BF: the five panels are FLAT, so what is left is the timber and
-  // TWO mid rails Integrate counts as muntins (-120 min, -49.32).
+  // The five panels are FLAT, so what is left is the TIMBER alone. Production
+  // is now EXACTLY Integrate’s 65.08 h: the Step BM follow-up made both mid
+  // rails count — the leaf’s and the side casement’s — so "Door Muntin" fires
+  // 3 x 60 here (one real muntin plus two mid rails), which is what the facts
+  // file reads off Integrate for this item. The -49.32 is gone.
   deliberateDifference: {
-    cost: 21.60,
-    reason: 'the frame mullion (2085 mm at Utile67x96, +28.36), the leaf’s 120 muntin (1788 mm) and its 120 mid rail (672 mm) at Utile63x120 (+42.56) — Integrate allocates nothing for any of the three (PROVISIONAL) — LESS 120 production minutes (-49.32) for the TWO mid rails Integrate counts as muntins (Nathan, decision d)',
+    cost: 70.92,
+    reason: 'TIMBER ONLY, all PROVISIONAL — Integrate allocates nothing for any of the three: the frame mullion (2085 mm at Utile67x96, +28.36), the leaf’s 120 muntin (1788 mm) and its 120 mid rail (672 mm) at Utile63x120 (+42.56). The -49.32 that used to net against these is GONE: both mid rails now count as muntins, so production is exactly Integrate’s 65.08 h (Step BM follow-up)',
   },
   partCostMap: DOOR_PART_COST_MAP,
   profileValues: OPEN_IN_PROFILE_VALUES,
