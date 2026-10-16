@@ -12,7 +12,8 @@ wrote no SQL.
 
 Offline suite: **2,027 passing, 8 failing** — the standing eight (six Step W
 sash-weight rows, benchmarks A50 and D), exactly as before. 15 new tests.
-`npm run e2e`: at the end.
+`npm run e2e`: **6 passed**, and the new sixth read Bi-Glass out of the real
+select on live drawing 69 — see the end.
 
 **What happened, in one line:** Step BJ built the bi-glass rule, tested it
 thoroughly, and shipped it **unreachable**. The Type of Work select on a
@@ -216,4 +217,31 @@ against 2,012 — the difference being this step's own 15 tests.
 
 # e2e after the deploy
 
-To be filled in after the push.
+Deploy confirmed by decoding `/version.json`: **`mvaok5dc` = 08:02:55Z**,
+eleven seconds after the last commit.
+
+`npm run e2e` — **6 passed** (41.1s), one more than before:
+
+| | |
+|---|---|
+| logs in | ok |
+| every benchmark passes except the parked residuals | ok |
+| the fanlight drawing shows Fanlight A1 and Casement Sash A2 | ok |
+| **a casement drawing offers Bi-Glass in Type of Work** | **ok** |
+| the validation panel loads without an error | ok |
+| every drawing card on the L507712 quote matrix shows a price | ok |
+
+**The fourth row is the step.** It read the real Type of Work select on live
+drawing 69, found Bi-Glass in it, and confirmed New Pair of Sashes, Draught
+Seal and Cill Only are still absent. The blocker is gone on the live site, not
+just in a module.
+
+**And the second row confirms `sql/step-bj1` twice over.** `AWAITING_SQL` is
+now empty, so a short BG3 would have been reported as a plain failure — the
+row passing means BG3 is **exact on the live rules**, which is the file having
+run. The benchmark page prices from the live data, so all four bi-glass rows
+are now exact against it.
+
+**Not verified:** nothing was saved on the live site. The e2e step only reads
+the select; drawing 69 is still Complete New, and switching it — and the
+£639.05 / £1,278.08 that should follow — is the reviewer's to do.
