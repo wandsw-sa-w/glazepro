@@ -340,3 +340,168 @@ export const BENCHMARK_BG4 = {
     'Neither sash reaches 25 kg, where S’s lower sash does: a single 4 mm pane weighs half what S’s double unit does. The weight model must read the SINGLE pane on single glazing, which is Step BJ item 1e',
   ],
 }
+
+// ── Step BK — bi-glass on FRENCH casements: BGF1 and BGF2 ───────────────────
+//
+// The addendum of 16 Oct 2026 to the same facts file. Step BJ's follow-up left
+// French casements out of bi-glass for two stated reasons — the pair holds its
+// own mechanical clearances, and Integrate had no reading — and both are now
+// settled:
+//
+//   BGF1  10/39 — a copy of FR1 (1199 x 1313, a plain French pair)
+//   BGF2  10/40 — a copy of FR2 (899 x 1499, a top-hung fanlight over a pair)
+//
+// WHAT THE TICK DOES TO A PAIR, and so what these trees hold. It zeroes the
+// mechanical clearances on the FRAME, on the PAIR and on both LEAVES, and
+// leaves `gapBetweenMeetingStiles` at 4. So:
+//
+//   the pair      = its opening                 1125 x 1219 on BGF1
+//   each leaf     = (pair width - gap 4) / 2    560.5 x 1219
+//   the glass     = leaf - 62 - 63 wide,        435.5 x 1074
+//                   leaf - 62 - 83 high
+//
+// where 63 is the MEETING stile and 62 the outer one. Complete-new FR1 is
+// 556.5 x 1211 for comparison: the 4 mm clearance is what the tick gives back.
+//
+// Zeroing the PAIR is the part that matters. `casementSashSize` reads
+// `frenchPairFor(...)` first and the leaf only as a fallback, so zeroing the
+// leaves alone would have left the sashes at their 4 mm inset and sized the
+// glass as though clearance still applied — which is exactly why the BJ
+// follow-up refused to offer the switch until this was read.
+//
+// Everything else is Step BJ's: single 4 mm Clear Toughened on the glass with
+// `toBeReplaced` TRUE, the leaves KEPT, no stored surround, MPLS off, the
+// stored ironmongery priced as stored, draught sealing always on, and no
+// joinery because nothing is made. A French pair has NO divider, so BGF1 has
+// no production at all; BGF2's transom gives rule 211 its 60 minutes.
+
+const FRENCH_MID_RAIL_MM = 130
+const FRENCH_GAP_MM      = 4
+const FRENCH_MEETING_STILE_MM = (FRENCH_MID_RAIL_MM - FRENCH_GAP_MM) / 2   // 63
+
+/**
+ * A KEPT French pair with new single panes.
+ *
+ * Every clearance is 0 — on the pair AND on both leaves, as Integrate stores
+ * them after the tick — and the gap between the meeting stiles stays 4.
+ */
+function keptFrenchPair(key, { masterLeaf = 'right' } = {}) {
+  const leaf = (side, operation) => ({
+    key: `${key}_${side}`,
+    part_type: side === 'left' ? 'leftFrenchCasementSashPart' : 'rightFrenchCasementSashPart',
+    values: {
+      operation,
+      casementTypeId: 'open_out',
+      thickness:     57,                 // the PAIR's thickness, not a casement's 54
+      topHeight:     62,
+      leftWidth:  side === 'left' ? 62 : FRENCH_MEETING_STILE_MM,
+      rightWidth: side === 'left' ? FRENCH_MEETING_STILE_MM : 62,
+      bottomHeight:  83,
+      isMasterLeaf:  masterLeaf === side,
+      // the leaf is KEPT, and its clearances are zeroed too
+      toBeReplaced: false,
+      mechanicalClearanceLeft:   0,
+      mechanicalClearanceRight:  0,
+      mechanicalClearanceTop:    0,
+      mechanicalClearanceBottom: 0,
+    },
+    children: [
+      {
+        key: `${key}_${side}_glass`,
+        part_type: 'glassPart',
+        values: { ...BG_GLASS },
+        children: [],
+      },
+    ],
+  })
+  return {
+    key,
+    part_type: 'frenchCasementPart',
+    values: {
+      casementTypeId: 'open_out',
+      thickness: 57,
+      midRail: FRENCH_MID_RAIL_MM,
+      gapBetweenMeetingStiles: FRENCH_GAP_MM,
+      // THE PAIR's clearances, which is what casementSashSize reads
+      mechanicalClearanceLeft:   0,
+      mechanicalClearanceRight:  0,
+      mechanicalClearanceTop:    0,
+      mechanicalClearanceBottom: 0,
+      masterLeaf,
+    },
+    children: [leaf('left', 'left_hand_hung'), leaf('right', 'right_hand_hung')],
+  }
+}
+
+const BGF_ASSUMPTIONS = [
+  ...BG_ASSUMPTIONS,
+  'The PAIR’s mechanical clearances are 0 as well as the leaves’, which is what Integrate stores and what casementSashSize reads first — zeroing only the leaves would leave the sashes 4 mm inside the opening',
+  'gapBetweenMeetingStiles stays 4: the tick removes the clearance, not the gap between the meeting stiles',
+  'The meeting stile 63 is DERIVED as (midRail 130 - gap 4) / 2 and stored on each leaf, as FR1 and FR2 do',
+  'A French pair has NO divider, so rule 211 cannot fire on BGF1 — BGF2’s 60 production minutes are its transom alone',
+]
+
+// ── BGF1: a copy of FR1 — a plain French pair, 1199 x 1313 ──────────────────
+// Opening 1125 x 1219, so the pair is 1125 x 1219 and each leaf 560.5 x 1219.
+// Glass 435.5 x 1074 -> cut 463.5 x 1102 = 0.51 m².
+const BGF1_IRONMONGERY = [
+  { product_short_name: 'connoisseur_handle_lh',                     finish_code: 'PB',  qty: 1, source: 'survey' },
+  { product_short_name: 'connoisseur_handle_rh',                     finish_code: 'PB',  qty: 1, source: 'survey' },
+  { product_short_name: 'defender_friction_hinge_-_side_hung_310mm', finish_code: 'PC',  qty: 2, source: 'survey' },
+  { product_short_name: 'kenrick_extension_950mm',                   finish_code: 'PC',  qty: 4, source: 'survey' },
+  { product_short_name: 'kenrick_extension_gear_box',                finish_code: 'PC',  qty: 2, source: 'survey' },
+  { product_short_name: 'trickle_vent_xr16',                         finish_code: 'Wht', qty: 1, source: 'survey' },
+]
+
+export const BENCHMARK_BGF1 = {
+  name: 'Benchmark BGF1 — Bi-glass French casement (L31115 Item 10 Drawing 39)',
+  tree: biGlassTree({
+    width: 1199, height: 1313,
+    openings: [keptFrenchPair('fr1')],
+    ironmongeryLines: BGF1_IRONMONGERY,
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkBGF1_biglass_french_casement },
+  partCostMap: BG_PART_COST_MAP,
+  profileValues: PROFILE_VALUES,
+  glassCatalogue: {},
+  ironmongeryLines: BGF1_IRONMONGERY,
+  assumptions: BGF_ASSUMPTIONS,
+}
+
+// ── BGF2: a copy of FR2 — a fanlight over a French pair, 899 x 1499 ─────────
+// Opening 825 x 1405, transom at 304, so the rows are 304 and 1074. The
+// fanlight is an ORDINARY casement sash (54 thick) at 825 x 304, and the pair
+// below is 825 x 1074 with leaves of 410.5.
+//
+// Both of its glass units land on the 0.30 m² minimum — the fanlight's 0.14
+// is lifted to it and the leaves' 0.30012 rounds to it — so all three price
+// at 7.65.
+const BGF2_IRONMONGERY = [
+  { product_short_name: 'connoisseur_handle_lh',                     finish_code: 'PB',  qty: 2, source: 'survey' },
+  { product_short_name: 'connoisseur_handle_rh',                     finish_code: 'PB',  qty: 1, source: 'survey' },
+  { product_short_name: 'defender_209mm',                            finish_code: 'PC',  qty: 1, source: 'survey' },
+  { product_short_name: 'defender_friction_hinge_-_side_hung_310mm', finish_code: 'PC',  qty: 2, source: 'survey' },
+  { product_short_name: 'kenrick_extension_690mm',                   finish_code: 'PC',  qty: 2, source: 'survey' },
+  { product_short_name: 'kenrick_extension_950mm',                   finish_code: 'PC',  qty: 4, source: 'survey' },
+  { product_short_name: 'kenrick_extension_gear_box',                finish_code: 'PC',  qty: 3, source: 'survey' },
+  { product_short_name: 'trickle_vent_xr16',                         finish_code: 'Wht', qty: 1, source: 'survey' },
+]
+
+export const BENCHMARK_BGF2 = {
+  name: 'Benchmark BGF2 — Bi-glass French casement with a fanlight (L31115 Item 10 Drawing 40)',
+  tree: biGlassTree({
+    width: 899, height: 1499,
+    dividers: [divider('trans1', 'transomPart', 304, 'transomStopSize')],
+    openings: [
+      keptSash('cas_a1', 'top_hung'),   // the fanlight, an ordinary 54 sash
+      keptFrenchPair('fr2'),            // the pair below
+    ],
+    ironmongeryLines: BGF2_IRONMONGERY,
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkBGF2_biglass_french_casement_fanlight },
+  partCostMap: BG_PART_COST_MAP,
+  profileValues: PROFILE_VALUES,
+  glassCatalogue: {},
+  ironmongeryLines: BGF2_IRONMONGERY,
+  assumptions: BGF_ASSUMPTIONS,
+}

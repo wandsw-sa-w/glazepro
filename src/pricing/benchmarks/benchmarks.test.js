@@ -49,6 +49,7 @@ import { matrixIndexOf, isStormproofSash, isStormproofWindow, openingNodes, open
 // Step BJ: the four bi-glass casements, and the one rule sql/step-bj1 widens.
 import {
   BENCHMARK_BG1, BENCHMARK_BG2, BENCHMARK_BG3, BENCHMARK_BG4,
+  BENCHMARK_BGF1, BENCHMARK_BGF2,
 } from './fixtureBiGlass.js'
 import {
   withFixedCasementSashBiGlass, FIXED_CASEMENT_SASH_RULE,
@@ -4056,5 +4057,162 @@ describe('Step BJ — bi-glass casement benchmarks', () => {
     const patched = withFixedCasementSashBiGlass(BJ_RULES)
     expect(patched.find(r => r.name === FIXED_CASEMENT_SASH_RULE).condition)
       .toBe(FIXED_CASEMENT_SASH_CONDITION_AFTER)
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step BK — bi-glass on FRENCH casements: BGF1 and BGF2
+// ══════════════════════════════════════════════════════════════════════════════
+// The addendum of 16 Oct 2026 to docs/integrate-L31115-casement-biglass.txt.
+// Step BJ's follow-up refused to offer bi-glass on a French casement for two
+// stated reasons — the PAIR holds its own mechanical clearances, and Integrate
+// had no reading — and both are now settled.
+//
+//   BGF1  10/39 — a copy of FR1 (1199 x 1313, a plain French pair)
+//   BGF2  10/40 — a copy of FR2 (899 x 1499, a fanlight over a pair)
+//
+// NOTHING IN THE ENGINE CHANGED FOR THESE. Every one of Step BJ's six fixes
+// already covers a French pair, and both benchmarks were exact the first time
+// they were priced. What this step adds is the fixtures, the board switch and
+// the proof.
+describe('Step BK — bi-glass French casement benchmarks', () => {
+
+  const CASES = [
+    ['BGF1', BENCHMARK_BGF1, INTEGRATE.benchmarkBGF1_biglass_french_casement,           0,   8.00],
+    ['BGF2', BENCHMARK_BGF2, INTEGRATE.benchmarkBGF2_biglass_french_casement_fanlight,   1.0, 12.00],
+  ]
+
+  const BK_RULES = withFixedCasementSashBiGlass(SNAPSHOT.rules)
+
+  function runBGF(bm) {
+    return runPricingOnTree(bm.tree, BK_RULES, SNAPSHOT.pfVariables, {
+      glassCatalogue: SNAPSHOT.glassCatalogue,
+      partAllocationRules: SNAPSHOT.partAllocationRules,
+      partCostMap: bm.partCostMap,
+      ironmongeryLines: bm.ironmongeryLines,
+      ironmongeryCatalogue: SNAPSHOT.ironmongeryCatalogue,
+      profileValues: SNAPSHOT.profileValues,
+    })
+  }
+
+  /** Every casement or French sash in the tree, in order. */
+  const sashesOf = bm => {
+    const out = []
+    ;(function walk(n) {
+      if (!n) return
+      if (CASEMENT_SASH_TYPES.includes(n.part_type)) out.push(n)
+      for (const c of (n.children ?? [])) walk(c)
+    })(bm.tree)
+    return out
+  }
+
+  for (const [label, bm, target, production, labour] of CASES) {
+    it(`${label}: production ${production} h and fitting ${labour} h, exactly`, () => {
+      const r = runBGF(bm)
+      expect(r.manufacture_labour.total_minutes / 60, `${label} production`)
+        .toBeCloseTo(production, 2)
+      expect(r.install_labour.total_minutes / 60, `${label} fitting`)
+        .toBeCloseTo(labour, 2)
+    })
+
+    it(`${label}: every group matches Integrate, group by group`, () => {
+      expectMatchesIntegrate(runBGF(bm), target)
+    })
+  }
+
+  // ── The geometry the zeroed PAIR produces ─────────────────────────────────
+
+  it('the PAIR is its opening, and each leaf is (pair - gap 4) / 2', () => {
+    // BGF1: opening 1125 x 1219, so each leaf 560.5 x 1219 — where
+    // complete-new FR1's leaves are 556.5 x 1211. The 4 mm is what the tick
+    // gives back, and it comes off the PAIR, not the leaves.
+    const bgf1 = sashesOf(BENCHMARK_BGF1)
+      .map(s => { const z = casementSashSize(BENCHMARK_BGF1.tree, s); return [z.width, z.height] })
+    expect(bgf1).toEqual([[560.5, 1219], [560.5, 1219]])
+    const fr1 = openingNodes(BENCHMARK_FR1.tree).length > 0
+      ? sashesOf(BENCHMARK_FR1).map(s => {
+        const z = casementSashSize(BENCHMARK_FR1.tree, s); return [z.width, z.height]
+      })
+      : []
+    expect(fr1).toEqual([[556.5, 1211], [556.5, 1211]])
+
+    // BGF2: the fanlight IS its opening and the leaves are 410.5 wide
+    const bgf2 = sashesOf(BENCHMARK_BGF2)
+      .map(s => { const z = casementSashSize(BENCHMARK_BGF2.tree, s); return [z.width, z.height] })
+    expect(bgf2).toEqual([[825, 304], [410.5, 1074], [410.5, 1074]])
+  })
+
+  it('the glass follows: 62 outer stile, 63 meeting, 62 / 83 rails', () => {
+    const sightlines = bm => sashesOf(bm)
+      .map(s => { const z = casementGlassSightline(bm.tree, s); return [z.width, z.height] })
+    // 560.5 - 62 - 63 = 435.5 ; 1219 - 62 - 83 = 1074
+    expect(sightlines(BENCHMARK_BGF1)).toEqual([[435.5, 1074], [435.5, 1074]])
+    // the fanlight is an ordinary sash: 825 - 62 - 62 = 701 ; 304 - 145 = 159
+    expect(sightlines(BENCHMARK_BGF2))
+      .toEqual([[701, 159], [285.5, 929], [285.5, 929]])
+  })
+
+  it('the gap between the meeting stiles stays 4', () => {
+    // The tick removes the CLEARANCE, not the gap.
+    for (const bm of [BENCHMARK_BGF1, BENCHMARK_BGF2]) {
+      const pairs = []
+      ;(function walk(n) {
+        if (!n) return
+        if (n.part_type === 'frenchCasementPart') pairs.push(n)
+        for (const c of (n.children ?? [])) walk(c)
+      })(bm.tree)
+      expect(pairs.length, bm.name).toBe(1)
+      expect(pairs[0].values.gapBetweenMeetingStiles).toBe(4)
+      // and every clearance on the pair is 0
+      for (const f of ['mechanicalClearanceLeft', 'mechanicalClearanceRight',
+        'mechanicalClearanceTop', 'mechanicalClearanceBottom']) {
+        expect(pairs[0].values[f], `pair ${f}`).toBe(0)
+      }
+    }
+  })
+
+  it('every glass is single and REPLACED; every leaf is KEPT', () => {
+    for (const bm of [BENCHMARK_BGF1, BENCHMARK_BGF2]) {
+      for (const sash of sashesOf(bm)) {
+        expect(sash.values.toBeReplaced, `${bm.name} sash`).toBe(false)
+        const glass = sash.children.find(c => c.part_type === 'glassPart')
+        expect(glass.values.glazingId).toBe('single_glazing')
+        expect(glass.values.singleGlassPartNo).toBe('GL100080')
+        expect(glass.values.toBeReplaced).toBe(true)
+      }
+    }
+  })
+
+  it('a French pair has NO divider, so BGF1 has no production at all', () => {
+    expect(runBGF(BENCHMARK_BGF1).manufacture_labour.total_minutes).toBe(0)
+    // BGF2's 60 minutes are its TRANSOM alone — rule 211, 60 a divider
+    const fired = runBGF(BENCHMARK_BGF2).manufacture_labour.lines
+      .filter(l => l.fires && !l.error && l.minutes > 0)
+      .map(l => [l.name, l.minutes])
+    expect(fired).toEqual([['Casement Frame - Single Finish (Mullions)', 60]])
+  })
+
+  it('fitting is 240 a glass unit and nothing else', () => {
+    // No fixed sash on either, and neither pair is over 25 kg.
+    for (const [label, bm, , , labour] of CASES) {
+      const lines = runBGF(bm).install_labour.lines
+        .filter(l => l.fires && !l.error && l.minutes > 0)
+      expect(lines.map(l => l.name), label)
+        .toEqual(lines.map(() => 'BiGlass Labour Base Price'))
+      expect(lines.reduce((n, l) => n + l.minutes, 0), label).toBe(labour * 60)
+    }
+    expect(runBGF(BENCHMARK_BGF1).install_labour.lines
+      .filter(l => l.fires && !l.error && l.minutes > 0).length).toBe(2)
+    expect(runBGF(BENCHMARK_BGF2).install_labour.lines
+      .filter(l => l.fires && !l.error && l.minutes > 0).length).toBe(3)
+  })
+
+  it('nothing is made: manufacture_materials is the LTW 25 alone', () => {
+    for (const [label, bm] of CASES.map(c => [c[0], c[1]])) {
+      const mm = runBGF(bm).price.lines
+        .filter(l => l.fires && !l.error && l.line_cost > 0 &&
+          l.group_name === 'manufacture_materials')
+      expect(mm.map(l => l.name), label).toEqual(['LTW General Consumables'])
+    }
   })
 })

@@ -27,6 +27,9 @@ export { BENCHMARK_J, BENCHMARK_K, BENCHMARK_L, BENCHMARK_M, BENCHMARK_N, BENCHM
 // glass is replaced. These four are the first benchmarks of any product to
 // exercise the imported bi-glass rules.
 export { BENCHMARK_BG1, BENCHMARK_BG2, BENCHMARK_BG3, BENCHMARK_BG4 } from './fixtureBiGlass.js'
+// Step BK — bi-glass on a FRENCH casement, where the PAIR holds the
+// clearances the tick zeroes.
+export { BENCHMARK_BGF1, BENCHMARK_BGF2 } from './fixtureBiGlass.js'
 export { BENCHMARK_FD1, BENCHMARK_FD2, BENCHMARK_FD3, BENCHMARK_FD3b, BENCHMARK_FD4, BENCHMARK_FD5, BENCHMARK_FD6, BENCHMARK_FD7,
   BENCHMARK_SD1, BENCHMARK_SD2, BENCHMARK_SD3, BENCHMARK_SD4,
   BENCHMARK_CD1, BENCHMARK_CD2, BENCHMARK_CD3, BENCHMARK_CD4,
