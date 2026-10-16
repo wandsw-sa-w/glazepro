@@ -26,6 +26,11 @@ import {
 import {
   cillRepairApplies, showsFullCillReplacement, applyCillRules,
 } from '../drawingBoard/cillReplacement.js'
+// Step BJ: Bi-Glass on a casement — the sashes and frame are kept and only
+// the glass is replaced.
+import {
+  applyBiGlassCasement, biGlassDisagreeing, isBiGlassItem, BI_GLASS_NOTE,
+} from '../drawingBoard/biGlassCasement.js'
 import { applyFanlightBottomRails, isStormproofWindow,
   resizeCasementFrame,
   OPENING_KINDS, OPENING_KIND_LABELS, openingKindOf, openingKindsFor,
@@ -648,7 +653,7 @@ export function IronmongeryPanel({ node, tree, derived, refOptions, onChangeFiel
 
 // ── PropertyEditor ────────────────────────────────────────────────────────────
 
-function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, onAutoApplyDefaults, onPrev, onNext, prevDisabled, nextDisabled, prevLabel, nextLabel, visibilityMap, boardMode, showHidden, tree, ironmongeryRules, ironmongeryProducts, onShowPriceBreakdown, profileValueMap, onSetCompleteNewThickness, onSetSashesReplaced, onChangeInternalSize, onMakeDividersEqual, onSetFrenchMasterLeaf, onSetLeafMidRail, onSetLeafGrid, onSetLeafCellKind, profileCode = null }) {
+function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, onAutoApplyDefaults, onPrev, onNext, prevDisabled, nextDisabled, prevLabel, nextLabel, visibilityMap, boardMode, showHidden, tree, ironmongeryRules, ironmongeryProducts, onShowPriceBreakdown, profileValueMap, onSetCompleteNewThickness, onSetSashesReplaced, onSetBiGlassCasement, onChangeInternalSize, onMakeDividersEqual, onSetFrenchMasterLeaf, onSetLeafMidRail, onSetLeafGrid, onSetLeafCellKind, profileCode = null }) {
   if (!node) {
     return (
       <div style={{ padding: 16, color: '#aaa', fontSize: 12, textAlign: 'center', paddingTop: 48 }}>
@@ -698,6 +703,20 @@ function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, o
         note: SASHES_REPLACED_NOTE,
         fixLabel: 'Set sashes to match type of work',
         onFix: disagrees ? onSetSashesReplaced : null,
+      }
+    }
+    // Step BJ item 2: on a BI-GLASS casement the type of work owns the
+    // sash's To Be Replaced too — the sashes are KEPT and only the glass is
+    // replaced. On every other type of work a casement sash keeps its own
+    // editable toggle, which is why this is gated on the item being
+    // bi-glass. As Step AJ, a saved drawing is never changed on load: the
+    // button applies it through the same path a type-of-work change takes.
+    if (fieldKey === 'casementSashPart.toBeReplaced') {
+      if (!isBiGlassItem(tree)) return null
+      return {
+        note: BI_GLASS_NOTE,
+        fixLabel: 'Set glass and sashes to match type of work',
+        onFix: biGlassDisagreeing(tree).length > 0 ? onSetBiGlassCasement : null,
       }
     }
     // Step AL 1: on a sash replacement the surveyor enters the SASH size,
@@ -2390,6 +2409,13 @@ function DrawingBoard() {
       // repair is not offered (complete new, no work) a stored one is
       // cleared rather than left priced.
       newTree = applyCillRules(newTree).tree
+      // Step BJ item 2: Bi-Glass on a CASEMENT is Integrate's one tick —
+      // the sashes are kept, each grows to fill its opening ("Include
+      // Clearance" off), the glass becomes single 4 mm Clear Toughened and
+      // to be replaced, the stored surround goes and Casement MPLS goes off.
+      // Switching back restores a complete-new casement. A sliding sash is
+      // untouched: bi-glass on a box sash is a separate step.
+      newTree = applyBiGlassCasement(newTree).tree
     }
 
     commit(newTree)
@@ -2413,6 +2439,17 @@ function DrawingBoard() {
     if (!tree) return
     const { tree: newTree, sashesChanged } = applySashesReplaced(tree)
     if (sashesChanged.length > 0) commit(newTree)
+  }, [tree])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Step BJ item 2: "Set glass and sashes to match type of work" on a saved
+  // BI-GLASS casement whose sashes or glass disagree — a drawing saved
+  // before this step, or one a surveyor has edited by hand. The same single
+  // path the type-of-work change takes, so nothing is changed on load and
+  // every value appears in the drawing's history on save.
+  const handleSetBiGlassCasement = useCallback(() => {
+    if (!tree) return
+    const { tree: newTree, changed } = applyBiGlassCasement(tree)
+    if (changed.length > 0) commit(newTree)
   }, [tree])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // Step AP: change the selected opening's kind, or a casement sash's
@@ -3143,6 +3180,7 @@ function DrawingBoard() {
               profileValueMap={profileValueMap}
               onSetCompleteNewThickness={handleSetCompleteNewThickness}
               onSetSashesReplaced={handleSetSashesReplaced}
+              onSetBiGlassCasement={handleSetBiGlassCasement}
               onChangeInternalSize={handleChangeInternalSize}
               onMakeDividersEqual={handleMakeDividersEqual}
               onSetFrenchMasterLeaf={handleSetFrenchMasterLeaf}
