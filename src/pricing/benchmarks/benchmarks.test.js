@@ -4278,14 +4278,23 @@ describe('Step BL — live-quote benchmarks', () => {
     .filter(l => l.fires && !l.error && l.name === name)
     .reduce((n, l) => n + l.minutes, 0)
 
-  // ── The four that are exact on every group ────────────────────────────────
-
+  // ── The ones that are exact on every group ────────────────────────────────
+  //
+  // Step BN closed the surround labour on LQ1, LQ2, LQ4, LQ5 and LQ7, but
+  // only LQ1, LQ3 and LQ4 are exact on EVERY group. The others keep a Step BL
+  // difference of their own that has nothing to do with the surround and is
+  // checked where Step BL checks it:
+  //
+  //   LQ2  materials +0.01  the Step AR mullion-length assumption
+  //   LQ5  glass     +7.76  shaped glass at the square rate (decision e)
+  //   LQ6  glass    +16.74  the same
+  //   LQ7  materials -8.16  the hardwood box-sash lines, reported not tuned
+  //   LQ8  labour   +30.15  the mobile tower
+  //   LQ9  inst      +0.13  parked steel weight
   const EXACT = [
     ['LQ1', BENCHMARK_LQ1, INTEGRATE.benchmarkLQ1_casement_fixed_tophung_fixed_bars],
     ['LQ3', BENCHMARK_LQ3, INTEGRATE.benchmarkLQ3_utile_french_doors_bars_panels],
     ['LQ4', BENCHMARK_LQ4, INTEGRATE.benchmarkLQ4_config7_tall_one_bar],
-    // LQ9 is exact on every group BUT installation_materials, which carries
-    // the 13p parked steel-weight residual, so it is checked below instead.
   ]
 
   for (const [label, bm, target] of EXACT) {
@@ -4294,15 +4303,64 @@ describe('Step BL — live-quote benchmarks', () => {
     })
   }
 
-  it('LQ1, LQ3, LQ4 and LQ9 hit Integrate’s production and fitting hours', () => {
-    // LQ1's and LQ4's FITTING is short by the declared surround labour, so the
-    // hours are checked where the gap does not touch them.
+  it('LQ1-LQ4, LQ7 and LQ9 hit Integrate’s production AND fitting hours', () => {
+    // Step BN: LQ1's, LQ2's and LQ7's FITTING used to be short by the surround
+    // labour nobody could enter, so only their production was checked. The
+    // tick boxes close it, and the fitting is now assertable on all of them.
+    // LQ4's is still 3 h short, and that 3 h is now NAMED: Integrate's
+    // PricePart POA line "Frame buried extra rip out time" 180 min, which has
+    // no GlazePro input until Step BS.
     expect(runLQ(BENCHMARK_LQ1).manufacture_labour.total_minutes / 60).toBeCloseTo(28.80, 2)
+    expect(runLQ(BENCHMARK_LQ1).install_labour.total_minutes / 60).toBeCloseTo(13.00, 2)
+    expect(runLQ(BENCHMARK_LQ2).install_labour.total_minutes / 60).toBeCloseTo(13.00, 2)
     expect(runLQ(BENCHMARK_LQ3).manufacture_labour.total_minutes / 60).toBeCloseTo(61.22, 2)
     expect(runLQ(BENCHMARK_LQ3).install_labour.total_minutes / 60).toBeCloseTo(13.00, 2)
     expect(runLQ(BENCHMARK_LQ4).manufacture_labour.total_minutes / 60).toBeCloseTo(43.20, 2)
+    expect(runLQ(BENCHMARK_LQ7).install_labour.total_minutes / 60).toBeCloseTo(10.00, 2)
     expect(runLQ(BENCHMARK_LQ9).manufacture_labour.total_minutes / 60).toBeCloseTo(18.45, 2)
     expect(runLQ(BENCHMARK_LQ9).install_labour.total_minutes / 60).toBeCloseTo(7.50, 2)
+    // LQ4: 22.25 h against Integrate's 25.25, the POA line exactly.
+    expect(runLQ(BENCHMARK_LQ4).install_labour.total_minutes / 60).toBeCloseTo(22.25, 2)
+    expect(25.25 - 22.25).toBeCloseTo(180 / 60, 2)
+  })
+
+  it('LQ2 and LQ7 are exact on LABOUR now, with only Step BL’s residual left', () => {
+    // Both were -140.73 short of Integrate's fitting, for linings 180 +
+    // windowboard 30 that nobody could enter. The ticks close it exactly, and
+    // what is left on each is its OWN Step BL difference in a different
+    // group: LQ2 +0.01 of materials (the Step AR mullion length) and LQ7
+    // -8.16 of materials (the hardwood box-sash lines).
+    const groupsOf = r => {
+      const got = {}
+      for (const l of r.price.lines) {
+        if (!l.fires || l.error) continue
+        got[l.group_name] = (got[l.group_name] ?? 0) + l.line_cost
+      }
+      return got
+    }
+    const lq2 = runLQ(BENCHMARK_LQ2)
+    const t2 = INTEGRATE.benchmarkLQ2_utile_fanlight_bar_over_fixed
+    expect(groupsOf(lq2).labour).toBeCloseTo(t2.groups.labour.cost, 2)
+    expect(groupsOf(lq2).manufacture_materials - t2.groups.manufacture_materials.cost)
+      .toBeCloseTo(0.01, 2)
+
+    const lq7 = runLQ(BENCHMARK_LQ7)
+    const t7 = INTEGRATE.benchmarkLQ7_utile_box_sash
+    expect(groupsOf(lq7).labour).toBeCloseTo(t7.groups.labour.cost, 2)
+    expect(groupsOf(lq7).manufacture_materials - t7.groups.manufacture_materials.cost)
+      .toBeCloseTo(-8.16, 2)
+  })
+
+  it('LQ5 fires "Remove and Refit Shutters" 75, and that closes its fitting', () => {
+    // L34265 item 3 is existingSurroundTypeId 5 / existingSurroundActionId 1.
+    // Step BN is what makes this enterable at all; before it, LQ5's fitting
+    // was 1.25 h short with a known_gap saying "no GlazePro input yet".
+    const r = runLQ(BENCHMARK_LQ5)
+    const shutters = (r.install_labour.lines ?? [])
+      .filter(l => (l.rule_name ?? l.name) === 'Remove and Refit Shutters')
+    expect(shutters.length).toBe(1)
+    expect(shutters[0].minutes).toBe(75)
+    expect(r.install_labour.total_minutes / 60).toBeCloseTo(8.75, 2)
   })
 
   // ── Item 1: the glazing-bar glass charge ──────────────────────────────────
