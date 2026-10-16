@@ -178,7 +178,11 @@ test.describe('Step BO — the ironmongery product picker', () => {
     // would leave the drawing marked as a chosen set.
     if (!wasEdited) {
       await page.locator('[data-testid="ironmongery-apply-defaults"]').click()
-      await page.getByRole('button', { name: /^apply defaults$/i }).click()
+      // The confirm dialog's button, EXACTLY: the panel's own button reads
+      // "Apply Defaults" (capital D) and a case-insensitive match resolved to
+      // both — the Step BP deploy's one failure, whose half-done cleanup is
+      // what sql/step-bp1-drawing117-picker-residue.sql puts right.
+      await page.getByRole('button', { name: 'Apply defaults', exact: true }).click()
       await expect(line).toHaveCount(0)
       await expect(page.locator('[data-testid="ironmongery-set-origin"]'))
         .toHaveAttribute('data-edited', 'false')
