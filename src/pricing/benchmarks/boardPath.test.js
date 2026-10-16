@@ -772,13 +772,16 @@ describe('Step AP — the board builds the casement benchmarks', () => {
     expect(hinge.line_cost).toBeCloseTo(8.40, 2)
   })
 
-  it('the breakdown label says which finish each line used', () => {
+  it('the breakdown label says which finish each line used, and where it came from', () => {
     let { tree } = buildCasementFrame(PV, { width: 1199, height: 1299, openings: ['opening_casement'] })
     const r = priceFromSnapshot(tree)
     const labels = r.price.lines.filter(l => l.fires && l.alloc_label).map(l => l.alloc_label)
-    expect(labels).toContain('connoisseur_handle_lh (PB, item finish)')
-    expect(labels.some(l => l.includes('(PC, rule finish)'))).toBe(true)
-    expect(labels.some(l => l.includes('trickle_vent_xr16 (Wht, rule finish)'))).toBe(true)
+    // Step BO item 2: the label now also says whether the line came from the
+    // drawing's STORED SET or from the default rules. This drawing stores no
+    // set, so every ironmongery line is a rule default.
+    expect(labels).toContain('connoisseur_handle_lh (PB, item finish, rule default)')
+    expect(labels.some(l => l.includes('(PC, rule finish, rule default)'))).toBe(true)
+    expect(labels.some(l => l.includes('trickle_vent_xr16 (Wht, rule finish, rule default)'))).toBe(true)
   })
 
   // ── Step AQ item 8 — the save-side checks, on every board tree ───────────

@@ -118,13 +118,30 @@ export function componentLengthMetres(measure, group = null) {
   return Math.ceil(mm / 100) / 10
 }
 
+/**
+ * Step BO item 2: and WHERE THE LINE CAME FROM — the stored set the surveyor
+ * chose, or the default rules. The brief asks the breakdown to "say exactly
+ * which lines come from the stored set and which from the rules", and this
+ * is the one label every breakdown already shows (the benchmark page, the
+ * board's Price part, and the stored run, which keeps it as part_label).
+ */
+const ORIGIN_LABELS = {
+  stored:    'stored set',
+  default:   'rule default',
+  allocated: 'rules',
+}
+
 export function ironmongeryLineLabel(ironLine) {
   const name = ironLine?.product_short_name ?? null
   if (!name) return null
+  const origin = ORIGIN_LABELS[ironLine.origin] ?? null
   const finish = ironLine.finish_code
-  if (finish == null || finish === '') return name
-  const source = FINISH_SOURCE_LABELS[ironLine.finish_source]
-  return source ? `${name} (${finish}, ${source})` : `${name} (${finish})`
+  const parts = [
+    (finish == null || finish === '') ? null : finish,
+    (finish == null || finish === '') ? null : FINISH_SOURCE_LABELS[ironLine.finish_source],
+    origin,
+  ].filter(Boolean)
+  return parts.length > 0 ? `${name} (${parts.join(', ')})` : name
 }
 
 import {
@@ -1316,6 +1333,10 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
       finish_code: 'n/a',          // a lock part has no finish choice
       qty: a.qty ?? 1,
       source: 'allocated',
+      // Step BO item 2: these are the lines that keep coming FROM THE RULES
+      // whatever set the drawing stores — a door's MPLS keep and slave
+      // hardware, which Integrate also prices on top of its ironmongerySet.
+      origin: 'allocated',
       label: a.label ?? a.part_code,
       _allocatedPartCode: a.part_code,
     }))
@@ -1512,7 +1533,7 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
           const line = evalPriceRuleLine(rule, ironVars, null)
           line.alloc_iron_part_code  = ironLine._allocatedPartCode
           line.alloc_iron_short_name = ironLine._allocatedPartCode
-          line.alloc_label           = ironLine.label
+          line.alloc_label           = `${ironLine.label} (${ORIGIN_LABELS.allocated})`
           if (!line.error && line.fires) { totalCost += line.line_cost; totalPrice += line.line_total }
           results.price.lines.push(line)
           continue

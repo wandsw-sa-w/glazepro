@@ -80,6 +80,15 @@ import { hornKind, HORN_TYPE_DEFAULT_LENGTH_MM } from '../pricing/optionVocabula
 import {
   SURROUND_TICKS, SDG_TYPES, SDG_ACTIONS, surroundTick,
 } from '../drawingBoard/surroundAndSdg.js'
+// Step BO: the stored ironmongery set — what the picker offers and what each
+// edit does to the set. The rules are in the module so they can be tested
+// without the board (src/drawingBoard/ironmongerySet.test.js).
+import {
+  pickerGroups, pickerCount, pickerFinishFor, finishCost,
+  addPickedLine, removeLineAt, setLineQty, setLineFinish,
+  defaultsBack, chosenLines, isEditedSet, lineSourceLabel, setPatch,
+} from '../drawingBoard/ironmongerySet.js'
+import { fetchAllRows } from '../lib/fetchAllRows.js'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -574,7 +583,7 @@ export function SurroundAndSdgPanel({ node, onChangeField }) {
 
 // ── IronmongeryPanel ──────────────────────────────────────────────────────────
 
-export function IronmongeryPanel({ node, tree, derived, refOptions, onChangeField, onAutoApplyDefaults, ironmongeryRules, ironmongeryProducts, profileValueMap, profileCode = null }) {
+export function IronmongeryPanel({ node, tree, derived, refOptions, onChangeField, onAutoApplyDefaults, onChangeIronmongerySet, ironmongeryRules, ironmongeryProducts, profileValueMap, profileCode = null }) {
   const lines      = node.values?.ironmongeryLines  ?? []
   // The STORED item finish — null means not set (no silent 'PB' default;
   // an unset finish is a visible warning, Step Z)
@@ -597,19 +606,47 @@ export function IronmongeryPanel({ node, tree, derived, refOptions, onChangeFiel
     catch { return {} }
   }
 
+  // Step BO item 2: the drawing's set is EDITED once a surveyor has touched
+  // it, and an edited set is never re-derived — not when the panel re-opens,
+  // not after a size change, not on a reload. Integrate prices what is
+  // stored and so does GlazePro, so the one thing that must not happen is
+  // the board quietly putting its own defaults back over the set.
+  const edited = isEditedSet(node.values)
+
+  /**
+   * Write the set. One patch (the lines AND the edited flag), so the change
+   * is one entry in the drawing's history.
+   *
+   * `silent` routes through onAutoApplyDefaults, whose patch also goes to the
+   * SAVED baseline — the auto-applied default is not a change the surveyor
+   * made (Step BM item 3). A surveyor's own edit is never silent.
+   */
+  function writeSet(newLines, { editedFlag = true, silent = false } = {}) {
+    const patch = setPatch(newLines, { edited: editedFlag })
+    if (onChangeIronmongerySet) { onChangeIronmongerySet(node.key, patch, { silent }); return }
+    // The panel is also rendered on its own (drawingBoardScope.test.jsx) and
+    // by any caller that has not been given the new handler: fall back to
+    // the field path, which writes the lines alone.
+    const write = silent
+      ? (k, v) => onAutoApplyDefaults?.(k, 'ironmongeryLines', v)
+      : (k, v) => onChangeField?.(k, 'ironmongeryLines', v, 'paintAndIronmongeryPart.ironmongeryLines')
+    write(node.key, newLines)
+  }
+
   // Auto-apply defaults when lines are empty and data is loaded.
-  // Uses onAutoApplyDefaults (not onChangeField) so the auto-applied tree
-  // is treated as the baseline for dirty tracking — the user hasn't changed
-  // anything, so the drawing should not show "Unsaved".
+  // Uses the silent path so the auto-applied tree is the baseline for dirty
+  // tracking — the user hasn't changed anything, so the drawing should not
+  // show "Unsaved".
   const appliedRef = useRef(false)
   useEffect(() => {
-    if (!appliedRef.current && lines.length === 0 && ironmongeryRules && ironmongeryRules.length > 0) {
+    if (!appliedRef.current && !edited && lines.length === 0 &&
+        ironmongeryRules && ironmongeryRules.length > 0) {
       appliedRef.current = true
-      doApplyDefaults()
+      doApplyDefaults({ silent: true })
     }
   }, [ironmongeryRules])  // eslint-disable-line react-hooks/exhaustive-deps
 
-  function doApplyDefaults() {
+  function doApplyDefaults({ silent = false } = {}) {
     const vars = computeBaseVars()
     let defaultLines
     try {
@@ -620,34 +657,37 @@ export function IronmongeryPanel({ node, tree, derived, refOptions, onChangeFiel
       console.error('Default ironmongery could not be computed:', e?.message)
       return
     }
-    const manualLines  = lines.filter(l => l.source === 'manual')
-    const newLines = [
-      ...defaultLines.map(l => ({ ...l, source: 'default' })),
-      ...manualLines,
-    ]
-    onAutoApplyDefaults(node.key, 'ironmongeryLines', newLines)
+    // Step BO item 2: "Apply Defaults" PUTS THE RULE DEFAULTS BACK, so it
+    // replaces the set rather than keeping the chosen lines beside the
+    // defaults as it did before this step — that is what the confirm below
+    // is for, and it names how many chosen lines will go.
+    writeSet(defaultsBack(defaultLines), { editedFlag: false, silent })
+  }
+
+  const [confirmDefaults, setConfirmDefaults] = useState(false)
+  const [pickerOpen,     setPickerOpen]       = useState(false)
+
+  function handleApplyDefaultsClick() {
+    if (edited) { setConfirmDefaults(true); return }
+    doApplyDefaults()
   }
 
   function handleQtyChange(idx, val) {
     const parsed = parseFloat(val)
     if (!Number.isFinite(parsed) || parsed <= 0) return
-    const newLines = lines.map((l, i) => i === idx ? { ...l, qty: parsed } : l)
-    onChangeField(node.key, 'ironmongeryLines', newLines, 'paintAndIronmongeryPart.ironmongeryLines')
+    writeSet(setLineQty(lines, idx, parsed))
   }
 
   function handleFinishOverride(idx, val) {
-    const newLines = lines.map((l, i) => i === idx ? { ...l, finish_code: val || null } : l)
-    onChangeField(node.key, 'ironmongeryLines', newLines, 'paintAndIronmongeryPart.ironmongeryLines')
+    writeSet(setLineFinish(lines, idx, val))
   }
 
   function handleRemove(idx) {
-    const newLines = lines.filter((_, i) => i !== idx)
-    onChangeField(node.key, 'ironmongeryLines', newLines, 'paintAndIronmongeryPart.ironmongeryLines')
+    writeSet(removeLineAt(lines, idx))
   }
 
-  function handleAddManual() {
-    const newLines = [...lines, { product_short_name: '', finish_code: null, qty: 1, source: 'manual', rule_id: null, scope_part_id: null }]
-    onChangeField(node.key, 'ironmongeryLines', newLines, 'paintAndIronmongeryPart.ironmongeryLines')
+  function handlePick(pick) {
+    writeSet(addPickedLine(lines, pick))
   }
 
   const cellStyle = { fontSize: 11, padding: '4px 6px', borderBottom: '1px solid #f0ede6' }
@@ -666,12 +706,31 @@ export function IronmongeryPanel({ node, tree, derived, refOptions, onChangeFiel
         </div>
       )}
 
+      {/* Step BO item 2: which set is being priced, in as many words. A
+          stored set replaces the default LINES; the allocator's own parts —
+          a door's MPLS keep and slave hardware — still come from the rules
+          on top of it, exactly as Integrate prices `ironmongerySet`. */}
+      <div
+        data-testid="ironmongery-set-origin"
+        data-edited={edited ? 'true' : 'false'}
+        style={{ fontSize: 11, borderRadius: 6, padding: '5px 8px',
+          background: edited ? '#f0eefc' : '#f7f6f2',
+          border: `1px solid ${edited ? '#c7c2f0' : '#eceae4'}`,
+          color: '#555' }}
+      >
+        {edited
+          ? 'Stored set — this item is priced with the lines below, exactly as they stand. ' +
+            'Rule-allocated parts (a door’s MPLS keep and slave hardware) still come from the rules.'
+          : 'Rule defaults — no set has been chosen on this item, so the default ironmongery rules price it.'}
+      </div>
+
       {/* Lines table */}
       <div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: '#555' }}>Ironmongery Lines</div>
           <button
-            onClick={doApplyDefaults}
+            onClick={handleApplyDefaultsClick}
+            data-testid="ironmongery-apply-defaults"
             style={{ fontSize: 10, padding: '3px 8px', border: '1px solid #3d35a8', borderRadius: 5, background: '#f0eefc', color: '#3d35a8', cursor: 'pointer' }}
           >
             Apply Defaults
@@ -682,10 +741,11 @@ export function IronmongeryPanel({ node, tree, derived, refOptions, onChangeFiel
             {ironmongeryRules ? 'No lines — click Apply Defaults' : 'Loading…'}
           </div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+          <table data-testid="ironmongery-lines" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
             <thead>
               <tr style={{ background: '#f7f6f2' }}>
                 <th style={{ ...cellStyle, textAlign: 'left', fontWeight: 600 }}>Product</th>
+                <th style={{ ...cellStyle, textAlign: 'left', fontWeight: 600 }}>From</th>
                 <th style={{ ...cellStyle, textAlign: 'left', fontWeight: 600 }}>Finish</th>
                 <th style={{ ...cellStyle, textAlign: 'right', fontWeight: 600, width: 40 }}>Qty</th>
                 <th style={{ ...cellStyle, width: 20 }}></th>
@@ -693,11 +753,19 @@ export function IronmongeryPanel({ node, tree, derived, refOptions, onChangeFiel
             </thead>
             <tbody>
               {lines.map((line, idx) => (
-                <tr key={idx} style={{ background: idx % 2 === 0 ? '#fff' : '#fafaf8' }}>
+                <tr key={idx} data-testid="ironmongery-line"
+                  data-product={line.product_short_name}
+                  style={{ background: idx % 2 === 0 ? '#fff' : '#fafaf8' }}>
                   <td style={cellStyle}>
-                    <span title={line.product_short_name} style={{ color: line.source === 'manual' ? '#92400e' : 'inherit' }}>
-                      {productNameMap[line.product_short_name] ?? line.product_short_name}
+                    <span title={line.product_short_name} style={{ color: line.source === 'default' ? 'inherit' : '#92400e' }}>
+                      {(productNameMap[line.product_short_name] ?? line.product_short_name) ||
+                        <em style={{ color: '#b91c1c' }}>no product — remove this line</em>}
                     </span>
+                  </td>
+                  {/* Step BO item 2: say which lines come from the stored set
+                      and which from the rules, line by line. */}
+                  <td style={{ ...cellStyle, color: '#777', whiteSpace: 'nowrap' }}>
+                    {lineSourceLabel(line)}
                   </td>
                   <td style={{ ...cellStyle, minWidth: 60 }}>
                     <select
@@ -735,12 +803,181 @@ export function IronmongeryPanel({ node, tree, derived, refOptions, onChangeFiel
             </tbody>
           </table>
         )}
+        {/* Step BO item 1: "+ Add line" opens the PRODUCT PICKER. The old
+            "+ Add manual line" made a line with no product, which prices
+            nothing and could not hold an Integrate set at all. */}
         <button
-          onClick={handleAddManual}
-          style={{ marginTop: 6, fontSize: 10, padding: '3px 8px', border: '1px solid #d8d5cf', borderRadius: 5, background: '#fff', color: '#555', cursor: 'pointer', width: '100%' }}
+          onClick={() => setPickerOpen(true)}
+          data-testid="ironmongery-add-line"
+          disabled={!ironmongeryProducts}
+          style={{ marginTop: 6, fontSize: 10, padding: '3px 8px', border: '1px solid #d8d5cf', borderRadius: 5, background: '#fff', color: '#555', cursor: ironmongeryProducts ? 'pointer' : 'default', width: '100%' }}
         >
-          + Add manual line
+          {ironmongeryProducts ? '+ Add line' : 'Loading the catalogue…'}
         </button>
+      </div>
+
+      {pickerOpen && (
+        <IronmongeryPicker
+          products={ironmongeryProducts ?? []}
+          itemFinish={itemFinish}
+          onAdd={handlePick}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
+
+      {confirmDefaults && (
+        <ConfirmDialog
+          title="Put the rule defaults back?"
+          message={
+            `This item's stored set has ${chosenLines(lines).length} chosen line` +
+            `${chosenLines(lines).length === 1 ? '' : 's'}. Applying the defaults ` +
+            'replaces the whole set with what the default ironmongery rules give, ' +
+            'and the chosen lines are lost.'
+          }
+          confirmLabel="Apply defaults"
+          danger
+          onConfirm={() => { setConfirmDefaults(false); doApplyDefaults() }}
+          onCancel={() => setConfirmDefaults(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+// ── IronmongeryPicker ─────────────────────────────────────────────────────────
+
+/**
+ * Step BO item 1: pick a product from the ironmongery catalogue — the same
+ * products the Ironmongery page holds — so a drawing can carry the exact set
+ * the surveyor chose.
+ *
+ * Search by name or code, grouped by category, each row showing the unit
+ * cost. The finish follows the item where the product exists in it, is the
+ * product's own where it has only one, and is ASKED FOR otherwise: a trickle
+ * vent is Wht or Blk on a PB item, and Step Z's finding is that a guessed
+ * finish is a wrong price nobody sees.
+ */
+export function IronmongeryPicker({ products, itemFinish, onAdd, onClose }) {
+  const [query, setQuery] = useState('')
+  // finish overrides, by short_name, for the rows the picker has to ask about
+  const [chosenFinish, setChosenFinish] = useState({})
+
+  const groups = pickerGroups(products, { query, itemFinish })
+  const count  = pickerCount(groups)
+
+  const cell = { fontSize: 11, padding: '4px 6px', borderBottom: '1px solid #f0ede6' }
+
+  function finishFor(product) {
+    return chosenFinish[product.short_name] ?? product.finish ?? ''
+  }
+
+  function add(product) {
+    const finish = finishFor(product)
+    if (!finish) return
+    // Store the finish EXPLICITLY unless the item's own finish is what it
+    // resolves to, in which case the line follows the item the way a default
+    // line does (pickerFinishFor decides; the override goes in as typed).
+    const pick = pickerFinishFor(product, itemFinish)
+    const stored = chosenFinish[product.short_name]
+      ? chosenFinish[product.short_name]
+      : pick.stored
+    onAdd({ product_short_name: product.short_name, finish_code: stored, qty: 1 })
+  }
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      onClick={onClose}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        data-testid="ironmongery-picker"
+        style={{ background: '#fff', borderRadius: 12, padding: 18, width: 560, maxHeight: '80vh', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 32px rgba(0,0,0,.18)' }}
+      >
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a' }}>Add ironmongery</div>
+          <div style={{ fontSize: 11, color: '#777' }}>
+            {itemFinish ? `Item finish ${itemFinish}` : '⚠ no item finish set'}
+          </div>
+        </div>
+
+        <input
+          autoFocus
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder="Search by name or code…"
+          data-testid="ironmongery-picker-search"
+          style={{ ...SI, marginBottom: 8 }}
+        />
+
+        <div style={{ overflowY: 'auto', flex: 1, border: '1px solid #eceae4', borderRadius: 8 }}>
+          {count === 0 ? (
+            <div style={{ fontSize: 11, color: '#aaa', fontStyle: 'italic', padding: 10 }}>
+              {products.length === 0
+                ? 'The catalogue could not be loaded.'
+                : 'No product matches that.'}
+            </div>
+          ) : groups.map(group => (
+            <div key={group.category}>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, color: '#777', background: '#f7f6f2', padding: '4px 8px', position: 'sticky', top: 0 }}>
+                {group.category} ({group.products.length})
+              </div>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <tbody>
+                  {group.products.map(product => (
+                    <tr key={product.short_name} data-testid="ironmongery-picker-row"
+                      data-product={product.short_name}>
+                      <td style={cell}>
+                        <div>{product.name}</div>
+                        <div style={{ fontSize: 10, color: '#999' }}>{product.short_name}</div>
+                      </td>
+                      <td style={{ ...cell, width: 110 }}>
+                        <select
+                          value={finishFor(product)}
+                          onChange={e => setChosenFinish(f => ({ ...f, [product.short_name]: e.target.value }))}
+                          style={{ fontSize: 10, padding: '2px 4px', border: '1px solid #d8d5cf', borderRadius: 4, background: '#fff', width: '100%' }}
+                        >
+                          {!finishFor(product) && <option value="">Choose a finish…</option>}
+                          {product.finishes.map(f => (
+                            <option key={f.code} value={f.code}>
+                              {f.code} — £{Number(f.cost).toFixed(2)}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td style={{ ...cell, width: 60, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                        {finishFor(product)
+                          ? `£${Number(finishCost(product, finishFor(product)) ?? 0).toFixed(2)}`
+                          : '—'}
+                      </td>
+                      <td style={{ ...cell, width: 50 }}>
+                        <button
+                          onClick={() => add(product)}
+                          disabled={!finishFor(product)}
+                          style={{ fontSize: 10, padding: '2px 8px', borderRadius: 5, border: '1px solid #3d35a8', background: finishFor(product) ? '#f0eefc' : '#f3f3f3', color: finishFor(product) ? '#3d35a8' : '#aaa', cursor: finishFor(product) ? 'pointer' : 'default' }}
+                        >
+                          Add
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
+          <div style={{ fontSize: 10, color: '#999' }}>
+            Each line is added with a qty of 1 — change it in the table.
+          </div>
+          <button
+            onClick={onClose}
+            style={{ fontSize: 12, padding: '6px 16px', border: '1px solid #d8d5cf', borderRadius: 7, background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}
+          >
+            Done
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -748,7 +985,7 @@ export function IronmongeryPanel({ node, tree, derived, refOptions, onChangeFiel
 
 // ── PropertyEditor ────────────────────────────────────────────────────────────
 
-function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, onAutoApplyDefaults, onPrev, onNext, prevDisabled, nextDisabled, prevLabel, nextLabel, visibilityMap, boardMode, showHidden, tree, ironmongeryRules, ironmongeryProducts, onShowPriceBreakdown, profileValueMap, onSetCompleteNewThickness, onSetSashesReplaced, onSetBiGlassCasement, onChangeInternalSize, onMakeDividersEqual, onSetFrenchMasterLeaf, onSetLeafMidRail, onSetLeafGrid, onSetLeafCellKind, profileCode = null }) {
+function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, onAutoApplyDefaults, onChangeIronmongerySet, onPrev, onNext, prevDisabled, nextDisabled, prevLabel, nextLabel, visibilityMap, boardMode, showHidden, tree, ironmongeryRules, ironmongeryProducts, onShowPriceBreakdown, profileValueMap, onSetCompleteNewThickness, onSetSashesReplaced, onSetBiGlassCasement, onChangeInternalSize, onMakeDividersEqual, onSetFrenchMasterLeaf, onSetLeafMidRail, onSetLeafGrid, onSetLeafCellKind, profileCode = null }) {
   if (!node) {
     return (
       <div style={{ padding: 16, color: '#aaa', fontSize: 12, textAlign: 'center', paddingTop: 48 }}>
@@ -1047,6 +1284,7 @@ function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, o
             refOptions={refOptions}
             onChangeField={onChangeField}
             onAutoApplyDefaults={onAutoApplyDefaults}
+            onChangeIronmongerySet={onChangeIronmongerySet}
             ironmongeryRules={ironmongeryRules}
             ironmongeryProducts={ironmongeryProducts}
             profileValueMap={profileValueMap}
@@ -2088,7 +2326,12 @@ function DrawingBoard() {
     if (ironmongeryRules !== null) return  // already loaded
     async function loadIronmongery() {
       try {
-        const [{ data: rules }, { data: products }] = await Promise.all([
+        // Step BO item 1: the picker needs the CATEGORY and each product's
+        // cost per finish, not just the name. The variants are read page by
+        // page: there are 1,398 of them live and a plain select would stop
+        // silently at Supabase's 1,000-row cap, which is how the trickle
+        // vent lost its cost (commit 0452d98).
+        const [{ data: rules }, { data: products }, variants] = await Promise.all([
           supabase
             .from('part_allocation_rules')
             .select('id, sort_order, group_name, loop_target, label, condition, qty_expr, product_short_name, finish_code, is_active')
@@ -2096,12 +2339,29 @@ function DrawingBoard() {
             .order('sort_order'),
           supabase
             .from('ironmongery_products')
-            .select('short_name, name')
+            .select('id, short_name, name, category')
             .eq('is_active', true),
+          fetchAllRows(
+            () => supabase
+              .from('ironmongery_variants')
+              .select('product_id, finish_code, cost, available')
+              .order('id'),
+            'ironmongery_variants'),
         ])
+        const finishesByProduct = new Map()
+        for (const v of (variants ?? [])) {
+          if (!finishesByProduct.has(v.product_id)) finishesByProduct.set(v.product_id, [])
+          finishesByProduct.get(v.product_id).push({
+            code: v.finish_code, cost: v.cost == null ? null : Number(v.cost),
+            available: v.available,
+          })
+        }
         setIronmongeryRules(rules ?? [])
-        setIronmongeryProducts(products ?? [])
-      } catch {
+        setIronmongeryProducts((products ?? []).map(p => ({
+          ...p, finishes: finishesByProduct.get(p.id) ?? [],
+        })))
+      } catch (e) {
+        console.error('Ironmongery catalogue could not be loaded:', e?.message)
         setIronmongeryRules([])
         setIronmongeryProducts([])
       }
@@ -2696,6 +2956,29 @@ function DrawingBoard() {
     setDirty(isDirtyVsSaved(newTree))
   }, [tree])  // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Step BO item 2: the drawing's STORED IRONMONGERY SET.
+  //
+  // One patch for both of the set's fields — the lines and the flag that
+  // says a surveyor chose them — so the change is a single entry in the
+  // drawing's history and the flag can never be saved without the lines it
+  // describes. `silent` is the auto-applied default, which is not a change
+  // (handleAutoApplyDefaults above); every edit a surveyor makes is a
+  // committed one, so it shows as Unsaved until it is saved, and NOTHING
+  // re-derives it afterwards.
+  const handleChangeIronmongerySet = useCallback((nodeKey, patch, { silent = false } = {}) => {
+    if (!tree) return
+    if (silent) {
+      const newTree = updateNodeValues(tree, nodeKey, patch)
+      savedTreeRef.current = savedTreeRef.current
+        ? updateNodeValues(savedTreeRef.current, nodeKey, patch)
+        : newTree
+      setTree(newTree)
+      setDirty(isDirtyVsSaved(newTree))
+      return
+    }
+    commit(updateNodeValues(tree, nodeKey, patch))
+  }, [tree])  // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Selection / prev-next (part navigation) ─────────────────────────────────
   const siblingsOfType = selectedNode ? findAll(tree, selectedNode.part_type) : []
   const siblingIdx = siblingsOfType.findIndex(n => n.key === selectedKey)
@@ -3286,6 +3569,7 @@ function DrawingBoard() {
               refOptions={refOptions}
               onChangeField={handleChangeField}
               onAutoApplyDefaults={handleAutoApplyDefaults}
+              onChangeIronmongerySet={handleChangeIronmongerySet}
               onPrev={handlePrev}
               onNext={handleNext}
               prevDisabled={prevDisabled}

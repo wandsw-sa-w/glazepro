@@ -307,8 +307,14 @@ export function resolveIronmongeryLines(tree, pricingContext, profileValues = {}
     return { ...line, finish_code, finish_source }
   })
 
+  // Step BO item 2: a line's ORIGIN travels with it, so the price breakdown
+  // can say which lines came from the STORED SET the surveyor chose and
+  // which the rules produced — the stored set replaces the default lines,
+  // but the allocator's own parts (a door's MPLS keep and slave hardware)
+  // still come from the rules on top of it, exactly as Integrate prices
+  // `ironmongerySet`.
   if (treeSavedLines.length > 0) {
-    return withResolvedFinish(treeSavedLines)
+    return withResolvedFinish(treeSavedLines).map(l => ({ ...l, origin: 'stored' }))
   }
 
   // No tree-saved lines — compute defaults
@@ -348,5 +354,5 @@ export function resolveIronmongeryLines(tree, pricingContext, profileValues = {}
 
   return withResolvedFinish(
     defaultIronmonger(tree, { ...pfVariables, ...itemVars }, ironmongeryRules, glassCatalogue, profileValues)
-  )
+  ).map(l => ({ ...l, origin: 'default' }))
 }
