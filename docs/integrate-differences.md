@@ -1030,3 +1030,45 @@ pending rather than an open question:
   offline. Nothing was tuned — the captured data caught up with the live data.
 - **B_UNCORRECTED −£25.46** — deliberate difference 1, not a residual at all: the fixture
   exists to record what Integrate charges before the correction.
+
+---
+
+## 23. A casement sash's mid rail is cut at 63x200, and an open-out fixed casement's stiles take the fanlight's +14
+
+**Read by:** the reviewer, 16 Oct 2026 (G1, G2 — `docs/integrate-drawing-gaps.txt`),
+applied in Step BP.
+
+Two readings of Integrate's section allocation on items the board could not
+build before Step BP:
+
+- **An open-out fixed casement in a door frame** — G1's side casements and G2's
+  all-panel casements, each with a 163 door-depth rail — has its stiles and top
+  rail allocated at **W + 2H + 14**, the fanlight's offset (G1 9.98 m =
+  2 × (688 + 2 × 2143 + 14); G2 11.07 m to the millimetre). Difference 18's
+  drawing 20 side light (W + 2H, no offset) is **open in**. So the offset is
+  dropped only for an open-in sash with a door-depth rail, the one reading
+  that had none.
+- **A casement sash's own 170 mid rail** is allocated at **63x200**, as a leaf's
+  is. G1's 9.13 m of that section is 1,541–1,551 mm more than the cill, the
+  four bottom rails and the two leaf mid rails account for. GlazePro cuts each
+  at the **sash width less 10** (678), the rule a leaf's rail follows, and
+  declares the 190 mm Integrate has beyond that as an **open question**
+  (benchmark DG1, −£5.57): one reading cannot say whether Integrate cuts them
+  at the door leaf's own 772 or at the opening plus its two mullions (both
+  772). A 120 rail allocates nothing, as a leaf's (FT4).
+
+**Open questions logged with Step BP** (each declared on its fixture and
+pinned by the live smoke test):
+
+- **DM1** (L34268 item 2): "Any Door Overweight" 45 minutes (+£30.16) on a
+  single open-out leaf GlazePro weighs at 51.9 kg and Integrate charges none.
+  Timber and glass alone are 49.7 kg, so the PROVISIONAL panel weight
+  (difference 14) cannot reconcile it with FT2's floor of 2.5 kg/m² — the
+  1.5 kg is in an open-out single door's timber or glass, unmeasured.
+- **FT5** (L34355 item 7): the same 45 minutes (+£30.15), and −£18.68 of
+  section timber Integrate allocates beyond GlazePro's sash-width rules that
+  P1's facts do not itemise — to be read from the Price File Editor.
+- **Pending data**, not differences: the facts give **no stored ironmongery
+  set** for L34268 item 2 (DM1, −£59.85) or L34355 item 7 (FT5, −£54.60); the
+  fixtures carry the single-door and Balham lists until the reviewer reads
+  the items' `ironmongerySet`.

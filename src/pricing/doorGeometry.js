@@ -24,7 +24,7 @@ import {
   STABLE_DOOR_PART,
 } from './casementGeometry.js'
 import { KG_PER_M2_PER_MM } from './sashWeight.js'
-import { timberFamily, TIMBER_FAMILY_DENSITIES } from './optionVocabulary.js'
+import { timberFamily, TIMBER_FAMILY_DENSITIES, casementOpensIn } from './optionVocabulary.js'
 
 // ── The part types ───────────────────────────────────────────────────────────
 
@@ -695,6 +695,16 @@ export const MID_RAIL_SECTION_OFFSET_MM = -10
  * or the workshop’s panel build-up, settles it. FT1 then sits at 49.4 kg,
  * 0.6 under the line, which is the figure to re-check first.
  */
+/**
+ * Step BP: a FOURTH reading, M1 (L34268 item 2), does not fit the bracket
+ * at all. Its single open-out leaf carries 49.7 kg of timber and glass and
+ * two 0.18 m2 panels, and Integrate charges NO overweight — so on this
+ * model a panel would have to weigh under 0.8 kg/m2, below FT2's floor of
+ * 2.5. The panel constant cannot reconcile the two; the 1.5 kg is in the
+ * timber or the glass of an open-out single door, which no reading has
+ * measured directly. Left as it was; benchmark DM1 declares its 45 minutes
+ * as an open question rather than moving a figure three doors agree on.
+ */
 export const TRICOYA_DENSITY_KG_M3 = 510
 export const PANEL_SKIN_THICKNESS_MM = 6
 export const PANEL_KG_PER_M2 = 2 * PANEL_SKIN_THICKNESS_MM * TRICOYA_DENSITY_KG_M3 / 1e6 * 1000
@@ -814,10 +824,31 @@ export function allocatedSectionParts(tree, { material = 'utile' } = {}) {
     // stiles and top rail at 63x63 with NO offset (4517 = W + 2H exactly,
     // where a fanlight reads +14). The rail depth is what tells them apart:
     // a fanlight’s is 62 or 86, a side light’s is the door’s 170-odd.
+    //
+    // Step BP: and the DIRECTION. G1’s and G2’s open-OUT fixed casements
+    // carry a 163 door-depth rail too, and Integrate allocates their stiles
+    // at W + 2H + 14 — the fanlight’s offset (G1 9.98 m = 2 x (688 + 2 x
+    // 2143 + 14); G2 11.07 m). Drawing 20’s side light is open IN. So the
+    // offset is dropped only for an open-in sash with a door-depth rail,
+    // which is the one reading that had none.
     const isSideLight = rail >= DOOR_DEPTH_RAIL_MM
+    const noOffset = isSideLight && casementOpensIn(sash)
     add(codes.fanlight,
-      z.width + 2 * z.height + (isSideLight ? 0 : FANLIGHT_SECTION_OFFSET_MM),
+      z.width + 2 * z.height + (noOffset ? 0 : FANLIGHT_SECTION_OFFSET_MM),
       isSideLight ? 'Side light stiles and top rail' : 'Fanlight top rail and stiles')
+    // Step BP item 1: a casement sash’s own MID RAIL (G1’s side casements,
+    // G3’s, G4’s 200 one). Integrate allocates 63x200 for it — G1’s 9.13 m
+    // of that section is 1,541-1,551 mm more than the cill and the four
+    // bottom rails and the two leaf mid rails account for. GlazePro cuts it
+    // as it cuts a leaf’s, at the sash width less 10 (678 each here, 1,356
+    // for the two), and the fixture declares the 190 mm Integrate has
+    // beyond that as an open question: one reading cannot say whether
+    // Integrate cuts it at the door leaf’s own 772 or at the opening plus
+    // its two mullions. A 120 rail allocates nothing, as a leaf’s (FT4).
+    for (const midRail of leafMidRails(sash)) {
+      if (dividerThickness(midRail) < DOOR_DEPTH_RAIL_MM) continue
+      add(codes.cillAndBottom, z.width + MID_RAIL_SECTION_OFFSET_MM, 'Casement sash mid rail')
+    }
     // The bottom rail's own section depends on how deep the rail is.
     // Integrate charges the 86 mm rail at 63x96 and charges NOTHING for a
     // 62 mm one. Nathan (13 Oct): GlazePro charges the 62 at 63x63 for the

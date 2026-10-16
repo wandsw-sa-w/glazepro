@@ -2528,5 +2528,129 @@
       "production": 18.45,
       "labour": 7.5
     }
+  },
+  "benchmarkDG1_french_doors_side_casements_panels": {
+    "source": "L34242 Q2 item 8 (G1): French doors with side casements, 3100 x 2230, Solid Utile, open out; every leaf and side casement glass over a 170 mid rail over a flat (110) panel. Read 16 Oct 2026 by the reviewer. Facts: docs/integrate-drawing-gaps.txt section 1.",
+    "total_cost": 4597.05,
+    "total_price": 9194.06,
+    "groups": {
+      "glass_done": {
+        "cost": 188.18,
+        "price": 376.36
+      },
+      "installation_materials": {
+        "cost": 331.53,
+        "price": 663.06
+      },
+      "manufacture": {
+        "cost": 2488.69,
+        "price": 4977.38
+      },
+      "labour": {
+        "cost": 743.89,
+        "price": 1487.78
+      },
+      "manufacture_materials": {
+        "cost": 844.76,
+        "price": 1689.52
+      }
+    },
+    "hours": {
+      "production": 100.92,
+      "labour": 18.5
+    }
+  },
+  "benchmarkDG2_single_door_casements_over_panels": {
+    "source": "L34242 Q2 item 7 (G2): single door with two casements over two all-panel casements, 2750 x 2050, Utile, open out; a SHORT transom at 962.5 ending at the second mullion. Read 16 Oct 2026 by the reviewer. Facts: docs/integrate-drawing-gaps.txt section 1.",
+    "total_cost": 4071.73,
+    "total_price": 8143.45,
+    "groups": {
+      "glass_done": {
+        "cost": 149.19,
+        "price": 298.38
+      },
+      "installation_materials": {
+        "cost": 255.56,
+        "price": 511.12
+      },
+      "manufacture": {
+        "cost": 2274.89,
+        "price": 4549.78
+      },
+      "labour": {
+        "cost": 723.78,
+        "price": 1447.56
+      },
+      "manufacture_materials": {
+        "cost": 668.31,
+        "price": 1336.62
+      }
+    },
+    "hours": {
+      "production": 92.25,
+      "labour": 18
+    }
+  },
+  "benchmarkDM1_single_door_muntin_below_rail": {
+    "source": "L34268 Q1 item 2 (M1): single door 930 x 2100, Utile, right-hand; a 170 mid rail at 835 and a 120 muntin at 245 BELOW the rail only - one glass above, two flat panels below. Read 16 Oct 2026 by the reviewer. Facts: docs/integrate-drawing-gaps.txt section 2.",
+    "total_cost": 2005.97,
+    "total_price": 4011.94,
+    "groups": {
+      "glass_done": {
+        "cost": 33.43,
+        "price": 66.86
+      },
+      "installation_materials": {
+        "cost": 214.44,
+        "price": 428.88
+      },
+      "manufacture": {
+        "cost": 994.54,
+        "price": 1989.08
+      },
+      "labour": {
+        "cost": 442.31,
+        "price": 884.62
+      },
+      "manufacture_materials": {
+        "cost": 321.25,
+        "price": 642.5
+      }
+    },
+    "hours": {
+      "production": 40.33,
+      "labour": 11
+    }
+  },
+  "benchmarkFT5_front_door_set_special_glass_poa": {
+    "source": "L34355 Q4 item 7 (P1 / G4 / M2): front door set 1650 x 2900, open in, Utile, custom colour outside; every glazed opening special glass (glassPlaceholder), side casements glass over a 200 mid rail over a bolection panel, leaf with a full-height 120 muntin and a 200 mid rail (two glass over two bolection panels), PricePart.poa 120 min labour/installation. Read 16 Oct 2026 by the reviewer. Facts: docs/integrate-drawing-gaps.txt sections 1, 2 and 5.",
+    "total_cost": 5061.1,
+    "total_price": 10122.24,
+    "groups": {
+      "glass_done": {
+        "cost": 0,
+        "price": 0
+      },
+      "installation_materials": {
+        "cost": 370.38,
+        "price": 740.76
+      },
+      "manufacture": {
+        "cost": 2677.58,
+        "price": 5355.16
+      },
+      "labour": {
+        "cost": 1266.62,
+        "price": 2533.24
+      },
+      "manufacture_materials": {
+        "cost": 746.52,
+        "price": 1493.04
+      }
+    },
+    "hours": {
+      "production": 108.58,
+      "labour": 31.5
+    }
   }
 }

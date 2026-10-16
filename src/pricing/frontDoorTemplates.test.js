@@ -88,7 +88,10 @@ describe('Step BD templates fix — what each template prices', () => {
     ['Front Door',               2530.69],
     ['Front Door With Fanlight', 2697.97],
     ['Arched Front Door',        2725.12],
-    ['Front Door With Side Light', 3297.37],
+    // Step BP (difference 23): a casement sash's 170 mid rail is cut from
+    // 63x200 at the sash width less 10, as a leaf's is — G1's reading. The
+    // side light's 349 mm at 29.00/m is +10.12 on this template's own price.
+    ['Front Door With Side Light', 3307.49],
   ]
 
   for (const [name, cost] of EXPECTED) {

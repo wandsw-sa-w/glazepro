@@ -193,9 +193,13 @@ describe('Step BH follow-up 2 — a short divider survives the database', () => 
     }
   })
 
-  it('and it prices what the report says: £9,084.43', () => {
+  // Step BP (difference 23): the two side lights' 170 mid rails are now cut
+  // from 63x200 (349 mm each at 29.00/m, +10.12 cost / +20.24 price each), so
+  // the Step BH report's £9,084.43 is £9,124.92 — the layout and the cells
+  // are untouched, which is what these tests are about.
+  it('and it prices what the report says: £9,084.43 (+40.49 since Step BP)', () => {
     const { created, loaded } = throughTheDatabase(template)
-    expect(price(loaded).price.total).toBeCloseTo(9084.43, 1)
+    expect(price(loaded).price.total).toBeCloseTo(9124.92, 1)
     // the same as before the database, which is the whole point
     expect(price(loaded).price.total).toBeCloseTo(price(created).price.total, 2)
   })
@@ -218,7 +222,7 @@ describe('Step BH follow-up 2 — a short divider survives the database', () => 
     const loaded = db.load()
     expect(deadDividerRefs(loaded).length).toBe(2)
     expect(cellsOf(loaded).length).toBe(6)
-    expect(price(loaded).price.total).toBeCloseTo(7665.39, 1)
+    expect(price(loaded).price.total).toBeCloseTo(7705.88, 1)   // 7,665.39 + 40.49 (Step BP)
     // and the panels that cannot be made are named rather than priced
     expect((price(loaded).warnings ?? []).filter(w => /usable size/.test(w)).length)
       .toBe(4)
@@ -230,7 +234,7 @@ describe('Step BH follow-up 2 — a short divider survives the database', () => 
     const { loaded } = throughTheDatabase(template, { times: 3 })
     expect(deadDividerRefs(loaded)).toEqual([])
     expect(cellsOf(loaded).length).toBe(4)
-    expect(price(loaded).price.total).toBeCloseTo(9084.43, 1)
+    expect(price(loaded).price.total).toBeCloseTo(9124.92, 1)
   })
 
   it('the map is by POSITION: the nth mullion of the nth frame', () => {

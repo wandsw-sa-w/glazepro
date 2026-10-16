@@ -71,6 +71,11 @@ export const DOOR_PART_COST_MAP = {
   RHZ1649: 89.47,
   RHZ1653: 34.92,
   RHZ1667: 5.61,
+  // Step BP: the shootbolt the allocator picks for a TALLER leaf — DG1's
+  // 2140 mm leaves take "Slave hinge keep 2140–2281", which is the Winkhaus
+  // FAB Shootbolt 541 (RHZ1654, 36.45 in the live catalogue and the
+  // snapshot -> 36 -> 37.80, Integrate's own line on L34242 item 8).
+  RHZ1654: 36.45,
 }
 
 /**
@@ -270,6 +275,10 @@ function doorTree({
   isFrontDoor = false, isDoorMpls = true,
   internalFinish = 'clean_white', externalFinish = 'clean_white',
   frameArch = null,
+  // Step BP: anything else Integrate stores on the paint part — the
+  // surround ticks (Step BN), isCasementMpls — and on the price part
+  // (Step BS's POA lines).
+  paintExtra = {}, priceExtra = {},
 }) {
   return {
     key: 'item1',
@@ -307,12 +316,13 @@ function doorTree({
           // ironmongery on a door whose whole stored set is 88.20.
           isDoorMpls,
           isFrontDoor,
+          ...paintExtra,
           ironmongeryLines: ironmongeryLines.map(l => ({ ...l })),
         },
         children: [],
       },
       { key: 'notes1', part_type: 'notesPart', values: {}, children: [] },
-      { key: 'price1', part_type: 'pricePart', values: {}, children: [] },
+      { key: 'price1', part_type: 'pricePart', values: { ...priceExtra }, children: [] },
       {
         key: 'frame1',
         part_type: 'assemblyFramePart',
@@ -516,15 +526,16 @@ function leafMidRail(key, { offset, thickness = 170 }) {
 export const INTEGRATE_PANEL_FLAT = 110
 export const INTEGRATE_PANEL_BEAD_OVOLO = 120
 
-function doorPanel(key) {
+function doorPanel(key, { bead = 'ovolo' } = {}) {
   return {
     key,
     part_type: 'panelPart',
     values: {
       internalPanelTypeId: INTEGRATE_PANEL_FLAT,
       externalPanelTypeId: INTEGRATE_PANEL_FLAT,
-      internalPanelBeadId: 'ovolo',
-      externalPanelBeadId: 'ovolo',
+      // Step BP: G4 / FT5 store Integrate's 126 (bolection) on both faces
+      internalPanelBeadId: bead,
+      externalPanelBeadId: bead,
       insulationThickness: 15,
       createVisionPanel: true,
       panelThickness: 0,
@@ -2156,5 +2167,374 @@ export const BENCHMARK_OI3 = {
   assumptions: [
     ...OPEN_IN_DOOR_ASSUMPTIONS,
     'The frame is 2591 and the fanlight rail 78 because that is what Integrate STORED after its own range switch; GlazePro\u2019s switch changes neither, so a GlazePro drawing of the same doors would be 2599 with an 86 rail',
+  ],
+}
+
+// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+// Step BP \u2014 grids INSIDE casement sashes and door leaves: DG1, DG2, DM1
+// docs/integrate-drawing-gaps.txt sections 1 and 2 (G1, G2, M1), read 16 Oct
+// 2026 by the reviewer from Integrate's saved trees and its Price File Editor.
+// Open OUT, Solid Utile, single finish, stored ironmongery where the facts
+// give it.
+// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+
+/**
+ * A fixed doorset casement with a MID RAIL: glass above, a flat panel below
+ * (G1's A1 / D1, G3's, G4's with a 200 rail and a bolection bead). The same
+ * thing Step BE's side light is, at the doorset casement's own rails and
+ * clearances (62 / 62 / 62, 163 bottom, 1 / 1 / 1 / 2).
+ */
+function panelledDoorsetCasement(key, {
+  bottomHeight = 163, midRailOffset, midRailThickness = 170, bead = 'ovolo', operation = 'fix',
+} = {}) {
+  const sash = doorsetCasementSash(key, { bottomHeight, bottomHeightExternal: bottomHeight })
+  return {
+    ...sash,
+    values: { ...sash.values, operation },
+    children: [
+      leafMidRail(`${key}_midrail`, { offset: midRailOffset, thickness: midRailThickness }),
+      glassChild(key),
+      doorPanel(`${key}_panel`, { bead }),
+    ],
+  }
+}
+
+/** A fixed doorset casement that is ALL panel (G2's A2 / B2): one flat panel, no glass. */
+function panelOnlyDoorsetCasement(key, { bottomHeight = 163 } = {}) {
+  const sash = doorsetCasementSash(key, { bottomHeight, bottomHeightExternal: bottomHeight })
+  return { ...sash, children: [doorPanel(`${key}_panel`)] }
+}
+
+/** An opening doorset casement (G2's A1 / B1): 86 rail, hung left or right. */
+function hungDoorsetCasement(key, operation) {
+  const sash = doorsetCasementSash(key, { bottomHeight: 86, bottomHeightExternal: 93 })
+  return { ...sash, values: { ...sash.values, operation } }
+}
+
+// \u2500\u2500 DG1 = G1: L34242 Q2 item 8 \u2014 French doors with side casements \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+// 3100 x 2230. Mullions 41 at 690 and 2275 (columns 690 / 1544 / 690). A1 and
+// D1 fixed casements, 163 bottom rail, glass over a 170 mid rail at 1298 over
+// a flat panel (450 deep). The pair: 198 mid rail, gap 5, overlap 27,
+// 3 / 1 / 1 / 3; each leaf glass over a 170 mid rail at 1247 over a flat
+// panel (450). Surround architrave and bullnose. Four 0.25 m2 Tricoya panels,
+// Door Muntin 4 x 60 (two leaf rails + two side casement rails).
+const DG1_IRONMONGERY = [
+  { product_short_name: '102mm_hinges',              finish_code: 'Blk', qty: 4, source: 'survey' },
+  { product_short_name: 'double_euro_cylinder',      finish_code: 'Blk', qty: 1, source: 'survey' },
+  { product_short_name: 'monkeytail_door_handle_rh', finish_code: 'Blk', qty: 1, source: 'survey' },
+  { product_short_name: 'trickle',                   finish_code: 'Wht', qty: 1, source: 'survey' },
+  { product_short_name: 'trickle_vent_xr16',         finish_code: 'Wht', qty: 1, source: 'survey' },
+]
+
+const GRID_ASSUMPTIONS = [
+  'Every frame, divider, opening, rail, mid rail, muntin, panel, glass and stored ironmongery value: Integrate\u2019s own saved trees (docs/integrate-drawing-gaps.txt, read 16 Oct 2026)',
+  'A mid rail inside a casement sash or a leaf is a transomPart with isMidrail, a muntin a mullionPart with isMuntin \u2014 Integrate\u2019s own parts; a confined muntin names the rail it starts at (startDivider), as Integrate does',
+  'Panel type 110 is FLAT and bead 120 ovolo (docs/step-bm-correction.md); the panel options are stored as Integrate\u2019s ids',
+  'The frame mullions carry mullionStopSize 20 where Integrate stores 18; no rule reads it',
+]
+
+export const BENCHMARK_DG1 = {
+  name: 'Benchmark DG1 \u2014 French doors with side casements over panels, 3100 x 2230 (L34242 Q2 item 8)',
+  tree: doorTree({
+    width: 3100, height: 2230,
+    dividers: [mullion('dg1_mull_a', 690), mullion('dg1_mull_b', 2275)],
+    openings: [
+      panelledDoorsetCasement('dg1_a1', { midRailOffset: 1298 }),
+      panelledFrenchDoorPair('dg1_pair', { midRailOffset: 1247 }),
+      panelledDoorsetCasement('dg1_d1', { midRailOffset: 1298 }),
+    ],
+    ironmongeryLines: DG1_IRONMONGERY,
+    paintExtra: { surroundArchitrave: true },
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkDG1_french_doors_side_casements_panels },
+  // EXACT on glass, installation, production (100.92 h), fitting (18.50 h)
+  // and labour. Manufacture materials carry two things:
+  //   +58.37  the two frame MULLIONS, 2 x 2146 mm at Utile67x96 13.60/m —
+  //           Integrate allocates nothing for a doorset's mullions
+  //           (difference 11, decided);
+  //   -5.57   the side casements' MID RAILS: Integrate's 9.13 m of 63x200 is
+  //           190 mm more than the sash-width-less-10 rule gives for the two
+  //           (2 x 678), plus 6p of its 2 dp metre rounding. One reading
+  //           cannot say whether it cuts them at the door leaf's own 772 or
+  //           at the opening plus its two mullions (both 772): OPEN.
+  deliberateDifference: {
+    cost: 58.37,
+    reason: 'The two frame mullions (2 x 2146 mm at Utile67x96, 13.60/m): doorset mullion timber Integrate allocates nothing for — difference 11',
+  },
+  openQuestion: {
+    cost: -5.57,
+    reason: 'Integrate allocates 190 mm more 63x200 for the two side casements’ 170 mid rails than the sash width less 10 gives (772 each against 678), plus 6p of 2 dp rounding — one reading; which length Integrate cuts them at is not yet known',
+  },
+  partCostMap: DOOR_PART_COST_MAP,
+  profileValues: DOOR_PROFILE_VALUES,
+  glassCatalogue: {},
+  ironmongeryLines: DG1_IRONMONGERY,
+  profileCode: 'open_out_doors',
+  assumptions: GRID_ASSUMPTIONS,
+}
+
+// \u2500\u2500 DG2 = G2: L34242 Q2 item 7 \u2014 a single door, two casements over two panelled ones
+// 2750 x 2050. Mullions 41 at 837 and 1715; a SHORT transom 41 at 962.5 that
+// ends at the second mullion, so the door (C) is full height \u2014 Integrate's
+// endDivider, which the frame geometry honours (Step BH) and the board cannot
+// yet draw (Step BQ). A1 / B1 hung casements with an 86 rail; C1 a single
+// right-hand door, glass only; A2 / B2 fixed casements that are ALL panel.
+const DG2_IRONMONGERY = [
+  { product_short_name: '102mm_hinges',                        finish_code: 'Blk', qty: 2, source: 'survey' },
+  { product_short_name: '76mm_hinges',                         finish_code: 'Blk', qty: 4, source: 'survey' },
+  { product_short_name: 'double_euro_cylinder',                finish_code: 'Blk', qty: 1, source: 'survey' },
+  { product_short_name: 'kenrick_extension_950mm',             finish_code: 'PC',  qty: 4, source: 'survey' },
+  { product_short_name: 'kenrick_extension_gear_box',          finish_code: 'PC',  qty: 2, source: 'survey' },
+  { product_short_name: 'monkeytail_door_handle_rh',           finish_code: 'Blk', qty: 1, source: 'survey' },
+  { product_short_name: 'monkeytail_espag_casement_handle_lh', finish_code: 'Blk', qty: 1, source: 'survey' },
+  { product_short_name: 'monkeytail_espag_casement_handle_rh', finish_code: 'Blk', qty: 1, source: 'survey' },
+  { product_short_name: 'trickle',                             finish_code: 'Wht', qty: 1, source: 'survey' },
+  { product_short_name: 'trickle_vent_xr16',                   finish_code: 'Wht', qty: 1, source: 'survey' },
+]
+
+const DG2_SHORT_TRANSOM = {
+  ...transom('dg2_trans', 962.5),
+  values: { ...transom('dg2_trans', 962.5).values, endDivider: 'dg2_mull_b' },
+}
+
+export const BENCHMARK_DG2 = {
+  name: 'Benchmark DG2 \u2014 single door beside two casements over two panelled casements, 2750 x 2050 (L34242 Q2 item 7)',
+  tree: doorTree({
+    width: 2750, height: 2050,
+    dividers: [mullion('dg2_mull_a', 837), mullion('dg2_mull_b', 1715), DG2_SHORT_TRANSOM],
+    openings: [
+      hungDoorsetCasement('dg2_a1', 'left_hand_hung'),
+      hungDoorsetCasement('dg2_b1', 'right_hand_hung'),
+      singleDoorLeaf('dg2_c1', { operation: 'right_hand_hung' }),
+      panelOnlyDoorsetCasement('dg2_a2'),
+      panelOnlyDoorsetCasement('dg2_b2'),
+    ],
+    product: 'door',
+    ironmongeryLines: DG2_IRONMONGERY,
+    paintExtra: { surroundArchitrave: true, isCasementMpls: true },
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkDG2_single_door_casements_over_panels },
+  // EXACT on every group but manufacture materials, which carries the frame
+  // DIVIDER timber Integrate allocates nothing for: two mullions (2 x 1966)
+  // and the transom (2656) at Utile67x96 13.60/m = 6,588 mm, +89.60
+  // (differences 7 and 11, decided). Its 63x63 is Integrate's 11.07 m to
+  // the millimetre, the all-panel casements' stiles included.
+  deliberateDifference: {
+    cost: 89.60,
+    reason: 'The two frame mullions (2 x 1966 mm) and the transom (2656 mm) at Utile67x96 13.60/m: doorset divider timber Integrate allocates nothing for — differences 7 and 11',
+  },
+  partCostMap: DOOR_PART_COST_MAP,
+  profileValues: DOOR_PROFILE_VALUES,
+  glassCatalogue: {},
+  ironmongeryLines: DG2_IRONMONGERY,
+  profileCode: 'open_out_doors',
+  assumptions: [
+    ...GRID_ASSUMPTIONS,
+    'The short transom is stored with endDivider = the second mullion, as Integrate stores it; the board cannot draw a short divider until Step BQ, so this layout cannot yet be redrawn live',
+  ],
+}
+
+// \u2500\u2500 FT5 = P1: L34355 Q4 item 7 \u2014 the front door set, with everything \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+// 1650 x 2900, open IN, Utile, custom colour outside (dual finish). Two
+// mullions and a transom (Mullion/Transom 3 x 180): three FIXED fanlights
+// over two side casements and the door. Facts: section 5 (P1), G4 (the side
+// casements: glass over a 200 mid rail at 869.5 over a flat panel with a
+// BOLECTION bead) and M2 (the leaf: a full-height 120 muntin at 263 and a
+// 200 mid rail at 832.5 \u2014 two glass over two bolection panels). Every glass
+// unit is SPECIAL (priced outside the price file: Glass group 0) and the
+// Price part carries the 120-minute POA line.
+//
+// The facts give the frame size and the leaf's and sashes' own dividers,
+// not the mullion / transom offsets or the leaf width. Those are DERIVED
+// from what the facts do give, and the derivation is the fixture's
+// assumption: the external bolection mouldings price (W + 75 + H + 75) m,
+// and Integrate's four lines are 1.19 / 1.25 / 1.25 / 1.19 \u2014 so a side
+// casement's panel is W + H = 1,040 and a leaf panel's 1,100. With the
+// leaf's muntin at 263 its panels are 263 wide, so 837 deep; with the side
+// casements' 170-wide interior (a 294 sash, 62 stiles) their panels are
+// 870 deep. Working back through the 200 rails, the rails and the open-in
+// clearances gives a 2,149.5 leaf, a 2,166.5 door opening, 300 side
+// columns beside an 874 door column (mullions at 300 and 1,215) and a
+// 595.5 fanlight row under a 41 transom in the 2,803 of interior a 47 head
+// and a 50 bottom leave.
+const FT5_POA = [{
+  type: 'labour', category: 'installation',
+  description: 'Skirting to be cut temporarily', amount: 120,
+}]
+
+/** A glass unit marked SPECIAL \u2014 priced outside the price file (Step BS). */
+function specialGlass(key) {
+  const g = glassChild(key)
+  return { ...g, values: { ...g.values, specialGlassDetails: true } }
+}
+
+/** A FIXED fanlight in an open-in doorset: a casement sash with a 62 rail. */
+function fixedOpenInFanlight(key) {
+  const sash = doorsetCasementSash(key, { bottomHeight: 62, bottomHeightExternal: 62 })
+  return {
+    ...sash,
+    values: {
+      ...sash.values, casementTypeId: 'open_in',
+      mechanicalClearanceTop: 3, mechanicalClearanceBottom: 3,
+      mechanicalClearanceLeft: 3, mechanicalClearanceRight: 3,
+    },
+    children: [specialGlass(key)],
+  }
+}
+
+/** G4's side casement: open in, 163 rail, special glass over a 200 rail over a bolection panel. */
+function ft5SideCasement(key) {
+  const sash = panelledDoorsetCasement(key, {
+    bottomHeight: 163, midRailOffset: 869.5, midRailThickness: 200, bead: 126,
+  })
+  return {
+    ...sash,
+    values: {
+      ...sash.values, casementTypeId: 'open_in',
+      mechanicalClearanceTop: 3, mechanicalClearanceBottom: 3,
+      mechanicalClearanceLeft: 3, mechanicalClearanceRight: 3,
+    },
+    children: sash.children.map(c => c.part_type === 'glassPart' ? specialGlass(key) : c),
+  }
+}
+
+export const BENCHMARK_FT5 = {
+  name: 'Benchmark FT5 \u2014 front door set: special glass, bolection panels, a full-height muntin and a POA line, 1650 x 2900 (L34355 Q4 item 7)',
+  tree: doorTree({
+    width: 1650, height: 2900,
+    dividers: [mullion('ft5_mull_a', 300), mullion('ft5_mull_b', 1215), transom('ft5_trans', 595.5)],
+    openings: [
+      fixedOpenInFanlight('ft5_a1'),
+      fixedOpenInFanlight('ft5_b1'),
+      fixedOpenInFanlight('ft5_c1'),
+      ft5SideCasement('ft5_a2'),
+      frontDoorLeaf('ft5_leaf', {
+        operation: 'right_hand_hung',
+        bottomHeight: 170,
+        dividers: [
+          leafMuntin('ft5_muntin', { offset: 263 }),
+          leafMidRail('ft5_midrail', { offset: 832.5, thickness: 200 }),
+        ],
+        cells: [
+          specialGlass('ft5_leaf_g1'), specialGlass('ft5_leaf_g2'),
+          doorPanel('ft5_panel_a2', { bead: 126 }), doorPanel('ft5_panel_b2', { bead: 126 }),
+        ],
+      }),
+      ft5SideCasement('ft5_c2'),
+    ],
+    product: 'door',
+    frameBottomHeight: 50, cillHeight: 50, cillStopSize: 0,
+    isFrontDoor: true,
+    internalFinish: 'clean_white',
+    externalFinish: 'custom',
+    ironmongeryLines: FRONT_DOOR_IRONMONGERY,
+    priceExtra: { poaLines: FT5_POA },
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkFT5_front_door_set_special_glass_poa },
+  // EXACT on glass (0 — every unit special) and on PRODUCTION, 108.58 h:
+  // Mullion/Transom 3 x 180, Door Leaf 1035, Sidelights 2 x 780, Fanlights
+  // 3 x 300, Door Muntin 4 x 60 (the leaf's muntin and rail, the two side
+  // casements' rails), Flat Panel 4 x 60, Door Frame 855, Glazing 7 x 20,
+  // Casement Dual Finish 5 x 90, Door Frame Dual Finish 240 + 3 x 45, Door
+  // Leaf Dual Finish 180 — every line the facts list, to the minute. The
+  // POA line adds its 120 to the fitting. What is declared:
+  //   +142.26  BY DESIGN, three decided differences: the two frame mullions
+  //            and the transom (7,162 mm at Utile67x96, +97.40, difference
+  //            11 / 7); the leaf's full-height muntin (1,869.5 mm at
+  //            Utile63x120, +32.34, difference 13); the three fanlights' 62
+  //            rails at 63x63 (1,456 mm, +12.52, difference 7a);
+  //   +11.47   OPEN, two questions: "Any Door Overweight" 45 minutes
+  //            (+30.15) that Integrate does not charge on this leaf; and
+  //            -18.68 of sections Integrate allocates beyond GlazePro's
+  //            that P1's facts do not itemise (on G1 it cut the side
+  //            casements' mid rails 94 mm longer each);
+  //   -54.60   PENDING DATA: the facts give no stored ironmongery for this
+  //            item, so the fixture carries the Balham list.
+  deliberateDifference: {
+    cost: 142.26,
+    reason: 'Door timber Integrate allocates nothing for: the two frame mullions and the transom (7,162 mm at Utile67x96, +97.40 — differences 7 and 11), the leaf’s full-height muntin (1,869.5 mm at Utile63x120, +32.34 — difference 13) and the three fanlights’ 62 rails at 63x63 (1,456 mm, +12.52 — difference 7a)',
+  },
+  openQuestion: {
+    cost: 11.47,
+    reason: 'Two questions: +30.15 is "Any Door Overweight" 45 minutes on a leaf GlazePro weighs over 50 kg and Integrate does not charge; -18.68 is section timber Integrate allocates beyond GlazePro’s sash-width rules that P1’s facts do not itemise (on G1 it cuts a side casement’s mid rail 94 mm longer; its 2 dp metre roundings) — to be read from the Price File Editor',
+  },
+  pendingDecision: {
+    cost: -54.60,
+    reason: 'Installation materials: the facts record no stored ironmongery set for L34355 item 7, so the fixture carries the Balham front-door list. The reviewer reads the item’s ironmongerySet and the gap closes or is explained',
+  },
+  partCostMap: DOOR_PART_COST_MAP,
+  profileValues: OPEN_IN_PROFILE_VALUES,
+  glassCatalogue: {},
+  ironmongeryLines: FRONT_DOOR_IRONMONGERY,
+  profileCode: 'open_in_doors',
+  assumptions: [
+    ...FRONT_DOOR_ASSUMPTIONS,
+    ...GRID_ASSUMPTIONS,
+    'The mullion and transom offsets and the leaf width are DERIVED from the bolection moulding lines (1.19 / 1.25 m) and the stored leaf and sash dividers, not read from the tree: columns 300 / 874 / 300, fanlight row 595.5',
+    'Every glass unit is special (specialGlassDetails), as P1 stores every glazed opening; its Glass group is 0',
+    'The facts give no stored ironmongery set for this item, so the fixture carries the Balham front-door list; installation materials are declared, not reproduced',
+  ],
+}
+
+// \u2500\u2500 DM1 = M1: L34268 Q1 item 2 \u2014 a single door with a muntin below the mid rail
+// 930 x 2100, Utile, right-hand. The leaf: a 170 mid rail at 835 and a 120
+// muntin at 245 that starts at the rail \u2014 one glass above, two flat panels
+// below. The facts give NO stored ironmongery for this item, so it carries
+// the single-door list SD1-SD4 do and declares the difference.
+const DM1_MUNTIN = {
+  ...leafMuntin('dm1_muntin', { offset: 245 }),
+  values: { ...leafMuntin('dm1_muntin', { offset: 245 }).values, startDivider: 'dm1_midrail' },
+}
+
+export const BENCHMARK_DM1 = {
+  name: 'Benchmark DM1 \u2014 single door, glass over two panels under a muntin, 930 x 2100 (L34268 Q1 item 2)',
+  tree: doorTree({
+    width: 930, height: 2100,
+    openings: [{
+      ...singleDoorLeaf('dm1_leaf', { operation: 'right_hand_hung' }),
+      children: [
+        leafMidRail('dm1_midrail', { offset: 835 }),
+        DM1_MUNTIN,
+        glassChild('dm1_leaf'),
+        doorPanel('dm1_panel_a'),
+        doorPanel('dm1_panel_b'),
+      ],
+    }],
+    product: 'door',
+    ironmongeryLines: SINGLE_DOOR_IRONMONGERY,
+    paintExtra: { surroundArchitrave: true },
+  }),
+  targets: { ...INTEGRATE_TARGETS.benchmarkDM1_single_door_muntin_below_rail },
+  // EXACT on glass (0.54 m2) and production (40.33 h: Door Leaf 1035, Door
+  // Muntin 2 x 60 for the rail and the confined muntin, Flat Panel 2 x 60,
+  // Door Frame 855, Glazing 20, the two Single Finish lines). Three things
+  // are declared, each a different kind:
+  //   +12.68  BY DESIGN: the confined muntin's 733 mm at Utile63x120 17.30/m
+  //           — door timber Integrate allocates nothing for (as FT1's);
+  //   +30.16  OPEN: "Any Door Overweight" 45 minutes. The leaf weighs 51.9 kg
+  //           on GlazePro's model and Integrate charges none; the panels
+  //           cannot explain it (see PANEL_SKIN_THICKNESS_MM);
+  //   -59.85  PENDING DATA: the facts give no stored ironmongery for this
+  //           item, so the fixture carries SD1-SD4's single-door list.
+  deliberateDifference: {
+    cost: 12.68,
+    reason: 'The confined muntin, 733 mm at Utile63x120 17.30/m: door timber Integrate allocates nothing for — Nathan’s standing rule (difference 13)',
+  },
+  openQuestion: {
+    cost: 30.16,
+    reason: '"Any Door Overweight" 45 minutes: the leaf is 51.9 kg on GlazePro’s weight model and Integrate charges none. Timber and glass alone are 49.7 kg, so the panel constant cannot reconcile it with FT2 — the 1.5 kg is somewhere in an open-out single door’s timber or glass, unmeasured',
+  },
+  pendingDecision: {
+    cost: -59.85,
+    reason: 'Installation materials: the facts record no stored ironmongery set for L34268 item 2, so the fixture carries SD1-SD4’s single-door list (102mm hinges x2, euro cylinder, Windsor handle, vent) and the allocated lock. The reviewer reads the item’s ironmongerySet and the gap closes or is explained',
+  },
+  partCostMap: DOOR_PART_COST_MAP,
+  profileValues: DOOR_PROFILE_VALUES,
+  glassCatalogue: {},
+  ironmongeryLines: SINGLE_DOOR_IRONMONGERY,
+  profileCode: 'open_out_doors',
+  assumptions: [
+    ...GRID_ASSUMPTIONS,
+    'The facts give no stored ironmongery set for this item (docs/integrate-drawing-gaps.txt M1 lists isDoorMpls only), so the fixture carries SD1-SD4\u2019s single-door list; its installation materials are declared, not reproduced',
   ],
 }

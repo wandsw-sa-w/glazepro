@@ -110,6 +110,21 @@ const DELIBERATE = {
   //        counted twice. The page reads the two apart; this is the row.
   SO1:  { cost: '153.66', price: '307.33' },
   OI3:  { cost: '16.94', price: '33.88' },
+  // Step BP: grids inside casement sashes and door leaves. Each row is what
+  // its fixture declares, in full — decided differences, open questions and
+  // pending data together — and the page reads BY DESIGN on the sum.
+  //   DG1  +58.37 the two frame mullions (difference 11) -5.57 OPEN (the
+  //        side casements' mid rails, 190 mm Integrate cuts longer)
+  //   DG2  +89.60 the two mullions and the transom (differences 7 and 11)
+  //   DM1  +12.68 the confined muntin (difference 13) +30.16 OPEN (the
+  //        45-minute overweight) -59.85 PENDING (no stored set in the facts)
+  //   FT5  +142.26 mullions, transom, muntin and 62 rails (7, 7a, 11, 13)
+  //        +11.47 OPEN (overweight, and sections the facts do not itemise)
+  //        -54.60 PENDING (no stored set in the facts)
+  DG1:  { cost: '52.80', price: '105.60' },
+  DG2:  { cost: '89.60', price: '179.19' },
+  DM1:  { cost: '-17.01', price: '-34.02' },
+  FT5:  { cost: '99.13', price: '198.23' },
 }
 
 // Step BD follow-up: the OPEN QUESTIONS on the page — over £1.00, so not
@@ -120,6 +135,10 @@ const DELIBERATE = {
 // (decision e) is that a shaped unit is billed on the sheet it is cut from,
 // so the figure is a DECISION now and lives in DELIBERATE above.
 const OPEN_QUESTIONS = {
+  // Step BP (each row's amount is inside its DELIBERATE figure above):
+  DG1: '-5.57',    // the side casements' 170 mid rails: which length Integrate cuts them at
+  DM1: '30.16',    // "Any Door Overweight" on a 51.9 kg leaf Integrate does not charge
+  FT5: '11.47',    // the same overweight, and P1's un-itemised section timber
 }
 
 // Step BJ: a benchmark that is SHORT by a known amount until a named SQL file
@@ -283,7 +302,9 @@ test.describe('GlazePro live smoke (read only)', () => {
       // Step BF: the stable doors. Step BG: both directions — OI1 and OI2
       // are the pennies-exact pair, so their being here and PASSing is the
       // check that nothing in the engine needed a direction flag.
-      'ST1', 'ST2', 'ST3', 'OI1', 'OI2', 'OI3', 'SO1']) expect(seen).toContain(fd)
+      'ST1', 'ST2', 'ST3', 'OI1', 'OI2', 'OI3', 'SO1',
+      // Step BP: the grid benchmarks
+      'DG1', 'DG2', 'DM1', 'FT5']) expect(seen).toContain(fd)
     expect(unexpected, unexpected.join('\n')).toEqual([])
   })
 
