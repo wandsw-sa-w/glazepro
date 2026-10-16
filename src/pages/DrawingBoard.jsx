@@ -31,6 +31,10 @@ import {
 import {
   applyBiGlassCasement, biGlassDisagreeing, isBiGlassItem, BI_GLASS_NOTE,
 } from '../drawingBoard/biGlassCasement.js'
+// Step BJ follow-up: which Types of Work a drawing may be set to — the rule
+// that used to be three lines inside PropertyField, where nothing could test
+// it and Bi-Glass went missing from the casement select.
+import { typeOfWorkOptionsFor } from '../drawingBoard/typeOfWorkOptions.js'
 import { applyFanlightBottomRails, isStormproofWindow,
   resizeCasementFrame,
   OPENING_KINDS, OPENING_KIND_LABELS, openingKindOf, openingKindsFor,
@@ -232,7 +236,7 @@ function PartSelect({ value, onChange, partCategory, inputBorder }) {
   )
 }
 
-function PropertyField({ field, value, derivedValue, onChange, refOptions, required, partType, hiddenTagText, locked = null, enterable = null, casementDrawing = false }) {
+function PropertyField({ field, value, derivedValue, onChange, refOptions, required, partType, hiddenTagText, locked = null, enterable = null, tree = null }) {
   const isRequired = required && (value === null || value === undefined || value === '')
   const inputBorder = isRequired ? '1px solid #e57373' : '1px solid #d8d5cf'
 
@@ -377,14 +381,17 @@ function PropertyField({ field, value, derivedValue, onChange, refOptions, requi
         opts = opts.filter(o => !o.applies_to?.length || o.applies_to.includes(partType))
       }
     }
-    // Step AP: on a casement or direct glazed drawing the only types of
-    // work are Complete New and No Work — every other one is a sash-window
-    // service (sash replacement, draught seal, bi-glass, cill only), and
-    // the sash-only board rules (sashThickness, sashesReplaced,
-    // internalSize, cillReplacement) are gated on isSashWindow so they
-    // never run here.
-    if (field.field_key === 'drawingItemPart.typeOfWork' && casementDrawing) {
-      opts = opts.filter(o => o.code === 'complete_new' || o.code === 'no_work')
+    // Step AP, widened by the Step BJ follow-up: on a casement or direct
+    // glazed drawing the types of work are Complete New and No Work — every
+    // other one is a sash-window service — PLUS Bi-Glass on a casement
+    // WINDOW, where it applies and prices.
+    //
+    // The rule lives in typeOfWorkOptions.js so it can be tested without a
+    // DOM. It was three lines here, and that is how Bi-Glass came to be
+    // unreachable from the board while the offline tests passed: they drove
+    // applyBiGlassCasement directly and never went through this select.
+    if (field.field_key === 'drawingItemPart.typeOfWork') {
+      opts = typeOfWorkOptionsFor(tree, opts)
     }
 
     // All other reference fields: no applies_to filtering.
@@ -975,7 +982,7 @@ function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, o
             hiddenTagText={showHidden ? hiddenTag(visibilityMap[field.field_key], boardMode) : null}
             locked={lockedField(field.field_key, node)}
             enterable={enterableField(field.field_key)}
-            casementDrawing={isCasementFrameTree(tree)}
+            tree={tree}
           />
         ))}
       </div>

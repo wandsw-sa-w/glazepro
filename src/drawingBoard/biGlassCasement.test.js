@@ -31,6 +31,9 @@ import {
 } from '../pricing/benchmarks/fixtureBiGlass.js'
 import { withFixedCasementSashBiGlass } from '../pricing/benchmarks/liveRuleFixes.js'
 import { itemHeading } from '../quotes/pdf/quoteDocModel.js'
+import {
+  COMBINATION_CASEMENT_TEMPLATES, buildCombinationCasementTemplate,
+} from './combinationCasement.js'
 import { LEAD_TIMES } from '../quotes/pdf/quoteContent.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -539,5 +542,49 @@ dIron('Step BJ item 2 — a bi-glass casement gets no default ironmongery', () =
     expect(vars.is_box_sash).toBe(true)
     // and the flag this step derives is NOT set on a sliding sash
     expect(vars.needs_draughtsealing).toBe(false)
+  })
+})
+
+// ── The figure the reviewer will see on live drawing 69 ─────────────────────
+//
+// Step BJ follow-up. Drawing 69 on L507712 item 8 is the Step BI template
+// "Opener, Fixed, Opener (Configuration 4)" — the drawing the blocker was
+// found on. Switched to Bi-Glass it is BG3 WITHOUT the stored ironmongery
+// BG3's Integrate drawing carried (£59.85), because a GlazePro template
+// stores none and a bi-glass casement gets no defaults.
+//
+// Pinned here because the reviewer is going to switch it live and compare.
+const dLive = SNAPSHOT ? describe : describe.skip
+
+dLive('Step BJ follow-up — Configuration 4 switched to Bi-Glass', () => {
+  it('prices £639.05 / £1,278.08, 13.00 h fitting, 2.00 h production', () => {
+    const spec = COMBINATION_CASEMENT_TEMPLATES
+      .find(t => t.integrate.includes('Configuration 4'))
+    // PV above already holds the live 83 / 62 bottom rails (sql/step-as0)
+    const { tree, missing } = buildCombinationCasementTemplate(spec, PV)
+    expect(missing).toEqual([])
+
+    const bg = applyBiGlassCasement(setTypeOfWork(tree, 'bi_glass')).tree
+    // a template stores no ironmongery, and bi-glass adds no defaults
+    const lines = resolveIronmongeryLines(bg, SNAPSHOT, SNAPSHOT.profileValues) ?? []
+    expect(lines).toEqual([])
+
+    const r = runPricingOnTree(bg, withFixedCasementSashBiGlass(SNAPSHOT.rules),
+      SNAPSHOT.pfVariables, {
+        glassCatalogue: SNAPSHOT.glassCatalogue,
+        partAllocationRules: SNAPSHOT.partAllocationRules,
+        partCostMap: { TP68: 2.85, TP61: 2.76 },
+        ironmongeryLines: lines,
+        ironmongeryCatalogue: SNAPSHOT.ironmongeryCatalogue,
+        profileValues: SNAPSHOT.profileValues,
+      })
+
+    expect(r.price.total_cost).toBeCloseTo(639.05, 2)
+    expect(r.price.total).toBeCloseTo(1278.08, 2)
+    expect(r.install_labour.total_minutes).toBe(780)
+    expect(r.manufacture_labour.total_minutes).toBe(120)
+
+    // which is BG3 less exactly its stored ironmongery
+    expect(639.05 + 59.85).toBeCloseTo(698.90, 2)
   })
 })

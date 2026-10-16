@@ -127,12 +127,10 @@ const OPEN_QUESTIONS = {
 // the stated shortfall while the file is still waiting, that is a change
 // nobody decided, and if the row passes, the file has run.
 //
-//   BG3  -40.21  sql/step-bj1 widens install rule 15 "Fixed Casement Sash
-//                with Frame" to reach a BI-GLASS casement, where the frame
-//                is kept. Integrate charges 60 minutes for BG3's one fixed
-//                sash; until the file runs, GlazePro does not.
+// EMPTY since the Step BJ follow-up: `sql/step-bj1` ran live on 16 Oct, so
+// BG3 is exact on the live rules and is held to the penny like every other
+// row. The mechanism stays for the next file that needs it.
 const AWAITING_SQL = {
-  BG3: { cost: '-40.21', price: '-80.42', sql: 'sql/step-bj1' },
 }
 
 // NOTE on the Kenrick gearbox gap (J–P £14.70, Q/R/S £8.40): that is a gap in
@@ -302,6 +300,45 @@ test.describe('GlazePro live smoke (read only)', () => {
     // A1 must come BEFORE A2 — the list and the drawing have to read the
     // same way round (the 12 Oct finding)
     expect(texts.indexOf('Fanlight A1')).toBeLessThan(texts.indexOf('Casement Sash A2'))
+  })
+
+  // Step BJ follow-up item 2: the blocker, at the level the reviewer hit it.
+  //
+  // Bi-Glass shipped unreachable — the Type of Work select on a casement
+  // drawing offered Complete New and No Work only. The offline tests drove
+  // `applyBiGlassCasement` directly and never went through the select, so
+  // nothing caught it. This reads the real select on a real casement
+  // drawing, and changes nothing.
+  test('a casement drawing offers Bi-Glass in Type of Work', async ({ page }) => {
+    await login(page)
+    // Drawing 69 on L507712 item 8 — the reviewer's "Opener, Fixed, Opener
+    // (Configuration 4)", which is the drawing the blocker was found on.
+    await page.goto('/drawing-board/69')
+
+    const tree = page.locator('[data-testid="parts-tree"]')
+    await expect(tree).toBeVisible({ timeout: 60_000 })
+
+    // The item is the root of the parts tree; selecting it shows the item
+    // fields, Type of Work among them.
+    const labels = tree.locator('[data-testid="part-label"]')
+    await expect.poll(() => labels.count(), { timeout: 60_000 }).toBeGreaterThan(0)
+    await labels.first().click()
+
+    // The label carries the field key as its title (PropertyField), so this
+    // finds the field however it is worded on screen.
+    const label = page.locator('[title="drawingItemPart.typeOfWork"]')
+    await expect(label).toBeVisible({ timeout: 30_000 })
+    const select = label.locator('xpath=following::select[1]')
+    const options = (await select.locator('option').allInnerTexts()).map(t => t.trim())
+
+    // The one that was missing, and the two that were always there
+    expect(options.join(' | ')).toMatch(/bi-?glass/i)
+    expect(options.join(' | ')).toMatch(/complete new/i)
+    expect(options.join(' | ')).toMatch(/no work/i)
+    // and the sash-window services stay out of a casement
+    for (const hidden of [/pair of sashes/i, /draught/i, /cill/i]) {
+      expect(options.join(' | '), `${hidden} should not be offered`).not.toMatch(hidden)
+    }
   })
 
   test('the validation panel loads without an error', async ({ page }) => {
