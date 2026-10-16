@@ -57,8 +57,13 @@ test('a drawing with a POA line prices, and the run completes', async ({ page })
     const row = panel.locator('[data-testid="poa-line"]').last()
     await row.locator('input[placeholder="What for"]').fill('e2e: POA pricing check')
     await row.locator('input[type="number"]').fill('30')
-    await page.getByRole('button', { name: /^save$/i }).click()
-    await expect(page.locator('[data-testid="unsaved-marker"]')).toHaveCount(0, { timeout: 60_000 })
+    // Wait for the save to FINISH, not for the Unsaved marker, which hides
+    // the moment Save is clicked (Step BS follow-up 2: a reload mid-save
+    // aborted the write).
+    const save = page.getByRole('button', { name: /^(save|saving\.\.\.)$/i }).first()
+    await save.click()
+    await expect(save).toHaveText(/^save$/i, { timeout: 60_000 })
+    await expect(save).toBeDisabled({ timeout: 60_000 })
   }
 
   // To the lead's quotes page, through the board's own lead button.

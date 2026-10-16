@@ -79,6 +79,22 @@ async function openIronmongery(page, drawingId) {
   return { tree, add }
 }
 
+/**
+ * Save, and wait for the save to FINISH. The Unsaved marker hides the moment
+ * Save is clicked (it is `dirty && saveStatus !== 'saving'`), so waiting for
+ * it to go is waiting for nothing — the first run of this step reloaded
+ * mid-save, the write was aborted, and the drawing came back without the
+ * line (Step BS follow-up 2). The button reads "Saving..." while the write
+ * is in flight and is disabled once the drawing is clean, so that is the
+ * signal; a failed save leaves it enabled and this times out, loudly.
+ */
+async function saveAndWait(page) {
+  const save = page.getByRole('button', { name: /^(save|saving\.\.\.)$/i }).first()
+  await save.click()
+  await expect(save).toHaveText(/^save$/i, { timeout: 60_000 })
+  await expect(save).toBeDisabled({ timeout: 60_000 })
+}
+
 /** Add PRODUCT through the picker. Returns its qty before the add, if any. */
 async function addThroughPicker(page, add) {
   const line = page.locator(`[data-testid="ironmongery-line"][data-product="${PRODUCT}"]`)
@@ -139,10 +155,14 @@ test.describe('Step BO — the ironmongery product picker', () => {
       'this step would write to a live drawing on every deploy.')
     await login(page)
     const { add } = await openIronmongery(page, WRITE_DRAWING)
+    // Was the set the RULE DEFAULTS before we touched it? Then the cleanup
+    // can put the defaults back, flag and all; a surveyor's own set must
+    // only ever lose the one line we added.
+    const wasEdited = await page.locator('[data-testid="ironmongery-set-origin"]')
+      .getAttribute('data-edited') === 'true'
     const before = await addThroughPicker(page, add)
 
-    await page.getByRole('button', { name: /^save$/i }).click()
-    await expect(page.locator('[data-testid="unsaved-marker"]')).toHaveCount(0, { timeout: 60_000 })
+    await saveAndWait(page)
 
     // Reload and find it.
     const { add: add2 } = await openIronmongery(page, WRITE_DRAWING)
@@ -152,14 +172,22 @@ test.describe('Step BO — the ironmongery product picker', () => {
       .toHaveAttribute('data-edited', 'true')
     expect(add2).toBeTruthy()
 
-    // Leave the drawing as it was found.
-    if (before == null) {
+    // Leave the drawing as it was found. A set that was the rule defaults
+    // goes back to being the rule defaults — "Apply Defaults", through its
+    // confirm — so the edited flag is cleared too; removing the line alone
+    // would leave the drawing marked as a chosen set.
+    if (!wasEdited) {
+      await page.locator('[data-testid="ironmongery-apply-defaults"]').click()
+      await page.getByRole('button', { name: /^apply defaults$/i }).click()
+      await expect(line).toHaveCount(0)
+      await expect(page.locator('[data-testid="ironmongery-set-origin"]'))
+        .toHaveAttribute('data-edited', 'false')
+    } else if (before == null) {
       await line.getByTitle('Remove').click()
       await expect(line).toHaveCount(0)
     } else {
       await line.locator('input[type="number"]').fill(before)
     }
-    await page.getByRole('button', { name: /^save$/i }).click()
-    await expect(page.locator('[data-testid="unsaved-marker"]')).toHaveCount(0, { timeout: 60_000 })
+    await saveAndWait(page)
   })
 })
