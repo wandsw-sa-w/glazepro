@@ -36,6 +36,7 @@ import {
 } from './casementOpenings.js'
 import { resolveIronmongeryLines } from '../pricing/loadPricingContext.js'
 import { runPricingOnTree } from '../pricing/pricingEngine.js'
+import { BENCHMARK_FD1 } from '../pricing/benchmarks/fixtureDoor.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const SNAPSHOT_PATH = resolve(HERE, '../pricing/benchmarks/pf30-snapshot.json')
@@ -250,6 +251,17 @@ const L34265_ITEM9 = [
 /** Integrate's own nine "Ironmongery Cost" lines for that set. */
 const INTEGRATE_LINES = [8.40, 8.40, 16.80, 4.20, 8.40, 8.40, 1.05, 1.05, 3.15]
 
+/** L32520 item 9 (LQ8) — the other set the brief records, on a plain casement. */
+const L32520_ITEM9 = [
+  ['defender_412mm', 1],
+  ['hardwick_lyndon_rh_locking_espag_handle', 1],
+  ['kenrick_extension_690mm', 2],
+  ['kenrick_extension_gear_box', 1],
+  ['trickle', 1],
+  ['trickle_vent_xr16', 1],
+]
+const L32520_INTEGRATE_LINES = [7.35, 15.75, 2.10, 3.15, 4.20, 1.05, 1.05, 2.10, 3.15]
+
 d('Step BO — a French casement with L34265 item 9’s set', () => {
   /** The picker's products, built from the live snapshot's catalogue. */
   function catalogueProducts() {
@@ -426,6 +438,63 @@ d('Step BO — a French casement with L34265 item 9’s set', () => {
     expect(isEditedSet(paintOf(taller).values)).toBe(true)
     // and it prices the same nine lines at the same money on the new size
     expect(ironLines(price(taller).results)).toEqual(ironLines(price(entered).results))
+  })
+
+  it('and L32520 item 9’s set, on the casement it belongs to, is exact too', () => {
+    // LQ8: a single top-hung casement at 1060 x 1230. Its stored set is the
+    // other one the brief records, and it is a different shape — a 412
+    // defender, a Hardwick Lyndon handle, ONE gear box and both trickle
+    // products. Nine lines again, and Integrate's nine amounts again.
+    const { tree, missing } = buildCasementFrame(PV, {
+      width: 1060, height: 1230, openings: ['top_hung'], product: 'casement',
+    })
+    expect(missing).toEqual([])
+    const entered = enterSet(tree, L32520_ITEM9)
+    const mine = ironLines(price(entered).results).map(l => l[1]).sort((a, b) => a - b)
+    expect(mine).toEqual([...L32520_INTEGRATE_LINES].sort((a, b) => a - b))
+    expect(Number(mine.reduce((a, b) => a + b, 0).toFixed(2))).toBe(39.90)
+  })
+
+  it('a DOOR’s rule-allocated lock parts still come from the rules on top of the set', () => {
+    // Step BO item 2, stated as Integrate states it: a stored set replaces
+    // the default LINES, and nothing else. A door's MPLS keep and slave
+    // hardware are allocated parts (group `mpls_doors`), priced as
+    // ironmongery, and they must still be there — and must say they came
+    // from the rules, not the set.
+    const withSet = {
+      ...BENCHMARK_FD1.tree,
+      children: BENCHMARK_FD1.tree.children.map(c =>
+        c.part_type !== 'paintAndIronmongeryPart' ? c : ({
+          ...c,
+          values: { ...c.values, ...setPatch([
+            { product_short_name: 'trickle_vent_xr16', finish_code: 'Wht', qty: 1, source: 'picked' },
+          ]) },
+        })),
+    }
+    const run = tree => runPricingOnTree(tree, SNAPSHOT.rules, SNAPSHOT.pfVariables, {
+      glassCatalogue:       {},
+      partAllocationRules:  SNAPSHOT.partAllocationRules,
+      partCostMap:          BENCHMARK_FD1.partCostMap,
+      ironmongeryLines:     resolveIronmongeryLines(tree, SNAPSHOT, BENCHMARK_FD1.profileValues,
+        { profileCode: BENCHMARK_FD1.profileCode }),
+      ironmongeryCatalogue: SNAPSHOT.ironmongeryCatalogue,
+      profileValues:        BENCHMARK_FD1.profileValues,
+    })
+
+    const allocated = results => results.price.lines
+      .filter(l => l.fires && !l.error && l.alloc_iron_short_name && / \(rules\)$/.test(l.alloc_label))
+      .map(l => [l.alloc_iron_part_code, Number(l.line_cost.toFixed(2))])
+
+    const asIs    = run(BENCHMARK_FD1.tree)
+    const withOne = run(withSet)
+    expect(allocated(asIs).length, 'FD1 has allocated lock parts').toBeGreaterThan(0)
+    expect(allocated(withOne), 'the stored set does not disturb them')
+      .toEqual(allocated(asIs))
+
+    // and the stored line is the only ironmongery LINE left
+    const setLines = withOne.price.lines
+      .filter(l => l.fires && l.alloc_iron_short_name && / stored set\)$/.test(l.alloc_label))
+    expect(setLines.map(l => l.alloc_iron_part_code)).toEqual(['RHZ665'])
   })
 
   it('survives the save / load round trip the app does', () => {
