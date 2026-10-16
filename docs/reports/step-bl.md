@@ -12,7 +12,8 @@ Commits: `cb78a1b` (item 0 — the facts, targets and brief) and the ones after 
 
 Offline suite: **2,065 passing, 8 failing** — the standing eight (six Step W
 sash-weight rows, benchmarks A50 and D), exactly as before this step. 20 new
-tests. `npm run e2e`: at the end.
+tests. `npm run e2e`: **6 passed**, and every existing live benchmark row is
+unmoved — see the end, which is item 9 checked against live data.
 
 **Four of the nine benchmarks are exact on every group** — LQ1, LQ3, LQ4 and
 LQ9 (the last bar 13p of parked steel). The five differences that remain are
@@ -403,4 +404,24 @@ Integrate (item 7's residual).
 
 # e2e after the deploy
 
-To be filled in after the push.
+Deploy confirmed by decoding `/version.json`: **`mvb3968g` = 14:54:17Z**, ten
+seconds after the last commit.
+
+`npm run e2e` — **6 passed** (59.6s): logs in; every benchmark passes except
+the parked residuals; the fanlight drawing; a casement offers Bi-Glass; the
+validation panel; every drawing card on the L507712 matrix priced.
+
+**The benchmark row is the one that matters, and it matters as a negative.**
+That page prices from the LIVE rules and catalogues, and this step changed
+seven engine inputs that between them touch every product — the glass unit
+thickness, two per-opening loop counts, the horn, two variables that had never
+existed, the box-sash volume units and the casement cill length. **Every
+existing live benchmark row is exactly where Step BK left it**, which is item
+9 checked against live data rather than only against the capture.
+
+**Not verified:** the six live quotes themselves. Leads 11–15 (drawings
+72–123) were not re-priced from here — that is the reviewer's to do, and
+"What the reviewer should re-price live" above lists every line that should
+move and the two that should not. The LQ benchmarks are deliberately absent
+from the live page (see the wary-of list), so the e2e cannot see them; they
+are pinned offline in `benchmarks.test.js`.
