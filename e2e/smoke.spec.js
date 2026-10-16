@@ -118,6 +118,23 @@ const DELIBERATE = {
 const OPEN_QUESTIONS = {
 }
 
+// Step BJ: a benchmark that is SHORT by a known amount until a named SQL file
+// has been run, and must be EXACT once it has. Neither of the tables above
+// fits: a parked residual has to stay at its amount for ever, and a
+// deliberate difference must never read PASS.
+//
+// So both readings are accepted and nothing else is — if the figure moves off
+// the stated shortfall while the file is still waiting, that is a change
+// nobody decided, and if the row passes, the file has run.
+//
+//   BG3  -40.21  sql/step-bj1 widens install rule 15 "Fixed Casement Sash
+//                with Frame" to reach a BI-GLASS casement, where the frame
+//                is kept. Integrate charges 60 minutes for BG3's one fixed
+//                sash; until the file runs, GlazePro does not.
+const AWAITING_SQL = {
+  BG3: { cost: '-40.21', price: '-80.42', sql: 'sql/step-bj1' },
+}
+
 // NOTE on the Kenrick gearbox gap (J–P £14.70, Q/R/S £8.40): that is a gap in
 // the repository's CAPTURED pf30-snapshot.json, not in the live data. Nathan
 // has run sql/step-ap0-gearbox-part-costs.sql, and this page prices from the
@@ -234,9 +251,27 @@ test.describe('GlazePro live smoke (read only)', () => {
         continue
       }
 
+      if (AWAITING_SQL[key]) {
+        // Short by exactly the stated amount, and only until the file runs.
+        const want = AWAITING_SQL[key]
+        if (costDiff !== want.cost || priceDiff !== want.price) {
+          unexpected.push(
+            `${key} is waiting on ${want.sql} and should be short by cost ` +
+            `£${want.cost} / price £${want.price}, now cost £${costDiff} / ` +
+            `price £${priceDiff} — either the file has run and left a gap, or ` +
+            'something else has moved')
+        }
+        continue
+      }
+
       unexpected.push(`${key} FAILED: cost diff £${costDiff}, price diff £${priceDiff}`)
     }
 
+    // Step BJ: the four BI-GLASS casements are on the page. BG1, BG2 and BG4
+    // PASSing is what says the bi-glass fixes are right against the LIVE
+    // rules and catalogues, not just the captured snapshot; BG3 is the one
+    // waiting on sql/step-bj1.
+    for (const bg of ['BG1', 'BG2', 'BG3', 'BG4']) expect(seen).toContain(bg)
     expect(seen).toContain('A50')
     expect(seen).toContain('D')
     expect(seen).toContain('Q')

@@ -16,7 +16,8 @@ Commits: `f1a65cd` (item 0 — the facts, targets and brief) and the ones after 
 
 Offline suite: **2,012 passing, 8 failing** — the standing eight (six Step W
 sash-weight rows, benchmarks A50 and D), exactly as before this step. 49 new
-tests. `npm run e2e`: at the end.
+tests. `npm run e2e`: **5 passed**, and BG1, BG2 and BG4 pass against the LIVE
+rules — see the end, which is the best evidence in this report.
 
 **All four benchmarks are exact — every group, to the penny.** Bi-glass had
 never been priced on any product, and six separate things were wrong; each is
@@ -379,4 +380,51 @@ Consumables**. Either one appearing means the volumes are still being charged.
 
 # e2e after the deploy
 
-To be filled in after the push.
+Deploy confirmed by decoding `/version.json`: **`mvamh9o1` = 07:04:41Z**, ten
+seconds after the last commit.
+
+`npm run e2e` — **5 passed** (30.3s): logs in; every benchmark passes except
+the parked residuals; the fanlight drawing; the validation panel; every
+drawing card on the L507712 matrix priced.
+
+## The first run FAILED, and it was telling the truth
+
+Worth setting out, because it is the best evidence in this report.
+
+The benchmark page prices from the LIVE rules and catalogues, and it now
+prices BG1–BG4. The first run came back:
+
+> `BG3 FAILED: cost diff £-40.21, price diff £-80.42`
+
+**That is exactly right.** `sql/step-bj1` has not been run, so install rule 15
+still carries the bracketed condition and BG3's fixed sash is not charged —
+the £40.21 this step identified, to the penny, on the live site.
+
+And the three rows either side of it are the result that matters:
+
+**BG1, BG2 and BG4 PASS against the live data.** Everything in section 2
+except 1g — the glass part's replace flag, the casement `gb_qty`, the derived
+draught sealing, the single pane's weight, the three zeroed volumes, the bar
+run and the per-unit bar count — is right against the live rules and the live
+catalogue, not only against the captured snapshot. Nothing in this step rests
+on the capture except the one rule the reviewer has still to run.
+
+## The bucket that was missing
+
+The suite had no way to say "short by a known amount until a named file runs":
+`PARKED` requires the amount for ever, `DELIBERATE` requires the row never to
+pass. So `AWAITING_SQL` was added, holding BG3 at exactly −40.21 / −80.42 with
+`sql/step-bj1` named. Both readings are accepted and **nothing else is** — if
+the shortfall changes while the file waits, that is a change nobody decided;
+if the row passes, the file has run. The four BG rows are also asserted onto
+the page, so they cannot quietly vanish from it.
+
+**After `sql/step-bj1` runs, BG3 will read PASS and the suite stays green**
+with no further edit. The `AWAITING_SQL` entry can then be deleted, the way
+the `liveRuleFixes` entries were when the snapshot caught up.
+
+**Not verified against the live database:** the live `price_rules` condition
+was never read from here (the anon key returns nothing under RLS) — section 0a
+of `sql/step-bj1` is there for the reviewer to read it, and the file raises
+rather than guessing if it is not what this step expects. No bi-glass drawing
+was created live; the board behaviour in section 3 is offline tests only.
