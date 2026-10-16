@@ -173,6 +173,10 @@ function casementItem({
   // Step BN: the surround ticks and the existing-SDG dropdowns, set from the
   // facts' per-item surround and SDG fields.
   surround = {}, sdg = {},
+  // Step BS: the Price part's POA lines (Integrate's PricePart.poa). Only an
+  // item that has them gets a pricePart here, so every other LQ tree is
+  // exactly as it was.
+  poaLines = null,
 }) {
   return {
     key: 'item1',
@@ -206,6 +210,12 @@ function casementItem({
         values: { installationMethod: 'externally', externalAccessId: externalAccess },
         children: [],
       },
+      ...(poaLines ? [{
+        key: 'price1',
+        part_type: 'pricePart',
+        values: { poaLines: poaLines.map(l => ({ ...l })) },
+        children: [],
+      }] : []),
       {
         key: 'frame1',
         part_type: 'assemblyFramePart',
@@ -359,6 +369,12 @@ export const BENCHMARK_LQ4 = {
       casementSash('cas_c2', 'fix'),
     ],
     ironmongeryLines: LQ4_IRONMONGERY,
+    // Step BS: Integrate's PricePart.poa on this item — the 3 h that its
+    // labour held beyond its own fitting-units page (P2).
+    poaLines: [{
+      type: 'labour', category: 'installation',
+      description: 'Frame buried extra rip out time', amount: 180,
+    }],
   }),
   targets: { ...INTEGRATE_TARGETS.benchmarkLQ4_config7_tall_one_bar },
   partCostMap: LQ_PART_COST_MAP,
@@ -369,7 +385,7 @@ export const BENCHMARK_LQ4 = {
     ...LQ_CASEMENT_ASSUMPTIONS,
     'The dividers are 75 mm, not the casement profile’s 27: Integrate stores the thickness per divider and this item uses 75',
     'Only B1 has a bar, which is what makes this the reading for item 2: "Additional for Glazing Bars" must fire ONCE, not six times',
-    'Integrate’s labour for this item is 25.25 h where its own fitting-units page lists 22.25 h; the 3 h difference is unexplained and declared as a known gap rather than reproduced',
+    'Integrate’s labour for this item is 25.25 h where its own fitting-units page lists 22.25 h: the 3 h is its PricePart POA line "Frame buried extra rip out time" 180 min (Step BS, docs/integrate-drawing-gaps.txt P2), carried on the fixture’s Price part',
   ],
 }
 

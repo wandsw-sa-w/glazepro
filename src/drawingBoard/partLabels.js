@@ -103,6 +103,20 @@ export function partLabel(node, tree = null) {
   return PART_LABELS[node.part_type] || node.part_type
 }
 
+/**
+ * Step BS: a SPECIAL glass unit says so in the parts list — it is priced
+ * outside the price file, and a unit that quietly charges no glass is the
+ * kind of thing a surveyor should see at a glance. Wrapped around
+ * `partLabel` rather than inside it, so every existing label is unchanged.
+ */
+export function partLabelWithFlags(node, tree) {
+  const label = partLabel(node, tree)
+  if (node?.part_type === 'glassPart' && node.values?.specialGlassDetails === true) {
+    return `${label} — special glass`
+  }
+  return label
+}
+
 /** Every opening of every frame, in reading order — for a parts list. */
 export function allOpenings(tree) {
   return itemFrames(tree).flatMap(f => openingNodes(tree, f))

@@ -63,7 +63,7 @@ import {
   applyDividers, applyBars, frameGrid, splitOpening, removeDivider, makeDividersEqual,
 } from '../drawingBoard/gridActions.js'
 import { FRENCH_PAIR_PART, isPairPart, frameSizeLabel } from '../pricing/casementGeometry.js'
-import { partLabel, PART_LABELS } from '../drawingBoard/partLabels.js'
+import { partLabel, partLabelWithFlags, PART_LABELS } from '../drawingBoard/partLabels.js'
 import { findRequiredEmpty } from '../drawingBoard/requiredFields.js'
 import { loadGlassCatalogue } from '../pricing/loadPricingContext.js'
 import { saveAsTemplate, listTemplates, templateGlassNameWarnings } from '../drawingBoard/templates.js'
@@ -89,6 +89,11 @@ import {
   defaultsBack, chosenLines, isEditedSet, lineSourceLabel, setPatch,
 } from '../drawingBoard/ironmongerySet.js'
 import { fetchAllRows } from '../lib/fetchAllRows.js'
+// Step BS: special glass and the Price part's POA lines.
+import {
+  SPECIAL_GLASS_KEY, POA_TYPES, POA_CATEGORIES,
+  addPoaLine, removePoaLineAt, setPoaLineField,
+} from '../pricing/poaLines.js'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -578,6 +583,132 @@ export function SurroundAndSdgPanel({ node, onChangeField }) {
         </select>
       </div>
     </>
+  )
+}
+
+// ── SpecialGlassPanel — Step BS ──────────────────────────────────────────────
+//
+// Integrate marks a glass unit `specialGlassDetails` and the price file then
+// charges no glass for it (the Glass group is empty) while everything else —
+// glazing labour, beads, bars — prices as normal; the special glass is priced
+// outside the price file (docs/integrate-drawing-gaps.txt P1). One tick, on
+// Integrate's own key. The glass codes are left as they are, so unticking
+// puts the unit back exactly.
+
+export function SpecialGlassPanel({ node, onChangeField }) {
+  const on = node.values?.[SPECIAL_GLASS_KEY] === true
+  return (
+    <div style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #e8e6e0' }}>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
+        <input
+          type="checkbox"
+          checked={on}
+          data-testid="special-glass"
+          onChange={e => onChangeField(node.key, SPECIAL_GLASS_KEY, e.target.checked, `glassPart.${SPECIAL_GLASS_KEY}`)}
+        />
+        <span style={{ fontWeight: 600 }}>Special glass (priced separately)</span>
+      </label>
+      <div style={{ fontSize: 11, color: on ? '#92400e' : '#777', marginTop: 4, paddingLeft: 24 }}>
+        {on
+          ? 'No glass is charged for this unit — price the special glass outside the quote. Glazing labour, beads and bars still price.'
+          : 'Tick when this unit’s glass is quoted outside the price file (Integrate’s specialGlassDetails).'}
+      </div>
+    </div>
+  )
+}
+
+// ── PoaLinesPanel — Step BS ──────────────────────────────────────────────────
+//
+// The Price part's price-on-application lines, as Integrate's PricePart.poa:
+// type, category, description, amount. A labour / installation line's amount
+// is MINUTES, added to the fitting hours (P1 120, P2 180); a cost line's
+// amount is pounds, priced through PF30's "Drawing POA" rule (x1, markup 2).
+
+export function PoaLinesPanel({ node, onChangeField }) {
+  const lines = Array.isArray(node.values?.poaLines) ? node.values.poaLines : []
+  const write = next => onChangeField(node.key, 'poaLines', next, 'pricePart.poaLines')
+  const cell = { fontSize: 11, padding: '4px 4px', borderBottom: '1px solid #f0ede6', verticalAlign: 'top' }
+  const input = { fontSize: 11, padding: '3px 5px', border: '1px solid #d8d5cf', borderRadius: 4, background: '#fff', width: '100%', boxSizing: 'border-box' }
+
+  const installMinutes = lines
+    .filter(l => l.type === 'labour' && l.category === 'installation' && Number(l.amount) > 0)
+    .reduce((n, l) => n + Number(l.amount), 0)
+  const costTotal = lines
+    .filter(l => l.type === 'cost' && Number.isFinite(Number(l.amount)))
+    .reduce((n, l) => n + Number(l.amount), 0)
+
+  return (
+    <div data-testid="poa-lines" style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #e8e6e0' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: '#555' }}>Price-on-application lines</div>
+        <div style={{ fontSize: 10, color: '#777' }}>
+          {installMinutes > 0 ? `+${installMinutes} min fitting` : ''}
+          {installMinutes > 0 && costTotal !== 0 ? ' · ' : ''}
+          {costTotal !== 0 ? `£${costTotal.toFixed(2)} POA cost` : ''}
+        </div>
+      </div>
+      {lines.length === 0 ? (
+        <div style={{ fontSize: 11, color: '#aaa', fontStyle: 'italic', marginBottom: 6 }}>
+          None. A labour line adds minutes to the fitting hours; a cost line prices through “Drawing POA”.
+        </div>
+      ) : (
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ background: '#f7f6f2' }}>
+              <th style={{ ...cell, textAlign: 'left', fontWeight: 600, width: 92 }}>Type</th>
+              <th style={{ ...cell, textAlign: 'left', fontWeight: 600, width: 96 }}>Category</th>
+              <th style={{ ...cell, textAlign: 'left', fontWeight: 600 }}>Description</th>
+              <th style={{ ...cell, textAlign: 'right', fontWeight: 600, width: 64 }}>Amount</th>
+              <th style={{ ...cell, width: 20 }}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {lines.map((line, idx) => (
+              <tr key={idx} data-testid="poa-line" data-type={line.type}>
+                <td style={cell}>
+                  <select value={line.type ?? 'labour'} style={input}
+                    onChange={e => write(setPoaLineField(lines, idx, 'type', e.target.value))}>
+                    {POA_TYPES.map(t => <option key={t.code} value={t.code}>{t.label}</option>)}
+                  </select>
+                </td>
+                <td style={cell}>
+                  <select value={line.category ?? ''} style={input}
+                    onChange={e => write(setPoaLineField(lines, idx, 'category', e.target.value))}>
+                    {(POA_CATEGORIES[line.type] ?? []).map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
+                  </select>
+                </td>
+                <td style={cell}>
+                  <input value={line.description ?? ''} style={input} placeholder="What for"
+                    onChange={e => write(setPoaLineField(lines, idx, 'description', e.target.value))} />
+                </td>
+                <td style={cell}>
+                  <input type="number" value={line.amount ?? ''} min="0" step="1"
+                    style={{ ...input, textAlign: 'right' }}
+                    title={line.type === 'labour' ? 'minutes' : 'pounds'}
+                    onChange={e => write(setPoaLineField(lines, idx, 'amount', e.target.value === '' ? null : Number(e.target.value)))} />
+                </td>
+                <td style={cell}>
+                  <button onClick={() => write(removePoaLineAt(lines, idx))} title="Remove"
+                    style={{ fontSize: 10, padding: '1px 5px', border: '1px solid #fca5a5', borderRadius: 4, background: '#fef2f2', color: '#b91c1c', cursor: 'pointer' }}>
+                    ×
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+        <button onClick={() => write(addPoaLine(lines, 'labour'))} data-testid="poa-add-labour"
+          style={{ flex: 1, fontSize: 10, padding: '3px 8px', border: '1px solid #d8d5cf', borderRadius: 5, background: '#fff', color: '#555', cursor: 'pointer' }}>
+          + Labour line (minutes)
+        </button>
+        <button onClick={() => write(addPoaLine(lines, 'cost'))} data-testid="poa-add-cost"
+          style={{ flex: 1, fontSize: 10, padding: '3px 8px', border: '1px solid #d8d5cf', borderRadius: 5, background: '#fff', color: '#555', cursor: 'pointer' }}>
+          + Cost line (£)
+        </button>
+      </div>
+    </div>
   )
 }
 
@@ -1160,6 +1291,13 @@ function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, o
             {'£'} Price breakdown
           </button>
         )}
+        {/* Step BS: the Price part's POA lines, and a glass unit's special-glass tick */}
+        {node.part_type === 'pricePart' && (
+          <PoaLinesPanel node={node} onChangeField={onChangeField} />
+        )}
+        {node.part_type === 'glassPart' && (
+          <SpecialGlassPanel node={node} onChangeField={onChangeField} />
+        )}
         {/* Step AX: Master leaf, on a French pair */}
         {frenchMaster && (
           <div style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #e8e6e0' }}>
@@ -1350,7 +1488,7 @@ function ExplorerNode({ node, selectedKey, onSelect, depth = 0, tree = null }) {
           <span style={{ width: 10, flexShrink: 0 }} />
         )}
         <span data-testid="part-label" style={{ fontSize: 12, color: isSelected ? '#3d35a8' : '#444', fontWeight: isSelected ? 500 : 400 }}>
-          {partLabel(node, tree ?? node)}
+          {partLabelWithFlags(node, tree ?? node)}
         </span>
       </div>
       {open && hasChildren && node.children.map(child => (

@@ -4307,9 +4307,9 @@ describe('Step BL — live-quote benchmarks', () => {
     // Step BN: LQ1's, LQ2's and LQ7's FITTING used to be short by the surround
     // labour nobody could enter, so only their production was checked. The
     // tick boxes close it, and the fitting is now assertable on all of them.
-    // LQ4's is still 3 h short, and that 3 h is now NAMED: Integrate's
-    // PricePart POA line "Frame buried extra rip out time" 180 min, which has
-    // no GlazePro input until Step BS.
+    // LQ4 was 3 h short until Step BS: Integrate's PricePart POA line "Frame
+    // buried extra rip out time" 180 min, which the fixture's Price part now
+    // carries, so its fitting is Integrate's 25.25 h exactly.
     expect(runLQ(BENCHMARK_LQ1).manufacture_labour.total_minutes / 60).toBeCloseTo(28.80, 2)
     expect(runLQ(BENCHMARK_LQ1).install_labour.total_minutes / 60).toBeCloseTo(13.00, 2)
     expect(runLQ(BENCHMARK_LQ2).install_labour.total_minutes / 60).toBeCloseTo(13.00, 2)
@@ -4319,9 +4319,10 @@ describe('Step BL — live-quote benchmarks', () => {
     expect(runLQ(BENCHMARK_LQ7).install_labour.total_minutes / 60).toBeCloseTo(10.00, 2)
     expect(runLQ(BENCHMARK_LQ9).manufacture_labour.total_minutes / 60).toBeCloseTo(18.45, 2)
     expect(runLQ(BENCHMARK_LQ9).install_labour.total_minutes / 60).toBeCloseTo(7.50, 2)
-    // LQ4: 22.25 h against Integrate's 25.25, the POA line exactly.
-    expect(runLQ(BENCHMARK_LQ4).install_labour.total_minutes / 60).toBeCloseTo(22.25, 2)
-    expect(25.25 - 22.25).toBeCloseTo(180 / 60, 2)
+    // LQ4: 22.25 h of fitting units + the 180-minute POA line = 25.25 h.
+    expect(runLQ(BENCHMARK_LQ4).install_labour.total_minutes / 60).toBeCloseTo(25.25, 2)
+    expect(runLQ(BENCHMARK_LQ4).install_labour.lines
+      .filter(l => l.fires && l.loop_target === 'drawing_poa').map(l => l.minutes)).toEqual([180])
   })
 
   it('LQ2 and LQ7 are exact on LABOUR now, with only Step BL’s residual left', () => {

@@ -41,6 +41,12 @@ import { allocateParts } from './partAllocator.js'
 import { treeHash } from './treeHash.js'
 import { loadPricingContext, resolveIronmongeryLines } from './loadPricingContext.js'
 import { PRICING_ENGINE_VERSION } from './engineVersion.js'
+// Step BS: special glass (priced outside the price file) and the Price
+// part's POA lines (minutes into the fitting hours; pounds through the
+// "Drawing POA" rule).
+import {
+  isSpecialGlassUnit, SPECIAL_GLASS_SKIPPED_GROUP, poaInstallLines, poaCostLines,
+} from './poaLines.js'
 
 /**
  * An ironmongery line's label for the price breakdown: the product, the
@@ -1468,6 +1474,24 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
       results.install_labour.lines.push(line)
     }
   }
+
+  // Step BS item 2: the Price part's LABOUR / INSTALLATION POA lines. Each
+  // one's amount is minutes, added to the fitting hours exactly as Integrate
+  // adds them (P1: 29.5 h of units + 120 min = 31.50 h; P2 / LQ4: 22.25 h +
+  // 180 min = 25.25 h). They are not rules, so each is pushed as its own
+  // line, named after the description, so the breakdown shows where the
+  // hours came from.
+  for (const poa of poaInstallLines(tree)) {
+    instMinutes += poa.amount
+    results.install_labour.lines.push({
+      rule_id: null, rule_family: 'install_labour', group_name: 'POA',
+      name: `POA — ${poa.description || 'installation'}`,
+      loop_target: 'drawing_poa', part_key: null, part_type: 'pricePart',
+      fires: true, quantity: poa.amount, value: 1, minutes: poa.amount,
+      error: null, defaulted_vars: [],
+      condition: 'true', quantity_expr: String(poa.amount), value_expr: '1',
+    })
+  }
   results.install_labour.total_minutes = instMinutes
 
   const instHours = Math.round((instMinutes / 60) * 100) / 100
@@ -1622,9 +1646,33 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
       continue
     }
 
+    // Step BS item 2: the DRAWING POA loop. PF30's "Drawing POA" (quantity
+    // poa_cost x value 1, markup 2, group extra_services) loops drawing_poa,
+    // which no tree part is: it iterates the Price part's COST lines, one
+    // iteration per line with `poa_cost` = that line's amount, so each line
+    // prices on its own and the loop's sum is the item's POA cost. The
+    // labour lines are minutes and went into pass 2; they are not here.
+    if (rule.loop_target === 'drawing_poa') {
+      for (const poa of poaCostLines(tree)) {
+        const poaVars = { ...priceVars, poa_cost: poa.amount, poa_description: poa.description }
+        const line = evalPriceRuleLine(rule, poaVars, null)
+        line.alloc_label = poa.description || 'POA'
+        line.part_type   = 'pricePart'
+        if (!line.error && line.fires) { totalCost += line.line_cost; totalPrice += line.line_total }
+        results.price.lines.push(line)
+      }
+      continue
+    }
+
     // Normal tree-based loop (glass_unit gated per sash — Step AH)
     const loopParts = getLoopParts(tree, rule.loop_target, priceVars)
     for (const partNode of loopParts) {
+      // Step BS item 1: a SPECIAL glass unit is priced outside the price
+      // file. Integrate's Glass group is empty for it and every other
+      // group is as normal (P1), so the gate is the one group: no
+      // glass_done line for the unit, while its glazing labour, its
+      // Glazing Bar (manufacture materials) and its beads still price.
+      if (rule.group_name === SPECIAL_GLASS_SKIPPED_GROUP && isSpecialGlassUnit(partNode)) continue
       const vars = partNode
         ? { ...priceVars, ...computePartVariables(partNode, tree, derived, priceVars, glassCatalogue, profileValues) }
         : priceVars
