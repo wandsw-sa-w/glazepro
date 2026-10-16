@@ -12,7 +12,9 @@ after it.
 
 Offline suite: **2,050 passing, 8 failing** — the standing eight (six Step W
 sash-weight rows, benchmarks A50 and D), exactly as before. 23 new tests.
-`npm run e2e`: at the end.
+`npm run e2e`: **6 passed**, after one failure that was this step's own test
+clicking where a sticky header sits — see the end, which also records what its
+failure snapshot proved about the live site.
 
 **Both benchmarks were exact the first time they were priced, before a line of
 this step's code was written.** Every one of Step BJ's six fixes already
@@ -255,4 +257,50 @@ is the mixed case: the fanlight should become 825 × 304 and the leaves
 
 # e2e after the deploy
 
-To be filled in after the push.
+Deploy confirmed by decoding `/version.json`: **`mvarqpjl` = 09:32:00Z**, ten
+seconds after the last commit.
+
+`npm run e2e` — **6 passed** (35.9s), all six rows green.
+
+## The first run failed, and it was my own test's fault
+
+The Bi-Glass step timed out. Not a regression and not the site: the step began
+by clicking the parts tree's first label to select the item, and the sticky
+**"Parts"** panel header sits over that label —
+
+> `<div>Parts</div> from <div>…</div> subtree intercepts pointer events`
+
+— so Playwright retried the click until the 120-second budget ran out, on a
+page where the field it wanted was **already on screen**. The board selects
+the item on load, so the click was defensiveness that could only ever get in
+the way. It is gone from the normal path, with a `force` fallback kept for the
+case where the field really is absent.
+
+It passed on the earlier Step BJ follow-up run because the panel had scrolled
+differently; the drawing has since gained a long history, which pushed the
+label under the header. Worth knowing as a pattern: **a click to "make sure"
+is a liability in a read-only smoke test.**
+
+## And the failure snapshot proved the step twice over
+
+Playwright's page snapshot caught the live select verbatim:
+
+```
+- combobox:
+  - option "— select —"
+  - option "Complete New"
+  - option "Bi-glass" [selected]
+  - option "No Work"
+```
+
+Three things at once: **Bi-glass is in the select on the live site**; it reads
+exactly the three options this step intends, with the sash-window services
+absent; and **the reviewer has already switched drawing 69 to Bi-glass** — the
+history panel shows `Item — Type of Work: Complete New → Bi-glass`, and the
+item's own `isBiGlass` field reads `true`. The content the test asserts was
+right all along; only the click was wrong.
+
+**Not verified:** no bi-glass FRENCH casement exists live, so the £388.40 /
+£776.78 above is still a prediction. Drawing 69's live PRICE was not read from
+here either — the benchmark page is the only priced thing the e2e sees, and it
+does not include drawing 69.

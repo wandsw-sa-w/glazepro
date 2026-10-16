@@ -318,15 +318,24 @@ test.describe('GlazePro live smoke (read only)', () => {
     const tree = page.locator('[data-testid="parts-tree"]')
     await expect(tree).toBeVisible({ timeout: 60_000 })
 
-    // The item is the root of the parts tree; selecting it shows the item
-    // fields, Type of Work among them.
-    const labels = tree.locator('[data-testid="part-label"]')
-    await expect.poll(() => labels.count(), { timeout: 60_000 }).toBeGreaterThan(0)
-    await labels.first().click()
-
-    // The label carries the field key as its title (PropertyField), so this
-    // finds the field however it is worded on screen.
+    // The item is the root of the parts tree and the board selects it on
+    // load, so the item fields — Type of Work among them — are already
+    // showing. The label carries the field key as its `title`
+    // (PropertyField), so this finds the field however it is worded.
+    //
+    // NO CLICK in the normal path, deliberately. This step first selected the
+    // item by clicking the tree's first label, and the sticky "Parts" panel
+    // header sits over it: Playwright reported `<div>Parts</div> intercepts
+    // pointer events` and retried until the test timed out, on a page where
+    // the field was already on screen. The fallback below force-clicks only
+    // if the field is genuinely absent, so a change of default selection
+    // still works and a sticky header cannot block the test again.
     const label = page.locator('[title="drawingItemPart.typeOfWork"]')
+    if (await label.count() === 0) {
+      const labels = tree.locator('[data-testid="part-label"]')
+      await expect.poll(() => labels.count(), { timeout: 60_000 }).toBeGreaterThan(0)
+      await labels.first().click({ force: true })
+    }
     await expect(label).toBeVisible({ timeout: 30_000 })
     const select = label.locator('xpath=following::select[1]')
     const options = (await select.locator('option').allInnerTexts()).map(t => t.trim())
