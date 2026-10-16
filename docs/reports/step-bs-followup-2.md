@@ -11,7 +11,7 @@ but to clear a flag the first e2e run left on drawing 117. Details under "The
 e2e".
 
 Offline suite: **2,255 passing, 8 failing** — the standing eight and nothing
-else; 89 tests in `priceDrawingPersistence.test.js`, 80 of them new. `npm run
+else; 89 tests in `priceDrawingPersistence.test.js`, 84 of them new. `npm run
 e2e` against the deploy of `7ab83a5`: **10 passed, 0 skipped** — the reviewer
 has set `E2E_WRITE_DRAWING_ID`, so both write-gated steps now run. Lint:
 nothing new. `npm run build` clean.
@@ -79,7 +79,7 @@ the fake client (thenable, no `.catch`, the fixture's own profile values):
   rule; no persisted row with `loop_target_type drawing_poa` outside the
   Labour price rows; `installation_labour_time` 25.25 and the run total
   2,464.13 / 4,928.27; the engine's own breakdown shows the same two lines.
-* **Every benchmark fixture** (71 of them, from `benchmarks/index.js` and
+* **Every benchmark fixture** (82 of them, from `benchmarks/index.js` and
   `fixtureLiveQuotes.js`): priced through `priceDrawing`, the persisted
   price rows grouped by rule group sum to the group totals the engine
   reports for the same inputs, every price row is numeric in cost and sales,
