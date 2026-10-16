@@ -424,6 +424,14 @@ export function withLeafMidRail(leafNode, { offset, thickness = DEFAULT_LEAF_MID
     c => c.part_type !== 'transomPart' && c.part_type !== 'panelPart')
   const rail = midRailNode(existing?.key ?? `${leafNode.key}_midrail`, { offset, thickness })
   const keptPanel = (leafNode.children ?? []).find(c => c.part_type === 'panelPart')
+  // Step BM, corrected 16 Oct: the added panel stays FLAT with an ovolo bead.
+  //
+  // The brief asked for raised and fielded, on the reading that Integrate's
+  // panel type 110 means that. The reviewer's correction re-read Integrate's
+  // own options — 110 Flat, 112 Raised & fielded — so 110 is FLAT, which is
+  // what difference 19 and Nathan's decision k already said. What drawing 103
+  // was really missing is the mid rail's "Door Muntin" 60, not a dearer
+  // panel: see sash_muntin_to_be_replaced_qty in computeVariables.js.
   const panelNode = panel
     ? (keptPanel ?? {
       key: `${leafNode.key}_panel`,

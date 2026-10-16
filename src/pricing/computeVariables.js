@@ -443,6 +443,14 @@ export function computeVariables(tree, derived = {}, pfVariables = {}, opts = {}
     // counted as gb_to_be_replaced_qty, which is what the sash rules read
     // (the two "Real Glazing Bar" rules are gated on is_sw / not is_door, so
     // a door’s muntins can never reach them).
+    //
+    // Step BM, 16 Oct: the reviewer’s correction asked for a mid rail to be
+    // counted here too (L34242 Q2 item 8 fires "Door Muntin" 4 x 60 beside
+    // "Flat Panel" 4 x 60). NOT made: live benchmark LQ3 is the same shape —
+    // two French leaves, 170 mid rails, type-110 flat panels — and hits
+    // Integrate’s 61.22 h EXACTLY with the mid rails uncounted, so counting
+    // them puts LQ3 2 h over. Measured, reverted and reported rather than
+    // tuned: docs/reports/step-bm.md, "Item 4 — the mid rail does not count".
     const sash_muntin_to_be_replaced_qty   = allLeafMuntins.length
 
     const is_individually_glazed = allGlassParts.some(g => g.values?.isIndividualPanes === true)
