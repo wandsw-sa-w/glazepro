@@ -2372,13 +2372,6 @@
     "hours": {
       "production": 43.2,
       "labour": 25.25
-    },
-    "known_gaps": {
-      "labour": {
-        "cost": -120.63,
-        "price": -241.26,
-        "reason": "Integrate's PricePart POA line 'Frame buried extra rip out time' 180 min (labour / installation) - no GlazePro input until Step BS (docs/integrate-drawing-gaps.txt P2)"
-      }
     }
   },
   "benchmarkLQ5_box_sash_frame_arch_custom_horn": {

@@ -1,0 +1,151 @@
+# Drawing features GlazePro's board can't build yet — Integrate facts (read 16 Oct 2026 by the reviewer)
+# Source: real quotes (pricing / geometry values only; no customer details). Price file = Price File Editor test
+# quote, COST (qty x rate = cost; price = x2). Production = Estimated Labour Time editor; fitting = Fitting Units.
+# Nathan (16 Oct): all five come up about as often as each other; do all of them.
+
+## Integrate option lists (drawing board, 16 Oct)
+panelType: 110 Flat, 112 Raised & fielded, 114 Vertical tongue & groove, 116 Horizontal tongue & groove
+panelBead: 120 Ovolo, 126 Bolection, 320 Bespoke
+bayType: 170 Fully separated frames, 172 Joined internally / brick externally, 174 Fully coupled frames, 176 ...
+existingSurroundType / Action: see docs/step-bn-brief.md
+operationId: 11 fixed, 15 top hung, 17 left hung, 18 right hung. typeId 7 standard leaf, 8 front-door leaf.
+
+## PF30 production rules these features fire (Integrate labour editor, 16 Oct)
+- "Door Muntin" 60 x sash_muntin_to_be_replaced_qty (when the item has a new door leaf): one per mid rail or
+  muntin in a door leaf, and one per mid rail in a doorset's casement sash.
+- "Additional for Flat Panel" 60 / "R&F" 120 / "VTG" 180 / "HTG" 180 per panel (loop panel).
+- "Sidelights in Doorsets" 780 per casement sash beside a door leaf; "Fanlights in Doorsets" 300 per casement sash
+  above one (both loop casement_sash).
+- "Panel to Frame" 80 per panel set straight in a frame (loop frame, panel_in_frame_qty).
+- "Frame with Doors/Casements and Direct Glazed" 75; "Extra over for direct glazed" 180 per DG frame;
+  "Additional for Frame Mullion or Transom" 180 per divider.
+- Bolection bead (126): "Internal / External Bolection Moulding Standard" 13.50 per m (manufacture materials).
+
+=====================================================================================================
+## 1. Casement sash with glass over a mid rail and a panel; casement sash that is all panel
+=====================================================================================================
+
+### G1  L34242 Q2 item 8 — French doors with side casements, 3100 x 2230, Solid Utile, open out
+AssemblyFrame 3100 x 2230 solid_profiled jambs 47/47 head 47 bottom 37 depth 96 cill 145, stops 20 (cill 26)
+  Mullion 41 at 690 / Mullion 41 at 2275 (offset2 690), mullionStopSize 18
+  A1 CasementSash fixed (11), typeId 7, rails 62/62/62 bottom 163 btmRailShape 101 stepped overlap 7,
+     clearances 1/1/1 bottom 2, shoulder 1918
+       GlassPart (GL100010 / GL100080, tolerance 2, rebate 15) over PanelPart (110 flat, bead 120 ovolo both faces,
+       insulation 15), split by TransomPart thickness 170 at offset 1298 (offset2 450)
+  FrenchDoorPart midRail 198, gap 5, meeting-stile overlap 27, clearances 3/1/1/3
+     Left leaf (17) / Right leaf (18, master): rails 110/110/110 bottom 163, shoulder 1867,
+       glass over 110 panel, TransomPart 170 at 1247 (offset2 450) isMidrail
+  D1 as A1
+  Cills 690 / 1544 / 690, 145 x 37
+  Stored ironmongery: 102mm_hinges Blk 4, double_euro_cylinder Blk 1, monkeytail_door_handle_rh Blk 1, trickle Wht 1,
+     trickle_vent_xr16 Wht 1. Surround architrave_and_bullnose.
+Price file (cost): glass 188.18 | inst 331.53 | manufacture 2,488.69 | labour 743.89 | mm 844.76 = 4,597.05 / 9,194.06
+  Square Glass 0.78 / 0.74 / 0.74 / 0.78 x 58.50; energy 15.60 / 14.80 / 14.80 / 15.60 x 0.17
+  Ironmongery 29.40, 6.30, 22.05, 31.50, 2.10, 3.15, 37.80, 93.45, 53.55; Components 2.85x4.60, 2.85x3.20; consumables 30
+  Production 100.92 h; Labour 18.50 h
+  Tricoya Panel 0.25 x 188.85 x4 (47.93, 47.76, 47.76, 47.93); LTW 25
+  Utile 63x120 10.11 m, 63x200 9.13 m, 63x63 9.98 m (8.60/m), 67x96 7.56 m
+Production (min): Mullion/Transom 2x180; Door Leaf 2x1035; Sidelights in Doorsets 2x780; Door Muntin 4x60;
+  Flat Panel 4x60; Door Frame 855; Glazing 4x20; Casement Sash Single Finish 2x60; Door Frame Single Finish 180 +
+  2x85; Door Leaf Single Finish 2x90  (= 6,055 min = 100.92 h)
+Fitting: French Doors 780, Fixed Fanlight 2x120, Any Sash Overweight 2x45 (= 18.5 h)
+
+### G2  L34242 Q2 item 7 — single door with two casements over two all-panel casements, 2750 x 2050, Utile
+AssemblyFrame 2750 x 2050, jambs 47, head 47, bottom 37, depth 96, cill 145
+  Mullion 41 at 837 (offset2 1778); Mullion 41 at 1715 (offset2 900)
+  Transom 41 at 962.5 (offset2 962.5) — SHORT: endDivider = the second mullion, so it spans only the two left
+     columns; the door (C) is full height.
+  A1 casement LH (17), B1 casement RH (18): rails 62/62/62 bottom 86, stepped 7, shoulder 811.5, glass
+  C1 DoorLeaf RH (18), rails 110/110/110 bottom 163, shoulder 1688, glass (no mid rail)
+  A2, B2 casement FIXED (11), rails 62/62/62 bottom 163, shoulder 734.5, PANEL ONLY (110 flat, ovolo)
+  Cills 900 / 837 / 837
+  Stored ironmongery: 102mm_hinges Blk 2, 76mm_hinges Blk 4, double_euro_cylinder Blk 1, kenrick_extension_950mm PC 4,
+     kenrick_extension_gear_box PC 2, monkeytail_door_handle_rh Blk 1, monkeytail_espag_casement_handle_lh Blk 1,
+     monkeytail_espag_casement_handle_rh Blk 1, trickle Wht 1, trickle_vent_xr16 Wht 1. isCasementMpls + isDoorMpls.
+Price file (cost): glass 149.19 | inst 255.56 | manufacture 2,274.89 | labour 723.78 | mm 668.31 = 4,071.73 / 8,143.45
+  Square Glass 0.61, 0.61, 1.19 x 58.50; energy 12.20, 12.20, 23.80 x 0.17
+  Ironmongery 14.70, 21.00, 22.05, 4.20, 8.40, 8.40, 1.05, 1.05, 16.80, 16.80, 31.50, 2.10, 3.15, 53.55
+  Components 2.85x4.40, 2.85x2.90; consumables 30; Production 92.25 h; Labour 18.00 h
+  Tricoya Panel 0.52 x 188.85 x2; LTW 25; Utile 63x120 4.81, 63x200 5.31, 63x63 11.07 (8.60), 63x96 1.67 (12.20), 67x96 6.85
+Production (min): Mullion/Transom 3x180; Door Leaf 1035; Sidelights in Doorsets 2x780; Fanlights in Doorsets 2x300;
+  Flat Panel 2x60 (no Door Muntin: the panel sashes have no mid rail); Door Frame 855; Glazing 3x20; Casement Single
+  Finish 4x60; Door Frame 180 + 3x85; Door Leaf 90  (= 5,535 min = 92.25 h)
+Fitting: Single Door Only 660, Opening Casement Sash 2x90, Fixed Fanlight 2x120 (= 18 h)
+
+### G3  L33022 Q5 item 7 — French doors + side casements over panels + four top lights, 2400 x 2500, Utile
+(tree in docs/integrate-live-quotes.txt notes; full figures in the live comparison)
+  Side casements A2 / D2: fixed, rails 58/58/120 bottom 156, glass over 170 mid rail at 1226 (offset2 400) over panel;
+  leaves: glass 1V+1H over 170 mid rail over panel. Top row: four DG units in a 41 transom / 3 mullion grid.
+Production (min): Frame with Doors/Casements and DG 75; Additional for Glazing Bars (casement) 2x30, (door) 2x30;
+  Mullion/Transom 4x180; Door Leaf 2x1035; Sidelights in Doorsets 2x780; Door Muntin 4x60; Flat Panel 4x60;
+  Door Frame 855; Glazing 8x20; Glazing with Bar 1+2+2+1 x12; Casement Single Finish 2x60; Door Frame 180 + 4x85;
+  Door Leaf 2x90
+Price file (cost): 5,400.34 / 10,800.63 (glass 265.34, inst 562.25, manufacture 2,848.97, labour 1,162.87, mm 560.91)
+
+### G4  L34355 Q4 item 7 — front door set (see 2 and 5), side casements A2 / C2: glass over 200 mid rail (869.5)
+over 110 panel with BOLECTION bead (126).
+
+=====================================================================================================
+## 2. A muntin inside a door leaf
+=====================================================================================================
+
+### M1  L34268 Q1 item 2 — single door 930 x 2100, Utile, RH (18)
+  DoorLeaf rails 110/110/110 bottom 163, shoulder 1738; TransomPart 170 at 835 (offset2 733); MullionPart 120 at 245
+  (offset2 245) BELOW the transom only: one glass above, two panels (110 flat) below.
+  Frame jambs 47, head 47, bottom 37, depth 96, cill 145 (836 wide). isDoorMpls. Surround architrave_and_bullnose.
+Price file (cost): glass 33.43 | inst 214.44 | manufacture 994.54 | labour 442.31 | mm 321.25 = 2,005.97 / 4,011.94
+  Square Glass 0.54 x 58.50 = 31.59; energy 1.84; Tricoya Panel 0.18 x 188.85 x2 = 33.91 x2
+  Utile 63x120 4.85 m, 63x200 2.58 m, 67x96 5.13 m; Production 40.33 h; Labour 11.00 h
+Production (min): Door Leaf 1035; Door Muntin 2x60 (transom + muntin); Flat Panel 2x60; Door Frame 855; Glazing 20;
+  Door Frame Single Finish 180; Door Leaf Single Finish 90  (= 2,420 = 40.33 h)
+GlazePro live drawing 93 (no muntin possible): 1,948.61, one 0.447 m2 panel, production 37.33 h.
+
+### M2  L34355 Q4 item 7 — front door leaf (typeId 8) with a FULL-HEIGHT muntin
+  DoorLeaf RH (18), rails 110/110/110 bottom 170, shoulder 1865; MullionPart 120 at 263 (offset2 263) full height;
+  TransomPart 200 at 832.5: two glass above, two panels (110 flat, bolection 126) below. Door Muntin counts 2.
+
+=====================================================================================================
+## 3. A short divider spanning only some cells
+=====================================================================================================
+### S1  L34242 Q2 item 7 (G2 above): frame transom 41 at 962.5 with endDivider = the second mullion, so it runs
+from the left jamb to mullion 2 only; the cell to the right (the door) is full height. Integrate stores
+startDivider / endDivider on every MullionPart / TransomPart (0 = runs to the frame). GlazePro needs two transoms.
+
+=====================================================================================================
+## 4. Several frames coupled in one item
+=====================================================================================================
+### C1  L34268 Q1 item 13 — Utile, custom colour, installation externally
+ContainerPart holding three frames side by side:
+  Frame A 1647 x 2200 (jambs 47, head 47, bottom 37, depth 96, cill 145): Mullion 40 at 756.5 (offset2 756.5) and
+     Transom 40 at 786 (offset2 1290); A1, B1 DG glass units (GL100010 / GL100080, clearances 15, shoulder 756) above,
+     A2 a PANEL straight in the frame (shoulder 1290) below the transom spanning both columns. Cill 1553.
+  Frame C 1120 x 2200: DoorLeaf LH (17) rails 110/110/110/163, shoulder 1838, all panel (one PanelPart). Cill 1026.
+  Frame D 697 x 900: one DG glass unit (shoulder 786). Cill 603.
+  Stored ironmongery: 102mm_hinges PB 2, double_euro_cylinder PB 1, hardwick_lyndon_door_espag_set PB 1, trickle, xr16.
+Price file (cost): glass 94.10 | inst 199.05 | manufacture 1,637.92 | labour 673.52 | mm 940.62 = 3,545.21 / 7,090.37
+Production (min): Frame with Doors/Casements and DG 75; Machining & Joining a Casement Frame 2x180; Extra over for
+  direct glazed 2x180; Mullion/Transom 2x180; Door Leaf 1035; Additional VTG Panel 2x180; Door Frame 855; Glazing 3x20;
+  Panel to Frame 80; Door Frame Single Finish 180 + 2x85; Door Leaf Single Finish 90
+  (note: VTG panel lines on this item, so its panels are vertical tongue & groove)
+Fitting: Single Door Only 660, Direct Glazed Unit 3x45, 1.75sqm Direct Glazed Unit in Frame 70.
+
+=====================================================================================================
+## 5. Special glass, and manual price-on-application lines
+=====================================================================================================
+### P1  L34355 Q4 item 7 — front door set 1650 x 2900, open in, Utile, external finish custom colour
+  Every glazed opening: specialGlassDetails = true and glass part numbers "glassPlaceholder" (inner and outer).
+  The price file then has NO glass line at all (Glass group empty): the special glass is priced outside the price
+  file. Everything else prices as normal.
+  PricePart.poa = [{type: labour, category: installation, description: "Skirting to be cut temporarily ...",
+    amount: 120}] — 120 MINUTES added to the installation hours.
+Price file (cost): glass 0 | inst 370.38 | manufacture 2,677.58 | labour 1,266.62 | mm 746.52 = 5,061.10 / 10,122.24
+  Labour 31.50 h = fitting units 29.5 h (Front Door and Frame 840, each additional 2x120, 1x90, Fixed Fanlight 5x120)
+  + the POA line's 120 min.
+  Production (min): Mullion/Transom 3x180; Door Leaf 1035; Sidelights in Doorsets 2x780; Fanlights in Doorsets 3x300;
+  Door Muntin 4x60; Flat Panel 4x60; Door Frame 855; Glazing 7x20; Casement Dual Finish 5x90; Door Frame Dual
+  Finish 240 + 3x45; Door Leaf Dual Finish 180.
+  Bolection: Internal 1.00 x 13.50 x4, External 1.19 / 1.25 / 1.25 / 1.19 x 13.50.
+
+### P2  L32520 Q3 item 16 (benchmark LQ4) — PricePart.poa = [{type: labour, category: installation,
+  description: "Frame buried extra rip out time", amount: 180}]. That is LQ4's "unexplained" 3 h: Integrate's labour
+  25.25 h = fitting units 22.25 h + this 180-minute POA line.
