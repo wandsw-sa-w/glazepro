@@ -13,6 +13,10 @@ import {
   SURROUND_TICKS, SDG_TYPES, SDG_ACTIONS, EXTERNAL_LINING_PART_CODE,
   defaultSurroundValues, surroundTick, sdgVariables,
 } from './surroundAndSdg.js'
+import {
+  BENCHMARK_LQ1, BENCHMARK_LQ2, BENCHMARK_LQ3, BENCHMARK_LQ4, BENCHMARK_LQ5,
+  BENCHMARK_LQ6, BENCHMARK_LQ7, BENCHMARK_LQ8, BENCHMARK_LQ9,
+} from '../pricing/benchmarks/fixtureLiveQuotes.js'
 
 /** A plain casement window, so nothing else competes for the labour rules. */
 const treeWith = (paintValues = {}) => ({
@@ -245,5 +249,54 @@ describe('Step BN — existing SDG and obstruction', () => {
     const base = run(treeWith({})).install_labour.total_minutes
     expect(run(treeWith({ existingSurroundTypeId: 0, existingSurroundActionId: 0 }))
       .install_labour.total_minutes).toBe(base)
+  })
+})
+
+// ── The LQ fixtures ─────────────────────────────────────────────────────────
+
+describe('Step BN — the LQ fixtures carry the facts’ own surround', () => {
+  const paintOf = tree => (tree.children ?? [])
+    .find(c => c.part_type === 'paintAndIronmongeryPart')?.values ?? {}
+
+  const ticksOf = tree => {
+    const v = paintOf(tree)
+    return SURROUND_TICKS.filter(t => surroundTick(v, t.key)).map(t => t.label)
+  }
+
+  it('each LQ item has the surround Integrate shows for it', () => {
+    // docs/integrate-live-quotes.txt, per item, as the brief tabulates it.
+    expect(ticksOf(BENCHMARK_LQ1.tree)).toEqual(['Architrave', 'Window board'])
+    expect(ticksOf(BENCHMARK_LQ4.tree)).toEqual(['Architrave', 'Window board'])
+    expect(ticksOf(BENCHMARK_LQ2.tree)).toEqual(['Architrave', 'Linings', 'Window board'])
+    expect(ticksOf(BENCHMARK_LQ7.tree)).toEqual(['Architrave', 'Linings', 'Window board'])
+    // LQ3 has no surround at all — autoCalcSurroundComponents 0
+    expect(ticksOf(BENCHMARK_LQ3.tree)).toEqual([])
+    // and the rest are architrave only, which is also the default, so they
+    // are left saying nothing and read as the default
+    for (const [label, bm] of [['LQ5', BENCHMARK_LQ5], ['LQ6', BENCHMARK_LQ6],
+      ['LQ8', BENCHMARK_LQ8], ['LQ9', BENCHMARK_LQ9]]) {
+      expect(ticksOf(bm.tree), label).toEqual(['Architrave'])
+    }
+  })
+
+  it('LQ5 is plantation shutters, remove and re-fit', () => {
+    // L34265 item 3: type 5, action 1, so "Remove and Refit Shutters" 75
+    // fires. L32520 item 9 is type 5 with action 0 and fires nothing, which
+    // is why the action has to be stored and not inferred from the type.
+    const v = paintOf(BENCHMARK_LQ5.tree)
+    expect(v.existingSurroundTypeId).toBe(5)
+    expect(v.existingSurroundActionId).toBe(1)
+    const flags = sdgVariables(v)
+    expect(flags.has_plantation_shutters).toBe(true)
+    expect(flags.remove_and_refit_existing_sdg_or_panel).toBe(true)
+    expect(flags.has_secondary_glazing).toBe(false)
+  })
+
+  it('no other LQ has an existing SDG', () => {
+    for (const [label, bm] of [['LQ1', BENCHMARK_LQ1], ['LQ2', BENCHMARK_LQ2],
+      ['LQ3', BENCHMARK_LQ3], ['LQ4', BENCHMARK_LQ4], ['LQ6', BENCHMARK_LQ6],
+      ['LQ7', BENCHMARK_LQ7], ['LQ8', BENCHMARK_LQ8], ['LQ9', BENCHMARK_LQ9]]) {
+      expect(sdgVariables(paintOf(bm.tree)).has_sdg_or_panel, label).toBe(false)
+    }
   })
 })

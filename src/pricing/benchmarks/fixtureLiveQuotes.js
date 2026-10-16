@@ -170,6 +170,9 @@ function casementItem({
   ironmongeryLines, surroundLines = null, floorLevel = 'ground_floor',
   externalAccess = 'easily_accessible', fitToPreparedOpening = false,
   isCasementMpls = true,
+  // Step BN: the surround ticks and the existing-SDG dropdowns, set from the
+  // facts' per-item surround and SDG fields.
+  surround = {}, sdg = {},
 }) {
   return {
     key: 'item1',
@@ -192,6 +195,7 @@ function casementItem({
           cillFinish: 'clean_white', cutOutBrickReveal: false,
           ironmongeryFinish: 'PB',
           isCasementMpls,
+          ...surround, ...sdg,
           ironmongeryLines: ironmongeryLines.map(l => ({ ...l })),
         },
         children: [],
@@ -254,6 +258,7 @@ const LQ1_IRONMONGERY = [
 export const BENCHMARK_LQ1 = {
   name: 'Benchmark LQ1 — Casement 2000x1300, bars on every sash (L34268 item 4)',
   tree: casementItem({
+    surround: { surroundArchitrave: true, surroundWindowBoard: true },
     width: 2000, height: 1300,
     dividers: [
       divider('mull1', 'mullionPart', 624,  27, 'mullionStopSize'),
@@ -293,6 +298,7 @@ const LQ2_IRONMONGERY = [
 export const BENCHMARK_LQ2 = {
   name: 'Benchmark LQ2 — Utile casement, barred fanlight over fixed (L33022 item 10)',
   tree: casementItem({
+    surround: { surroundArchitrave: true, surroundLinings: true, surroundWindowBoard: true },
     width: 1000, height: 1200,
     frameMaterial: 'utile', sashMaterial: 'utile',
     cillDepth: 159,
@@ -334,6 +340,7 @@ const LQ4_IRONMONGERY = [
 export const BENCHMARK_LQ4 = {
   name: 'Benchmark LQ4 — Config 7 casement 1529x2600, one barred sash (L32520 item 16)',
   tree: casementItem({
+    surround: { surroundArchitrave: true, surroundWindowBoard: true },
     width: 1529, height: 2600,
     isCasementMpls: false,
     dividers: [
@@ -516,6 +523,7 @@ function boxSashItem({
   width, height, frameMaterial = 'softwood', sashMaterial = 'softwood',
   pairs, mullion = null, cills = 1, ironmongeryLines,
   floorLevel = 'second_floor', fitToPreparedOpening = false,
+  surround = {}, sdg = {},   // Step BN
 }) {
   const cillNodes = Array.from({ length: cills }, (_, i) => ({
     key: `cill${i + 1}`,
@@ -542,6 +550,7 @@ function boxSashItem({
           internalFinish: 'clean_white', externalFinish: 'clean_white',
           cillFinish: 'clean_white', cutOutBrickReveal: false,
           ironmongeryFinish: 'PB',
+          ...surround, ...sdg,
           ironmongeryLines: ironmongeryLines.map(l => ({ ...l })),
         },
         children: [],
@@ -598,6 +607,7 @@ const LQ5_IRONMONGERY = [
 export const BENCHMARK_LQ5 = {
   name: 'Benchmark LQ5 — Box sash 780x1769, frame-level arch, custom horn (L34265 item 3)',
   tree: boxSashItem({
+    sdg: { existingSurroundTypeId: 5, existingSurroundActionId: 1 },
     width: 780, height: 1769,
     pairs: [boxPair('pair1', { arch: { rise: 363, radius: 270, frameLevel: true } })],
     ironmongeryLines: LQ5_IRONMONGERY,
@@ -675,6 +685,7 @@ const LQ7_IRONMONGERY = [
 export const BENCHMARK_LQ7 = {
   name: 'Benchmark LQ7 — Utile box sash 1000x1400, barred top sash (L33022 item 1)',
   tree: boxSashItem({
+    surround: { surroundArchitrave: true, surroundLinings: true, surroundWindowBoard: true },
     width: 1000, height: 1400,
     frameMaterial: 'utile', sashMaterial: 'utile',
     floorLevel: 'ground_floor',
@@ -833,6 +844,12 @@ export const BENCHMARK_LQ3 = {
           cillFinish: 'clean_white', cutOutBrickReveal: false,
           ironmongeryFinish: 'PB',
           isDoorMpls: true,
+          // Step BN: Integrate has NO surround on this item
+          // (autoCalcSurroundComponents 0, no component list), so nothing is
+          // ticked -- not even the architrave, which GlazePro allocated
+          // regardless and which was LQ3's +17.96 of installation_materials.
+          surroundArchitrave: false, surroundLinings: false,
+          surroundWindowBoard: false, surroundExternalLining: false,
           ironmongeryLines: LQ3_IRONMONGERY.map(l => ({ ...l })),
         },
         children: [],
