@@ -38,3 +38,22 @@ Before you start, read docs/step-bm-correction.md: Integrate's panel 110 is FLAT
 ## Report
 docs/reports/step-bp.md: the board controls; DG1 / DG2 / DM1 group by group; what the reviewer should draw live.
 The reviewer will redraw L34242 items 7 and 8, L33022 item 7 and L34268 item 2 on the test leads and compare.
+
+## Reviewer notes, 16 Oct evening (what has landed since this was written)
+- Step BO HAS landed: stored ironmongery sets exist (paintAndIronmongeryPart.values.ironmongeryLines, picked
+  through the catalogue). So DG1 / DG2 / DM1 fixtures carry their Integrate sets from the facts, not a known gap.
+- Step BS HAS landed: special glass tick (glassPart.values.specialGlassDetails) and POA lines
+  (pricePart.values.poaLines). So add **FT5 = P1** (L34355 item 7, facts section 5 + G4 + M2) as a full benchmark
+  in item 4: side casements A2 / C2 glass over a 200 mid rail and panel, front-door leaf with a full-height 120
+  muntin, every glazed opening special glass, the 120-minute labour POA line, stored ironmongery.
+  Expect 5,061.10 / 10,122.24, glass 0, labour 31.50 h, production per the facts.
+- Step BQ has NOT landed: G2's short transom is still not drawable. Build DG2 with the transom as the board can do
+  today and declare the difference, as item 4 already says.
+- Item 0 (extra): the board shows a door panel's type and bead as a NUMBER box (that is how drawing 105's panel
+  5379 got blanked to null, and why sql/reviewer-drawing105-flat-panels.sql was needed). On EVERY panelPart — door
+  leaves included, not only the new casement ones — internalPanelTypeId / externalPanelTypeId must be a dropdown of
+  flat / raised_and_fielded / vtg / htg and the beads a dropdown of ovolo / bolection / bespoke (Integrate 110 /
+  112 / 114 / 116 and 120 / 126 / 320). An existing null must show as "— select —" and price as flat until set;
+  say in the report if you price null differently.
+- SQL: expect none unless a template needs a new part; any template change goes in sql/step-bp*.sql for the
+  reviewer (templates are drawing_templates.tree, id bigint).
