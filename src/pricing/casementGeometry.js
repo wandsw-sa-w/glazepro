@@ -756,14 +756,23 @@ export function casementFrameTimberVolumeDm3(tree) {
 export function casementCillVolumeDm3(tree) {
   const frame = findFirst(tree, 'assemblyFramePart')
   const cill  = findFirst(tree, 'cillPart')
+  // Step BL: the cill's LENGTH, which is the frame width PLUS its horns —
+  // the same figure computeVariables' `cill_length_in_mm` reports. This read
+  // the bare frame width, so a cill with horns was measured short: live
+  // drawing 111 (1060 wide, 60 mm horns each side) came out 9.09 dm³ against
+  // Integrate's 10.12, and its Hardwood Casement Cill line £12.33 against
+  // £13.73. Every casement benchmark to date has no horns, so none moves.
   const width = num(frame?.values?.width)
+  const horns = (num(frame?.values?.leftCillHorn) ?? 0) +
+                (num(frame?.values?.rightCillHorn) ?? 0)
+  const length = width != null ? width + horns : null
   const depth = num(cill?.values?.depth)
   const height = num(cill?.values?.height)
   const stop = num(frame?.values?.cillStopSize) ?? 0
-  if (!width || !depth || !height) return 0
+  if (!length || !depth || !height) return 0
   // 2 dp before the rule: 10.2826 → 10.28 → × 1.25 = 12.85 → × 1.085 = 13.94,
   // which is Integrate's figure (the unrounded volume gives 13.95)
-  return round2dp(width * depth * (height + stop) / 1e6)
+  return round2dp(length * depth * (height + stop) / 1e6)
 }
 
 /**

@@ -364,6 +364,22 @@ export function computeVariables(tree, derived = {}, pfVariables = {}, opts = {}
     const is_decoration_included           = item?.values?.decoration === true
     const is_installation_included         = true  // always true for GlazePro items
     const is_raked                         = frame?.values?.rakeFrame === true
+
+    // Step BL item 5: the MOBILE TOWER. Install rule "Scaffold Tower" (180
+    // minutes, `is_our_mobile_tower_required`) could never fire, because
+    // nothing had ever set the variable — it appeared in that one rule
+    // condition and nowhere else in the repository.
+    //
+    // Integrate fires it on external access "WSW Mobile Tower" (its id 2):
+    // the fitting units on L34242 items 2 and 4, L34268 item 9 and L32520
+    // item 9 all carry it. GlazePro's own option for that is
+    // `tower_by_wsw`, and ONLY that one — the brief is explicit that no
+    // other access option is mapped unless the snapshot shows Integrate
+    // does, and it does not: no rule mentions scaffold at all, so
+    // `scaffold_by_customer` and `scaffold_by_wsw` charge nothing here, as
+    // in Integrate.
+    const external_access = notesNode?.values?.externalAccessId ?? null
+    const is_our_mobile_tower_required = external_access === 'tower_by_wsw'
     // Step AD: the arch lives on the TOP SASH (archHead, archHeight = glass
     // rise, isFrameLevelArch, archedOuterJamb); a frame-level archHead is a
     // legacy drawing, read as a top-sash arch (collectVocabularyWarnings
@@ -873,6 +889,32 @@ export function computeVariables(tree, derived = {}, pfVariables = {}, opts = {}
       ? Math.round(frame_width / 10) * 10 / 1000
       : null
 
+    // Step BL item 4: the TALLEST FRAME, in metres.
+    //
+    // Three install rules read `tallest_external_frame_height` — "1500 /
+    // 2500 / 3000 Height Casement Frame Replacement" (60 / 300 / 360
+    // minutes), and three more for a bay — and the variable had never been
+    // computed, so it was undefined and every one of those comparisons was
+    // false. On live drawing 117 (1529 x 2600) Integrate charges the first
+    // two, 360 minutes, and GlazePro charged neither; the sibling "1500 Wide
+    // Casement Frame", which reads overall_frame_width, did fire.
+    //
+    // TALLEST, because the item may hold more than one frame (a coupled set
+    // or a bay): the rules are written on the worst one, not on each.
+    //
+    // ROUNDED to the nearest 10 mm, as Step BI established for
+    // `overall_frame_width` — the same kind of threshold on the same kind of
+    // figure from the same import. That is a CONSISTENCY choice, not a
+    // reading: no drawing read so far lands near a boundary (117 is 2,600),
+    // so nothing here depends on it, and docs/reports/step-bl.md says so.
+    const tallest_external_frame_height = (() => {
+      const heights = allFrames
+        .map(f => Number(f?.values?.height))
+        .filter(h => isFinite(h) && h > 0)
+      if (heights.length === 0) return null
+      return Math.round(Math.max(...heights) / 10) * 10 / 1000
+    })()
+
     const frame_area_m2 = (frame_width != null && frame_height != null)
       ? Math.round((frame_width * frame_height) / 1e6 * 100) / 100 : null
     // Integrate alias: frame_area = sum of frame m2 (used by DSO SqM Rate rule)
@@ -987,9 +1029,28 @@ export function computeVariables(tree, derived = {}, pfVariables = {}, opts = {}
     const accoya_sash_volume_m3   = is_sash_accoya   ? total_sash_volume_m3 : 0
     const redwood_sash_volume_m3  = is_sash_redwood  ? total_sash_volume_m3 : 0
 
-    // Integrate volume aliases
-    const frame_excl_cill_volume              = frame_excl_cill_volume_m3
-    const cill_volume                         = cill_volume_m3
+    // Integrate volume aliases — in dm³ (litres), as every Integrate timber
+    // rule works in.
+    //
+    // Step BL item 7: these were in m³, a thousand times too small for the
+    // rules that read them. "Hardwood Box Frame" (`frame_excl_cill_volume *
+    // 1.2` at £1.75) priced a 1000 x 1400 utile box frame at THREE PENCE
+    // against Integrate's £38.98 — live drawing 94. The £1.75 rate is per
+    // dm³: Integrate feeds the identically-rated "Hardwood Sashes" a qty of
+    // 7.27 for one sash, which is only a volume in litres.
+    //
+    // The casement family has always been in dm³ and is exact on four
+    // benchmarks, so dm³ is the verified convention; the box-sash aliases
+    // were simply never exercised, because the only two rules that read them
+    // are for UTILE and ACCOYA frames and no benchmark had either.
+    //
+    // "Accoya Pricing" — `(frame_excl_cill_volume + cill_volume) * 2.34` at
+    // £2.50 — reads both and has NO benchmark, so it is not verified either
+    // way. It moves from about 14p to about £136 on a 1000 x 1400 frame,
+    // which is the plausible figure for a premium timber and the pennies are
+    // plainly not; it is flagged in docs/reports/step-bl.md for a reading.
+    const frame_excl_cill_volume              = frame_excl_cill_volume_mm3 / 1e6
+    const cill_volume                         = cill_volume_mm3 / 1e6
     const accoya_volume                       = accoya_frame_volume_m3 + accoya_sash_volume_m3
     const solid_redwood_volume                = redwood_frame_volume_m3 + redwood_sash_volume_m3
 
@@ -1206,6 +1267,9 @@ export function computeVariables(tree, derived = {}, pfVariables = {}, opts = {}
       frame_width_in_mm, frame_height_in_mm, frame_depth_in_mm,
       frame_width_m, frame_height_m,
       overall_frame_width,
+      // Step BL item 4 / item 5
+      tallest_external_frame_height,
+      external_access, is_our_mobile_tower_required,
       frame_area_m2, frame_area, frame_perimeter_mm,
       cill_length_in_mm,
       cill_profiled_height_in_mm,

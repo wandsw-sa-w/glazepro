@@ -182,11 +182,44 @@ export function spacerDimensionMm(spacerDimId) {
  * the stored truth; a numeric spacerHeight only ever existed in hand-typed
  * fixtures and is kept as a last-resort fallback for unmigrated trees.
  */
-export function glassSpacerMm(glassValues = {}) {
+export function glassSpacerMm(glassValues = {}, profileSpacerValue = null) {
   const fromCode = spacerDimensionMm(glassValues.spacerDimId)
   if (typeof fromCode === 'number') return fromCode
   if (glassValues.spacerHeight != null) return Number(glassValues.spacerHeight) || 0
+  // Step BL item 1: the DRAWING'S PROFILE, when the glass part stores no
+  // spacer of its own. A sliding sash's glass carries `spacer_16` because
+  // buildNewBoxSash resolves every reference field from the profile; a
+  // CASEMENT or DOOR glass part is built from a fixed DEFAULT_GLASS that has
+  // never carried one, so its unit thickness came out 4 + 0 + 4 = 8 and the
+  // three glazing-bar glass rules — all gated on `glass_unit_thickness >= 24`
+  // — could not fire on any casement sash, fanlight or door leaf.
+  //
+  // The same fallback the rebate and the tolerance already use, and for the
+  // same reason: the profile is the single statement of what the glass is,
+  // and duplicating it onto every glass part would be a second source of
+  // truth. Profile values arrive as LABELS ('16mm'), not codes, so both
+  // forms are read.
+  const fromProfile = spacerMmFromAnyForm(profileSpacerValue)
+  if (typeof fromProfile === 'number') return fromProfile
   return 0
+}
+
+/**
+ * A spacer dimension in mm from any form it is stored or configured in: the
+ * option CODE ('spacer_16'), the profile LABEL ('16mm') or a bare number.
+ * Returns undefined for anything else, so an unrecognised value is never
+ * silently read as a size.
+ */
+export function spacerMmFromAnyForm(value) {
+  if (value == null || value === '') return undefined
+  if (typeof value === 'number') return isFinite(value) ? value : undefined
+  const s = String(value).trim()
+  const code = spacerDimensionMm(s)
+  if (typeof code === 'number') return code
+  const label = /^(\d+(?:\.\d+)?)\s*mm$/i.exec(s)
+  if (label) return Number(label[1])
+  if (/^\d+(?:\.\d+)?$/.test(s)) return Number(s)
+  return undefined
 }
 
 // glazing_spacer_colour codes: 'white_warm_edge' etc. The warm-edge flag

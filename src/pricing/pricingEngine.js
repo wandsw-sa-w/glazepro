@@ -128,7 +128,7 @@ export function ironmongeryLineLabel(ironLine) {
 }
 
 import {
-  glazingType, hornLengthMm, operationKind, glassSpacerMm,
+  glazingType, hornLengthMm, hornKind, operationKind, glassSpacerMm,
   isWarmEdgeSpacerColour, collectVocabularyWarnings, resolveTopSashArch,
   casementIsFixed, casementOpensOut, timberFamily, panelType, panelBead,
 } from './optionVocabulary.js'
@@ -340,6 +340,27 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
   const isSpiralHung = op => operationKind(op) === 'spiral'
   const isFixed      = op => operationKind(op) === 'fix'
 
+  /**
+   * Step BL item 2: the glazing bars on THIS sash or leaf's own glass.
+   *
+   * The same count the item-level `gb_to_be_replaced_qty` makes, restricted
+   * to one opening: a bar counts when the opening it belongs to is being
+   * replaced, and the actual bar parts are preferred over the legacy
+   * barsWide / barsHigh numbers, exactly as computeVariables does.
+   */
+  function ownBarCount(node, isCompleteNew) {
+    const included = isCompleteNew || node?.values?.toBeReplaced === true
+    if (!included) return 0
+    return (node?.children ?? [])
+      .filter(c => c.part_type === 'glassPart')
+      .reduce((sum, g) => {
+        const vBars = (g.children ?? []).filter(c => c.part_type === 'verticalGlazingBarPart').length
+        const hBars = (g.children ?? []).filter(c => c.part_type === 'horizontalGlazingBarPart').length
+        if (vBars > 0 || hBars > 0) return sum + vBars + hBars
+        return sum + (Number(g.values?.barsWide) || 0) + (Number(g.values?.barsHigh) || 0)
+      }, 0)
+  }
+
   if (pt === 'topSashPart' || pt === 'bottomSashPart') {
     const isTop          = pt === 'topSashPart'
     const op             = v.operation ?? ''
@@ -431,6 +452,39 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
       weight_incl_panel_in_kg: weightData.weight_incl_panel_in_kg,
       weight_incl_panel_in_lb: weightData.weight_incl_panel_in_lb,
       sash_thickness,
+      // Step BL item 3: THIS SASH'S OWN HORN.
+      //
+      // `has_custom_horn_horn` and `horn_length_in_mm` are item-level
+      // variables, computed from the pair as "either end has a custom horn"
+      // and "the longer of the two lengths". The two rules that read them —
+      // "Non-Std Horn 75mm" (30) and "Non-Std Horn Non-75mm" (90) — loop
+      // SLIDING SASH, so both sashes of a pair saw the item's answer and the
+      // charge was made twice where Integrate makes it once.
+      //
+      // Integrate charges the sash that HAS the horn: on L34265 items 1, 3
+      // and 4 the top sash is a custom 75 and the bottom is "no horn", and
+      // its labour editor shows the rule once per pair (and twice on the
+      // double box, which is two pairs). The loop already works out this
+      // sash's own horn for the gross height, so these just report it.
+      //
+      // The item-level pair is untouched: a rule written at item level still
+      // means "this window has a custom horn".
+      has_custom_horn_horn: hornKind(hornCode) === 'custom',
+      horn_length_in_mm: hornLength,
+      // Step BL item 7: THIS SASH'S TIMBER VOLUME, in dm³.
+      //
+      // "Hardwood Sashes" (`volume * 1.2` at £1.75, loop sliding_sash,
+      // condition is_solid_utile_hardwood_sash) never charged anything. The
+      // item-level `volume` is a FRAME volume with branches for accoya and
+      // redwood only — for a UTILE item it is 0 — so the rule fired on a
+      // quantity of nothing. Integrate charges each sash its own: 7.27 and
+      // 9.22 on the 1000 x 1400 of live drawing 94, which are two different
+      // figures and so cannot be an item-level anything.
+      //
+      // The volume is the one the weight is already built on (sashWeight.js:
+      // thickness x [2 stiles x drawn height + (rail + meeting rail) x
+      // sightline width]), in litres.
+      volume: (weightData._debug?.timber_vol_mm3 ?? 0) / 1e6,
       sibling_weight: 0,  // TODO: requires two-pass to set top ↔ bottom
     }
   }
@@ -553,6 +607,20 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
       sash_sightline_width_in_mm:  sightline.width  ?? 0,
       sash_sightline_height_in_mm: sightline.height ?? 0,
       solid_redwood_volume: sashTimber,
+      // Step BL item 2: THIS SASH'S OWN BARS.
+      //
+      // "Additional for Glazing Bars" (30 minutes, loop casement_sash) is
+      // written on `gb_to_be_replaced_qty`, which is an ITEM-level total —
+      // every bar in the drawing. So one barred sash made the rule fire on
+      // every sash in the item: live drawing 100 charged it twice for one
+      // barred fanlight, and drawing 117 six times for one barred sash,
+      // 150 minutes GlazePro charged and Integrate did not.
+      //
+      // Integrate counts the sash whose own glass has bars. In a per-sash
+      // loop the count has to be this sash's, which is what this is; the
+      // item-level variable is untouched for the item-level rules that
+      // legitimately read the drawing's total.
+      gb_to_be_replaced_qty: ownBarCount(partNode, is_complete_new),
       // Casement sash weight by Step W's measured method (timber volume ×
       // the family density + glass at its cut size): install rule 95 "Any
       // Sash Overweight (Casement)" fires above 25 kg, which benchmark P's
@@ -596,6 +664,11 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
       // here is what keeps "Hardwood Sashes" and the two inactive door
       // volume rules from charging a door twice.
       solid_redwood_volume: 0,
+      // Step BL item 2: THIS LEAF'S OWN BARS, as the casement loop above —
+      // "Additional for Glazing Bars (Door)" (30 minutes, loop door_leaf) is
+      // written on the item-level total, so one barred leaf charged every
+      // leaf of the doorset.
+      gb_to_be_replaced_qty: ownBarCount(partNode, is_complete_new),
       weight_in_kg: weight,
       weight_in_lb: weight * 2.20462,
       is_french_door_leaf: FRENCH_DOOR_LEAF_TYPES.includes(pt),
@@ -864,7 +937,20 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
     // glass_unit_thickness: inner + spacer + outer (mm).
     // Spacer thickness comes from the stored spacerDimId code ('spacer_16'
     // → 16); saved drawings never store a spacerHeight number.
-    const spacerMm             = glassSpacerMm(v)
+    // Step BL item 1: a casement sash's, fanlight's or door leaf's glass
+    // stores NO spacer, so its unit thickness came out 8 and the three
+    // glazing-bar glass rules (all `glass_unit_thickness >= 24`) could not
+    // fire on any of them — £9.21 to £29.20/m² missing on seven live
+    // drawings. The drawing's profile holds it (`spacerDimId` "16mm"), and
+    // the stored value still wins where there is one.
+    //
+    // A SINGLE glazed unit is left exactly as it was: it has one pane and no
+    // spacer, so there is nothing to fall back to, and giving it 16 would
+    // make a bi-glass casement's bars charge glass they do not have.
+    const storedSpacerMm = glassSpacerMm(v)
+    const spacerMm = (storedSpacerMm > 0 || gType === 'single')
+      ? storedSpacerMm
+      : glassSpacerMm(v, profileValues?.spacerDimId)
     const glass_unit_thickness = inner_pane_thickness + spacerMm + outer_pane_thickness
 
     // Spacer type flags — the warm-edge flag reads the COLOUR code
