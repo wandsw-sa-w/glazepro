@@ -5,3 +5,4 @@
 - Write a failing test before each fix.
 - Reviewers' briefs live in docs/step-*-brief.md; follow docs/handover-pricing.md for the report format.
 - Never commit .env.e2e or customer details. Leave public/version.json uncommitted.
+Use the Supabase tools only to read the schema and data (list_tables, select queries). Never run inserts, updates, deletes, DDL or migrations — write them as sql/step-*.sql files for the reviewer.

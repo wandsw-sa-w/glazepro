@@ -38,6 +38,9 @@
 -- correct — it is what somebody drew.
 --
 -- RUN SECTION 0 FIRST.
+--
+-- REVIEWER EDIT 16 Oct: every COUNT over $.** now uses 'strict' (lax mode returns each match twice, so the
+-- 2-panel guard read 4 and would have aborted). Existence checks are unaffected.
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- SECTION 0 — read before changing
@@ -51,7 +54,7 @@ SELECT name, group_name, sort_order,
        (SELECT jsonb_agg(DISTINCT v) FROM jsonb_path_query(tree, '$.**.values.internalPanelTypeId') v) AS internal_panel,
        (SELECT jsonb_agg(DISTINCT v) FROM jsonb_path_query(tree, '$.**.values.externalPanelTypeId') v) AS external_panel,
        (SELECT jsonb_agg(DISTINCT v) FROM jsonb_path_query(tree, '$.**.values.internalPanelBeadId') v)  AS internal_bead,
-       (SELECT count(*) FROM jsonb_path_query(tree, '$.**.part_type ? (@ == "panelPart")'))             AS panels
+       (SELECT count(*) FROM jsonb_path_query(tree, 'strict $.**.part_type ? (@ == "panelPart")'))             AS panels
 FROM   public.drawing_templates
 WHERE  name = 'French Doors With Panels';
 
@@ -139,7 +142,7 @@ BEGIN
   -- template has been re-issued with a different layout, stop: this file was
   -- written against two panels and the reviewer should re-read it first.
   SELECT count(*) INTO _panels
-  FROM   jsonb_path_query(_tree, '$.**.part_type ? (@ == "panelPart")');
+  FROM   jsonb_path_query(_tree, 'strict $.**.part_type ? (@ == "panelPart")');
   IF _panels <> 2 THEN
     RAISE EXCEPTION 'Expected 2 panelParts in "French Doors With Panels", found % — do not run this file', _panels;
   END IF;
@@ -154,7 +157,7 @@ BEGIN
 
   -- And both faces of both panels must now be flat: 4 faces.
   SELECT count(*) INTO _rf
-  FROM   jsonb_path_query(_tree, '$.**.values ? (@.internalPanelTypeId == "flat")');
+  FROM   jsonb_path_query(_tree, 'strict $.**.values ? (@.internalPanelTypeId == "flat")');
   IF _rf <> 2 THEN
     RAISE EXCEPTION 'Expected 2 flat internal faces after the rewrite, found %', _rf;
   END IF;
@@ -182,7 +185,7 @@ SELECT name, group_name, sort_order,
        (SELECT jsonb_agg(DISTINCT v) FROM jsonb_path_query(tree, '$.**.values.internalPanelTypeId') v) AS internal_panel,
        (SELECT jsonb_agg(DISTINCT v) FROM jsonb_path_query(tree, '$.**.values.externalPanelTypeId') v) AS external_panel,
        (SELECT jsonb_agg(DISTINCT v) FROM jsonb_path_query(tree, '$.**.values.internalPanelBeadId') v)  AS internal_bead,
-       (SELECT count(*) FROM jsonb_path_query(tree, '$.**.part_type ? (@ == "panelPart")'))             AS panels
+       (SELECT count(*) FROM jsonb_path_query(tree, 'strict $.**.part_type ? (@ == "panelPart")'))             AS panels
 FROM   public.drawing_templates
 WHERE  name = 'French Doors With Panels';
 
