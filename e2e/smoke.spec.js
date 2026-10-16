@@ -68,24 +68,28 @@ const DELIBERATE = {
   //        shaped glass, over £1 and so NOT parked) = 29.26
   // Step BF, 14 Oct: Integrate’s panel type 110 is FLAT, not raised and
   // fielded (read in its own dialog), so its flat-panel 60 was right and
-  // GlazePro’s R&F 120 was the error. Each FT row loses 24.66 a panel, and
-  // what is left of Nathan’s decision d makes GlazePro CHEAPER: Integrate
-  // counts a leaf’s MID RAIL as a muntin (60 min) and GlazePro does not.
+  // GlazePro’s R&F 120 was the error. Each FT row loses 24.66 a panel.
   //
-  //   FT1  +30.94 the leaf’s muntin − 24.66 (one mid rail)  =   6.28
-  //   FT2  +13.67 the frame transom − 24.66                 = -10.99
-  //   FT3  +13.45 mid rail +23.28 shaped glass − 24.66      =  12.07
-  //   FT4  +70.92 timber − 49.32 (TWO mid rails)            =  21.60
-  //   FD4  − 49.32: its two panels are FLAT, and it matched Integrate
-  //        exactly while GlazePro charged R&F — so either its panels are
-  //        really type 112 or Integrate charged flat too. PENDING a reading
-  //        of its panel ids; nothing is tuned to keep the old match.
+  // Step BM follow-up, 16 Oct: and a leaf’s MID RAIL counts as a muntin, so
+  // "Door Muntin" 60 fires for it. Six readings of Integrate’s labour editor
+  // say so (L33022 Q5 items 7 and 12, L34242 Q2 item 8, L34268 item 2,
+  // L34355 Q4 item 7). That reverses the surviving half of decision d, and
+  // every one of these rows becomes Integrate’s production EXACTLY — so what
+  // each still declares is the door TIMBER alone, which Integrate allocates
+  // nothing for, plus FT3’s shaped glass under decision e.
+  //
+  //   FT1  +30.94 the leaf’s muntin                         =  30.94
+  //   FT2  +13.67 the frame transom                         =  13.67
+  //   FT3  +13.45 mid rail +23.28 shaped glass              =  36.73
+  //   FT4  +70.92 timber (mullion, muntin and mid rail)     =  70.92
+  //   FD4  nothing at all — it is EXACT. The -49.32 it used to declare WAS
+  //        its two leaves’ mid rails, and they now count. So FD4 is not in
+  //        this table any more, and the page should read PASS on it.
   //   C    +7.37 shaped glass (no panels on a sash window)  =   7.37
-  FT1:  { cost: '6.28', price: '12.54' },
-  FT2:  { cost: '-10.99', price: '-21.98' },
-  FT3:  { cost: '12.07', price: '24.10' },
-  FT4:  { cost: '21.60', price: '43.18' },
-  FD4:  { cost: '-49.32', price: '-98.64' },
+  FT1:  { cost: '30.94', price: '61.86' },
+  FT2:  { cost: '13.67', price: '27.34' },
+  FT3:  { cost: '36.73', price: '73.42' },
+  FT4:  { cost: '70.92', price: '141.82' },
   C:    { cost: '7.37', price: '14.73' },
   // Step BF part B: the STABLE DOORS. One difference each, and the same
   // one: the two halves' timber, which Integrate allocates nothing for

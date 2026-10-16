@@ -294,4 +294,54 @@ references, six cells, four panels refused — which is unchanged.
 
 # e2e after the deploy
 
-Recorded after the deploy below.
+Deploy confirmed by decoding `/version.json`: **`mvb6dtvq` = 16:21:53Z**, after
+the last commit at `17:51:09+01:00` = 16:51:09Z — the Vercel build for this
+push. `public/version.json` is left uncommitted, as CLAUDE.md says.
+
+`npm run e2e`: **7 passed** (24.9s).
+
+```
+ok 1 logs in
+ok 2 every benchmark passes except the parked residuals
+ok 3 the fanlight drawing shows Fanlight A1 and Casement Sash A2
+ok 4 a casement drawing offers Bi-Glass in Type of Work
+ok 5 selecting Finish & Ironmongery keeps unsaved edits unsaved
+ok 6 the validation panel loads without an error
+ok 7 every drawing card on the L507712 quote matrix shows a price
+```
+
+## It took two goes, and the first failure was the real check working
+
+The first run failed test 2 — the live benchmark page — with exactly the five
+rows this step moved:
+
+```
+FD4 should read BY DESIGN on the page, reads PASS
+FD4 now PASSES but GlazePro should be £-49.32 dearer on purpose
+FT1 is deliberately dearer by cost £6.28, now cost £30.94
+FT2 is deliberately dearer by cost £-10.99, now cost £13.67
+FT3 is deliberately dearer by cost £12.07, now cost £36.73
+FT4 is deliberately dearer by cost £21.60, now cost £70.92
+```
+
+**The live engine was right and the spec's own table was stale.** That table in
+`e2e/smoke.spec.js` holds each benchmark's declared difference, so the live page
+is checked against what the step intends rather than against itself. Updating
+it is the mirror of item 2: FT1 30.94, FT2 13.67, FT3 36.73, FT4 70.92, and
+**FD4 removed from the table altogether**, because it is exact now and the page
+should read PASS on it. That is the assertion that confirms it: the row is
+checked for `PASS` precisely because it is no longer declared.
+
+The deployed figures matching item 2's offline figures to the penny is the
+useful part — it says the change reached the live engine and not only the
+fixtures.
+
+## Why LQ1, LQ3 and LQ4 pass here but fail offline
+
+Worth saying, because it looks inconsistent. The live page reads the
+`integrate-targets.json` in the **deploy**, and that file is still the version
+with the surround and shutters `known_gaps` in it — the reviewer's edit
+removing them is uncommitted here on purpose, because it is **Step BN's item
+0**. So live still declares those gaps and the rows pass; offline the three
+tests read the edited file and fail. Step BN closes that, and the next deploy
+carries the edited targets.
