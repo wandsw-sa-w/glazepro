@@ -384,13 +384,17 @@ test.describe('GlazePro live smoke (read only)', () => {
     await location.blur()
     await expect(marker).toBeVisible({ timeout: 15_000 })
 
-    // Now select Finish & Ironmongery, which is what cleared it
+    // Now select Finish & Ironmongery, which is what cleared it. The row's
+    // click handler is on the div, not the label span, so click the row.
+    const selected = page.locator('[data-testid="selected-part-type"]')
+    await expect(selected).toHaveAttribute('data-part-type', 'drawingItemPart')
     await tree.locator('[data-testid="part-label"]', { hasText: 'Finish & Ironmongery' })
-      .first().click({ force: true })
+      .first().locator('xpath=..').click()
 
-    // the panel opens and applies its defaults — and the edit is STILL unsaved
-    await expect(page.locator('[title="paintAndIronmongeryPart.ironmongeryFinish"]'))
-      .toBeVisible({ timeout: 30_000 })
+    // The panel is open and has applied its defaults — which is what used to
+    // adopt the unsaved edit as the saved baseline. The edit is STILL unsaved.
+    await expect(selected, 'the F&I panel must actually be open')
+      .toHaveAttribute('data-part-type', 'paintAndIronmongeryPart', { timeout: 30_000 })
     await expect(marker, 'the Unsaved marker must survive selecting a part')
       .toBeVisible()
 

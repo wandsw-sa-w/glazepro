@@ -3110,6 +3110,11 @@ function DrawingBoard() {
 
       <div style={{ flex: 1 }} />
 
+      {/* Which part the editor is showing. Carries no UI of its own — it is
+          there so the e2e suite can wait for a selection to actually land
+          before asserting anything about the Unsaved marker beside it. */}
+      <span data-testid="selected-part-type" data-part-type={selType ?? ''} hidden />
+
       {/* Status */}
       {dirty && saveStatus !== 'saving' && (
         <span data-testid="unsaved-marker" style={{ fontSize: 11, color: '#92400e', background: '#fffbeb', border: '1px solid #fcd34d', padding: '2px 9px', borderRadius: 999, flexShrink: 0 }}>
