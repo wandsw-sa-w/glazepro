@@ -11,7 +11,7 @@
 # Integrate material ids: 38 Solid Redwood, 44 Solid Utile Hardwood, 1 Accoya.
 # Integrate external access ids: 1 Item Easily Accessible, 2 WSW Mobile Tower, 3 Scaffold by Customer,
 # 5 Scaffold by WSW. GlazePro: easily_accessible, tower_by_wsw, ..., scaffold_by_customer, scaffold_by_wsw.
-# installationMethodId 1 = Externally. Panel type 110 = raised & fielded, bead 120 = ovolo.
+# installationMethodId 1 = Externally. Panel type 110 = FLAT (112 raised & fielded, 114 VTG, 116 HTG), bead 120 = ovolo (126 bolection). CORRECTED 16 Oct 17:40: an earlier version of this file wrongly said 110 = raised & fielded.
 # operationId: 11 fixed, 12 cord hung, 15 top hung, 17 left hung, 18 right hung.
 # "[std glass 14/16]" = glazingTolerance 2, rebate 14/16, double glazing, 16 mm warm-edge spacer (dim 116),
 # argon, spacer colour 19, glass fix 75, bead fix 81, measurement type 202.
@@ -74,8 +74,13 @@ LQ9  L34265 item 4   box sash 1090x1829, top sash 1V bar, custom 75 mm top horn 
      inst 119.82 (steel 17.4 vs 17.3 top).
 
 Other live readings (no benchmark yet):
-- Door panels: every Integrate door panel read is type 110 (raised & fielded) with bead 120 (ovolo):
-  L33022 items 8 and 12, L34268 item 2. The board's "Add mid rail and panel" makes a flat panel.
+- Door panels: every Integrate door panel read is type 110 (FLAT) with bead 120 (ovolo):
+  L33022 items 8 and 12, L34268 item 2. The board's "Add mid rail and panel" makes a flat panel (right).
+- Integrate labour editor, L33022 Q5 item 12 (LQ3), read 16 Oct 17:00: Door Leaf 2 x 1035, Additional for Glazing
+  Bars (door) 2 x 30, DOOR MUNTIN 2 x 60, ADDITIONAL FOR FLAT PANEL 2 x 60, Door Frame 855, Glazing 2 x 20, Glazing with
+  Bar 2x12 + 2x12, Door Frame Single Finish 180, Door Leaf Single Finish 2 x 90 = 3,673 min = 61.22 h. So the two mid
+  rails DO count, and the panels are flat: flat 60 + muntin 60 = the 120 an R&F panel would give, which is why a
+  raised-and-fielded fixture with uncounted mid rails also landed on 61.22.
 - Tower: L34242 items 2 and 4 and L34268 item 9 (external access 2) also fire Scaffold Tower 180 in Integrate.
 - Surround: Integrate keeps it on PaintAndIronmongeryPart as autoCalcSurroundComponents
   (architrave_and_bullnose, architrave_and_w_board, architrave_lining_and_w_board, architrave_bullnose_and_packer,
