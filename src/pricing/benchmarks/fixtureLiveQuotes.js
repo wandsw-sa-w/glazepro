@@ -791,9 +791,16 @@ function lq3Leaf(side, operation, isMaster) {
         key: `${key}_panel`,
         part_type: 'panelPart',
         values: {
-          // Integrate panel type 110 = raised and fielded, bead 120 = ovolo
-          internalPanelTypeId: 'raised_and_fielded',
-          externalPanelTypeId: 'raised_and_fielded',
+          // Integrate panel type 110 = FLAT (112 is raised and fielded), bead
+          // 120 = ovolo. CORRECTED in the Step BM follow-up: this read
+          // 'raised_and_fielded' because the facts file called 110 that, and
+          // R&F 2 x 120 happens to equal flat 2 x 60 plus Door Muntin 2 x 60,
+          // so the wrong panel with an uncounted mid rail still landed on
+          // Integrate's 61.22 h. Integrate's labour editor on this very item
+          // (L33022 Q5 item 12, read 16 Oct 17:00) fires "Additional for Flat
+          // Panel" 2 x 60 and "Door Muntin" 2 x 60.
+          internalPanelTypeId: 'flat',
+          externalPanelTypeId: 'flat',
           internalPanelBeadId: 'ovolo',
           externalPanelBeadId: 'ovolo',
           insulationThickness: 15,
