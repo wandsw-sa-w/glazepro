@@ -298,7 +298,7 @@ export function canHoldGrid(node) {
 }
 
 /** The outer size of whatever holds a grid. */
-function gridHolderSize(tree, node) {
+export function gridHolderSize(tree, node) {
   if (node?.part_type === 'casementSashPart') return casementSashSize(tree, node)
   return doorLeafSize(tree, node)
 }
@@ -329,13 +329,59 @@ function spans(total, dividers) {
 export function leafCells(tree, leafNode) {
   const interior = leafInterior(tree, leafNode)
   if (interior.width == null || interior.height == null) return []
-  const cols = spans(interior.width,  leafMuntins(leafNode))
-  const rows = spans(interior.height, leafMidRails(leafNode))
+  const rails   = leafMidRails(leafNode)
+  const muntins = leafMuntins(leafNode)
+  const rows = spans(interior.height, rails)
   const cells = []
-  rows.forEach((r, row) => cols.forEach((c, col) => {
-    cells.push({ x: c.start, y: r.start, width: c.size, height: r.size, col, row })
-  }))
+  // Step BP item 3: a muntin may be CONFINED to the rows below or above a
+  // mid rail (M1: a 120 muntin below the transom only — one glass over two
+  // panels), so each row takes its own columns from the muntins that span
+  // it. A full-height muntin spans every row, which is the grid it always
+  // made.
+  rows.forEach((r, row) => {
+    const cols = spans(interior.width, muntins.filter(m => muntinRows(m, rails).includes(row)))
+    cols.forEach((c, col) => {
+      cells.push({ x: c.start, y: r.start, width: c.size, height: r.size, col, row })
+    })
+  })
   return cells
+}
+
+/**
+ * The rows (0 = top) a muntin runs through, from Integrate's own keys on
+ * the MullionPart: `startDivider` names the mid rail it starts at (so it
+ * runs BELOW that rail) and `endDivider` the one it ends at (ABOVE it);
+ * '0' on either is the leaf's own edge. Integrate stores M1's muntin with
+ * startDivider = the leaf's transom, which is exactly "below the mid rail".
+ */
+export function muntinRows(muntin, rails) {
+  const keys = (rails ?? []).map(r => String(r.key))
+  const n = keys.length + 1
+  const start = String(muntin?.values?.startDivider ?? '0')
+  const end   = String(muntin?.values?.endDivider ?? '0')
+  const first = keys.indexOf(start) >= 0 ? keys.indexOf(start) + 1 : 0
+  const last  = keys.indexOf(end)   >= 0 ? keys.indexOf(end)       : n - 1
+  const out = []
+  for (let r = first; r <= last; r++) out.push(r)
+  return out
+}
+
+/**
+ * How long a leaf muntin is cut: from the top of the first row it spans to
+ * the bottom of the last, through any mid rail between (FT1's full-height
+ * muntin is the whole 1788 interior; M1's, below the rail, is the bottom
+ * row alone).
+ */
+export function leafMuntinLengthMm(tree, leafNode, muntin) {
+  const interior = leafInterior(tree, leafNode)
+  if (interior.height == null) return 0
+  const rails = leafMidRails(leafNode)
+  const rows = spans(interior.height, rails)
+  const spanned = muntinRows(muntin, rails)
+  if (spanned.length === 0) return 0
+  const first = rows[spanned[0]]
+  const last  = rows[spanned[spanned.length - 1]]
+  return last.start + last.size - first.start
 }
 
 /** The parts that sit IN a leaf’s cells, in cell order. */
@@ -749,9 +795,10 @@ export function allocatedSectionParts(tree, { material = 'utile' } = {}) {
     }
     // A leaf MUNTIN, the same way: a 120 section running the leaf’s
     // interior height between the rails (FT1 1788). Integrate allocates
-    // nothing for it either. PROVISIONAL.
-    for (const _m of leafMuntins(leaf)) {
-      add(codes.leaf, interior.height ?? 0, 'Leaf muntin (provisional section)')
+    // nothing for it either. PROVISIONAL. Step BP: a muntin CONFINED to one
+    // row (M1) is cut to that row.
+    for (const m of leafMuntins(leaf)) {
+      add(codes.leaf, leafMuntinLengthMm(tree, leaf, m), 'Leaf muntin (provisional section)')
     }
   }
 

@@ -51,11 +51,19 @@ import {
 } from '../drawingBoard/openingDirection.js'
 import {
   setLeafMidRail, leafMidRailOf, leafMidRailOffsetFor, DEFAULT_LEAF_PANEL_HEIGHT_MM,
+  DEFAULT_LEAF_MID_RAIL_MM,
   changeOpeningToSingleDoor, addFlagFrame, removeFrame, isDoorTree,
   setLeafGrid, setLeafCellKind, recentreGridsAfterResize,
   newDoorsetOpeningFor,
+  // Step BP item 3: a muntin in a leaf, full height or confined to one row
+  setLeafMuntin, LEAF_MUNTIN_SPANS,
 } from '../drawingBoard/doorOpenings.js'
-import { DOOR_LEAF_TYPES, doorLeafSize, doorPanelSize, leafCells, leafHolding } from '../pricing/doorGeometry.js'
+import {
+  DOOR_LEAF_TYPES, doorPanelSize, leafCells, leafHolding,
+  // Step BP items 1-3: a CASEMENT SASH holds a grid as a leaf does
+  canHoldGrid, gridHolderSize, leafMuntins, leafMidRails,
+} from '../pricing/doorGeometry.js'
+import { PANEL_TYPE_OPTIONS, PANEL_BEAD_OPTIONS, panelOptionCode } from '../pricing/optionVocabulary.js'
 import { computeSashWeight } from '../pricing/sashWeight.js'
 import { loadDrawingRunPrices } from '../quotes/drawingRunPrice.js'
 import { SashElevation } from '../drawingBoard/renderElevation.jsx'
@@ -112,6 +120,14 @@ const COMPONENT_FILTER = {
   'drawingItemPart.frameMaterialId': 'frame',
   'drawingItemPart.sashMaterialId':  'sash',
   'drawingItemPart.cillMaterialId':  'cill',
+}
+
+// Step BP item 0 (extra): the panel fields that are lists, not numbers.
+const PANEL_OPTION_FIELDS = {
+  'panelPart.internalPanelTypeId': 'type',
+  'panelPart.externalPanelTypeId': 'type',
+  'panelPart.internalPanelBeadId': 'bead',
+  'panelPart.externalPanelBeadId': 'bead',
 }
 
 // Shared input style (matches Ironmongery/QuoteDrawer)
@@ -253,7 +269,7 @@ function PartSelect({ value, onChange, partCategory, inputBorder }) {
   )
 }
 
-function PropertyField({ field, value, derivedValue, onChange, refOptions, required, partType, hiddenTagText, locked = null, enterable = null, tree = null }) {
+export function PropertyField({ field, value, derivedValue, onChange, refOptions, required, partType, hiddenTagText, locked = null, enterable = null, tree = null }) {
   const isRequired = required && (value === null || value === undefined || value === '')
   const inputBorder = isRequired ? '1px solid #e57373' : '1px solid #d8d5cf'
 
@@ -297,6 +313,41 @@ function PropertyField({ field, value, derivedValue, onChange, refOptions, requi
         <div style={{ fontSize: 12, padding: '6px 8px', background: '#f7f6f2', borderRadius: 6, color: '#888', border: '1px solid #e8e6e0' }}>
           {derivedValue !== null && derivedValue !== undefined ? String(derivedValue) : '—'}
         </div>
+      </div>
+    )
+  }
+
+  // Step BP item 0 (extra): a panel's TYPE and BEAD are lists, not numbers.
+  // The definition says number (that is how drawing 105's panel 5379 was
+  // blanked to null and sql/reviewer-drawing105-flat-panels.sql was needed),
+  // so the board decides here, for every panelPart — door leaves included.
+  // A stored Integrate id (110) and a code ('flat') select the same entry;
+  // null shows "— select —" and prices as flat / ovolo until it is set.
+  const panelOption = PANEL_OPTION_FIELDS[field.field_key]
+  if (panelOption) {
+    const options  = panelOption === 'bead' ? PANEL_BEAD_OPTIONS : PANEL_TYPE_OPTIONS
+    const selected = panelOptionCode(panelOption, value)
+    return (
+      <div style={{ marginBottom: 10 }}>
+        <label title={field.field_key} style={{ fontSize: 11, fontWeight: 500, color: '#666', display: 'block', marginBottom: 3 }}>
+          {field.label}
+          <InfoNoteIcon note={field.info_note} />
+          <HiddenBadge text={hiddenTagText} />
+        </label>
+        <select
+          data-testid={`panel-${panelOption}`}
+          value={selected ?? ''}
+          onChange={e => onChange(e.target.value || null)}
+          style={{ ...SI, border: selected ? inputBorder : '1px solid #e5a373' }}
+        >
+          <option value="">— select —</option>
+          {options.map(o => <option key={o.code} value={o.code}>{o.label} ({o.integrate})</option>)}
+        </select>
+        {selected == null && (
+          <div style={{ fontSize: 11, color: '#92400e', marginTop: 3 }}>
+            Not set — priced as {panelOption === 'bead' ? 'ovolo' : 'flat'} until it is.
+          </div>
+        )}
       </div>
     )
   }
@@ -1116,7 +1167,7 @@ export function IronmongeryPicker({ products, itemFinish, onAdd, onClose }) {
 
 // ── PropertyEditor ────────────────────────────────────────────────────────────
 
-function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, onAutoApplyDefaults, onChangeIronmongerySet, onPrev, onNext, prevDisabled, nextDisabled, prevLabel, nextLabel, visibilityMap, boardMode, showHidden, tree, ironmongeryRules, ironmongeryProducts, onShowPriceBreakdown, profileValueMap, onSetCompleteNewThickness, onSetSashesReplaced, onSetBiGlassCasement, onChangeInternalSize, onMakeDividersEqual, onSetFrenchMasterLeaf, onSetLeafMidRail, onSetLeafGrid, onSetLeafCellKind, profileCode = null }) {
+function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, onAutoApplyDefaults, onChangeIronmongerySet, onPrev, onNext, prevDisabled, nextDisabled, prevLabel, nextLabel, visibilityMap, boardMode, showHidden, tree, ironmongeryRules, ironmongeryProducts, onShowPriceBreakdown, profileValueMap, onSetCompleteNewThickness, onSetSashesReplaced, onSetBiGlassCasement, onChangeInternalSize, onMakeDividersEqual, onSetFrenchMasterLeaf, onSetLeafMidRail, onSetLeafGrid, onSetLeafCellKind, onSetLeafMuntin, profileCode = null }) {
   if (!node) {
     return (
       <div style={{ padding: 16, color: '#aaa', fontSize: 12, textAlign: 'center', paddingTop: 48 }}>
@@ -1221,11 +1272,35 @@ function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, o
   // Step BA: the mid rail of a door LEAF, and the panel under it. The
   // panel height is what the control edits — a surveyor thinks in the
   // panel, not in the glass above it, which is what Integrate stores.
+  // Step BP item 1: on a CASEMENT SASH too (G1's side casements, G4's with a
+  // 200 rail), and the rail's own thickness alongside the panel height.
   const leafMidRail = (() => {
-    if (!onSetLeafMidRail || !tree || !DOOR_LEAF_TYPES.includes(node.part_type)) return null
+    if (!onSetLeafMidRail || !tree || !canHoldGrid(node)) return null
     const rail = leafMidRailOf(node)
-    if (!rail) return { has: false, panelHeight: null }
-    return { has: true, panelHeight: doorPanelSize(tree, node).height }
+    if (!rail) return { has: false, panelHeight: null, thickness: DEFAULT_LEAF_MID_RAIL_MM }
+    return {
+      has: true,
+      panelHeight: doorPanelSize(tree, node).height,
+      thickness: Number(rail.values?.thicknessInFrame) || DEFAULT_LEAF_MID_RAIL_MM,
+    }
+  })()
+
+  // Step BP item 3: the leaf's MUNTIN — full height (M2) or confined to the
+  // row below or above the mid rail (M1). One muntin, one or no mid rail;
+  // a fuller grid is the Panel layout control's.
+  const leafMuntin = (() => {
+    if (!onSetLeafMuntin || !tree || !canHoldGrid(node)) return null
+    const rails = leafMidRails(node)
+    const muntins = leafMuntins(node)
+    if (rails.length > 1 || muntins.length > 1) return null
+    const m = muntins[0] ?? null
+    const starts = m && String(m.values?.startDivider ?? '0') !== '0'
+    const ends   = m && String(m.values?.endDivider   ?? '0') !== '0'
+    return {
+      span: !m ? 'none' : starts ? 'below' : ends ? 'above' : 'full',
+      thickness: Number(m?.values?.thicknessInFrame) || 120,
+      hasRail: rails.length === 1,
+    }
   })()
 
   // Step BD item 2: the LEAF GRID. A front door leaf is divided like a
@@ -1234,7 +1309,7 @@ function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, o
   // mid-rail control above is the one-rail case Step BA built for a French
   // door and is left alone; this is the whole grid.
   const leafGrid = (() => {
-    if (!onSetLeafGrid || !tree || !DOOR_LEAF_TYPES.includes(node.part_type)) return null
+    if (!onSetLeafGrid || !tree || !canHoldGrid(node)) return null
     const cells = leafCells(tree, node)
     if (cells.length === 0) return null
     const columns = cells.filter(c => c.row === 0).length
@@ -1328,23 +1403,68 @@ function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, o
                 <label style={{ fontSize: 11, color: '#555' }}>Panel
                   <input
                     type="number"
+                    data-testid="mid-rail-panel-height"
                     defaultValue={leafMidRail.panelHeight ?? ''}
-                    onBlur={e => onSetLeafMidRail(node.key, Number(e.target.value) || null)}
-                    style={{ width: 64, marginLeft: 6, fontSize: 11, padding: '3px 4px', border: '1px solid #d8d5cf', borderRadius: 4 }}
+                    onBlur={e => onSetLeafMidRail(node.key, Number(e.target.value) || null, leafMidRail.thickness)}
+                    style={{ width: 56, marginLeft: 6, fontSize: 11, padding: '3px 4px', border: '1px solid #d8d5cf', borderRadius: 4 }}
+                  />
+                </label>
+                {/* Step BP item 1: the rail's own thickness — 170 on G1 / G3, 200 on G4 */}
+                <label style={{ fontSize: 11, color: '#555' }} title="The mid rail's thickness">Rail
+                  <input
+                    type="number"
+                    data-testid="mid-rail-thickness"
+                    defaultValue={leafMidRail.thickness}
+                    onBlur={e => onSetLeafMidRail(node.key, leafMidRail.panelHeight, Number(e.target.value) || DEFAULT_LEAF_MID_RAIL_MM)}
+                    style={{ width: 48, marginLeft: 6, fontSize: 11, padding: '3px 4px', border: '1px solid #d8d5cf', borderRadius: 4 }}
                   />
                 </label>
                 <button
                   onClick={() => onSetLeafMidRail(node.key, null)}
-                  title="Take the mid rail and its panel away — the glass runs the whole leaf"
+                  title="Take the mid rail and its panel away — the glass runs the whole opening"
                   style={{ flex: 1, fontSize: 11, padding: '5px 0', borderRadius: 6, fontFamily: 'inherit', cursor: 'pointer', border: '1px solid #d8d5cf', background: '#fff', color: '#555' }}
                 >Remove</button>
               </div>
             ) : (
               <button
-                onClick={() => onSetLeafMidRail(node.key, DEFAULT_LEAF_PANEL_HEIGHT_MM)}
-                title="Split the leaf: glass above, a raised-and-fielded panel below"
+                onClick={() => onSetLeafMidRail(node.key, DEFAULT_LEAF_PANEL_HEIGHT_MM, leafMidRail.thickness)}
+                data-testid="add-mid-rail"
+                title="Split it: glass above, a flat panel below"
                 style={{ width: '100%', fontSize: 11, padding: '5px 0', borderRadius: 6, fontFamily: 'inherit', cursor: 'pointer', border: '1px solid #d8d5cf', background: '#fff', color: '#555' }}
               >Add mid rail and panel</button>
+            )}
+          </div>
+        )}
+        {/* Step BP item 3: a muntin, full height or confined to one row */}
+        {leafMuntin && (
+          <div style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #e8e6e0' }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#555', marginBottom: 6 }}>Muntin</div>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <select
+                data-testid="leaf-muntin-span"
+                value={leafMuntin.span}
+                onChange={e => onSetLeafMuntin(node.key, e.target.value, leafMuntin.thickness)}
+                style={{ ...SI, flex: 1 }}
+              >
+                {LEAF_MUNTIN_SPANS.map(s => (
+                  <option key={s} value={s} disabled={!leafMuntin.hasRail && (s === 'below' || s === 'above')}>
+                    {{ none: 'None', full: 'Full height', below: 'Below the mid rail', above: 'Above the mid rail' }[s]}
+                  </option>
+                ))}
+              </select>
+              <label style={{ fontSize: 11, color: '#555' }} title="The muntin's thickness">Thick
+                <input
+                  type="number"
+                  data-testid="leaf-muntin-thickness"
+                  defaultValue={leafMuntin.thickness}
+                  disabled={leafMuntin.span === 'none'}
+                  onBlur={e => onSetLeafMuntin(node.key, leafMuntin.span, Number(e.target.value) || 120)}
+                  style={{ width: 48, marginLeft: 6, fontSize: 11, padding: '3px 4px', border: '1px solid #d8d5cf', borderRadius: 4 }}
+                />
+              </label>
+            </div>
+            {!leafMuntin.hasRail && (
+              <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>Add a mid rail to confine it to one row.</div>
             )}
           </div>
         )}
@@ -3239,17 +3359,27 @@ function DrawingBoard() {
   // rail, or take both away (offset null). The rail’s position is
   // computed from the PANEL height, which is what a surveyor is thinking in:
   // Integrate stores the glass above instead.
-  function handleSetLeafMidRail(leafKey, panelHeight) {
+  // Step BP item 1: on a casement sash too (gridHolderSize answers for
+  // either), and with the rail's own thickness.
+  function handleSetLeafMidRail(leafKey, panelHeight, thickness = DEFAULT_LEAF_MID_RAIL_MM) {
     if (!tree) return
     if (panelHeight == null) { commit(setLeafMidRail(tree, leafKey, { offset: null })); return }
     const leaf = findNodeByKey(tree, leafKey)
     if (!leaf) return
-    const size = doorLeafSize(tree, leaf)
+    const size = gridHolderSize(tree, leaf)
+    const railThickness = Number(thickness) || DEFAULT_LEAF_MID_RAIL_MM
     const offset = leafMidRailOffsetFor(size.height, {
       head: leaf.values?.topHeight, bottomRail: leaf.values?.bottomHeight, panelHeight,
+      railThickness,
     })
     if (!(offset > 0)) return
-    commit(setLeafMidRail(tree, leafKey, { offset }))
+    commit(setLeafMidRail(tree, leafKey, { offset, thickness: railThickness }))
+  }
+
+  // Step BP item 3: the leaf's muntin — none, full height, or one row.
+  function handleSetLeafMuntin(holderKey, span, thickness = 120) {
+    if (!tree) return
+    commit(setLeafMuntin(tree, holderKey, { span, thickness: Number(thickness) || 120 }, profileValues ?? {}))
   }
 
   // ── Step BC board: flag frames ────────────────────────────────────────
@@ -3731,6 +3861,7 @@ function DrawingBoard() {
               onSetLeafMidRail={handleSetLeafMidRail}
               onSetLeafGrid={handleSetLeafGrid}
               onSetLeafCellKind={handleSetLeafCellKind}
+              onSetLeafMuntin={handleSetLeafMuntin}
               profileCode={profile?.code ?? null}
             />
           </div>

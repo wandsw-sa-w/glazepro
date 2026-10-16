@@ -271,10 +271,44 @@ export const PANEL_TYPES = {
 
 export const PANEL_BEADS = {
   120:   'ovolo',
+  // Step BP: Integrate's other two beads (docs/integrate-drawing-gaps.txt
+  // option lists). 126 had no entry at all, so a bolection bead stored by
+  // its Integrate id priced NO moulding — G4's and FT5's panels.
+  126:   'bolection',
+  320:   'bespoke',
   ovolo: 'ovolo',
   lambs_tongue: 'lambs_tongue',
   square:       'square',
   bolection:    'bolection',
+  bespoke:      'bespoke',
+}
+
+/**
+ * Step BP item 0 (extra): the lists the board offers for a panel's type and
+ * bead — Integrate's own, by id, so a dropdown replaces the number box that
+ * let drawing 105's panel be blanked to null.
+ */
+export const PANEL_TYPE_OPTIONS = [
+  { code: 'flat',                         label: 'Flat',                       integrate: 110 },
+  { code: 'raised_and_fielded',           label: 'Raised & fielded',           integrate: 112 },
+  { code: 'vertical_tongue_and_groove',   label: 'Vertical tongue & groove',   integrate: 114 },
+  { code: 'horizontal_tongue_and_groove', label: 'Horizontal tongue & groove', integrate: 116 },
+]
+export const PANEL_BEAD_OPTIONS = [
+  { code: 'ovolo',     label: 'Ovolo',     integrate: 120 },
+  { code: 'bolection', label: 'Bolection', integrate: 126 },
+  { code: 'bespoke',   label: 'Bespoke',   integrate: 320 },
+]
+
+/**
+ * The option a stored value selects — an Integrate id (110) or a GlazePro
+ * code ('flat') both land on the same entry; null, '' or an unknown value
+ * select nothing, which the board shows as "— select —".
+ */
+export function panelOptionCode(kind, value) {
+  const code = kind === 'bead' ? panelBead(value) : panelType(value)
+  const list = kind === 'bead' ? PANEL_BEAD_OPTIONS : PANEL_TYPE_OPTIONS
+  return list.some(o => o.code === code) ? code : null
 }
 
 /** @returns the panel type code, or undefined for an unrecognised value. */

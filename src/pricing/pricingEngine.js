@@ -727,10 +727,16 @@ function computePartVariables(partNode, tree, derived, baseVars, glassCatalogue 
     const size = cellSize.width != null
       ? cellSize
       : (leaf ? doorPanelSize(tree, leaf) : { width: null, height: null })
-    const internal = panelType(v.internalPanelTypeId)
-    const external = panelType(v.externalPanelTypeId)
-    const beadIn   = panelBead(v.internalPanelBeadId)
-    const beadOut  = panelBead(v.externalPanelBeadId)
+    // Step BP item 0 (extra): a panel whose type or bead was never set —
+    // drawing 105's panel 5379 was blanked to null through a number box —
+    // prices as FLAT with an OVOLO bead until it is set, which is what
+    // every Integrate door panel the reviewer has read is (110 / 120). The
+    // board shows such a panel as "— select —"; the engine must still price
+    // it rather than price no panel labour at all.
+    const internal = panelType(v.internalPanelTypeId) ?? 'flat'
+    const external = panelType(v.externalPanelTypeId) ?? 'flat'
+    const beadIn   = panelBead(v.internalPanelBeadId) ?? 'ovolo'
+    const beadOut  = panelBead(v.externalPanelBeadId) ?? 'ovolo'
     const typeIs = (code, side) => (side === 'internal' ? internal : external) === code
     return {
       // Step BH follow-up item 2: the size this part was WORKED OUT to be,

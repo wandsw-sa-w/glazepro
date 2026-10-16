@@ -14,7 +14,10 @@
 
 import { makeKey } from './gridActions.js'
 import { firstOf } from './casementOpenings.js'
-import { DOOR_LEAF_TYPES, leafInterior, leafCells, doorPanelSize, doorLeaves } from '../pricing/doorGeometry.js'
+import {
+  DOOR_LEAF_TYPES, leafInterior, leafCells, doorPanelSize, doorLeaves,
+  canHoldGrid, leafCellParts, leafMidRails,
+} from '../pricing/doorGeometry.js'
 import { itemFrames } from '../pricing/casementGeometry.js'
 // Step BH: a PAIR OF FRONT DOORS is the open-in French pair with front-door
 // leaves, so it is built by turning a pair round with Step BG's own switch
@@ -465,7 +468,9 @@ export function withoutLeafMidRail(leafNode) {
 export function setLeafMidRail(tree, leafKey, { offset = null, thickness = DEFAULT_LEAF_MID_RAIL_MM } = {}) {
   function walk(node) {
     if (!node) return node
-    if (node.key === leafKey && DOOR_LEAF_TYPES.includes(node.part_type)) {
+    // Step BP item 1: a CASEMENT SASH takes a mid rail and a panel the same
+    // way a leaf does — G1's side casements, G4's with a 200 rail.
+    if (node.key === leafKey && canHoldGrid(node)) {
       return offset == null
         ? withoutLeafMidRail(node)
         : withLeafMidRail(node, { offset, thickness })
@@ -1538,7 +1543,7 @@ export function setLeafGrid(tree, leafKey, {
 
   function walk(node) {
     if (!node) return node
-    if (node.key === leafKey && DOOR_LEAF_TYPES.includes(node.part_type)) {
+    if (node.key === leafKey && canHoldGrid(node)) {
       const interior = leafInterior(tree, node)
       if (interior.width == null || interior.height == null) return node
       const dividers = []
@@ -1591,7 +1596,9 @@ export function setLeafCellKind(tree, cellKey, kind, profileValues = {}) {
   const d = doorProfileDefaults(profileValues).values
   function walk(node) {
     if (!node) return node
-    if (DOOR_LEAF_TYPES.includes(node.part_type) &&
+    // Step BP item 2: "Panel" on a casement sash's glass — G2's A2 / B2 are
+    // fixed sashes that are all panel — and back to glass.
+    if (canHoldGrid(node) &&
         (node.children ?? []).some(c => c.key === cellKey)) {
       return {
         ...node,
@@ -1604,6 +1611,77 @@ export function setLeafCellKind(tree, cellKey, kind, profileValues = {}) {
             : leafGlassNode(`${c.key}_glass`, d)
         }),
       }
+    }
+    const children = (node.children ?? []).map(walk)
+    return children.length ? { ...node, children } : node
+  }
+  return walk(tree)
+}
+
+// ── Step BP item 3: a muntin in a leaf, full height or confined ──────────────
+
+/** Where a leaf's one muntin runs: nowhere, the full height, or one row. */
+export const LEAF_MUNTIN_SPANS = ['none', 'full', 'below', 'above']
+
+/**
+ * Give a leaf (or a casement sash) ONE muntin, or take it away.
+ *
+ *   full   — the whole interior height, through the mid rail (M2: two glass
+ *            over two panels);
+ *   below  — the row under the mid rail only (M1: one glass over two
+ *            panels), stored as Integrate stores it, `startDivider` = the
+ *            mid rail's key;
+ *   above  — the row over the mid rail only, `endDivider` = the rail's key;
+ *   none   — no muntin.
+ *
+ * 120 thick as both readings, centred in the interior unless `offset` is
+ * given. Each cell the muntin makes takes the KIND of the cell it split —
+ * glass stays glass and a panel stays a panel — and a cell that survives
+ * keeps its node, so glass codes and panel options are not lost. Without a
+ * mid rail, below and above mean full.
+ */
+export function setLeafMuntin(tree, holderKey, {
+  span = 'full', thickness = FRONT_DOOR_MUNTIN_MM, offset = null,
+} = {}, profileValues = {}) {
+  const d = doorProfileDefaults(profileValues).values
+  function walk(node) {
+    if (!node) return node
+    if (node.key === holderKey && canHoldGrid(node)) {
+      const interior = leafInterior(tree, node)
+      if (interior.width == null || interior.height == null) return node
+      const before = leafCells(tree, node)
+      const parts  = leafCellParts(node)
+      const rails  = leafMidRails(node)
+      const rail   = rails[0] ?? null
+      const muntins = []
+      if (span !== 'none') {
+        const muntin = leafMuntinNode(`${node.key}_muntin1`, {
+          offset: offset ?? Math.round((interior.width - thickness) / 2),
+          thickness,
+        })
+        if (span === 'below' && rail) muntin.values.startDivider = String(rail.key)
+        if (span === 'above' && rail) muntin.values.endDivider   = String(rail.key)
+        muntins.push(muntin)
+      }
+      const others = (node.children ?? []).filter(c =>
+        c.part_type !== 'mullionPart' && c.part_type !== 'panelPart' && c.part_type !== 'glassPart')
+      const shell = { ...node, children: [...others, ...muntins] }
+      const after = leafCells(tree, shell)
+
+      // the old cells by row, in order, so a new cell can take over from
+      // the one it split
+      const oldRows = {}
+      before.forEach((c, i) => { (oldRows[c.row] ??= []).push(i) })
+      const used = new Set()
+      const cellNodes = after.map((c, i) => {
+        const row = oldRows[c.row] ?? []
+        const src = parts[row[Math.min(c.col, row.length - 1)]] ?? parts[parts.length - 1] ?? null
+        if (src && !used.has(src.key)) { used.add(src.key); return src }
+        return src?.part_type === 'panelPart' || !src
+          ? leafPanelNode(`${node.key}_cell${i + 1}_panel`)
+          : leafGlassNode(`${node.key}_cell${i + 1}_glass`, d)
+      })
+      return { ...shell, children: [...others, ...muntins, ...cellNodes] }
     }
     const children = (node.children ?? []).map(walk)
     return children.length ? { ...node, children } : node
