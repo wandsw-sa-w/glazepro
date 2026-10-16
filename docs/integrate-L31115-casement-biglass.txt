@@ -98,3 +98,50 @@
 #
 # Not read: a casement with "Include Clearance" ticked; a bi-glass French casement pair; per-sash bi-glass (towBg) on a
 # mixed item. Integrate housekeeping for Nathan: drawings 33-36 on L31115 item 10 are test drawings.
+
+# ══ ADDENDUM 16 Oct 2026 — bi-glass FRENCH casements, and decoration (reviewer) ══════════════════════════════════
+# Nathan 16 Oct: bi-glass is NOT offered on sash windows (casements only). Quote 1 switching approved for this round;
+# restored to 310641 afterwards, confirmed on reload.
+#
+# ── BGF1 = drawing 10/39 (310937): copy of FR1 (item 9 drawing 1), 1199 x 1313 French casement, Bi-Glass ticked,
+#    glazing Single on both leaves, SAVED ─────────────────────────────────────────────────────────────────────────
+# Ticking Bi-Glass zeroes the clearances on the FRAME, the PAIR and both LEAVES (mechanicalClearance* = 0; the pair keeps
+#   mechanicalClearance*Default 4, the leaves 3). gapBetweenMeetingStiles stays 4.
+# FrenchCasementPart 1125 x 1219 (= the opening). Leaves A1 LH (op 17) / B1 RH (op 18) each 560.5 x 1219
+#   = (1125 - 4) / 2 wide, the full opening high. toBeReplaced false. Glass 435.5 x 1074 each (560.5 - 62 - 63,
+#   1219 - 62 - 83) -> cut 463.5 x 1102 = 0.51 m2. Single 4mm Clear Toughened, toBeReplaced true.
+#   (Complete new FR1: pair 1117 x 1211, leaves 556.5 x 1211.)
+# Stored ironmongery as FR1 (9 lines, 59.85). Surround cleared, isCasementMpls false.
+# Integrate cost 448.25 / price 896.48:
+#   DSO SqM Rate 1.57 x 10.00 = 15.70                                       extra_services 15.70 / 31.40
+#   BiGlass Cost 0.51 x 25.50 = 13.01 ; 13.01                                glass_done 26.02 / 52.02
+#   Ironmongery 8.40, 8.40, 16.80, 4.20, 8.40, 8.40, 1.05, 1.05, 3.15         installation_materials 59.85 / 119.70
+#   Labour 8.00 h = 321.68 (480): BiGlass Labour Base Price 2 x 240         labour 321.68 / 643.36
+#   LTW 25                                                                   manufacture_materials 25.00 / 50.00
+#   Production 0 (no mullion or transom: a French pair has no divider).
+#
+# ── BGF2 = drawing 10/40 (310938): copy of FR2 (item 9 drawing 2), 899 x 1499 French casement with a top-hung fanlight,
+#    Bi-Glass ticked, glazing Single on all three, SAVED ─────────────────────────────────────────────────────────────
+# Transom 27 at 304 / 1074. Fanlight A1 CasementSashPart op 15 825 x 304 (= opening), glass 701 x 159 -> cut 729 x 187
+#   = 0.14 -> 0.30. Pair 825 x 1074 (= opening); leaves A2 LH / B2 RH each 410.5 x 1074 = (825 - 4) / 2, glass
+#   285.5 x 929 -> cut 313.5 x 957 = 0.30. All clearances 0. Cill 825.
+# Stored ironmongery as FR2 (11 lines, 82.95). Surround cleared, isCasementMpls false.
+# Integrate cost 651.58 / price 1,303.16:
+#   DSO SqM Rate 1.35 x 10.00 = 13.50                                       extra_services 13.50 / 27.00
+#   BiGlass Cost 0.30 x 25.50 = 7.65 x 3                                     glass_done 22.95 / 45.90
+#   Ironmongery 15.75, 8.40, 4.20, 16.80, 6.30, 3.15, 8.40, 12.60, 2.10, 2.10, 3.15   installation_materials 82.95 / 165.90
+#   Production 1.00 h = 24.66 (60): 211 Casement Frame - Single Finish (Mullions) 1 x 60 (the transom)
+#                                                                            manufacture 24.66 / 49.32
+#   Labour 12.00 h = 482.52 (720): BiGlass Labour Base Price 3 x 240        labour 482.52 / 965.04
+#   LTW 25                                                                   manufacture_materials 25.00 / 50.00
+# No Fixed Casement Sash with Frame (no fixed sash), no Any Sash Overweight on either drawing.
+#
+# ── Decoration on a bi-glass casement: NOT readable in Integrate ─────────────────────────────────────────────────
+# Integrate's item editor has a "Decoration" box in its code, but it does not appear for this user in Survey Mode
+# (Survey Mode is locked on by the administrator), on casements or sash windows. Copies 10/37 (of BG1) and 10/38 (of
+#   BG3) were made for this and left unchanged.
+# The rules are the same in both systems: "Sashes Only Painting Profits" has quantity sliding_sash_qty, so it is 0 on
+#   any casement; "Casement DSO Decoration" (is_decoration_included and not nj_involved) charges casement_sash_qty x 150.
+# GlazePro LIVE, 16 Oct: drawing 70 (L507712 item 8, bi-glass casement 1200 x 1300 + 3 bars) with Decoration ticked
+#   priced 451.16 / 902.31 = 350.63 / 701.26 + Casement DSO Decoration 150 min (2.50 h x 40.21 = 100.53), and no
+#   painting-profit line. Decoration then unticked and saved again.

@@ -2183,5 +2183,71 @@
       "production": 1.0,
       "labour": 8.0
     }
+  },
+  "benchmarkBGF1_biglass_french_casement": {
+    "source": "L31115 Item 10 Drawing 39 (copy of FR1, 1199 x 1313 French casement, Bi-Glass ticked, glazing Single, saved). Read and priced 16 Oct 2026 via L31115 Quote 1 item 10. Facts: docs/integrate-L31115-casement-biglass.txt (addendum).",
+    "total_cost": 448.25,
+    "total_price": 896.48,
+    "groups": {
+      "extra_services": {
+        "cost": 15.7,
+        "price": 31.4
+      },
+      "glass_done": {
+        "cost": 26.02,
+        "price": 52.02
+      },
+      "installation_materials": {
+        "cost": 59.85,
+        "price": 119.7
+      },
+      "labour": {
+        "cost": 321.68,
+        "price": 643.36
+      },
+      "manufacture_materials": {
+        "cost": 25.0,
+        "price": 50.0
+      }
+    },
+    "hours": {
+      "production": 0,
+      "labour": 8.0
+    }
+  },
+  "benchmarkBGF2_biglass_french_casement_fanlight": {
+    "source": "L31115 Item 10 Drawing 40 (copy of FR2, 899 x 1499 French casement with top-hung fanlight, Bi-Glass ticked, glazing Single, saved). Read and priced 16 Oct 2026 via L31115 Quote 1 item 10. Facts: docs/integrate-L31115-casement-biglass.txt (addendum).",
+    "total_cost": 651.58,
+    "total_price": 1303.16,
+    "groups": {
+      "extra_services": {
+        "cost": 13.5,
+        "price": 27.0
+      },
+      "glass_done": {
+        "cost": 22.95,
+        "price": 45.9
+      },
+      "installation_materials": {
+        "cost": 82.95,
+        "price": 165.9
+      },
+      "manufacture": {
+        "cost": 24.66,
+        "price": 49.32
+      },
+      "labour": {
+        "cost": 482.52,
+        "price": 965.04
+      },
+      "manufacture_materials": {
+        "cost": 25.0,
+        "price": 50.0
+      }
+    },
+    "hours": {
+      "production": 1.0,
+      "labour": 12.0
+    }
   }
 }
