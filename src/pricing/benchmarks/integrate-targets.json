@@ -2249,5 +2249,326 @@
       "production": 1.0,
       "labour": 12.0
     }
+  },
+  "benchmarkLQ1_casement_fixed_tophung_fixed_bars": {
+    "source": "L34268 Q1 item 4 (real quote): casement 2000 x 1300, fixed / top-hung / fixed, each sash 1V+2H bars. Live GlazePro drawing 82. Facts: docs/integrate-live-quotes.txt. Read 16 Oct 2026 from the price file editor (test quote) and the saved drawing.",
+    "total_cost": 1577.67,
+    "total_price": 3155.36,
+    "groups": {
+      "glass_done": {
+        "cost": 153.03,
+        "price": 306.09
+      },
+      "installation_materials": {
+        "cost": 81.77,
+        "price": 163.53
+      },
+      "manufacture": {
+        "cost": 710.21,
+        "price": 1420.42
+      },
+      "labour": {
+        "cost": 522.73,
+        "price": 1045.46
+      },
+      "manufacture_materials": {
+        "cost": 109.93,
+        "price": 219.86
+      }
+    },
+    "hours": {
+      "production": 28.8,
+      "labour": 13.0
+    },
+    "known_gaps": {
+      "labour": {
+        "cost": -20.1,
+        "price": -40.2,
+        "reason": "Windowboard 30 min: surround (architrave_and_w_board) not enterable yet - later step"
+      }
+    }
+  },
+  "benchmarkLQ2_utile_fanlight_bar_over_fixed": {
+    "source": "L33022 Q5 item 10 (real quote): utile casement 1000 x 1200, top-hung fanlight with one vertical bar over fixed, fit to prepared opening. Live GlazePro drawing 100. Facts: docs/integrate-live-quotes.txt. Read 16 Oct 2026 from the price file editor (test quote) and the saved drawing.",
+    "total_cost": 1240.63,
+    "total_price": 2481.24,
+    "groups": {
+      "glass_done": {
+        "cost": 58.12,
+        "price": 116.22
+      },
+      "installation_materials": {
+        "cost": 69.95,
+        "price": 139.89
+      },
+      "manufacture": {
+        "cost": 481.61,
+        "price": 963.22
+      },
+      "labour": {
+        "cost": 522.73,
+        "price": 1045.46
+      },
+      "manufacture_materials": {
+        "cost": 108.22,
+        "price": 216.45
+      }
+    },
+    "hours": {
+      "production": 19.53,
+      "labour": 13.0
+    },
+    "known_gaps": {
+      "labour": {
+        "cost": -140.73,
+        "price": -281.46,
+        "reason": "Linings 180 + Windowboard 30: surround (architrave_lining_and_w_board) not enterable yet - later step"
+      }
+    }
+  },
+  "benchmarkLQ3_utile_french_doors_bars_panels": {
+    "source": "L33022 Q5 item 12 (real quote): utile French doors 1600 x 2150, barred glass over R&F panels, no surround. Live GlazePro drawing 105. Facts: docs/integrate-live-quotes.txt. Read 16 Oct 2026 from the price file editor (test quote) and the saved drawing.",
+    "total_cost": 3007.22,
+    "total_price": 6014.44,
+    "groups": {
+      "glass_done": {
+        "cost": 127.54,
+        "price": 255.08
+      },
+      "installation_materials": {
+        "cost": 350.25,
+        "price": 700.5
+      },
+      "manufacture": {
+        "cost": 1509.69,
+        "price": 3019.37
+      },
+      "labour": {
+        "cost": 522.73,
+        "price": 1045.46
+      },
+      "manufacture_materials": {
+        "cost": 497.01,
+        "price": 994.03
+      }
+    },
+    "hours": {
+      "production": 61.22,
+      "labour": 13.0
+    },
+    "known_gaps": {
+      "installation_materials": {
+        "cost": 17.96,
+        "price": 35.92,
+        "reason": "GlazePro adds surround timber although the item has no surround (autoCalcSurroundComponents 0) - surround step"
+      }
+    }
+  },
+  "benchmarkLQ4_config7_tall_one_bar": {
+    "source": "L32520 Q3 item 16 (real quote): casement config 7, 1529 x 2600, all six fixed, 75 mm mullions / transom, B1 one vertical bar. Live GlazePro drawing 117. Facts: docs/integrate-live-quotes.txt. Read 16 Oct 2026 from the price file editor (test quote) and the saved drawing.",
+    "total_cost": 2464.13,
+    "total_price": 4928.27,
+    "groups": {
+      "glass_done": {
+        "cost": 172.63,
+        "price": 345.25
+      },
+      "installation_materials": {
+        "cost": 55.2,
+        "price": 110.4
+      },
+      "manufacture": {
+        "cost": 1065.31,
+        "price": 2130.62
+      },
+      "labour": {
+        "cost": 1015.3,
+        "price": 2030.61
+      },
+      "manufacture_materials": {
+        "cost": 155.69,
+        "price": 311.39
+      }
+    },
+    "hours": {
+      "production": 43.2,
+      "labour": 25.25
+    },
+    "known_gaps": {
+      "labour": {
+        "cost": -140.73,
+        "price": -281.46,
+        "reason": "Windowboard 30 (surround, later step) + 3 h that Integrate labour holds beyond its own fitting units (unexplained; investigate in the snapshot, do not tune)"
+      }
+    }
+  },
+  "benchmarkLQ5_box_sash_frame_arch_custom_horn": {
+    "source": "L34265 Q1 item 3 (real quote): box sash 780 x 1769, frame-level arch rise 363 R 270, custom 75 mm top horn. Live GlazePro drawing 121. Facts: docs/integrate-live-quotes.txt. Read 16 Oct 2026 from the price file editor (test quote) and the saved drawing.",
+    "total_cost": 1300.33,
+    "total_price": 2585.92,
+    "groups": {
+      "glass_done": {
+        "cost": 47.34,
+        "price": 94.69
+      },
+      "installation_materials": {
+        "cost": 102.23,
+        "price": 189.74
+      },
+      "manufacture": {
+        "cost": 719.33,
+        "price": 1438.66
+      },
+      "labour": {
+        "cost": 351.84,
+        "price": 703.68
+      },
+      "manufacture_materials": {
+        "cost": 79.59,
+        "price": 159.15
+      }
+    },
+    "hours": {
+      "production": 29.17,
+      "labour": 8.75
+    },
+    "known_gaps": {
+      "labour": {
+        "cost": -50.26,
+        "price": -100.52,
+        "reason": "Remove and Refit Shutters 75 min comes from a scope-of-works note, no GlazePro input yet - later step"
+      }
+    }
+  },
+  "benchmarkLQ6_double_box_sash_level_arch": {
+    "source": "L34265 Q1 item 1 (real quote): double box 1620 x 1779, 220 hollow mullion, both top sashes arched at sash level (rise 256, R 256) in a square frame, custom 75 mm top horns. Live GlazePro drawing 122. Facts: docs/integrate-live-quotes.txt. Read 16 Oct 2026 from the price file editor (test quote) and the saved drawing.",
+    "total_cost": 2386.32,
+    "total_price": 4742.74,
+    "groups": {
+      "glass_done": {
+        "cost": 94.68,
+        "price": 189.38
+      },
+      "installation_materials": {
+        "cost": 161.27,
+        "price": 292.57
+      },
+      "manufacture": {
+        "cost": 1389.1,
+        "price": 2778.2
+      },
+      "labour": {
+        "cost": 603.15,
+        "price": 1206.3
+      },
+      "manufacture_materials": {
+        "cost": 138.12,
+        "price": 276.29
+      }
+    },
+    "hours": {
+      "production": 56.33,
+      "labour": 15.0
+    }
+  },
+  "benchmarkLQ7_utile_box_sash": {
+    "source": "L33022 Q5 item 1 drawing 2 (real quote): Solid Utile box sash 1000 x 1400, top sash bars, Victorian horn, fit to prepared opening. Live GlazePro drawing 94. Facts: docs/integrate-live-quotes.txt. Read 16 Oct 2026 from the price file editor (test quote) and the saved drawing.",
+    "total_cost": 1188.24,
+    "total_price": 2358.33,
+    "groups": {
+      "glass_done": {
+        "cost": 64.26,
+        "price": 128.53
+      },
+      "installation_materials": {
+        "cost": 107.41,
+        "price": 196.65
+      },
+      "manufacture": {
+        "cost": 496.9,
+        "price": 993.8
+      },
+      "labour": {
+        "cost": 402.1,
+        "price": 804.2
+      },
+      "manufacture_materials": {
+        "cost": 117.57,
+        "price": 235.15
+      }
+    },
+    "hours": {
+      "production": 20.15,
+      "labour": 10.0
+    },
+    "known_gaps": {
+      "labour": {
+        "cost": -140.73,
+        "price": -281.46,
+        "reason": "Linings 180 + Windowboard 30: surround (architrave_lining_and_w_board) not enterable yet - later step"
+      }
+    }
+  },
+  "benchmarkLQ8_casement_tophung_tower": {
+    "source": "L32520 Q3 item 9 (real quote): casement 1060 x 1230, single top-hung, external access WSW Mobile Tower, cill horns 60. Live GlazePro drawing 111 (drawn without the cill horns). Facts: docs/integrate-live-quotes.txt. Read 16 Oct 2026 from the price file editor (test quote) and the saved drawing.",
+    "total_cost": 916.54,
+    "total_price": 1833.04,
+    "groups": {
+      "glass_done": {
+        "cost": 55.1,
+        "price": 110.18
+      },
+      "installation_materials": {
+        "cost": 80.73,
+        "price": 161.46
+      },
+      "manufacture": {
+        "cost": 217.75,
+        "price": 435.5
+      },
+      "labour": {
+        "cost": 502.63,
+        "price": 1005.25
+      },
+      "manufacture_materials": {
+        "cost": 60.33,
+        "price": 120.65
+      }
+    },
+    "hours": {
+      "production": 8.83,
+      "labour": 12.5
+    }
+  },
+  "benchmarkLQ9_box_sash_bar_custom_horn": {
+    "source": "L34265 Q1 item 4 (real quote): box sash 1090 x 1829, top sash one vertical bar, custom 75 mm top horn. Live GlazePro drawing 118. Facts: docs/integrate-live-quotes.txt. Read 16 Oct 2026 from the price file editor (test quote) and the saved drawing.",
+    "total_cost": 1067.33,
+    "total_price": 2111.58,
+    "groups": {
+      "glass_done": {
+        "cost": 89.69,
+        "price": 179.36
+      },
+      "installation_materials": {
+        "cost": 119.69,
+        "price": 216.35
+      },
+      "manufacture": {
+        "cost": 454.98,
+        "price": 909.95
+      },
+      "labour": {
+        "cost": 301.58,
+        "price": 603.15
+      },
+      "manufacture_materials": {
+        "cost": 101.39,
+        "price": 202.77
+      }
+    },
+    "hours": {
+      "production": 18.45,
+      "labour": 7.5
+    }
   }
 }

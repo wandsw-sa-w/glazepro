@@ -1,0 +1,339 @@
+# Live quotes redrawn on GlazePro — Integrate facts (read 16 Oct 2026 by the reviewer)
+# Six real Integrate quotes were redrawn by hand on the live GlazePro board, each on a test lead holding
+# the surname only, priced, and compared group by group and line by line with Integrate's Price File
+# Editor. Only pricing / geometry values are recorded here. No customer details, notes or locations.
+# Full comparison: Claude project doc claude/live-quote-comparison.md.
+#
+# GlazePro test leads (live): 11 L127277 (L34242 Q2), 12 L246724 (L34268 Q1), 13 L478257 (L33022 Q5),
+# 14 L183978 (L32520 Q3), 15 L450980 (L34265 Q1). Drawings 72-123.
+#
+# Price file figures below are Integrate's COST (qty x rate = cost); price = cost x markup (2 unless noted).
+# Integrate material ids: 38 Solid Redwood, 44 Solid Utile Hardwood, 1 Accoya.
+# Integrate external access ids: 1 Item Easily Accessible, 2 WSW Mobile Tower, 3 Scaffold by Customer,
+# 5 Scaffold by WSW. GlazePro: easily_accessible, tower_by_wsw, ..., scaffold_by_customer, scaffold_by_wsw.
+# installationMethodId 1 = Externally. Panel type 110 = raised & fielded, bead 120 = ovolo.
+# operationId: 11 fixed, 12 cord hung, 15 top hung, 17 left hung, 18 right hung.
+# "[std glass 14/16]" = glazingTolerance 2, rebate 14/16, double glazing, 16 mm warm-edge spacer (dim 116),
+# argon, spacer colour 19, glass fix 75, bead fix 81, measurement type 202.
+
+## Targets summary (Integrate cost groups; price = x2) and the live GlazePro result (cost)
+
+LQ1  L34268 item 4   casement 2000x1300, fixed / top-hung / fixed, every sash 1V+2H bars        live drawing 82
+     glass 153.03  inst 81.77  manufacture 710.21  labour 522.73  mm 109.93   = 1,577.67 / 3,155.36
+     GlazePro live: glass 103.98 (no Multiple Glazing Bar 3 x 16.35), labour 502.63 (Windowboard 30 not
+     enterable: surround architrave_and_w_board), rest exact.
+LQ2  L33022 item 10  utile casement 1000x1200, top-hung fanlight (1V bar) over fixed           live drawing 100
+     glass 58.12  inst 69.95  manufacture 481.61  labour 522.73  mm 108.22   = 1,240.63 / 2,481.24
+     GlazePro live: glass 48.91 (no Single Glazing Bar 9.21), manufacture 493.94 (+30 min: "Additional for
+     Glazing Bars" on BOTH sashes), labour 382.00 (Linings 180 + Windowboard 30 not enterable), mm 108.23.
+LQ3  L33022 item 12  utile French doors 1600x2150, glass 1V(segment removed)+1H over R&F panel  live drawing 105
+     glass 127.54  inst 350.25  manufacture 1,509.69  labour 522.73  mm 497.01   = 3,007.22 / 6,014.44
+     GlazePro live: glass 86.66 (no Multiple Glazing Bar 2 x 20.44), inst 368.21 (+17.96 surround timber;
+     Integrate has NO surround on this item: autoCalcSurroundComponents 0, no component list), rest exact.
+LQ4  L32520 item 16  casement config 7, 1529x2600, all six fixed, 75 mm mullions / transom,
+     B1 1V bar                                                                                  live drawing 117
+     glass 172.63  inst 55.20  manufacture 1,065.31  labour 1,015.30  mm 155.69   = 2,464.13 / 4,928.27
+     GlazePro live: glass 163.42 (no Single Glazing Bar 9.21), manufacture 1,126.96 (+150 min: "Additional for
+     Glazing Bars" on all six sashes), labour 633.31 (15.75 h). Integrate fitting units (16 Oct): Base 480,
+     Fixed sash 6 x 60, 1500 Height Casement Frame Replacement 60, 2500 Height Casement Frame Replacement 300,
+     1500 Wide 60, Any Sash Overweight 45, Windowboard 30 = 1,335 min = 22.25 h. Integrate's labour is
+     25.25 h: 3 h more than its own fitting-units page lists (unexplained; every other item's labour equals
+     its fitting units). GlazePro misses the two height rules (360) and the window board (30).
+LQ5  L34265 item 3   box sash 780x1769, frame-level arch (rise 363, R 270), custom 75 mm top horn   live drawing 121
+     glass 47.34  inst 102.23  manufacture 719.33  labour 351.84  mm 79.59   = 1,300.33 / 2,585.92
+     Integrate production (labour editor): Pair of Sashes 220, Sash Swept Head 600, Non-Std Horn 75mm 30 (ONE),
+     Box Frame 240, Pair of Sashes joinery 2 x 70, Swept Head joinery 120, Box Frame Joining 150, Glazing 2 x 20,
+     PoS White 90, Box White 120 = 1,750 min.
+     Integrate fitting units: Sash Windows 450 + Remove and Refit Shutters 75 (from a scope-of-works note on
+     the item, not a drawing field) = 8.75 h.
+     GlazePro live (after the reviewer set the horn and isFrameLevelArch): glass 55.10 (Shaped Glass Cost
+     0.49 x 58.50 instead of 0.30 x 71.88), inst 102.51 (steel 10.7 / 11.3 kg vs 10.6 / 11.2), manufacture
+     731.66 (horn fired twice), labour 301.58 (no shutters input), mm exact.
+LQ6  L34265 item 1   double box 1620x1779, 220 hollow mullion, each top sash arched at sash level
+     (rise 256, R 256, square frame), custom 75 mm top horns                                    live drawing 122
+     glass 94.68  inst 161.27  manufacture 1,389.10  labour 603.15  mm 138.12   = 2,386.32 / 4,742.74
+     Integrate production: Pair of Sashes 440, Sash Swept Head 2 x 600, Non-Std Horn 75mm 2 x 30, Box Frame
+     480, Pair joinery 4 x 70, Swept Head joinery 2 x 120, Box Frame Joining 300, Glazing 4 x 20, PoS White 90,
+     PoS Subs 40, Box White 120, Box Subs 50 = 3,380 min.
+     GlazePro live: glass 119.47 (Shaped 0.57 and 0.50 x 58.50; second bay's top sash radius shows 296.82),
+     inst 165.19 (steel), manufacture 1,413.76 (horn on all four sashes), mm 139.32.
+LQ7  L33022 item 1   utile box sash 1000x1400, top sash 1V(segment removed)+1H bars, Victorian horn  live drawing 94
+     glass 64.26  inst 107.41  manufacture 496.90  labour 402.10  mm 117.57   = 1,188.24 / 2,358.33
+     Integrate fitting units: Sash Windows 450, Prepared Opening -60, Linings 180, Windowboard 30 = 10 h.
+     GlazePro live: inst 107.68 (steel 13.2 vs 13.0), labour 261.37 (no surround), mm 49.76: Hardwood Box
+     Frame qty 0.01875 (m3) -> 0.03 against 22.27 -> 38.98; Hardwood Sashes missing (12.73 + 16.13).
+     1200x1800 (L33022 items 3-6): Hardwood Box Frame 28.64 -> 50.13, Hardwood Sashes 9.30 / 11.66.
+LQ8  L32520 item 9   casement 1060x1230 single top-hung, external access WSW Mobile Tower, cill horns 60  live drawing 111
+     glass 55.10  inst 80.73  manufacture 217.75  labour 502.63  mm 60.33   = 916.54 / 1,833.04
+     Integrate fitting units: Base 480, Opening sash 90, Scaffold Tower 180 = 12.5 h. NO overweight.
+     GlazePro live: labour 412.15 (no tower; Any Sash Overweight (Casement) 45 fires), mm 58.93 (the reviewer
+     left the 60 mm cill horns out of the live drawing).
+LQ9  L34265 item 4   box sash 1090x1829, top sash 1V bar, custom 75 mm top horn                      live drawing 118
+     glass 89.69  inst 119.69  manufacture 454.98  labour 301.58  mm 101.39   = 1,067.33 / 2,111.58
+     Integrate production includes Non-Std Horn 75mm 30 ONCE. GlazePro live: manufacture 467.31 (twice),
+     inst 119.82 (steel 17.4 vs 17.3 top).
+
+Other live readings (no benchmark yet):
+- Door panels: every Integrate door panel read is type 110 (raised & fielded) with bead 120 (ovolo):
+  L33022 items 8 and 12, L34268 item 2. The board's "Add mid rail and panel" makes a flat panel.
+- Tower: L34242 items 2 and 4 and L34268 item 9 (external access 2) also fire Scaffold Tower 180 in Integrate.
+- Surround: Integrate keeps it on PaintAndIronmongeryPart as autoCalcSurroundComponents
+  (architrave_and_bullnose, architrave_and_w_board, architrave_lining_and_w_board, architrave_bullnose_and_packer,
+  0 = none) plus the component list (e.g. Linings in MDF, Ogee Architrave in MDF x2 L1300 W20, Window board in
+  MDF). Fitting rules Linings 180 / Windowboard 30 follow it. Later step.
+
+## The drawings in full (Integrate saved trees, pricing / geometry fields only; zero / blank omitted)
+
+=== LQ1 — L34268 item 4 ===
+DrawingItemPart newSashes newFrame installByUs deliveryByUs surveyByUs range=Casement pricefileNo=30 itemTypeId=3 sashMaterialId=38 frameMaterialId=38 cillMaterialId=44 isDocL=true
+  PaintAndIronmongeryPart finishes=Teknos Clean White x3 isCasementMpls=true ironmongerySet=[connoisseur_handle_lh:PB x1, defender_615mm:PC x1, kenrick_extension_490mm:PC x2, kenrick_extension_gear_box:PC x1, trickle:Wht x1, trickle_vent_xr16:Wht x1] surround=[Ogee Architrave in MDF x2 L1400 W20, Ogee Architrave in MDF x1 L2100 W20, Window board in MDF x1] autoCalcSurroundComponents=architrave_and_w_board surroundComponentWidthValue=100
+  NotesPart installationMethodId=1 externalAccessId=1   (Ground Floor)
+  AssemblyFramePart width=2000 height=1300 replaceFrame=true frameStopId=40 cillStopId=40 jambType=solid_profiled leftWidth=37 rightWidth=37 topHeight=47 bottomHeight=47 frameDepth=96 cillDepth=128 frameHeadStopSize=20 frameStileStopSize=20 cillStopSize=20
+    MullionPart thickness=27 offset=624 offset2=1275 mullionStopSize=20
+    MullionPart thickness=27 offset=1275 offset2=624 mullionStopSize=20
+    CasementSashPart (A1, B1, C1 identical except operation: A1 11 fixed, B1 15 top hung, C1 11 fixed) thickness=54 typeId=7 toBeReplaced=true mechanicalClearance 4/4/4/4 topHeight=62 leftWidth=62 rightWidth=62 bottomHeight=83 btmRailShapeId=99 shoulderHeight=1053
+      GlassPart internalGlassPartNo=GL100010 externalGlassPartNo=GL100080 [std glass 16]
+        VerticalGlazingBarPart thickness=22 nib=4 tailLinkType=1 offset=235 offset2=235
+        HorizontalGlazingBarPart thickness=22 nib=4 tailLinkType=1 offset=336.3 offset2=694.7
+        HorizontalGlazingBarPart thickness=22 nib=4 tailLinkType=1 offset=694.7 offset2=336.3
+    CillPart x3 depth=128 height=47 width=624 cillMaterialId=44
+Price file lines:
+  Square Glass Cost: 0.56x58.50=32.76 x3
+  Square Glass Multiple Glazing Bar: 0.56x29.20=16.35 x3
+  All Glass Energy Surcharge: 11.20x0.17=1.90 x3
+  Ironmongery Cost: 8.40, 13.65, 2.10, 2.10, 4.20, 1.05, 1.05, 2.10, 3.15
+  Component Cost: 2.85x2.80=7.98, 2.85x2.10=5.99
+  Installation Consumables: 30.00
+  Production Time: 28.80x24.66=710.21
+  Labour: 13.00x40.21=522.73
+  Softwood Casement Frame & Sashes 25% wastage: 52.29x0.55=28.76
+  Softwood Casement Sashes 25% wastage: 12.85x0.55=7.07 x3
+  Hardwood Casement Cill 25% wastage: 21.44x1.09=23.26
+  Glazing Bar: 2.12x1.84=3.90 x3
+  LTW General Consumables: 25.00
+
+=== LQ2 — L33022 item 10 ===
+DrawingItemPart newSashes newFrame installByUs installationLevel=standard deliveryByUs fitToPreparedOpening=true surveyByUs range=Casement pricefileNo=30 itemTypeId=3 sashMaterialId=44 frameMaterialId=44 cillMaterialId=44 isDocL=true
+  PaintAndIronmongeryPart finishes=Teknos Clean White x3 isCasementMpls=true ironmongerySet=[connoisseur_handle_lh:PB x1, defender_209mm:PC x1, kenrick_extension_690mm:PC x2, kenrick_extension_gear_box:PC x1, trickle:Wht x1, trickle_vent_xr16:Wht x1] ironmongery=[Utile63x63 qty 0 amt 4880] surround=[Linings in MDF x1, Ogee Architrave in MDF x2 L1300 W20, Ogee Architrave in MDF x1 L1100 W20, Window board in MDF x1] autoCalcSurroundComponents=architrave_lining_and_w_board
+  NotesPart externalAccessId=1   (Ground Floor)
+  AssemblyFramePart width=1000 height=1200 replaceFrame=true frameStopId=40 cillStopId=40 jambType=solid_profiled leftWidth=37 rightWidth=37 topHeight=47 bottomHeight=47 frameDepth=96 cillDepth=159 frameHeadStopSize=20 frameStileStopSize=20 cillStopSize=20
+    TransomPart thickness=27 offset=356 offset2=723 transomStopSizeTop=20 transomStopSizeBottom=20
+    CasementSashPart A1 operationId=15 thickness=54 typeId=7 toBeReplaced=true clearances 4 topHeight=62 leftWidth=62 rightWidth=62 bottomHeight=62 btmRailShapeId=99 shoulderHeight=224
+      GlassPart GL100010 / GL100080 [std glass 16]
+        VerticalGlazingBarPart thickness=22 nib=4 tailLinkType=1 offset=386 offset2=386
+    CasementSashPart A2 operationId=11 thickness=54 typeId=7 toBeReplaced=true clearances 4 topHeight=62 leftWidth=62 rightWidth=62 bottomHeight=83 btmRailShapeId=99 shoulderHeight=570
+      GlassPart GL100010 / GL100080 [std glass 16]
+    CillPart depth=159 height=47 width=926 cillMaterialId=44
+Price file lines:
+  Square Glass Cost: 0.30x58.50=17.55, 0.49x58.50=28.67
+  Square Glass Single Glazing Bar: 1.00x9.21=9.21
+  All Glass Energy Surcharge: 6.00x0.17=1.02, 9.80x0.17=1.67
+  Ironmongery Cost: 8.40, 4.20, 2.10, 3.15, 4.20, 1.05, 1.05, 2.10, 3.15
+  Component Cost: 2.85x2.60=7.41, 2.85x1.10=3.14
+  Installation Consumables: 30.00
+  Production Time: 19.53x24.66=481.61
+  Labour: 13.00x40.21=522.73   (fitting units: Base 480, Opening 90, Fixed 60, Prepared Opening -60, Linings 180, Windowboard 30)
+  Casement Frame Jambs & Cills 10% wastage: 2.42x17.24=41.72
+  Casement Frame Head 10% wastage: 1.10x12.40=13.64
+  Casement Transoms & Mullions 10% wastage: 1.05x12.40=12.96
+  Hardwood Casement Cill 25% wastage: 13.31x1.09=14.44
+  Glazing Bar: 0.25x1.84=0.46
+  LTW General Consumables: 25.00
+
+=== LQ3 — L33022 item 12 ===
+DrawingItemPart newSashes newFrame installByUs installationLevel=standard deliveryByUs surveyByUs range=single_and_french_doors pricefileNo=30 itemTypeId=4 sashMaterialId=44 frameMaterialId=44 cillMaterialId=44 isDocL=true   (fitToPreparedOpening false)
+  PaintAndIronmongeryPart finishes=Teknos Clean White x3 isDoorMpls=true ironmongerySet=[102mm_hinges:PB x4, double_euro_cylinder:PB x1, hardwick_lyndon_door_espag_set:PB x1, trickle:Wht x1, trickle_vent_xr16:Wht x1] ironmongery=[Utile63x120 amt 9754, Utile63x200 amt 4632, Utile67x96 amt 5900] autoCalcSurroundComponents=0 (no surround list)
+  NotesPart externalAccessId=1   (Ground Floor)
+  AssemblyFramePart width=1600 height=2150 replaceFrame=true frameStopId=40 cillStopId=40 jambType=solid_profiled leftWidth=47 rightWidth=47 topHeight=47 bottomHeight=37 frameDepth=96 cillDepth=145 frameHeadStopSize=20 frameStileStopSize=20 cillStopSize=26
+    FrenchDoorPart thickness=54 typeId=7 meetingStileSplitId=12 sashSplitId=12 mechanicalClearanceTop=3 Left=1 Right=1 Bottom=3 midRail=198 gapBetweenMeetingStiles=5 meetingStileOverlap=27
+      LeftFrenchDoorLeafPart (A1) / RightFrenchDoorLeafPart (B1, isMasterLeaf) operationId 17 / 18 typeId=7 toBeReplaced=true topHeight=110 leftWidth=110 rightWidth=110 bottomHeight=163 btmRailShapeId=101 steppedBottomRailOverlap=7 shoulderHeight=1787
+        GlassPart GL100010 / GL100080 glazingTolerance=3 glazingRebateWidth=15 (rest std)
+          VerticalGlazingBarPart thickness=22 nib=4 tailLinkType=2 offset=260.5 offset2=260.5 removedSegments=2
+          HorizontalGlazingBarPart thickness=22 nib=4 tailLinkType=1 offset=250 offset2=945
+        PanelPart internalPanelTypeId=110 internalPanelBeadId=120 externalPanelTypeId=110 externalPanelBeadId=120 insulationThickness=15
+        TransomPart thickness=170 offset=1217 offset2=400 isMidrail=true
+    CillPart depth=145 height=37 width=1506 cillMaterialId=44
+Price file lines:
+  Square Glass Cost: 0.70x58.50=40.95 x2
+  Square Glass Multiple Glazing Bar: 0.70x29.20=20.44 x2
+  All Glass Energy Surcharge: 14.00x0.17=2.38 x2
+  Ironmongery Cost: 29.40, 6.30, 21.00, 74.55, 2.10, 3.15, 36.75, 93.45, 53.55
+  Installation Consumables: 30.00   (no Component Cost line)
+  Production Time: 61.22x24.66=1,509.69
+  Labour: 13.00x40.21=522.73   (fitting units: French Doors 780)
+  Tricoya Panel: 0.22x188.85=41.02 x2
+  Glazing Bar: 1.81x1.84=3.33 x2
+  LTW General Consumables: 25.00
+  Utile sections: 63x120 9.75x17.30=168.74, 63x200 4.63x29.00=134.33, 67x96 5.90x13.60=80.24
+
+=== LQ4 — L32520 item 16 ===
+DrawingItemPart newSashes newFrame installByUs deliveryByUs surveyByUs range=Casement pricefileNo=30 itemTypeId=3 sashMaterialId=38 frameMaterialId=38 cillMaterialId=44 isDocL=true
+  PaintAndIronmongeryPart finishes=Teknos Clean White x3 (isCasementMpls false) ironmongerySet=[trickle:Wht x1, trickle_vent_xr16:Wht x1] surround=[Ogee Architrave in MDF x2 L2700 W20, Ogee Architrave in MDF x1 L1630 W20, Window board in MDF x1] autoCalcSurroundComponents=architrave_and_w_board
+  NotesPart externalAccessId=1   (Ground Floor; no installation method)
+  AssemblyFramePart width=1529 height=2600 replaceFrame=true frameStopId=40 cillStopId=40 jambType=solid_profiled leftWidth=37 rightWidth=37 topHeight=47 bottomHeight=47 frameDepth=96 cillDepth=128 frameHeadStopSize=20 frameStileStopSize=20 cillStopSize=20
+    MullionPart thickness=75 offset=275 offset2=1105 mullionStopSize=20
+    MullionPart thickness=75 offset=1105 offset2=275 mullionStopSize=20
+    TransomPart thickness=75 offset=555 offset2=1876 transomStopSizeTop=20 transomStopSizeBottom=20
+    CasementSashPart A1, B1, C1 operationId=11 thickness=54 typeId=7 toBeReplaced=true clearances 4 topHeight=62 leftWidth=62 rightWidth=62 bottomHeight=62 btmRailShapeId=99 shoulderHeight=423
+      GlassPart GL100010 / GL100080 [std glass 16]   (B1 only: VerticalGlazingBarPart thickness=22 nib=4 tailLinkType=1 offset=300.5 offset2=300.5)
+    CasementSashPart A2, B2, C2 operationId=11 same rails except bottomHeight=83, shoulderHeight=1723
+      GlassPart GL100010 / GL100080 [std glass 16]
+    CillPart depth=128 height=47 widths 275 / 755 / 275 cillMaterialId=44
+Price file lines:
+  Square Glass Cost: 0.30x58.50=17.55 x5 (A1, B1, C1, A2, C2), 1.14x58.50=66.69 (B2)
+  Square Glass Single Glazing Bar: 1.00x9.21=9.21
+  All Glass Energy Surcharge: 6.00x0.17=1.02 x5, 22.80x0.17=3.88
+  Ironmongery Cost: 2.10, 3.15
+  Component Cost: 2.85x5.40=15.39, 2.85x1.60=4.56
+  Installation Consumables: 30.00
+  Production Time: 43.20x24.66=1,065.31
+  Labour: 25.25x40.21=1,015.30
+  Softwood Casement Frame & Sashes 25% wastage: 136.65x0.55=75.16
+  Softwood Casement Sashes 25% wastage: 5.45, 14.60, 8.66, 18.36, 5.45, 14.60 (x0.55 = 3.00, 8.03, 4.76, 10.10, 3.00, 8.03)
+  Hardwood Casement Cill 25% wastage: 16.39x1.09=17.78
+  Glazing Bar: 0.45x1.84=0.83
+  LTW General Consumables: 25.00
+
+=== LQ5 — L34265 item 3 ===
+DrawingItemPart newSashes newFrame installByUs deliveryByUs surveyByUs range=Standard pricefileNo=30 itemTypeId=1 isSashWindow=1 partingBeadTypeId=280 sashMaterialId=38 frameMaterialId=38 cillMaterialId=44 isDocL=true
+  PaintAndIronmongeryPart finishes=Teknos Clean White x3 ironmongerySet=[z-claw_fastener_kit_wpulleys:PB x1, trickle_vent_xr16:Wht x1] ironmongery=[RLZ1917 x2 amt 5.00, RLZ1918 x2 amt 5.40] surround=[Ogee Architrave in MDF x2 L1870 W20, Ogee Architrave in MDF x1 L880 W20] autoCalcSurroundComponents=architrave_and_bullnose existingSurroundTypeId=5 existingSurroundActionId=1
+  NotesPart externalAccessId=1 (Second Floor; scope-of-works note "To remove and refit plantation shutters ...")
+  AssemblyFramePart width=780 height=1769 replaceFrame=true jambType=hollow_box leftWidth=85 rightWidth=85 topHeight=79 bottomHeight=70 frameDepth=140 cillDepth=140 frameHeadStopSize=16 frameStileStopSize=16 cillStopSize=16
+    SashPairPart thickness=45 midRail=40 midRailTypeId=91 sashSplitId=12 sashWidth=605 mechanicalClearanceLeft=2.5 Right=2.5 topHornTypeShortName=custom_horn topHornLength=75 bottomHornTypeShortName=no_horn
+      TopSashPart height=810.5 operationId=12 toBeReplaced=true topHeight=49 bottomHeight=40 leftWidth=49 rightWidth=49 archHeight=363 shoulderHeight=358.5 archRadius=270 isFrameLevelArch=true
+        GlassPart GL100010 / GL100080 [std glass 14]
+      BottomSashPart operationId=12 toBeReplaced=true leftWidth=49 rightWidth=49 topHeight=40 bottomHeight=88 btmRailShapeId=100 chamferedBottomRailAngle=9 shoulderHeight=721.5
+        GlassPart GL100010 / GL100080 [std glass 14]
+    CillPart depth=140 height=70 width=610 cillMaterialId=44
+Price file lines:
+  Square Glass Cost: 0.40x58.50=23.40
+  Shaped Glass Cost: 0.30x71.88=21.56
+  All Glass Energy Surcharge: 6.00x0.17=1.02, 8.00x0.17=1.36
+  Ironmongery Cost: 26.25, 3.15
+  Component Cost: 2.85x3.80=10.83, 2.85x0.90=2.57
+  Installation Consumables: 30.00
+  Steel Weight: 10.60x1.35=14.31, 11.20x1.35=15.12
+  Production Time: 29.17x24.66=719.33
+  Labour: 8.75x40.21=351.84
+  Laminated Softwood for Sashes: 1.85x4.95=9.17 ; 1.57x4.95=7.75
+  Softwood Box Frame Linings: 9.50x1.35=12.82
+  Softwood Pulley Stiles and Head: 4.75x1.69=8.03
+  Box Frame Utile Cill: 0.01x1,600.00=12.23
+  Box Frame Staff Bead: 5.10x3.28=16.73
+  Box Frame Parting Bead: 5.10x1.85=9.44
+  Glazing Bead for Sashes: 2.46x1.39=3.42
+
+=== LQ6 — L34265 item 1 ===
+DrawingItemPart newSashes newFrame installByUs deliveryByUs surveyByUs range=Standard pricefileNo=30 itemTypeId=10 isSashWindow=1 partingBeadTypeId=280 sashMaterialId=38 frameMaterialId=38 cillMaterialId=44 isDocL=true
+  PaintAndIronmongeryPart finishes=Teknos Clean White x3 ironmongerySet=[z-claw_fastener_kit_wpulleys:PB x2, trickle_vent_xr16:Wht x1] ironmongery=[RLZ1917 x4 amt 5.00, RLZ1918 x4 amt 5.40] surround=[Ogee Architrave in MDF x2 L1880 W20, Ogee Architrave in MDF x1 L1720 W20] autoCalcSurroundComponents=architrave_and_bullnose
+  NotesPart externalAccessId=1 (Second Floor)
+  AssemblyFramePart width=1620 height=1779 replaceFrame=true jambType=hollow_box leftWidth=85 rightWidth=85 topHeight=79 bottomHeight=70 frameDepth=140 cillDepth=140 frameHeadStopSize=16 frameStileStopSize=16 cillStopSize=16
+    MullionPart thickness=220 offset=615 offset2=615 mullionStopSize=16 isHollowMullion=true
+    SashPairPart x2 (A, B) thickness=45 midRail=40 midRailTypeId=91 sashSplitId=12 sashWidth=610 mechanicalClearanceLeft=2.5 Right=2.5 topHornTypeShortName=custom_horn topHornLength=75 bottomHornTypeShortName=no_horn
+      TopSashPart height=815.5 operationId=12 toBeReplaced=true topHeight=49 bottomHeight=40 leftWidth=49 rightWidth=49 archHeight=256 shoulderHeight=470.5 archRadius=256   (NOT frame-level: arched sash in a square frame)
+        GlassPart GL100010 / GL100080 [std glass 14]
+      BottomSashPart operationId=12 toBeReplaced=true leftWidth=49 rightWidth=49 topHeight=40 bottomHeight=88 btmRailShapeId=100 chamferedBottomRailAngle=9 shoulderHeight=726.5
+        GlassPart GL100010 / GL100080 [std glass 14]
+    CillPart x2 depth=140 height=70 width=615 cillMaterialId=44
+Price file lines:
+  Square Glass Cost: 0.40x58.50=23.40 x2
+  Shaped Glass Cost: 0.30x71.88=21.56 x2
+  All Glass Energy Surcharge: 6.00x0.17=1.02, 8.00x0.17=1.36 (x2)
+  Ironmongery Cost: 52.50, 3.15
+  Component Cost: 2.85x3.80=10.83, 2.85x1.70=4.85
+  Installation Consumables: 30.00
+  Steel Weight: 10.80x1.35=14.58, 11.40x1.35=15.39 (x2)
+  Production Time: 56.33x24.66=1,389.10
+  Labour: 15.00x40.21=603.15   (fitting units: Sash Windows 2 x 450)
+  Laminated Softwood for Sashes: 1.87x4.95=9.23 x2 ; 1.58x4.95=7.80 x2
+  Softwood Box Frame Linings: 15.31x1.35=20.66
+  Softwood Pulley Stiles and Head: 9.61x1.69=16.24
+  Box Frame Utile Cill: 0.02x1,600.00=25.40
+  Box Frame Staff Bead: 6.80x3.28=22.30
+  Box Frame Parting Bead: 6.80x1.85=12.58
+  Glazing Bead for Sashes: 2.48x1.39=3.44 x2
+
+=== LQ7 — L33022 item 1 (drawing 2, the one in the quote) ===
+DrawingItemPart newSashes newFrame installByUs installationLevel=standard deliveryByUs fitToPreparedOpening=true surveyByUs range=Standard pricefileNo=30 itemTypeId=1 isSashWindow=1 partingBeadTypeId=280 sashMaterialId=44 frameMaterialId=44 cillMaterialId=44 isDocL=true
+  PaintAndIronmongeryPart finishes=Teknos Clean White x3 ironmongerySet=[z-claw_fastener_kit_wpulleys:PB x1, trickle_vent_xr16:Wht x1] ironmongery=[RLZ1920 x2 amt 6.40, RLZ1921 x2 amt 6.80] surround=[Linings in MDF x1, Ogee Architrave in MDF x2 L1500 W20, Ogee Architrave in MDF x1 L1100 W20, Window board in MDF x1] autoCalcSurroundComponents=architrave_lining_and_w_board
+  NotesPart externalAccessId=1 (Ground Floor)
+  AssemblyFramePart width=1000 height=1400 replaceFrame=true jambType=hollow_box leftWidth=85 rightWidth=85 topHeight=79 bottomHeight=70 frameDepth=140 cillDepth=140 frameHeadStopSize=16 frameStileStopSize=16 cillStopSize=16
+    SashPairPart thickness=45 midRail=40 midRailTypeId=91 sashSplitId=12 sashWidth=825 mechanicalClearanceLeft=2.5 Right=2.5 topHornTypeShortName=victorian_style_horn topHornLength=75 bottomHornTypeShortName=no_horn
+      TopSashPart height=626 operationId=12 toBeReplaced=true topHeight=49 bottomHeight=40 leftWidth=49 rightWidth=49 shoulderHeight=537
+        GlassPart GL100010 / GL100080 [std glass 14]
+          VerticalGlazingBarPart thickness=22 nib=4 tailLinkType=2 offset=352.5 offset2=352.5 removedSegments=2
+          HorizontalGlazingBarPart thickness=22 nib=4 tailLinkType=1 offset=250 offset2=265
+      BottomSashPart operationId=12 toBeReplaced=true leftWidth=49 rightWidth=49 topHeight=40 bottomHeight=88 btmRailShapeId=100 chamferedBottomRailAngle=9 shoulderHeight=537
+        GlassPart GL100010 / GL100080 [std glass 14]
+    CillPart depth=140 height=70 width=830 cillMaterialId=44
+Price file lines:
+  Square Glass Cost: 0.42x58.50=24.57 x2
+  Square Glass Multiple Glazing Bar: 0.42x29.20=12.26
+  All Glass Energy Surcharge: 8.40x0.17=1.43 x2
+  Ironmongery Cost: 26.25, 3.15
+  Component Cost: 2.85x3.00=8.55, 2.85x1.10=3.14
+  Installation Consumables: 30.00
+  Steel Weight: 13.00x1.35=17.55, 13.90x1.35=18.77
+  Production Time: 20.15x24.66=496.90
+  Labour: 10.00x40.21=402.10
+  Box Frame Utile Cill: 0.01x1,600.00=15.68
+  Hardwood Box Frame: 22.27x1.75=38.98
+  Hardwood Sashes: 7.27x1.75=12.73, 9.22x1.75=16.13
+  Box Frame Staff Bead: 4.80x3.28=15.74
+  Box Frame Parting Bead: 4.80x1.85=8.88
+  Glazing Bead for Sashes: 2.53x1.39=3.51 x2
+  Glazing Bar: 1.31x1.84=2.41
+
+=== LQ8 — L32520 item 9 ===
+DrawingItemPart newSashes newFrame installByUs deliveryByUs surveyByUs range=Casement pricefileNo=30 itemTypeId=3 sashMaterialId=38 frameMaterialId=38 cillMaterialId=44 isDocL=true
+  PaintAndIronmongeryPart finishes=Teknos Clean White x3 isCasementMpls=true ironmongerySet=[defender_412mm:PC x1, hardwick_lyndon_rh_locking_espag_handle:PB x1, kenrick_extension_690mm:PC x2, kenrick_extension_gear_box:PC x1, trickle:Wht x1, trickle_vent_xr16:Wht x1] surround=[Ogee Architrave in MDF x2 L1330 W20, Ogee Architrave in MDF x1 L1160 W20] autoCalcSurroundComponents=architrave_and_bullnose existingSurroundTypeId=5
+  NotesPart installationMethodId=1 externalAccessId=2 (First Floor)
+  AssemblyFramePart width=1060 height=1230 replaceFrame=true frameStopId=40 cillStopId=40 jambType=solid_profiled leftWidth=37 rightWidth=37 topHeight=47 bottomHeight=47 frameDepth=96 cillDepth=128 cillHornLengthLeft=60 cillHornLengthRight=60 frameHeadStopSize=20 frameStileStopSize=20 cillStopSize=20
+    CasementSashPart operationId=15 thickness=54 typeId=7 toBeReplaced=true clearances 4 topHeight=62 leftWidth=62 rightWidth=62 bottomHeight=83 btmRailShapeId=99 shoulderHeight=983
+      GlassPart GL100010 / GL100080 [std glass 16]
+    CillPart depth=128 height=47 width=986 cillMaterialId=44
+Price file lines:
+  Square Glass Cost: 0.89x58.50=52.07
+  All Glass Energy Surcharge: 17.80x0.17=3.03
+  Ironmongery Cost: 7.35, 15.75, 2.10, 3.15, 4.20, 1.05, 1.05, 2.10, 3.15
+  Component Cost: 2.85x2.60=7.41, 2.85x1.20=3.42
+  Installation Consumables: 30.00
+  Production Time: 8.83x24.66=217.75
+  Labour: 12.50x40.21=502.63
+  Softwood Casement Frame & Sashes 25% wastage: 24.06x0.55=13.23
+  Softwood Casement Sashes 25% wastage: 15.21x0.55=8.37
+  Hardwood Casement Cill 25% wastage: 12.65x1.09=13.73
+  LTW General Consumables: 25.00
+
+=== LQ9 — L34265 item 4 ===
+DrawingItemPart newSashes newFrame installByUs deliveryByUs surveyByUs range=Standard pricefileNo=30 itemTypeId=1 isSashWindow=1 partingBeadTypeId=280 sashMaterialId=38 frameMaterialId=38 cillMaterialId=44 isDocL=true
+  PaintAndIronmongeryPart finishes=Teknos Clean White x3 ironmongerySet=[z-claw_fastener_kit_wpulleys:PB x1, trickle_vent_xr16:Wht x1] ironmongery=[RLZ1924 x2 amt 8.20, RLZ1925 x2 amt 8.60] surround=[Ogee Architrave in MDF x2 L1930 W20, Ogee Architrave in MDF x1 L1190 W20] autoCalcSurroundComponents=architrave_and_bullnose
+  NotesPart externalAccessId=1 (Second Floor)
+  AssemblyFramePart width=1090 height=1829 replaceFrame=true jambType=hollow_box leftWidth=85 rightWidth=85 topHeight=79 bottomHeight=70 frameDepth=140 cillDepth=140 frameHeadStopSize=16 frameStileStopSize=16 cillStopSize=16
+    SashPairPart thickness=45 midRail=40 midRailTypeId=91 sashSplitId=12 sashWidth=915 mechanicalClearanceLeft=2.5 Right=2.5 topHornTypeShortName=custom_horn topHornLength=75 bottomHornTypeShortName=no_horn
+      TopSashPart height=840.5 operationId=12 toBeReplaced=true topHeight=49 bottomHeight=40 leftWidth=49 rightWidth=49 shoulderHeight=751.5
+        GlassPart GL100010 / GL100080 [std glass 14]
+          VerticalGlazingBarPart thickness=22 nib=4 tailLinkType=1 offset=397.5 offset2=397.5
+      BottomSashPart operationId=12 toBeReplaced=true leftWidth=49 rightWidth=49 topHeight=40 bottomHeight=88 btmRailShapeId=100 chamferedBottomRailAngle=9 shoulderHeight=751.5
+        GlassPart GL100010 / GL100080 [std glass 14]
+    CillPart depth=140 height=70 width=920 cillMaterialId=44
+Price file lines:
+  Square Glass Cost: 0.65x58.50=38.03 x2
+  Square Glass Single Glazing Bar: 1.00x9.21=9.21
+  All Glass Energy Surcharge: 13.00x0.17=2.21 x2
+  Ironmongery Cost: 26.25, 3.15
+  Component Cost: 2.85x3.80=10.83, 2.85x1.20=3.42
+  Installation Consumables: 30.00
+  Steel Weight: 16.80x1.35=22.68, 17.30x1.35=23.36
+  Production Time: 18.45x24.66=454.98   (Pair of Sashes 220, 1st Applied glazing bar 40, Non-Std Horn 75mm 30 ONCE,
+     Box Frame 240, Pair joinery 2 x 70, First Glazing Bar 25, Box Frame Joining 150, Glazing 2 x 20, Glazing with Bar 12,
+     PoS White 90, Box White 120 = 1,107 min)
+  Labour: 7.50x40.21=301.58
+  Laminated Softwood for Sashes: 2.37x4.95=11.74 ; 1.92x4.95=9.51
+  Softwood Box Frame Linings: 10.45x1.35=14.10
+  Softwood Pulley Stiles and Head: 5.22x1.69=8.83
+  Box Frame Utile Cill: 0.01x1,600.00=17.09
+  Box Frame Staff Bead: 5.84x3.28=19.16
+  Box Frame Parting Bead: 5.84x1.85=10.80
+  Glazing Bead for Sashes: 3.14x1.39=4.36 x2
+  Glazing Bar: 0.78x1.84=1.44
