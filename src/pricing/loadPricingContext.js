@@ -319,6 +319,33 @@ export function resolveIronmongeryLines(tree, pricingContext, profileValues = {}
   const derived  = computeDerived(tree, profileValues)
   const itemVars = computeVariables(tree, derived, pfVariables,
     { profileCode: opts.profileCode ?? null }) ?? {}
+
+  // Step BJ item 2: a BI-GLASS CASEMENT gets NO default ironmongery.
+  //
+  // Nathan (15 Oct): "none by default — the sashes keep theirs. The surveyor
+  // may add any that is replaced." A stored list is still priced as stored,
+  // which is the branch above; this is only about what a drawing nobody has
+  // touched starts with.
+  //
+  // Two sets of rules made it otherwise. The hinge rules fire on any big
+  // side-hung casement, so a bi-glass one was given EIGHT 76 mm hinges —
+  // £40.95 to re-hinge sashes nobody is taking off, and two MORE than the
+  // same window complete new, because a bi-glass sash fills its opening and
+  // so is bigger and heavier. And the Brighton fastener kit, a SASH WINDOW
+  // part, is gated on `needs_draughtsealing and not nj_involved`, which a
+  // bi-glass casement now satisfies (item 1d).
+  //
+  // Said here rather than in thirteen rule conditions: it is one business
+  // rule about one type of work, and spreading it over the allocator rules
+  // would need SQL for every hinge band and still miss the next one. The
+  // rules themselves are Integrate's own and are left alone.
+  //
+  // Scoped to a CASEMENT: bi-glass on a sliding sash is a separate step
+  // (item 3) and keeps whatever defaults it has today.
+  if (itemVars.is_bi_glass === true && itemVars.is_casement_window === true) {
+    return []
+  }
+
   return withResolvedFinish(
     defaultIronmonger(tree, { ...pfVariables, ...itemVars }, ironmongeryRules, glassCatalogue, profileValues)
   )

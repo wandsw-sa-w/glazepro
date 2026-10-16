@@ -439,3 +439,105 @@ describe('Step BJ item 2 — the quote wording', () => {
     expect(LEAD_TIMES.bg_lead_time).toBe('10-12')
   })
 })
+
+// ── No DEFAULT ironmongery on a bi-glass casement ───────────────────────────
+//
+// Nathan (15 Oct): "Ironmongery: none by default (the sashes keep theirs).
+// The surveyor may add any that is replaced; stored ironmongery is priced as
+// stored."
+//
+// Two things made that false. The hinge rules fire on any big side-hung
+// casement, so a bi-glass one was given EIGHT 76 mm hinges — £40.95 to
+// re-hinge sashes nobody is taking off, and two more than the same window
+// complete new, because the bi-glass sash is bigger and heavier. And the
+// Brighton fastener kit — a SASH WINDOW part — is gated on
+// needs_draughtsealing, which a bi-glass casement now sets.
+const dIron = SNAPSHOT ? describe : describe.skip
+
+dIron('Step BJ item 2 — a bi-glass casement gets no default ironmongery', () => {
+  it('the default rules give it nothing at all', () => {
+    const bg = toBiGlass(singleCasement())
+    expect(resolveIronmongeryLines(bg, SNAPSHOT, SNAPSHOT.profileValues)).toEqual([])
+  })
+
+  it('and so nothing is priced for it', () => {
+    const bg = toBiGlass(singleCasement())
+    const lines = resolveIronmongeryLines(bg, SNAPSHOT, SNAPSHOT.profileValues) ?? []
+    const r = runPricingOnTree(bg, withFixedCasementSashBiGlass(SNAPSHOT.rules), SNAPSHOT.pfVariables, {
+      glassCatalogue: SNAPSHOT.glassCatalogue,
+      partAllocationRules: SNAPSHOT.partAllocationRules,
+      partCostMap: { TP68: 2.85, TP61: 2.76 },
+      ironmongeryLines: lines,
+      ironmongeryCatalogue: SNAPSHOT.ironmongeryCatalogue,
+      profileValues: SNAPSHOT.profileValues,
+    })
+    expect(r.price.lines.filter(l => l.fires && l.alloc_iron_part_code)).toEqual([])
+  })
+
+  it('a STORED list is still priced as stored', () => {
+    // The surveyor adds what is actually replaced, and that is charged.
+    const bg = toBiGlass(singleCasement())
+    const stored = {
+      ...bg,
+      children: bg.children.map(c => c.part_type !== 'paintAndIronmongeryPart' ? c : ({
+        ...c,
+        values: {
+          ...c.values,
+          ironmongeryLines: [{
+            product_short_name: 'connoisseur_handle_lh', finish_code: 'PB',
+            qty: 1, source: 'survey',
+          }],
+        },
+      })),
+    }
+    const lines = resolveIronmongeryLines(stored, SNAPSHOT, SNAPSHOT.profileValues)
+    expect(lines.map(l => l.product_short_name)).toEqual(['connoisseur_handle_lh'])
+  })
+
+  it('a COMPLETE NEW casement still gets its defaults', () => {
+    // The rule is about bi-glass alone: nothing else loses its ironmongery.
+    const lines = resolveIronmongeryLines(singleCasement(), SNAPSHOT, SNAPSHOT.profileValues) ?? []
+    expect(lines.length).toBeGreaterThan(0)
+    expect(lines.map(l => l.product_short_name)).toContain('connoisseur_handle_lh')
+  })
+
+  it('and a bi-glass SLIDING sash is untouched (item 3)', () => {
+    // Bi-glass on a box sash is a separate step. Its defaults are whatever
+    // they are today, and this step must not empty them.
+    const boxSash = {
+      key: 'item1', part_type: 'drawingItemPart',
+      values: { typeOfWork: 'bi_glass', frameMaterialId: 'softwood', sashMaterialId: 'softwood' },
+      children: [
+        { key: 'paint1', part_type: 'paintAndIronmongeryPart',
+          values: { ironmongeryFinish: 'PB' }, children: [] },
+        { key: 'frame1', part_type: 'assemblyFramePart',
+          values: { width: 1120, height: 1800, leftWidth: 50, rightWidth: 50, topHeight: 50, bottomHeight: 50 },
+          children: [{
+            key: 'pair1', part_type: 'sashPairPart', values: { sashThickness: 45 },
+            children: [
+              { key: 'top1', part_type: 'topSashPart', values: { toBeReplaced: false },
+                children: [{ key: 'tg1', part_type: 'glassPart', values: { glazingId: 'single_glazing' }, children: [] }] },
+              { key: 'bot1', part_type: 'bottomSashPart', values: { toBeReplaced: false },
+                children: [{ key: 'bg1', part_type: 'glassPart', values: { glazingId: 'single_glazing' }, children: [] }] },
+            ],
+          }],
+        },
+      ],
+    }
+    // The guard is scoped by is_casement_window, and this tree is a box
+    // sash, so it cannot apply. Checked on the VARIABLES rather than by
+    // running the default rules, because a single-glazed box sash cannot
+    // compute its sash weight on this profile at all: sashWeight wants
+    // `glassPart.defaultSingleGlazingRebateWidthForSash` and the casement
+    // profile has only the double-glazing key, so the default-ironmongery
+    // path throws. That is a real gap, it is NOT caused by this step, and it
+    // is one the sliding-sash bi-glass step will have to deal with — it is
+    // reported in docs/reports/step-bj.md rather than patched here.
+    const vars = computeVariables(boxSash, computeDerived(boxSash), SNAPSHOT.pfVariables)
+    expect(vars.is_bi_glass).toBe(true)
+    expect(vars.is_casement_window).toBe(false)
+    expect(vars.is_box_sash).toBe(true)
+    // and the flag this step derives is NOT set on a sliding sash
+    expect(vars.needs_draughtsealing).toBe(false)
+  })
+})
