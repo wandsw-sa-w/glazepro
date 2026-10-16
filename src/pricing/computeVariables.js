@@ -24,6 +24,9 @@ import {
   doorLeaves, doorLeafSize,
 } from './doorGeometry.js'
 import { isStormproofSash } from '../drawingBoard/casementOpenings.js'
+import {
+  surroundTick, sdgVariables, EXTERNAL_LINING_PART_CODE,
+} from '../drawingBoard/surroundAndSdg.js'
 
 /**
  * Surround parts that ARE a deep window board — a window board, not a
@@ -687,8 +690,46 @@ export function computeVariables(tree, derived = {}, pfVariables = {}, opts = {}
     // a different part (AA01), so "not bullnose" is satisfied by part code.
     const surroundLines = Array.isArray(item?.values?.surroundLines)
       ? item.values.surroundLines : []
-    const has_deep_window_board = surroundLines.some(
+    const storedDeepWindowBoard = surroundLines.some(
       l => DEEP_WINDOW_BOARD_PART_CODES.includes(String(l?.part_code ?? '')))
+
+    // ── Step BN: the surround TICK BOXES ──────────────────────────────────
+    //
+    // Nathan (16 Oct): tick boxes, not Integrate's preset list. The four live
+    // on the Finish & Ironmongery part, and an ABSENT value falls back to the
+    // tick's default (architrave on, the rest off) — which is what GlazePro
+    // priced before this step, so no existing drawing and no existing
+    // benchmark moves. See src/drawingBoard/surroundAndSdg.js.
+    //
+    // The tick is an OR with Step AV's stored list, not a replacement: a
+    // drawing carrying a "Nosing in Solid Redwood" (TP61) still has a deep
+    // window board, so TC1-TC3 are untouched.
+    const paintValues = paintNode?.values ?? {}
+    const has_lining = surroundTick(paintValues, 'surroundLinings')
+    const has_deep_window_board = storedDeepWindowBoard ||
+      surroundTick(paintValues, 'surroundWindowBoard')
+    // The architrave is not read by a rule CONDITION — it is allocated by the
+    // two live "Surround timber" rules, which the part allocator gates on
+    // this. LQ3 is the case for it: Integrate has no surround at all and
+    // GlazePro allocated an architrave anyway, +17.96.
+    const has_architrave = surroundTick(paintValues, 'surroundArchitrave')
+    const surround_linings = surroundTick(paintValues, 'surroundLinings')
+    const surround_window_board = surroundTick(paintValues, 'surroundWindowBoard')
+    const surround_external_lining = surroundTick(paintValues, 'surroundExternalLining')
+    // Integrate's rule 252 is `[part_no] == [external_lining]` on the
+    // component loop, and external_lining is a VARIABLE whose value is the
+    // part code: docs/integrate-rules-export.txt line 126 reads
+    // `external_lining=AA03`. GlazePro's evaluator also reads an unquoted
+    // word as a variable, so defining it here makes that rule behave exactly
+    // as Integrate's does, with the live rule untouched. Without it the rule
+    // compares a part code against a defaulted 0 and can never fire.
+    const external_lining = EXTERNAL_LINING_PART_CODE
+
+    // ── Step BN: the existing SDG / obstruction ───────────────────────────
+    // Copy Integrate (Nathan, 16 Oct): its two dropdowns, its ids and its
+    // twelve variables. Hinged SDG, security grills, "Leave in Situ" and
+    // "Customer to Remove" fire no rule at all, which is Integrate's own gap.
+    const sdg = sdgVariables(paintValues)
     const encapsulated_leaded_light_qty = 0          // leaded lights not built
     const sliding_sash_with_restricted_travel_qty = 0 // travel calculation not built
     const has_unmodified_default_measurement = false  // default measurement tracking not built
@@ -1271,10 +1312,16 @@ export function computeVariables(tree, derived = {}, pfVariables = {}, opts = {}
       internal_finish, external_finish,
 
       // Group 10h — Stubs for unbuilt features
-      surround_row_qty, has_deep_window_board, encapsulated_leaded_light_qty,
+      surround_row_qty, encapsulated_leaded_light_qty,
       sliding_sash_with_restricted_travel_qty,
       has_unmodified_default_measurement, unmodified_default_measurement_text,
       eq_glazing_is_out, is_survey_drawing, is_surveyor_specified,
+
+      // Step BN — the surround tick boxes and the existing SDG dropdowns
+      has_lining, has_deep_window_board, has_architrave,
+      surround_linings, surround_window_board,
+      surround_external_lining, external_lining,
+      ...sdg,
 
       // Group 11 — Counts
       sliding_sash_qty, new_sliding_sash_qty, fixed_sliding_sash_qty,

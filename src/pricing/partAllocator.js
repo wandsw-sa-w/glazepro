@@ -18,6 +18,7 @@ import {
   DOOR_LEAF_TYPES, FRENCH_DOOR_LEAF_TYPES, doorLeafSize, frenchDoorPairFor,
 } from './doorGeometry.js'
 import { itemFrames, coupledSetSize } from './casementGeometry.js'
+import { SURROUND_PLACEHOLDER_PARTS } from '../drawingBoard/surroundAndSdg.js'
 import { computeDerived } from '../drawingBoard/computeDerived.js'
 
 // ── Tree helpers ──────────────────────────────────────────────────────────────
@@ -288,9 +289,29 @@ export function allocateParts(tree, variables, rules, glassCatalogue = {}, inclu
   const frames = itemFrames(tree)
   const setFrame = frames.length > 1 ? wholeSetFrame(tree, frames) : null
 
+  // ── Step BN: the Architrave tick ───────────────────────────────────────────
+  //
+  // The architrave comes from the two live rules "Surround timber – height"
+  // and "– width", whose condition is only `to_be_replaced and not
+  // is_installation_level_test_1` — so GlazePro allocated one on every item
+  // with a new frame, including items that have no surround at all. LQ3 is
+  // that case: Integrate has no Component Cost line and GlazePro was +17.96.
+  //
+  // Nathan wants a tick box, and the rules are LIVE DATA this code does not
+  // edit — the same ground as the Step BC special case just above, which
+  // re-points the very same group at a pseudo-frame. So the gate is here, on
+  // the group, rather than in a rule condition.
+  //
+  // `has_architrave` defaults to TRUE for a drawing that has never been asked
+  // the question, so nothing existing moves.
+  const wantsArchitrave = baseVars.has_architrave !== false
+
   for (const rule of activeRules) {
     const isSurroundOnFrame = setFrame != null &&
       rule.group_name === 'surrounds' && rule.loop_target === 'frame'
+    if (!wantsArchitrave && rule.group_name === 'surrounds' && rule.loop_target === 'frame') {
+      continue
+    }
     const loopParts = isSurroundOnFrame
       ? [setFrame]
       : getLoopParts(tree, rule.loop_target ?? null, baseVars)
@@ -350,5 +371,57 @@ export function allocateParts(tree, variables, rules, glassCatalogue = {}, inclu
     }
   }
 
+  // ── Step BN: Integrate's placeholder surround components ──────────────────
+  //
+  // AA01 lining, AA02 window board, AA03 external lining
+  // (docs/integrate-part-allocator.txt lines 141-143). Integrate allocates
+  // these from its PRESET, through rules conditioned on
+  // is_*_component_default. Nathan wants independent tick boxes, which do not
+  // map onto Integrate's four fixed presets, so GlazePro allocates the same
+  // components from its own answers and leaves those live rules alone — they
+  // still fire if a preset variable is ever set.
+  //
+  // MEASURE 1 mm, which is Integrate's own placeholder, and a `surrounds`
+  // component rounds 1 mm to ZERO metres:
+  //     floor((ceil(1/10) * 10 + 50) / 100) / 10 = floor(0.6) / 10 = 0
+  // so each of these prices at nothing and only its labour moves. That is the
+  // brief's "placeholder length 1, width 0".
+  //
+  // AA01 and AA02 are not strictly needed — `has_lining` and
+  // `has_deep_window_board` are item-level variables set straight from the
+  // ticks — but Integrate has the components, they cost nothing, and having
+  // them means the board and the benchmark page show the same component list
+  // Integrate does. AA03 IS needed: rule 252 "External Lining" loops on
+  // `component` and matches `part_no == external_lining` (= AA03).
+  for (const [tickKey, part] of Object.entries(SURROUND_PLACEHOLDER_PARTS)) {
+    if (baseVars[PLACEHOLDER_VAR_FOR[tickKey]] !== true) continue
+    allocated.push({
+      rule_id:         null,
+      group:           'surrounds',
+      label:           part.label,
+      part_code:       part.part_code,
+      qty:             1,
+      measure:         1,
+      scope_part_id:   null,
+      scope_part_type: null,
+      defaulted_vars:  [],
+    })
+  }
+
   return allocated
+}
+
+/**
+ * Which variable each placeholder reads. These are the TICKS themselves, not
+ * the rule-facing flags, and the difference matters for the window board:
+ * `has_deep_window_board` is also true when the drawing carries a stored
+ * "Nosing in Solid Redwood" (Step AV), and a nosing is a real component the
+ * drawing already has — allocating a placeholder beside it would put a second
+ * window board on benchmarks TC1-TC3. The tick is the thing that asks for
+ * Integrate's placeholder.
+ */
+const PLACEHOLDER_VAR_FOR = {
+  surroundLinings:        'surround_linings',
+  surroundWindowBoard:    'surround_window_board',
+  surroundExternalLining: 'surround_external_lining',
 }

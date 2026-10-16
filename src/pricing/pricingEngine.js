@@ -1414,6 +1414,29 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
   )
   let instMinutes = 0
   for (const rule of instRules) {
+    // Step BN: an install rule may loop on the allocated COMPONENTS, which
+    // getLoopParts cannot give it — a component is not a tree part. Only one
+    // live rule does: 252 "External Lining", 180 minutes where
+    // `part_no == external_lining` (= AA03, docs/integrate-rules-export.txt
+    // line 126). Before this, that rule's loop resolved to no parts at all
+    // and it could never fire however the drawing was answered.
+    if (rule.loop_target === 'component') {
+      for (const allocPart of componentParts) {
+        const compVars = {
+          ...mfgVars,
+          part_no:   allocPart.part_code,
+          part_name: allocPart.label,
+          qty:       allocPart.qty,
+          length:    componentLengthMetres(allocPart.measure, allocPart.group),
+        }
+        const line = evalRuleLine(rule, compVars, null)
+        line.alloc_part_code = allocPart.part_code
+        line.alloc_label     = allocPart.label
+        if (!line.error && line.fires) instMinutes += line.minutes
+        results.install_labour.lines.push(line)
+      }
+      continue
+    }
     const loopParts = getLoopParts(tree, rule.loop_target, mfgVars)
     for (const partNode of loopParts) {
       const vars = partNode

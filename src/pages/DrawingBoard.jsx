@@ -77,6 +77,9 @@ import { computeVariables } from '../pricing/computeVariables.js'
 import { validateDrawing, countBySeverity } from '../validation/validate.js'
 import { PriceBreakdown } from '../components/PriceBreakdown.jsx'
 import { hornKind, HORN_TYPE_DEFAULT_LENGTH_MM } from '../pricing/optionVocabulary.js'
+import {
+  SURROUND_TICKS, SDG_TYPES, SDG_ACTIONS, surroundTick,
+} from '../drawingBoard/surroundAndSdg.js'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -481,6 +484,91 @@ function PropertyField({ field, value, derivedValue, onChange, refOptions, requi
         style={{ ...SI, border: inputBorder }}
       />
     </div>
+  )
+}
+
+// ── SurroundAndSdgPanel — Step BN ─────────────────────────────────────────────
+//
+// Two questions the surveyor answers here, both on Finish & Ironmongery where
+// Integrate keeps them.
+//
+// The SURROUND is TICK BOXES and not Integrate's preset list (Nathan, 16 Oct).
+// Architrave starts ticked, which is what GlazePro has always priced, so no
+// drawing moves by being opened. The other three each fire one labour rule
+// and cost no materials — see src/drawingBoard/surroundAndSdg.js.
+//
+// The EXISTING SDG is copied from Integrate: its two dropdowns, its ids and
+// its wording.
+
+export function SurroundAndSdgPanel({ node, onChangeField }) {
+  const v = node.values ?? {}
+  const set = (key, value) =>
+    onChangeField(node.key, key, value, `paintAndIronmongeryPart.${key}`)
+
+  const row = { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }
+  const sel = {
+    width: '100%', fontSize: 11, padding: '4px 5px', fontFamily: 'inherit',
+    border: '1px solid #d8d5cf', borderRadius: 4, background: '#fff', color: '#333',
+  }
+  const head = {
+    fontSize: 11, fontWeight: 600, color: '#555', marginBottom: 6,
+  }
+
+  return (
+    <>
+      <div
+        data-testid="surround-ticks"
+        style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #e8e6e0' }}
+      >
+        <div style={head}>Surround</div>
+        {SURROUND_TICKS.map(tick => {
+          const on = surroundTick(v, tick.key)
+          return (
+            <label key={tick.key} style={{ ...row, cursor: 'pointer' }} title={tick.hint}>
+              <input
+                type="checkbox"
+                checked={on}
+                data-testid={`surround-${tick.key}`}
+                onChange={e => set(tick.key, e.target.checked)}
+                style={{ margin: 0, cursor: 'pointer' }}
+              />
+              <span style={{ fontSize: 12, color: '#333' }}>{tick.label}</span>
+            </label>
+          )
+        })}
+      </div>
+
+      <div
+        data-testid="existing-sdg"
+        style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #e8e6e0' }}
+      >
+        <div style={head}>Existing SDG / obstruction</div>
+        <select
+          value={Number(v.existingSurroundTypeId ?? 0)}
+          data-testid="sdg-type"
+          title="What is below or in front of the existing item"
+          onChange={e => set('existingSurroundTypeId', Number(e.target.value))}
+          style={{ ...sel, marginBottom: 6 }}
+        >
+          {SDG_TYPES.map(t => (
+            <option key={t.id} value={t.id}>{t.label}</option>
+          ))}
+        </select>
+        <div style={{ ...head, fontWeight: 400, color: '#888', marginBottom: 4 }}>
+          What to do with it
+        </div>
+        <select
+          value={Number(v.existingSurroundActionId ?? 0)}
+          data-testid="sdg-action"
+          onChange={e => set('existingSurroundActionId', Number(e.target.value))}
+          style={sel}
+        >
+          {SDG_ACTIONS.map(a => (
+            <option key={a.id} value={a.id}>{a.label}</option>
+          ))}
+        </select>
+      </div>
+    </>
   )
 }
 
@@ -945,6 +1033,10 @@ function PropertyEditor({ node, fieldDefs, derived, refOptions, onChangeField, o
               ))}
             </div>
           </div>
+        )}
+        {/* Step BN: the surround ticks and the existing SDG dropdowns */}
+        {node.part_type === 'paintAndIronmongeryPart' && (
+          <SurroundAndSdgPanel node={node} onChangeField={onChangeField} />
         )}
         {/* Ironmongery panel for paintAndIronmongeryPart */}
         {node.part_type === 'paintAndIronmongeryPart' && (
