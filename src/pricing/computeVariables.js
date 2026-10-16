@@ -429,29 +429,49 @@ export function computeVariables(tree, derived = {}, pfVariables = {}, opts = {}
     const is_casement_window_bay           = false  // NEEDS-DATA
     const is_varnished_or_stained          = false  // NEEDS-DATA: finish codes not defined yet
     /**
-     * Step BE (Nathan, decision d): a leaf’s real MUNTINS — a mullionPart
-     * inside a door leaf. Integrate’s "Door Muntin" rule (1235, 60 each)
-     * reads sash_muntin_to_be_replaced_qty, and Integrate counts the leaf’s
-     * MID RAIL in it: its Estimated Labour Time editor fires the rule TWICE
-     * on FT1, which has one muntin and one mid rail, and once on FT3, which
-     * has no muntin at all. A mid rail is not a muntin.
+     * A leaf’s real MUNTINS — a mullionPart inside a door leaf. Integrate’s
+     * "Door Muntin" rule (1235, 60 minutes each, gated on
+     * new_door_leaf_qty >= 1) reads sash_muntin_to_be_replaced_qty.
      */
     const allLeafMuntins = allDoorLeaves.flatMap(
       l => (l.children ?? []).filter(c => c.part_type === 'mullionPart'))
-    // Step BE: the door leaves’ real muntins. Integrate’s own variable name,
-    // and for a SASH window it stays 0 — a box sash’s real glazing bars are
-    // counted as gb_to_be_replaced_qty, which is what the sash rules read
-    // (the two "Real Glazing Bar" rules are gated on is_sw / not is_door, so
-    // a door’s muntins can never reach them).
+
+    // ── A MID RAIL COUNTS TOO (Step BM follow-up, 16 Oct) ───────────────────
     //
-    // Step BM, 16 Oct: the reviewer’s correction asked for a mid rail to be
-    // counted here too (L34242 Q2 item 8 fires "Door Muntin" 4 x 60 beside
-    // "Flat Panel" 4 x 60). NOT made: live benchmark LQ3 is the same shape —
-    // two French leaves, 170 mid rails, type-110 flat panels — and hits
-    // Integrate’s 61.22 h EXACTLY with the mid rails uncounted, so counting
-    // them puts LQ3 2 h over. Measured, reverted and reported rather than
-    // tuned: docs/reports/step-bm.md, "Item 4 — the mid rail does not count".
-    const sash_muntin_to_be_replaced_qty   = allLeafMuntins.length
+    // Step BE read this the other way — Nathan’s decision d, "a mid rail is
+    // not a muntin" — which left GlazePro 60 minutes a mid rail cheaper than
+    // Integrate on FD4 and FT1-FT4, each declaring the gap. Step BM measured
+    // the change and reverted it, because live LQ3 appeared to contradict it.
+    //
+    // It did not. Integrate’s labour editor on L33022 Q5 item 12 (LQ3), read
+    // 16 Oct 17:00, fires DOOR MUNTIN 2 x 60 *and* ADDITIONAL FOR FLAT PANEL
+    // 2 x 60, which is part of the 3,673 min = 61.22 h of its own price line.
+    // LQ3’s fixture had RAISED AND FIELDED panels, because the facts file
+    // wrongly called Integrate’s type 110 raised and fielded (110 is FLAT;
+    // 112 is R&F). R&F 2 x 120 is exactly flat 2 x 60 plus muntin 2 x 60, so
+    // a wrong fixture with an uncounted mid rail landed on the right total.
+    // The fixture is corrected in the same step as this.
+    //
+    // Confirmed on four readings: L34242 Q2 item 8 (four mid rails, no
+    // MullionPart at all, 4 x 60), L34268 item 2 (leaf transom + leaf mullion,
+    // 2 x 60), L34355 Q4 item 7 and L33022 Q5 item 7 (4 x 60 each).
+    const isMidRail = c => c.part_type === 'transomPart' && c.values?.isMidrail === true
+    const doorLeafMidRails = allDoorLeaves.flatMap(
+      l => (l.children ?? []).filter(isMidRail))
+    // A doorset's SIDE LIGHT mid rail counts as well — item 8's four are
+    // leaves and side casements together — but only on an item that HAS a
+    // door leaf. That gate is what keeps a plain casement window's transom
+    // out of the two sash-window "Real Glazing Bar" rules, which read this
+    // same variable.
+    const doorsetSashMidRails = hasDoorLeaf
+      ? allCasementSashes.flatMap(s => (s.children ?? []).filter(isMidRail))
+      : []
+
+    // Integrate’s own variable name. For a SASH window it stays 0 — a box
+    // sash’s real glazing bars are counted as gb_to_be_replaced_qty, which is
+    // what the sash rules read.
+    const sash_muntin_to_be_replaced_qty   = allLeafMuntins.length +
+      doorLeafMidRails.length + doorsetSashMidRails.length
 
     const is_individually_glazed = allGlassParts.some(g => g.values?.isIndividualPanes === true)
     // Backwards compat alias

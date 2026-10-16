@@ -193,9 +193,9 @@ describe('Step BH follow-up 2 — a short divider survives the database', () => 
     }
   })
 
-  it('and it prices what the report says: £8,936.47', () => {
+  it('and it prices what the report says: £9,084.43', () => {
     const { created, loaded } = throughTheDatabase(template)
-    expect(price(loaded).price.total).toBeCloseTo(8936.47, 1)
+    expect(price(loaded).price.total).toBeCloseTo(9084.43, 1)
     // the same as before the database, which is the whole point
     expect(price(loaded).price.total).toBeCloseTo(price(created).price.total, 2)
   })
@@ -205,13 +205,20 @@ describe('Step BH follow-up 2 — a short divider survives the database', () => 
     // the frame reads as six cells, the panels go negative — and the guard of
     // item 2 refuses them, which is the £7,517.43 the reviewer saw on
     // drawing 60 rather than the original £7,095.53.
+    //
+    // The figure asserted below is £7,665.39, not that £7,517.43: pricing has
+    // moved on since the reviewer read it, by three mid rails' "Door Muntin"
+    // at £24.66 a side (£147.96 on the price) from the Step BM follow-up. The
+    // reviewer's numbers are left in this comment as the record of what was
+    // seen on the day; what the test pins is the SHAPE of the bug — two dead
+    // references, six cells, four panels refused — which is unchanged.
     const { tree: created } = prepareTemplateTree(template)
     const db = makeDb(2000)
     db.save(created)
     const loaded = db.load()
     expect(deadDividerRefs(loaded).length).toBe(2)
     expect(cellsOf(loaded).length).toBe(6)
-    expect(price(loaded).price.total).toBeCloseTo(7517.43, 1)
+    expect(price(loaded).price.total).toBeCloseTo(7665.39, 1)
     // and the panels that cannot be made are named rather than priced
     expect((price(loaded).warnings ?? []).filter(w => /usable size/.test(w)).length)
       .toBe(4)
@@ -223,7 +230,7 @@ describe('Step BH follow-up 2 — a short divider survives the database', () => 
     const { loaded } = throughTheDatabase(template, { times: 3 })
     expect(deadDividerRefs(loaded)).toEqual([])
     expect(cellsOf(loaded).length).toBe(4)
-    expect(price(loaded).price.total).toBeCloseTo(8936.47, 1)
+    expect(price(loaded).price.total).toBeCloseTo(9084.43, 1)
   })
 
   it('the map is by POSITION: the nth mullion of the nth frame', () => {

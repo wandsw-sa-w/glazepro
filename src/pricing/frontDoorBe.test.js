@@ -6,7 +6,13 @@
  * both were proved from its Estimated Labour Time editor:
  *
  *  d. "Door Muntin" fires 60 x sash_muntin_to_be_replaced_qty, and Integrate
- *     counts a leaf's MID RAIL as a muntin. A mid rail is not a muntin.
+ *     counts a leaf's MID RAIL as a muntin.
+ *
+ *     SUPERSEDED by the Step BM follow-up (16 Oct): decision d said "a mid
+ *     rail is not a muntin", and Integrate's labour editor on L33022 Q5 item
+ *     12, L34242 Q2 item 8, L34268 item 2 and L34355 Q4 item 7 all say it is.
+ *     GlazePro now counts it, and the rows below assert the new figures. The
+ *     describe keeps its name because this is still where Door Muntin lives.
  *  e. a SHAPED glass unit is priced on the largest rectangle of its cut glass
  *     + 25%, at the SQUARE glass rate.
  */
@@ -43,32 +49,36 @@ const vars = bm => computeVariables(bm.tree, computeDerived(bm.tree), LIVE.pfVar
   { profileCode: bm.profileCode })
 
 describe('Step BE A — Door Muntin, 60 a REAL muntin', () => {
-  it('FT1’s one muntin is 60 minutes, and its production is 2,610', () => {
-    // Step BF: the panels are FLAT (type 110 read in Integrate’s dialog), so
-    // its flat-panel 60 x 4 was right. What is left is the muntin: Integrate
-    // fires Door Muntin TWICE, counting the mid rail, and GlazePro once.
-    expect(vars(BENCHMARK_FT1).sash_muntin_to_be_replaced_qty).toBe(1)
+  it('FT1’s muntin AND mid rail are 120 minutes, production 2,670', () => {
+    // The panels are FLAT (type 110 read in Integrate’s dialog), so its
+    // flat-panel 60 x 4 is right; and the Step BM follow-up made the MID RAIL
+    // count too, so Door Muntin fires twice — which is exactly what
+    // Integrate’s labour editor reads on drawing 16:
+    //   sash_muntin_to_be_replaced_qty = 2 (the muntin AND the mid rail).
+    expect(vars(BENCHMARK_FT1).sash_muntin_to_be_replaced_qty).toBe(2)
     const r = run(BENCHMARK_FT1)
-    expect(minutes(r, 'Door Muntin')).toBe(60)
-    expect(r.manufacture_labour.total_minutes).toBe(2610)
-    expect(r.manufacture_labour.total_minutes / 60).toBeCloseTo(43.50, 2)
+    expect(minutes(r, 'Door Muntin')).toBe(120)
+    expect(r.manufacture_labour.total_minutes).toBe(2670)
+    expect(r.manufacture_labour.total_minutes / 60).toBeCloseTo(44.50, 2)
   })
 
-  it('a MID RAIL is not a muntin: FT2, FT3 and FD4 do not move', () => {
-    for (const [label, bm, production] of [
-      // Step BF: 60 less than Integrate’s 2,770 and 3,290 — the mid rail it
-      // counts as a muntin — and their panels are FLAT.
-      ['FT2', BENCHMARK_FT2, 2710],
-      ['FT3', BENCHMARK_FT3, 3230],
+  it('a MID RAIL IS a muntin: FT2, FT3 and FD4 each gain its rails', () => {
+    for (const [label, bm, qty, production] of [
+      // Integrate’s own 2,770 and 3,290, which these now hit exactly. FT3 is
+      // the proof of the rule: it has NO real muntin at all, and Integrate
+      // fires Door Muntin 1 x 60 for its mid rail regardless.
+      ['FT2', BENCHMARK_FT2, 1, 2770],
+      ['FT3', BENCHMARK_FT3, 1, 3290],
     ]) {
-      expect(vars(bm).sash_muntin_to_be_replaced_qty, label).toBe(0)
+      expect(vars(bm).sash_muntin_to_be_replaced_qty, label).toBe(qty)
       const r = run(bm)
-      expect(minutes(r, 'Door Muntin'), label).toBe(0)
+      expect(minutes(r, 'Door Muntin'), label).toBe(qty * 60)
       expect(r.manufacture_labour.total_minutes, label).toBe(production)
     }
-    // FD4's two French leaves have a mid rail each and no muntin
-    expect(vars(BENCHMARK_FD4).sash_muntin_to_be_replaced_qty).toBe(0)
-    expect(minutes(run(BENCHMARK_FD4), 'Door Muntin')).toBe(0)
+    // FD4's two French leaves have a mid rail each and no real muntin, so it
+    // is 2 x 60 — the whole of the -49.32 it used to declare.
+    expect(vars(BENCHMARK_FD4).sash_muntin_to_be_replaced_qty).toBe(2)
+    expect(minutes(run(BENCHMARK_FD4), 'Door Muntin')).toBe(120)
   })
 
   it('a SASH window’s glazing bars are still not muntins', () => {

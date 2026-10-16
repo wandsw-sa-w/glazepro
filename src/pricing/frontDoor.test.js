@@ -122,16 +122,16 @@ describe('Step BD item 3 — pricing the leaf', () => {
   })
 
   it('FT1’s production is the rules that fire, and nothing is tuned', () => {
-    // The reading Step BD asked for, resolved in two steps. Integrate’s own
-    // Estimated Labour Time editor fires flat-panel 60 x 4 and Door Muntin
-    // TWICE on a leaf with one muntin and one mid rail. Step BE took the
-    // panels to be R&F; Step BF read the ids in Integrate’s dialog and they
-    // are FLAT (110), so only the muntin half of decision d survives:
+    // The reading Step BD asked for, resolved over three steps and now EXACT.
+    // Integrate’s own Estimated Labour Time editor fires flat-panel 60 x 4
+    // and Door Muntin TWICE on a leaf with one muntin and one mid rail. Step
+    // BE took the panels to be R&F; Step BF read the ids in Integrate’s
+    // dialog and they are FLAT (110); the Step BM follow-up made the mid rail
+    // count as the second muntin. So both halves now match the editor:
     //   Door Leaf 1035 + Machining & Joining a Door Frame 855
     //   + Door Frame - Dual Finish 240 + Door Leaf - Dual Finish 180
-    //   + Additional for Flat Panel 60 x 4 + Door Muntin 60 = 2610 (43.50 h)
-    // against Integrate’s 2670 — 60 minutes LESS, for the mid rail it
-    // counts as a muntin.
+    //   + Additional for Flat Panel 60 x 4 + Door Muntin 120 = 2670 (44.50 h)
+    // which is Integrate’s own figure, with nothing left over.
     const r = run(BENCHMARK_FT1)
     const fired = (r.manufacture_labour.lines ?? [])
       .filter(l => (l.minutes ?? 0) > 0)
@@ -142,26 +142,27 @@ describe('Step BD item 3 — pricing the leaf', () => {
       'Door Leaf 1035',
       // the Door Muntin line sits here, before the panels — the rules fire
       // in the live file's own order
-      'Door Muntin 60',
+      'Door Muntin 120',
       'Additional for Flat Panel 60',
       'Additional for Flat Panel 60',
       'Additional for Flat Panel 60',
       'Additional for Flat Panel 60',
       'Machining & Joining a Door Frame 855',
     ])
-    expect(r.manufacture_labour.total_minutes).toBe(2610)
+    expect(r.manufacture_labour.total_minutes).toBe(2670)
   })
 
-  it('Door Muntin fires 60 for the ONE real muntin', () => {
-    // Step BD left sash_muntin_to_be_replaced_qty at 0 because wiring it to
-    // the leaf's muntins moved FT1 AWAY from Integrate's 2670. Step BE has
-    // the reason: 2670 is wrong, and Integrate reaches it by counting the
-    // MID RAIL as a second muntin on top of a flat-panel error. GlazePro
-    // charges 60 for the real muntin and nothing for the mid rail.
+  it('Door Muntin fires 120 — the real muntin AND the mid rail', () => {
+    // Step BD left sash_muntin_to_be_replaced_qty at 0, and Step BE wired it
+    // to the leaf's REAL muntins only, on the reading that Integrate's 2,670
+    // was wrong. The Step BM follow-up settles it the other way: Integrate's
+    // labour editor on drawing 16 reads the quantity as 2, the muntin AND the
+    // mid rail, and three more live items agree. So FT1 fires 2 x 60 and its
+    // production is Integrate's 2,670 exactly.
     const r = run(BENCHMARK_FT1)
     const muntin = (r.manufacture_labour.lines ?? [])
       .filter(l => (l.rule_name ?? l.name) === 'Door Muntin')
-    expect(muntin.reduce((t, l) => t + (l.minutes ?? 0), 0)).toBe(60)
+    expect(muntin.reduce((t, l) => t + (l.minutes ?? 0), 0)).toBe(120)
   })
 })
 

@@ -63,29 +63,31 @@ describe('Step BF A — 110 is FLAT', () => {
     }
   })
 
-  it('each FT row’s production is now UNDER Integrate, by its mid rails', () => {
-    // The brief's own figures. What is left is decision d: Integrate counts a
-    // leaf's MID RAIL as a muntin and GlazePro does not, so GlazePro is 60
-    // short per mid rail — FT4 has two.
-    for (const [label, bm, mine, theirs] of [
-      ['FT1', BENCHMARK_FT1, 2610, 2670],
-      ['FT2', BENCHMARK_FT2, 2710, 2770],
-      ['FT3', BENCHMARK_FT3, 3230, 3290],
-      ['FT4', BENCHMARK_FT4, 3785, 3905],
+  it('each FT row’s production is now Integrate’s EXACTLY', () => {
+    // This used to assert a shortfall of 60 minutes per mid rail, which was
+    // decision d: Integrate counted a leaf's MID RAIL as a muntin and
+    // GlazePro did not. The Step BM follow-up made GlazePro count it too, on
+    // Integrate's labour editor across four live items, so the flat panel and
+    // the mid rail are both right and nothing is left over.
+    for (const [label, bm, integrate] of [
+      ['FT1', BENCHMARK_FT1, 2670],
+      ['FT2', BENCHMARK_FT2, 2770],
+      ['FT3', BENCHMARK_FT3, 3290],
+      ['FT4', BENCHMARK_FT4, 3905],
     ]) {
       const r = run(bm)
-      expect(r.manufacture_labour.total_minutes, label).toBe(mine)
-      expect(theirs - mine, `${label} is short by its mid rails`)
-        .toBe(label === 'FT4' ? 120 : 60)
+      expect(r.manufacture_labour.total_minutes, `${label} is Integrate's`)
+        .toBe(integrate)
     }
   })
 
-  it('FD4’s French panels are flat too, and it was never exact', () => {
-    // FD4 reads 110 on both leaves' panels. It matched Integrate before this
-    // step, which it could only have done by charging R&F 120 where Integrate
-    // charged flat 60 and being wrong by the same amount somewhere else — so
-    // the fixture's old agreement is not evidence of anything. Nothing here is
-    // tuned to keep it.
+  it('FD4’s French panels are flat too, and now it IS exact', () => {
+    // FD4 reads 110 on both leaves' panels. It matched Integrate before Step
+    // BF as well, but only by charging R&F 120 where Integrate charged flat 60
+    // and being wrong by the same amount somewhere else — the "somewhere
+    // else" turned out to be the two mid rails' Door Muntin, which the Step BM
+    // follow-up now charges. So the two errors that used to cancel are both
+    // fixed, and FD4 is exact with nothing declared. Nothing is tuned to it.
     const r = run(BENCHMARK_FD4)
     expect(minutesOf(r, 'Additional for Flat Panel')).toBe(120)
     expect(minutesOf(r, 'Additional for R&F Panel')).toBe(0)

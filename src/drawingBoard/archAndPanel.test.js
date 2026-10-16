@@ -261,29 +261,33 @@ describe('Step BM item 4 — the added panel stays FLAT', () => {
   })
 })
 
-// ── Item 4, the other half: does a mid rail count as a muntin? ──────────────
+// ── Item 4, the other half: a mid rail DOES count ───────────────────────────
 //
-// The correction asked for one more change — that a door leaf's MID RAIL go
-// into sash_muntin_to_be_replaced_qty, so Integrate's rule 1235 "Door Muntin"
-// (60 minutes, gated on new_door_leaf_qty >= 1) fires once per mid rail. Its
-// evidence was L34242 Q2 item 8: four leaves and side casements, each with a
-// 170 mid rail over a type-110 panel, charged "Additional for Flat Panel"
-// 4 x 60 AND "Door Muntin" 4 x 60.
+// Step BM measured this change, found it moved six benchmarks, and reverted it
+// rather than tune them — FD4, FT1-FT4 became exactly Integrate, but live LQ3
+// went two hours over, and there was no discriminator between LQ3 and FD4.
 //
-// It is NOT made, because a live benchmark says the opposite and the
-// correction's own instruction is to stop and report when a benchmark moves.
-// LQ3 (L33022 item 12, live drawing 105) is the same shape as the reviewer's
-// item 8 — two French leaves, each a 170 mid rail over a type-110 flat panel
-// — and Integrate's own price file reads "Production Time: 61.22 x 24.66",
-// which GlazePro hits EXACTLY with the mid rails uncounted. Counting them
-// puts LQ3 two hours and £49.32 OVER Integrate.
+// The BM follow-up settles it, and LQ3 was never a counter-example. Integrate's
+// labour editor on L33022 Q5 item 12 (LQ3), read 16 Oct 17:00:
 //
-// So this guards the variable against being changed without that being
-// settled first. docs/reports/step-bm.md has the full table and what the
-// reviewer needs to read to decide it.
+//   Door Leaf 2 x 1035, Additional for Glazing Bars (door) 2 x 30,
+//   DOOR MUNTIN 2 x 60, ADDITIONAL FOR FLAT PANEL 2 x 60, Door Frame 855,
+//   Glazing 2 x 20, Glazing with Bar 2 x 12 + 2 x 12,
+//   Door Frame Single Finish 180, Door Leaf Single Finish 2 x 90
+//   = 3,673 min = 61.22 h, which is Integrate's own price line.
+//
+// So the mid rails count AND the panels are flat. The LQ3 fixture carried
+// RAISED AND FIELDED panels, because the facts file wrongly called Integrate's
+// type 110 raised and fielded. R&F 2 x 120 is exactly flat 2 x 60 plus muntin
+// 2 x 60, so a wrong fixture with an uncounted mid rail landed on the right
+// total — which is precisely what made it read as a contradiction.
+//
+// The reviewer also confirmed L34242 Q2 item 8's leaves carry no MullionPart,
+// only a TransomPart 170 isMidrail each, so its Door Muntin 4 x 60 is four mid
+// rails and not the real muntins I had guessed at.
 
-describe('Step BM item 4 — a mid rail is not counted as a muntin yet', () => {
-  /** One French leaf: a 170 mid rail, a type-110 flat panel, no real muntin. */
+describe('Step BM follow-up — a mid rail counts as a muntin', () => {
+  /** One French leaf: a 170 mid rail, a type-110 FLAT panel, no real muntin. */
   const leafWithMidRail = () => ({
     key: 'item1', part_type: 'drawingItemPart',
     values: { typeOfWork: 'complete_new' },
@@ -308,22 +312,66 @@ describe('Step BM item 4 — a mid rail is not counted as a muntin yet', () => {
     }],
   })
 
-  it('a leaf with a mid rail and NO muntin counts zero', () => {
-    const v = computeVariables(leafWithMidRail(), derivedFor(leafWithMidRail(), {}), {})
-    expect(v.sash_muntin_to_be_replaced_qty).toBe(0)
-  })
-
-  it('a REAL muntin still counts', () => {
-    // mullionPart inside a leaf is Integrate's muntin — decision d's half
-    // that nothing here disturbs.
+  it('a leaf with a mid rail and NO muntin counts ONE', () => {
     const t = leafWithMidRail()
-    t.children[0].children[0].children[0].children.push(
-      { key: 'mu', part_type: 'mullionPart', values: { offset: 300 }, children: [] })
     const v = computeVariables(t, derivedFor(t, {}), {})
     expect(v.sash_muntin_to_be_replaced_qty).toBe(1)
   })
 
-  it('LQ3 — the live quote the correction has to beat — is still exact', () => {
+  it('a real muntin AND a mid rail count two', () => {
+    // mullionPart inside a leaf is Integrate's real muntin. L34268 item 2 is
+    // this shape — a leaf transom plus a leaf mullion — and reads 2 x 60.
+    const t = leafWithMidRail()
+    t.children[0].children[0].children[0].children.push(
+      { key: 'mu', part_type: 'mullionPart', values: { offset: 300 }, children: [] })
+    const v = computeVariables(t, derivedFor(t, {}), {})
+    expect(v.sash_muntin_to_be_replaced_qty).toBe(2)
+  })
+
+  it('a casement sash mid rail counts when the item HAS a door leaf', () => {
+    // L34355 Q4 item 7: two side-casement mid rails plus a leaf transom and a
+    // leaf mullion, 4 x 60. The side casement's rail is the one dividing glass
+    // from panel.
+    const t = leafWithMidRail()
+    t.children[0].children.push({
+      key: 'cas1', part_type: 'casementSashPart', values: { operation: 'fix' },
+      children: [
+        { key: 'cas1_mr', part_type: 'transomPart',
+          values: { isMidrail: true, offset: 900, thickness: 170 }, children: [] },
+        { key: 'cas1_gl', part_type: 'glassPart', values: {}, children: [] },
+        { key: 'cas1_pn', part_type: 'panelPart',
+          values: { internalPanelTypeId: 'flat', externalPanelTypeId: 'flat' }, children: [] },
+      ],
+    })
+    const v = computeVariables(t, derivedFor(t, {}), {})
+    expect(v.sash_muntin_to_be_replaced_qty).toBe(2)
+  })
+
+  it('but a casement sash mid rail counts NOTHING with no door leaf', () => {
+    // A plain casement window. "Door Muntin" is gated on new_door_leaf_qty >= 1
+    // anyway, but this variable is also read by the two sash-window "Real
+    // Glazing Bar" rules, so it must not pick up a window's transom.
+    const t = {
+      key: 'item1', part_type: 'drawingItemPart',
+      values: { typeOfWork: 'complete_new' },
+      children: [{
+        key: 'frame1', part_type: 'assemblyFramePart',
+        values: { width: 1200, height: 1300 },
+        children: [{
+          key: 'cas1', part_type: 'casementSashPart', values: { operation: 'fix' },
+          children: [
+            { key: 'cas1_mr', part_type: 'transomPart',
+              values: { isMidrail: true, offset: 650, thickness: 170 }, children: [] },
+            { key: 'cas1_gl', part_type: 'glassPart', values: {}, children: [] },
+          ],
+        }],
+      }],
+    }
+    const v = computeVariables(t, derivedFor(t, {}), {})
+    expect(v.sash_muntin_to_be_replaced_qty).toBe(0)
+  })
+
+  it('LQ3 still prices at Integrate’s 61.22 h — now as flat plus muntin', () => {
     if (!SNAPSHOT) return
     const r = runPricingOnTree(BENCHMARK_LQ3.tree, SNAPSHOT.rules, SNAPSHOT.pfVariables, {
       glassCatalogue: SNAPSHOT.glassCatalogue,
@@ -334,8 +382,19 @@ describe('Step BM item 4 — a mid rail is not counted as a muntin yet', () => {
       profileValues: BENCHMARK_LQ3.profileValues,
       profileCode: BENCHMARK_LQ3.profileCode ?? null,
     })
-    // Integrate's own line: Production Time 61.22 x 24.66. Two mid rails
-    // uncounted; counting them would read 63.22.
+    // The SAME total as before the follow-up, reached the RIGHT way round:
+    // flat 2 x 60 + Door Muntin 2 x 60, where it used to be R&F 2 x 120.
     expect(r.manufacture_labour.total_minutes / 60).toBeCloseTo(61.22, 2)
+  })
+
+  it('and LQ3’s panels are FLAT, which is what makes that total honest', () => {
+    const panels = findAllOf(BENCHMARK_LQ3.tree, 'panelPart')
+    expect(panels.length).toBe(2)
+    for (const p of panels) {
+      expect(p.values.internalPanelTypeId).toBe('flat')
+      expect(p.values.externalPanelTypeId).toBe('flat')
+      expect(p.values.internalPanelBeadId).toBe('ovolo')
+      expect(p.values.externalPanelBeadId).toBe('ovolo')
+    }
   })
 })

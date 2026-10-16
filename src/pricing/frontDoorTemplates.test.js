@@ -77,11 +77,18 @@ describe('Step BD templates fix — what each template prices', () => {
   //   With Fanlight   -24.66  (one)
   //   Arched          -24.66  (one)
   //   With Side Light -123.30 (five: four in the door, one in the sash)
+  //
+  // Step BM follow-up: a leaf's MID RAIL now fires "Door Muntin" 60 as well,
+  // which Integrate's labour editor reads on four live items. Every template
+  // has one mid rail, so each gains 24.66 — bar the side-light template,
+  // which has two (the leaf's and the side casement's) and gains 49.32.
+  //   Front Door      +24.66  Arched          +24.66
+  //   With Fanlight   +24.66  With Side Light +49.32
   const EXPECTED = [
-    ['Front Door',               2506.03],
-    ['Front Door With Fanlight', 2673.31],
-    ['Arched Front Door',        2700.46],
-    ['Front Door With Side Light', 3248.05],
+    ['Front Door',               2530.69],
+    ['Front Door With Fanlight', 2697.97],
+    ['Arched Front Door',        2725.12],
+    ['Front Door With Side Light', 3297.37],
   ]
 
   for (const [name, cost] of EXPECTED) {
@@ -129,9 +136,10 @@ describe('Step BD templates fix — what each template prices', () => {
     }
     expect(bedford.live.results.price.total_cost)
       .toBeGreaterThan(bedford.centred.results.price.total_cost)
-    // the reviewer's drawing 42, made from the centred template, less the
-    // 24.66 its one panel drops by now that it is flat
-    expect(bedford.centred.results.price.total_cost).toBeCloseTo(2658.73, 1)
+    // the reviewer's drawing 42, made from the centred template: less the
+    // 24.66 its one panel dropped by when it went flat, plus the 24.66 its
+    // mid rail now fires as a "Door Muntin" (Step BM follow-up)
+    expect(bedford.centred.results.price.total_cost).toBeCloseTo(2683.39, 1)
     // 45 minutes of "Any Door Overweight" come back with the longer glass
     const mins = r => r.results.install_labour.total_minutes
     expect(mins(bedford.live) - mins(bedford.centred)).toBe(45)
@@ -141,9 +149,10 @@ describe('Step BD templates fix — what each template prices', () => {
       live:    priceTemplate(byName('Arched Front Door')),
     }
     // the reviewer’s drawing 43 figure plus Step BE’s shaped glass, at the
-    // square rate and its flat panel: 2,740.74 + 6.44 - 24.66 (a centred rail
-    // makes a taller glass cell, so its billable rectangle grows more)
-    expect(arched.centred.results.price.total_cost).toBeCloseTo(2722.52, 1)
+    // square rate, its flat panel and its mid rail’s "Door Muntin":
+    // 2,740.74 + 6.44 - 24.66 + 24.66 (a centred rail makes a taller glass
+    // cell, so its billable rectangle grows more)
+    expect(arched.centred.results.price.total_cost).toBeCloseTo(2747.18, 1)
     expect(arched.live.results.price.total_cost)
       .toBeLessThan(arched.centred.results.price.total_cost)
   })
