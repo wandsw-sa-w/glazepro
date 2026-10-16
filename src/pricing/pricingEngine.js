@@ -1488,14 +1488,23 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
   // with no rule behind it could not be saved: drawing 117 priced its 180
   // minutes offline and failed live. No new rule; the Labour rule is found
   // by what it reads, not by its name.
+  //
+  // Step BS follow-up 2: this minutes line is for the breakdown's HOURS and
+  // is NOT persisted (`persisted: false`). Written under the Labour price
+  // rule's id it stored its minutes as pounds — quantity 180, cost 180 —
+  // and the Labour rule's rows summed to 1,195.30 against a group of
+  // 1,015.30. The pounds now live where pounds belong: pass 3 splits the
+  // Labour PRICE line into the fitting-units hours and one row per POA line,
+  // and that is what the table holds.
   const labourRule = rules.find(r => r.rule_family === 'price' &&
     /\binstallation_labour_time\b/.test(String(r.quantity ?? '')))
-  for (const poa of poaInstallLines(tree)) {
+  const poaInstall = poaInstallLines(tree)
+  for (const poa of poaInstall) {
     instMinutes += poa.amount
     const name = `POA — ${poa.description || 'installation'}`
     results.install_labour.lines.push({
       rule_id: labourRule?.id ?? null, rule_family: 'install_labour', group_name: 'POA',
-      name, alloc_label: name,
+      name, alloc_label: name, persisted: false,
       loop_target: 'drawing_poa', part_key: null, part_type: 'pricePart',
       fires: true, quantity: poa.amount, value: 1, minutes: poa.amount,
       error: null, defaulted_vars: [],
@@ -1671,6 +1680,46 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
         if (!line.error && line.fires) { totalCost += line.line_cost; totalPrice += line.line_total }
         results.price.lines.push(line)
       }
+      continue
+    }
+
+    // Step BS follow-up 2: the LABOUR rule, when the item has POA labour
+    // lines, is SPLIT the way Integrate's labour editor shows it — the
+    // fitting units on one line and each POA line on its own — so the rows a
+    // run stores are hours and pounds that add up: 22.25 h / 894.67 and
+    // 3.00 h / 120.63 for LQ4, both at 40.21 with the rule's markup.
+    //
+    // Integrate's price file prices it as ONE line (25.25 x 40.21 =
+    // 1,015.30), and two independently rounded lines can differ from it by
+    // a penny, so the LAST POA line takes the remainder: the rows always sum
+    // to exactly the single-line figure, and no benchmark can move.
+    // installation_labour_time itself is untouched (25.25).
+    if (labourRule && rule.id === labourRule.id && poaInstall.length > 0) {
+      const whole = evalPriceRuleLine(rule, priceVars, null)
+      if (!whole.fires || whole.error) {
+        results.price.lines.push(whole)
+        continue
+      }
+      const poaHours   = poaInstall.map(p => Math.round((p.amount / 60) * 100) / 100)
+      const unitsHours = Math.round((instHours - poaHours.reduce((a, b) => a + b, 0)) * 100) / 100
+      const main = evalPriceRuleLine(rule, { ...priceVars, installation_labour_time: unitsHours }, null)
+      main.alloc_label = null
+      totalCost += main.line_cost; totalPrice += main.line_total
+      results.price.lines.push(main)
+      let costLeft  = round2dpHalfUp(whole.line_cost  - main.line_cost)
+      let totalLeft = round2dpHalfUp(whole.line_total - main.line_total)
+      poaInstall.forEach((poa, i) => {
+        const line = evalPriceRuleLine(rule, { ...priceVars, installation_labour_time: poaHours[i] }, null)
+        const last = i === poaInstall.length - 1
+        if (last) { line.line_cost = costLeft; line.line_total = totalLeft }
+        costLeft  = round2dpHalfUp(costLeft  - line.line_cost)
+        totalLeft = round2dpHalfUp(totalLeft - line.line_total)
+        line.loop_target = 'drawing_poa'
+        line.part_type   = 'pricePart'
+        line.alloc_label = `POA — ${poa.description || 'installation'} (${poa.amount} min)`
+        totalCost += line.line_cost; totalPrice += line.line_total
+        results.price.lines.push(line)
+      })
       continue
     }
 
@@ -2138,7 +2187,10 @@ export async function priceDrawing(drawingId, supabase, { priceFileId } = {}) {
  */
 export function installResultRows(lines, { drawingId, priceFileId, pricingRunId }) {
   return (lines ?? [])
-    .filter(l => l.fires && !l.error)
+    // `persisted: false` is the POA minutes line (Step BS follow-up 2): its
+    // pounds are stored as a Labour PRICE row, so a minutes row would count
+    // them twice.
+    .filter(l => l.fires && !l.error && l.persisted !== false)
     .map(l => {
       if (l.rule_id == null) {
         throw new Error(`install_labour line "${l.name}" has no price rule behind it ` +
