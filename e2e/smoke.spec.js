@@ -384,12 +384,18 @@ test.describe('GlazePro live smoke (read only)', () => {
     await location.blur()
     await expect(marker).toBeVisible({ timeout: 15_000 })
 
-    // Now select Finish & Ironmongery, which is what cleared it. The row's
-    // click handler is on the div, not the label span, so click the row.
+    // Now select Finish & Ironmongery, which is what cleared it.
+    //
+    // dispatchEvent, not click(): the row's handler is on the containing div
+    // rather than the label span, and at this viewport the tree row's centre
+    // point is covered by the Summary panel — document.elementFromPoint there
+    // returns "Price (net)", so click() waits for actionability it will never
+    // get and hangs until the test times out. dispatchEvent sends a real
+    // bubbling click to the row itself and skips the hit test.
     const selected = page.locator('[data-testid="selected-part-type"]')
     await expect(selected).toHaveAttribute('data-part-type', 'drawingItemPart')
     await tree.locator('[data-testid="part-label"]', { hasText: 'Finish & Ironmongery' })
-      .first().locator('xpath=..').click()
+      .first().locator('xpath=..').dispatchEvent('click')
 
     // The panel is open and has applied its defaults — which is what used to
     // adopt the unsaved edit as the saved baseline. The edit is STILL unsaved.

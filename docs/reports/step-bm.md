@@ -474,4 +474,61 @@ belongs in whichever step resolves 4b.
 
 # e2e after the deploy
 
-Recorded after the deploy below.
+Deploy confirmed by decoding `/version.json`: **`mvb5zmrn` = 16:10:51Z**, nine
+seconds after the last commit (`17:10:42+01:00` = 16:10:42Z).
+`public/version.json` is left uncommitted, as CLAUDE.md says.
+
+`npm run e2e`: **7 passed** (28.6s) — the six standing tests and the new item 3
+step.
+
+```
+ok 1 logs in
+ok 2 every benchmark passes except the parked residuals
+ok 3 the fanlight drawing shows Fanlight A1 and Casement Sash A2
+ok 4 a casement drawing offers Bi-Glass in Type of Work
+ok 5 selecting Finish & Ironmongery keeps unsaved edits unsaved
+ok 6 the validation panel loads without an error
+ok 7 every drawing card on the L507712 quote matrix shows a price
+```
+
+Test 2 is the live benchmark page, so **every live benchmark is unmoved except
+where item 2 intends it** — nothing in item 4 reached the live engine, which is
+the point of reverting it rather than shipping it behind a flag.
+
+## The new step took two goes, and the first failure was the test's, not the app's
+
+Worth recording because the failure looked like item 3 regressing and was not.
+The first live run failed with the Unsaved marker **present** — the fix works —
+but the step had never confirmed the Finish & Ironmongery panel had opened, so
+it was asserting against the Item panel. Two causes, both in the test:
+
+1. The tree row's click handler is on the containing `div`, not the label
+   `span`, so clicking the label's own box did not select.
+2. The field it waited for, `paintAndIronmongeryPart.ironmongeryFinish`, is not
+   rendered on drawing 69 at all — 69 is a **bi-glass casement**, so that wait
+   could never have succeeded even once the click landed.
+
+Fixing (1) by clicking the parent row then hung for the full test timeout.
+Probing the live DOM found why, and it is worth knowing for any future tree
+assertion:
+
+```
+rect:               { x: 1033, y: 169, w: 247, h: 34 }
+elementFromPoint:   <div ...>Price (net): ...
+```
+
+**At this viewport the tree row's centre point is covered by the Summary
+panel.** `click()` waits for the element to receive the event at its centre,
+which it never will, so it hangs rather than failing. The step now uses
+`dispatchEvent('click')`, which sends a real bubbling click to the row and
+skips the hit test, and it passes in 4.5s.
+
+The panel-open assertion no longer guesses at a field. `DrawingBoard.jsx`
+carries a hidden `data-testid="selected-part-type"` with the selected part's
+type as an **attribute** (an attribute, not text, because the element is
+hidden), and the step waits for it to become `paintAndIronmongeryPart` before
+it asserts anything about the marker. It is the same kind of hook as
+`unsaved-marker` and carries no UI of its own.
+
+Still read-only: it edits `drawingItemPart.location`, never saves, and reloads
+to confirm nothing was written.
