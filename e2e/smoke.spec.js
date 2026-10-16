@@ -350,6 +350,59 @@ test.describe('GlazePro live smoke (read only)', () => {
     }
   })
 
+  // Step BM item 3: selecting a part must never clear unsaved state.
+  //
+  // "Finish & Ironmongery" auto-applies the default ironmongery when it
+  // opens, and that path used to set the saved BASELINE to the whole current
+  // tree and force dirty false — so it adopted the surveyor's unsaved edits
+  // as if they had been saved, the Unsaved marker cleared, Save greyed out,
+  // and a reload brought the drawing back without them.
+  //
+  // READ ONLY, deliberately. The brief asks for "edits, selects F&I, saves,
+  // reloads and checks the edit stuck", but this suite runs on every deploy
+  // and saving would mutate a real drawing every time. So it edits, selects
+  // F&I, proves the edit is STILL unsaved — which is the whole of the bug —
+  // and reloads WITHOUT saving, proving nothing was written. The save half is
+  // covered offline in src/drawingBoard/unsavedState.test.js.
+  test('selecting Finish & Ironmongery keeps unsaved edits unsaved', async ({ page }) => {
+    await login(page)
+    await page.goto('/drawing-board/69')
+
+    const tree = page.locator('[data-testid="parts-tree"]')
+    await expect(tree).toBeVisible({ timeout: 60_000 })
+
+    // The item's Location box: a harmless field, and we never save it.
+    const location = page.locator('[title="drawingItemPart.location"]')
+      .locator('xpath=following::input[1]')
+    await expect(location).toBeVisible({ timeout: 30_000 })
+    const before = await location.inputValue()
+
+    const marker = page.locator('[data-testid="unsaved-marker"]')
+    await expect(marker).toHaveCount(0)      // nothing unsaved yet
+
+    await location.fill(`${before}x`)
+    await location.blur()
+    await expect(marker).toBeVisible({ timeout: 15_000 })
+
+    // Now select Finish & Ironmongery, which is what cleared it
+    await tree.locator('[data-testid="part-label"]', { hasText: 'Finish & Ironmongery' })
+      .first().click({ force: true })
+
+    // the panel opens and applies its defaults — and the edit is STILL unsaved
+    await expect(page.locator('[title="paintAndIronmongeryPart.ironmongeryFinish"]'))
+      .toBeVisible({ timeout: 30_000 })
+    await expect(marker, 'the Unsaved marker must survive selecting a part')
+      .toBeVisible()
+
+    // Reload WITHOUT saving: the edit is discarded, so nothing was written
+    await page.goto('/drawing-board/69')
+    await expect(tree).toBeVisible({ timeout: 60_000 })
+    const after = page.locator('[title="drawingItemPart.location"]')
+      .locator('xpath=following::input[1]')
+    await expect(after).toBeVisible({ timeout: 30_000 })
+    expect(await after.inputValue()).toBe(before)
+  })
+
   test('the validation panel loads without an error', async ({ page }) => {
     await login(page)
     await page.goto('/drawing-board/24')

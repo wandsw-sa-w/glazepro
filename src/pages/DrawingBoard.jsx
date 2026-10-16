@@ -2576,14 +2576,32 @@ function DrawingBoard() {
     commit(frameFromInternalSize(tree, { [axis]: value }))
   }, [tree])  // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-apply defaults (e.g. default ironmongery on load) without marking dirty.
-  // Updates both the tree and the saved baseline so isDirtyVsSaved stays false.
+  // Auto-apply defaults (e.g. default ironmongery when the Finish &
+  // Ironmongery panel opens) without marking the drawing dirty.
+  //
+  // Step BM item 3: THIS USED TO THROW AWAY UNSAVED EDITS.
+  //
+  // It set the saved baseline to the WHOLE current tree and forced dirty
+  // false. The current tree includes whatever the surveyor has changed and
+  // not yet saved, so selecting "Finish & Ironmongery" adopted those edits
+  // as if they had been saved: the Unsaved marker cleared, Save greyed out,
+  // and a reload brought back the drawing WITHOUT them. The reviewer lost a
+  // glazing bar and an opening type that way.
+  //
+  // The intent was only ever "the default itself is not a change". So the
+  // SAME default is applied to the baseline as to the tree — one patch, not
+  // a wholesale replacement — and dirty is then recomputed rather than
+  // forced. A clean drawing stays clean; a drawing with unsaved edits keeps
+  // them, and keeps saying so.
   const handleAutoApplyDefaults = useCallback((nodeKey, propertyName, newValue) => {
     if (!tree) return
-    const newTree = updateNodeValues(tree, nodeKey, { [propertyName]: newValue })
-    savedTreeRef.current = newTree
+    const patch = { [propertyName]: newValue }
+    const newTree = updateNodeValues(tree, nodeKey, patch)
+    savedTreeRef.current = savedTreeRef.current
+      ? updateNodeValues(savedTreeRef.current, nodeKey, patch)
+      : newTree
     setTree(newTree)
-    setDirty(false)
+    setDirty(isDirtyVsSaved(newTree))
   }, [tree])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Selection / prev-next (part navigation) ─────────────────────────────────
@@ -3094,7 +3112,7 @@ function DrawingBoard() {
 
       {/* Status */}
       {dirty && saveStatus !== 'saving' && (
-        <span style={{ fontSize: 11, color: '#92400e', background: '#fffbeb', border: '1px solid #fcd34d', padding: '2px 9px', borderRadius: 999, flexShrink: 0 }}>
+        <span data-testid="unsaved-marker" style={{ fontSize: 11, color: '#92400e', background: '#fffbeb', border: '1px solid #fcd34d', padding: '2px 9px', borderRadius: 999, flexShrink: 0 }}>
           Unsaved
         </span>
       )}
