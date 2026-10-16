@@ -126,7 +126,9 @@ cannot hold both — fixture A recorded that same limitation for the same reason
 
 The three sliding-sash draught-seal rules carry `not is_bi_glass` already, so
 they stay out of it; that is asserted, along with "Sashes Only Painting
-Profits" not firing. **But see the warning below about decoration.**
+Profits" not firing. (Step BJ left a warning open about decoration; Step BK
+closed it — the painting profit fires but is quantity `sliding_sash_qty`, so
+it charges nothing on a casement. See the wary-of list.)
 
 ## 1e — a single pane was weighed as two
 
@@ -340,14 +342,20 @@ Consumables**. Either one appearing means the volumes are still being charged.
   scoped to casements. **If a bi-glass casement should ever NOT be draught
   sealed, this is where to look** — it would need a stored flag, which is a
   schema change this step did not make.
-- **A bi-glass casement with DECORATION included would fire "Sashes Only
-  Painting Profits"** (`needs_draughtsealing and not nj_involved and
-  is_decoration_included`), because that rule does not carry `not
-  is_bi_glass` the way its two siblings do. None of the four drawings has
-  decoration on, so there is no reading either way, and nothing was changed on
-  a guess. Worth one reading next time the reviewer is in Integrate: tick
-  decoration on a bi-glass casement and see whether the painting profit
-  appears.
+- ~~**A bi-glass casement with DECORATION included would fire "Sashes Only
+  Painting Profits"**~~ **CLOSED 16 Oct** (Step BK item 4): there was never a
+  problem, and the rule is called "Draught Seal Only Painting Profits" live.
+  It DOES fire on a bi-glass casement — its condition is true — but its
+  **quantity is `sliding_sash_qty`, which is 0 on any casement**, so it
+  charges £0.00. The same is true of "Draught Seal Decoration"
+  (`sliding_sash_qty` × 200). What actually charges is **"Casement DSO
+  Decoration"**, `casement_sash_qty` × 150. Measured on GlazePro live
+  (drawing 70, a bi-glass casement 1200 × 1300 with 3 bars): £350.63 without
+  decoration, **£451.16** with it — the difference being exactly 150 minutes
+  at £40.21/h. Pinned in `biGlassCasement.test.js`. Integrate could not be
+  read for it at all: its Decoration box does not appear for this user in
+  Survey Mode, which the administrator has locked on — so this is settled from
+  the rules, which are the same in both systems, and not from a reading.
 - **The facts' own note that "Integrate only finalises bi-glass on save"** is
   taken at face value: all four drawings were read SAVED. An unsaved bi-glass
   drawing has not been read and may differ, as the unsaved-template nosing did

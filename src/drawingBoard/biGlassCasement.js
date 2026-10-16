@@ -44,7 +44,7 @@
 // is a casement.
 
 import {
-  CASEMENT_SASH_TYPES, DOOR_LEAF_LIKE, FRENCH_PAIR_PART,
+  CASEMENT_SASH_TYPES, DOOR_LEAF_LIKE, FRENCH_PAIR_PART, FRENCH_SASH_TYPES,
 } from '../pricing/casementGeometry.js'
 
 /** Integrate's glazingId 1, and the pane it puts in. */
@@ -128,9 +128,18 @@ export function typeOfWorkOf(tree) {
  * and `applyBiGlassCasement` refuses anything else, so the control and the
  * rule cannot drift apart.
  *
- * IN: a casement window — at least one plain `casementSashPart` and no door
- * leaf. That is the engine's `is_casement_window` for every tree this
- * returns true for, so what the board offers is what prices.
+ * IN: a casement window — at least one casement sash and no door leaf. That
+ * is the engine's `is_casement_window` exactly (`allCasementSashes` is the
+ * same CASEMENT_SASH_TYPES list), so what the board offers is what prices.
+ *
+ * A FRENCH CASEMENT is IN since Step BK. The BJ follow-up kept it out
+ * because a pair stores its mechanical clearances on the PAIR, not on the
+ * leaves — `casementSashSize` reads `frenchPairFor(...)` first — so zeroing
+ * the leaves alone would have left the sashes 4 mm inside the opening and
+ * sized the glass as though clearance still applied. Integrate had no
+ * reading either. The addendum of 16 Oct reads both: the tick zeroes the
+ * frame, the pair AND the leaves, and `applyBiGlassCasement` now does the
+ * same, which is what makes BGF1 and BGF2 exact.
  *
  * OUT, and each for a reason:
  *
@@ -138,20 +147,6 @@ export function typeOfWorkOf(tree) {
  *    makes `is_casement_window` false, so the casement rules do not fire and
  *    the bi-glass figures in this step do not apply. Nathan asked for
  *    casement windows.
- *
- *  - a FRENCH CASEMENT pair. This one is a judgement and it is deliberate.
- *    Its leaves ARE in CASEMENT_SASH_TYPES, so `is_casement_window` is true
- *    and the step's scope would have taken it — but a French pair stores its
- *    mechanical clearances on the PAIR, not on the leaves
- *    (`casementSashSize` reads `frenchPairFor(...)` first and the leaf only
- *    as a fallback). So setting the leaves' clearances to 0 would NOT make
- *    them fill the opening: the sashes would keep their 4 mm inset, the
- *    glass would be sized as though clearance still applied, and the price
- *    would be quietly wrong. Integrate has no reading for a bi-glass French
- *    pair either — the facts list it under "Not read". Offering a control
- *    that half-applies is worse than not offering it, so a tree holding a
- *    `frenchCasementPart` is out until there is a reading and the pair's
- *    clearances are handled.
  *
  *  - a DIRECT-GLAZED-ONLY frame. It has no sash at all, so there is nothing
  *    to keep: "the sashes are kept and the glass is replaced" has no meaning,
@@ -163,13 +158,13 @@ export function typeOfWorkOf(tree) {
  */
 export function canBeBiGlass(tree) {
   if (!tree) return false
-  // A plain casement sash, not a French leaf: the French pair is out, above.
-  if (findAllOf(tree, ['casementSashPart']).length === 0) return false
+  // Any casement sash, a French leaf included — the same list the engine's
+  // is_casement_window is built on.
+  if (findAllOf(tree, CASEMENT_SASH_TYPES).length === 0) return false
   // DOOR_LEAF_LIKE is the engine's own list: a plain leaf and both French
   // door leaves, which is what makes `is_door` true and is_casement_window
   // false. A stable door's halves and a flag frame's door are leaves too.
   if (findAllOf(tree, DOOR_LEAF_LIKE).length > 0) return false
-  if (findAllOf(tree, [FRENCH_PAIR_PART]).length > 0) return false
   return true
 }
 
@@ -233,7 +228,32 @@ export function applyBiGlassCasement(tree) {
 
   const clearance = toBiGlass ? BI_GLASS_CLEARANCE_MM : CASEMENT_CLEARANCE_MM
 
+  // Step BK: THE PAIR, before its leaves.
+  //
+  // A French pair stores the mechanical clearances for both its leaves, and
+  // `casementSashSize` reads `frenchPairFor(...)` FIRST — the leaf's own
+  // value is only a fallback. So this is the one that decides whether the
+  // leaves fill the opening, and zeroing the leaves without it would leave
+  // them 4 mm inside and size the glass as though clearance still applied.
+  // That is precisely why the Step BJ follow-up refused to offer the switch
+  // on a pair at all.
+  //
+  // `gapBetweenMeetingStiles` is NOT touched: the tick removes the
+  // clearance, not the 4 mm between the two meeting stiles (facts addendum,
+  // 16 Oct).
+  for (const pair of findAllOf(out, [FRENCH_PAIR_PART])) {
+    const patch = {}
+    for (const f of CLEARANCE_FIELDS) {
+      if (Number(pair.values?.[f]) !== clearance) patch[f] = clearance
+    }
+    if (Object.keys(patch).length > 0) {
+      out = updateNodeValues(out, pair.key, patch)
+      changed.push(`${pair.key}.mechanicalClearance`)
+    }
+  }
+
   for (const sash of findAllOf(out, CASEMENT_SASH_TYPES)) {
+    const isFrenchLeaf = FRENCH_SASH_TYPES.includes(sash.part_type)
     // 1. the sash is kept on bi-glass, made on complete new
     const wantReplaced = !toBiGlass
     if (sash.values?.toBeReplaced !== wantReplaced) {
@@ -241,13 +261,31 @@ export function applyBiGlassCasement(tree) {
       changed.push(`${sash.key}.toBeReplaced`)
     }
     // 2. the sash IS its opening on bi-glass ("Include Clearance" off)
-    const patch = {}
-    for (const f of CLEARANCE_FIELDS) {
-      if (Number(sash.values?.[f]) !== clearance) patch[f] = clearance
-    }
-    if (Object.keys(patch).length > 0) {
-      out = updateNodeValues(out, sash.key, patch)
-      changed.push(`${sash.key}.mechanicalClearance`)
+    //
+    // Integrate zeroes a French LEAF as well as its pair, so going to
+    // bi-glass sets both. Coming BACK, a leaf's keys are REMOVED rather than
+    // set to 4: a French leaf never carries its own clearance — the pair
+    // owns it and is read first — so putting 4 on the leaf would be
+    // inventing a value the board never stores, and the round trip would not
+    // return the tree it started from.
+    if (isFrenchLeaf && !toBiGlass) {
+      let dropped = false
+      for (const f of CLEARANCE_FIELDS) {
+        if (sash.values?.[f] !== undefined) {
+          out = deleteNodeValue(out, sash.key, f)
+          dropped = true
+        }
+      }
+      if (dropped) changed.push(`${sash.key}.mechanicalClearance`)
+    } else {
+      const patch = {}
+      for (const f of CLEARANCE_FIELDS) {
+        if (Number(sash.values?.[f]) !== clearance) patch[f] = clearance
+      }
+      if (Object.keys(patch).length > 0) {
+        out = updateNodeValues(out, sash.key, patch)
+        changed.push(`${sash.key}.mechanicalClearance`)
+      }
     }
 
     // 3. the glass: single 4 mm Clear Toughened and replaced, or back to

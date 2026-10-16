@@ -159,29 +159,29 @@ describe('Step BJ follow-up — what the Type of Work select offers', () => {
     }
   })
 
-  it('a FRENCH CASEMENT is OUT, and deliberately so', () => {
-    // Its leaves are in CASEMENT_SASH_TYPES, so the step's own scope would
-    // have taken it — but a French pair stores its mechanical clearances on
-    // the PAIR, not the leaves, so applyBiGlassCasement would leave the
-    // sashes at their 4 mm inset and size the glass as though clearance
-    // still applied. Integrate has no reading for one either.
+  it('a FRENCH CASEMENT is IN — Step BK read it', () => {
+    // The BJ follow-up kept it out because the PAIR holds the clearances the
+    // tick zeroes, and Integrate had no reading. Both are settled by the
+    // 16 Oct addendum, and applyBiGlassCasement now zeroes the pair as well
+    // as the leaves — so the switch applies in full and BGF1 prices exactly.
     //
     // FR1's own tree, which is Integrate's French casement as read: one
     // frenchCasementPart holding a left and a right leaf, and no mullion.
     const tree = BENCHMARK_FR1.tree
     expect(findPartTypes(tree)).toContain('frenchCasementPart')
-    expect(canBeBiGlass(tree)).toBe(false)
-    expect(typeOfWorkCodesFor(tree, TYPE_OF_WORK_OPTIONS)).toEqual(CASEMENT_TYPES_OF_WORK)
+    expect(canBeBiGlass(tree)).toBe(true)
+    expect(typeOfWorkCodesFor(tree, TYPE_OF_WORK_OPTIONS))
+      .toEqual(['complete_new', 'bi_glass', 'no_work'])
   })
 
-  it('and a fanlight OVER a French pair is out too — the pair is still there', () => {
-    // FR2: an ordinary casement fanlight above a French pair. The fanlight
-    // alone would qualify, so this is the mixed case that must not slip
-    // through — half the openings would switch properly and half would not.
+  it('and a fanlight OVER a French pair is in too — FR2’s layout', () => {
+    // The mixed case: an ordinary casement fanlight above a French pair.
+    // Both kinds of opening have to switch properly, which is what BGF2 is.
     const tree = BENCHMARK_FR2.tree
     expect(findPartTypes(tree)).toContain('casementSashPart')
     expect(findPartTypes(tree)).toContain('frenchCasementPart')
-    expect(canBeBiGlass(tree)).toBe(false)
+    expect(canBeBiGlass(tree)).toBe(true)
+    expect(typeOfWorkCodesFor(tree, TYPE_OF_WORK_OPTIONS)).toContain(BI_GLASS_CODE)
   })
 
   it('a DIRECT-GLAZED-ONLY frame is OUT — there is no sash to keep', () => {
