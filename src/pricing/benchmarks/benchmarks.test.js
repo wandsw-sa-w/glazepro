@@ -4454,13 +4454,30 @@ describe('Step BL — live-quote benchmarks', () => {
       .filter(l => l.fires && !l.error && l.name === 'Shaped Glass Cost')
       .map(l => Number(l.quantity.toFixed(2)))
     expect(shaped(BENCHMARK_LQ5)).toEqual([0.49])          // Integrate 0.30
-    expect(shaped(BENCHMARK_LQ6).sort()).toEqual([0.50, 0.57])  // Integrate 0.30 each
+    // Step BM item 2: LQ6's two bays now agree. They read 0.50 and 0.57 while
+    // the box-sash mullion was measured at the profile's 144 instead of its
+    // own stored 220, which made bay two 76 mm too wide.
+    expect(shaped(BENCHMARK_LQ6)).toEqual([0.50, 0.50])    // Integrate 0.30 each
     const g5 = groupsOf(runLQ(BENCHMARK_LQ5)).glass_done -
       INTEGRATE.benchmarkLQ5_box_sash_frame_arch_custom_horn.groups.glass_done.cost
     expect(g5).toBeCloseTo(7.76, 2)
     const g6 = groupsOf(runLQ(BENCHMARK_LQ6)).glass_done -
       INTEGRATE.benchmarkLQ6_double_box_sash_level_arch.groups.glass_done.cost
-    expect(g6).toBeCloseTo(24.79, 2)
+    expect(g6).toBeCloseTo(16.74, 2)
+    // and it is DECISION e, twice: 8.37 an arched unit, the same mechanism
+    // benchmark C declares at 7.37 on a smaller arch.
+    expect(g6 / 2).toBeCloseTo(8.37, 2)
+  })
+
+  it('Step BM item 2 made LQ6’s materials exact and its steel the parked 28p', () => {
+    // The mullion fix was worth £8.05 on LQ6: manufacture_materials went from
+    // +1.20 to exact, and installation_materials from +3.92 to the same 28p of
+    // parked steel weight every box sash carries.
+    const g = groupsOf(runLQ(BENCHMARK_LQ6))
+    expect(g.manufacture_materials).toBeCloseTo(138.12, 2)
+    expect(g.installation_materials -
+      INTEGRATE.benchmarkLQ6_double_box_sash_level_arch.groups.installation_materials.cost)
+      .toBeCloseTo(0.28, 2)
   })
 
   it('every other group on LQ2, LQ5, LQ6, LQ7 and LQ8 is exact or parked', () => {

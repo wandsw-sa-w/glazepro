@@ -72,6 +72,27 @@ export function computeOpeningLayout(mullions, iW, thicknessFor = null) {
 // and carries its own thickness (27 on Integrate's flush casement
 // template) — it must not take the hollow box-sash profile value.
 export function mullionThicknessMm(mullion, profileValues = null, { hollow = true } = {}) {
+  // Step BM item 2: THE MULLION'S OWN THICKNESS WINS.
+  //
+  // This used to return the profile's hollow section whenever a profile was
+  // given, ignoring what the drawing stored. Step AD chose that because the
+  // template of the day stored a placeholder, and benchmark D's mullion
+  // happens to store the profile's own 144 — so nothing ever caught it.
+  //
+  // A real drawing settles it. L34265 items 1 and 2 are double boxes with a
+  // 220 mm hollow mullion (live drawings 122 / 123). Measured at 144, the
+  // FIRST bay is still right — its width is the stored offset — and the
+  // SECOND absorbs the whole 76 mm error: interior 1450 − offset 615 − 144
+  // gives 691 where the drawing says 615, so bay two's sash came out 686
+  // wide instead of 610. Its arch radius then derived as
+  // (588²/4 + 256²) / 512 = 296.82 against bay one's 256, which is exactly
+  // what the reviewer read, and its glass area, weight and timber followed.
+  //
+  // So the stored value is the truth and the profile is the fallback, which
+  // is how every other section in this codebase is read. Benchmark D is
+  // unmoved: its mullion stores 144, the same as the profile.
+  const stored = safe(mullion?.values?.thicknessInFrame)
+  if (stored != null) return stored
   if (hollow && profileValues != null) {
     const t = safe(profileValues.thicknessInFrameHollow)
     if (t == null) {
