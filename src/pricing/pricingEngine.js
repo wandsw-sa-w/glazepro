@@ -1481,11 +1481,21 @@ export function runPricingOnTree(tree, rules, pfVariables = {}, {
   // 180 min = 25.25 h). They are not rules, so each is pushed as its own
   // line, named after the description, so the breakdown shows where the
   // hours came from.
+  //
+  // Step BS follow-up item 1: the line HANGS OFF THE "LABOUR" PRICE RULE —
+  // the one whose quantity is installation_labour_time, which is what these
+  // minutes are. drawing_rule_results.price_rule_id is NOT NULL, and a line
+  // with no rule behind it could not be saved: drawing 117 priced its 180
+  // minutes offline and failed live. No new rule; the Labour rule is found
+  // by what it reads, not by its name.
+  const labourRule = rules.find(r => r.rule_family === 'price' &&
+    /\binstallation_labour_time\b/.test(String(r.quantity ?? '')))
   for (const poa of poaInstallLines(tree)) {
     instMinutes += poa.amount
+    const name = `POA — ${poa.description || 'installation'}`
     results.install_labour.lines.push({
-      rule_id: null, rule_family: 'install_labour', group_name: 'POA',
-      name: `POA — ${poa.description || 'installation'}`,
+      rule_id: labourRule?.id ?? null, rule_family: 'install_labour', group_name: 'POA',
+      name, alloc_label: name,
       loop_target: 'drawing_poa', part_key: null, part_type: 'pricePart',
       fires: true, quantity: poa.amount, value: 1, minutes: poa.amount,
       error: null, defaulted_vars: [],
@@ -1867,6 +1877,21 @@ export async function priceDrawing(drawingId, supabase, { priceFileId } = {}) {
       }
     }
 
+    // Step BS follow-up item 4: a run this drawing was left IN PROGRESS on —
+    // by a crash, a closed tab, or the failure path that could not mark it —
+    // is marked failed here, before the new run is made. Readers take
+    // complete runs only, so a stuck one costs nothing but confusion; this
+    // is so it cannot sit there for ever. Done in the engine rather than by
+    // SQL, so the next price of a drawing always tidies after the last.
+    {
+      const { error: staleErr } = await supabase
+        .from('pricing_runs')
+        .update({ status: 'failed', warnings: ['Superseded: this run was left in_progress and never finished; a later run replaced it'] })
+        .eq('drawing_id', drawingId)
+        .eq('status', 'in_progress')
+      if (staleErr) console.warn('[priceDrawing] could not mark stale in_progress runs failed:', staleErr.message)
+    }
+
     const { data: pricingRun, error: runErr } = await supabase
       .from('pricing_runs')
       .insert({
@@ -1936,19 +1961,9 @@ export async function priceDrawing(drawingId, supabase, { priceFileId } = {}) {
     }
 
     // ── 9. Write install_labour results ───────────────────────────────────────
-    const instResultRows = engineResults.install_labour.lines
-      .filter(l => l.fires && !l.error)
-      .map(l => ({
-        drawing_id:       drawingId,
-        price_file_id:    resolvedPriceFileId,
-        pricing_run_id:   pricingRunId,
-        price_rule_id:    l.rule_id,
-        loop_target_type: l.loop_target,
-        loop_index:       null,
-        cost:             l.minutes,
-        sales:            null,
-        markup_applied:   null,
-      }))
+    const instResultRows = installResultRows(engineResults.install_labour.lines, {
+      drawingId, priceFileId: resolvedPriceFileId, pricingRunId,
+    })
 
     if (instResultRows.length > 0) {
       const { error: instInsErr } = await supabase
@@ -2093,16 +2108,56 @@ export async function priceDrawing(drawingId, supabase, { priceFileId } = {}) {
   } catch (err) {
     console.error('[priceDrawing] error:', err)
 
+    // Step BS follow-up item 2: a run must never be left in_progress. This
+    // used to call `.catch()` on the PostgREST builder, which is thenable but
+    // not a Promise and has no `.catch` — so the TypeError escaped, the run
+    // was never marked, and drawing 117's sat in_progress with 25 of its
+    // lines written. Await it, read `error`, and keep the message on the run
+    // so the breakdown can say why.
     if (pricingRunId) {
-      await supabase
-        .from('pricing_runs')
-        .update({ status: 'failed' })
-        .eq('id', pricingRunId)
-        .catch(e => console.error('[priceDrawing] failed to mark run as failed:', e))
+      try {
+        const { error: failErr } = await supabase
+          .from('pricing_runs')
+          .update({ status: 'failed', warnings: [`Pricing failed: ${err.message}`] })
+          .eq('id', pricingRunId)
+        if (failErr) console.error('[priceDrawing] failed to mark run as failed:', failErr.message)
+      } catch (e) {
+        console.error('[priceDrawing] failed to mark run as failed:', e)
+      }
     }
 
     return { success: false, error: err.message }
   }
+}
+
+/**
+ * Step BS follow-up item 3: the install_labour rows a run writes. Every row
+ * needs a price_rule_id — the column is NOT NULL — so a line with none is
+ * refused HERE, by name, before anything is sent: a programming error that
+ * shows in a test, not a half-written run that shows in a database.
+ */
+export function installResultRows(lines, { drawingId, priceFileId, pricingRunId }) {
+  return (lines ?? [])
+    .filter(l => l.fires && !l.error)
+    .map(l => {
+      if (l.rule_id == null) {
+        throw new Error(`install_labour line "${l.name}" has no price rule behind it ` +
+          '(price_rule_id would be null) — it cannot be written to drawing_rule_results')
+      }
+      return {
+        drawing_id:       drawingId,
+        price_file_id:    priceFileId,
+        pricing_run_id:   pricingRunId,
+        price_rule_id:    l.rule_id,
+        loop_target_type: l.loop_target,
+        loop_index:       null,
+        cost:             l.minutes,
+        quantity:         l.minutes,
+        part_label:       l.alloc_label ?? null,
+        sales:            null,
+        markup_applied:   null,
+      }
+    })
 }
 
 // ── priceQuote ────────────────────────────────────────────────────────────────
